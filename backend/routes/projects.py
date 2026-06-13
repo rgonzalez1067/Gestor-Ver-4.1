@@ -893,6 +893,29 @@ async def download_ficha_tecnica(project_id: str, authorization: Optional[str] =
             for s in project.get("stores", [])
         ]
 
+    # VPOS Multi-RIF: construir la distribución jerárquica (Cliente/RIF ->
+    # Sucursales -> Cajas) desde rifs + stores del proyecto, para que la Ficha
+    # Técnica imprima el "Detalle de Tiendas y Sucursales" jerárquico.
+    is_multirif_project = (project.get("project_type") or "").lower() == "multirif" or bool(project.get("rifs"))
+    if is_multirif_project:
+        stores_all = project.get("stores") or []
+        mr_dist = []
+        for rif in (project.get("rifs") or []):
+            rid = rif.get("rif_id")
+            rif_stores = [s for s in stores_all if s.get("rif_id") == rid]
+            mr_dist.append({
+                "client_name": rif.get("client_name") or "Cliente",
+                "rif": rif.get("rif") or "",
+                "boxes": int(rif.get("box_count") or 0),
+                "stores": [
+                    {"name": s.get("name", ""), "boxes": int(s.get("box_count") or 0)}
+                    for s in rif_stores
+                ],
+            })
+        if mr_dist:
+            quote_like["multirif_distribution"] = mr_dist
+            quote_like["is_multirif"] = True
+
     pdf_bytes = generate_implementation_pdf(quote_like, client, contacts, branches)
     safe_num = str(quote_like.get("quote_number") or project_id).replace("/", "_").replace(" ", "_")
     return Response(

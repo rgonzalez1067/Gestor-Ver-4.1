@@ -835,6 +835,13 @@ export const QuoteModals = ({ ctx }) => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
+                        // VPOS Multi-RIF: pinpad_question es el PRIMER paso (se omitió el
+                        // modal de Multitienda), por lo que "Atrás" cierra el wizard.
+                        const _q = getMultistoreQuote && getMultistoreQuote();
+                        if ((_q?.quote_type || '').toUpperCase() === 'VPOS_MULTIRIF') {
+                          setMultistoreDialogOpen(false);
+                          return;
+                        }
                         // Si venimos desde multistore: volver a inherited/collect/ask; si no, cancelar
                         if (isMultistore) setMultistorePhase('collect');
                         else setMultistorePhase('ask');

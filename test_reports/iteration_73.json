@@ -1,0 +1,32 @@
+{
+  "summary": "Validated end-to-end the VPOS_MULTIRIF 'Enviar a Implementación' bug fix. FRONTEND: With quote COT-2026-06-068-PYME (quo_260f2aa66422, VPOS_MULTIRIF, status=Borrador) clicking 'Enviar a Implementación' triggers (a) Alerta de Flujo Irregular modal (expected since quote needs Pagada), (b) Personalizar Comunicación modal, and after Continuar (c) opens the multistore wizard DIRECTLY on the Pinpads phase: data-testid='pyme-pinpad-question-phase' visible=True, the heading '¿La implementación requiere Pinpads?' is shown with 'Paso 1 de 3' label. NO '¿El Proyecto es Multitienda?' modal appears (count=0). The 'Atrás' button (pinpad-question-back-btn) CLOSES the wizard cleanly for VPOS_MULTIRIF (verified by checking the pinpad phase is no longer visible after click), confirming no navigation to non-existent 'collect'/'ask' phases. BACKEND: pytest tests/test_ficha_multirif.py 2/2 PASS and a live curl to GET /api/projects/prj_e586608e3579/ficha-tecnica returns HTTP 200 application/pdf (5239 bytes). pypdf extraction confirms the PDF contains 'DETALLE DE TIENDAS Y SUCURSALES', 'Multi-RIF' label, the 3 RIFs (BRASERO, BARAKO, CARBON), and 'TOTAL GENERAL 28'. Bug-fix verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/quotes (QuotesTable)", "issues": ["Pre-existing React hydration warning '<span> cannot be a child of <tbody>' / '<tr> cannot be a child of <span>' caused by <span data-ve-dynamic style='display:contents'> wrapper around <tr>. Documented in iterations 70-72; NOT related to this fix."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ficha_multirif.py"
+  ],
+  "action_items": [
+    "None blocking for this fix. (Optional pre-existing) Remove the <span data-ve-dynamic> wrapper around <tr> in QuotesTable.jsx to remove the React hydration warning."
+  ],
+  "critical_code_review_comments": [
+    "Quotes.jsx openMultistoreDialog (line 2696) correctly branches on quote_type==='VPOS_MULTIRIF': sets is_multistore=true, projectTypeImpl='vpos_mpos', multistorePhase='pinpad_question' and RETURNS WITHOUT calling handleSendToImplementation (no early-return-to-direct-send). The fix correctly preserves the wizard.",
+    "QuoteModals.jsx pinpad_question phase Back button (line 837-848) checks getMultistoreQuote()?.quote_type === 'VPOS_MULTIRIF' and closes the dialog via setMultistoreDialogOpen(false) instead of routing to non-existent 'collect'/'ask' phases — correct.",
+    "Regression NOT introduced for non-multirif quotes: openMultistoreDialog still sets isMultistore=null and triggers handleProjectTypeSelect(inferred) for VPOS/MPOS/GATEWAY/FAST_TRACK paths (visible at lines 2738-2751).",
+    "Backend services/implementation_pdf.py _build_multirif_table correctly renders Cliente(RIF) -> Sucursales -> Cajas hierarchy and emits a 'TOTAL GENERAL' row — confirmed in extracted PDF text from prj_e586608e3579.",
+    "Backend routes/projects.py download_ficha_tecnica constructs multirif_distribution from project.rifs + project.stores — verified on live data (3 RIFs, 28 cajas)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (2/2 pytest + live PDF verified)", "frontend": "100% (3/3 critical wizard tests pass)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Used existing quo_260f2aa66422 (VPOS_MULTIRIF Borrador, 50 cajas, 3 RIFs) and prj_e586608e3579 (multirif project, 28 cajas).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug-fix VALIDATED. Selectors verified: data-testid='pyme-pinpad-question-phase' (wizard step 1 for VPOS_MULTIRIF), 'pinpad-question-back-btn' (closes wizard for VPOS_MULTIRIF; navigates to ask/collect for non-multirif), 'pinpad-no-btn'/'pinpad-yes-btn'/'pinpad-yes-other-btn', 'consolidated-data-phase', 'confirm-implementer-phase', 'confirm-implementer-advance-btn'. To reach the wizard for quo_260f2aa66422 (still Borrador), the flow sequence is: action menu -> 'Enviar a Implementación' -> Alerta de Flujo Irregular modal (fill motivo + date 'input[type=\"date\"]') -> Confirmar Acción -> Personalizar Comunicación modal -> Continuar -> wizard opens at pinpad_question. Note: the date input in the Irregular modal shares CSS selector input[type=date] with the page-level Desde/Hasta filters, so do not loosely target it after closing — use a scoped locator within the modal. End-to-end completion of the wizard (to actually create the project) would require quote to be Pagada (backend rule).",
+  "rca of the issue": "Previous bug: openMultistoreDialog had an aggressive bypass that for VPOS_MULTIRIF called handleSendToImplementation directly with an early return, skipping the entire technical wizard. Fix applied in Quotes.jsx (~L2725) routes VPOS_MULTIRIF to multistorePhase='pinpad_question' with is_multistore=true preset, AND in QuoteModals.jsx pinpad_question Back handler (~L837) closes the wizard for VPOS_MULTIRIF instead of navigating to phases that no longer exist for this flow. Both changes are present and behave correctly under live test."
+}

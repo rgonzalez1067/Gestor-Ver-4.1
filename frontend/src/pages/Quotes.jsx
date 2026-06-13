@@ -2694,21 +2694,14 @@ export const Quotes = () => {
 
   // ==================== FLUJO MULTITIENDA ====================
   const openMultistoreDialog = (quoteId, exceptionInfo) => {
-    // VPOS Multi-RIF: por naturaleza es multitienda (jerarquía Global→RIF→Sucursal).
-    // Se OMITE el modal "¿Es Multitienda?" y se envía directo a implementación;
-    // el backend construye la estructura de 3 niveles desde multirif_distribution.
     const _q = quotes.find(q => q.quote_id === quoteId);
-    if ((_q?.quote_type || '').toUpperCase() === 'VPOS_MULTIRIF') {
-      setProjectTypeImpl('vpos_mpos');
-      handleSendToImplementation(quoteId, exceptionInfo, null);
-      return;
-    }
+    const _isMultiRif = (_q?.quote_type || '').toUpperCase() === 'VPOS_MULTIRIF';
+
+    // ── Reset común del wizard de implementación ──
     setMultistoreQuoteId(quoteId);
     setMultistoreExceptionInfo(exceptionInfo);
-    setIsMultistore(null);
     setMultistoreNewStore({ name: '', box_count: '' });
     setMultistoreSending(false);
-    setProjectTypeImpl(null);
     setEquipmentList([]);
     setEquipmentAvailable({ quote_equipment: [], rif_equipment: [] });
     setEquipmentSelected({});
@@ -2728,10 +2721,26 @@ export const Quotes = () => {
     setImplInstructions('');
     setImplInstructionsLen(0);
     setMultistoreDialogOpen(true);
+
+    if (_isMultiRif) {
+      // VPOS Multi-RIF: la condición multitienda es intrínseca (jerarquía
+      // Global→RIF→Sucursal que el backend construye desde multirif_distribution).
+      // Se OMITE ÚNICAMENTE el modal "¿Es Multitienda?" (asignando TRUE por debajo),
+      // pero se MANTIENEN obligatorios los pasos siguientes del wizard:
+      // Pinpads → Impresora Fiscal → Servi → Confirmación.
+      setProjectTypeImpl('vpos_mpos');
+      setIsMultistore(true);
+      setMultistoreStores([]);
+      setMultistorePhase('pinpad_question');
+      return;
+    }
+
+    // ── Flujo estándar (no Multi-RIF) ──
+    setIsMultistore(null);
+    setProjectTypeImpl(null);
     // Auto-inferir project_type desde la cotización (elimina paso manual).
     // VPOS → vpos_mpos (búsqueda por RIF);  GATEWAY → payment_gateway;  MPOS/FAST_TRACK → pos_fast_track
-    const quote = quotes.find(q => q.quote_id === quoteId);
-    const qt = (quote?.quote_type || '').toUpperCase();
+    const qt = (_q?.quote_type || '').toUpperCase();
     let inferred = 'pos_fast_track';
     if (qt === 'VPOS') inferred = 'vpos_mpos';
     else if (qt === 'GATEWAY' || qt === 'LINK') inferred = 'payment_gateway';

@@ -97,6 +97,72 @@ def _key_value_table(pairs, styles):
     return t
 
 
+def _build_multirif_table(distribution, styles):
+    """Tabla jerárquica Multi-RIF para la Ficha Técnica:
+    Cliente (RIF) -> Sucursales -> Cajas, con fila TOTAL GENERAL.
+    Replica la estructura usada en el PDF de cotización (pdf_generator)."""
+    header = [
+        Paragraph("<b>N°</b>", styles['SmallWhite']),
+        Paragraph("<b>Cliente (RIF) / Sucursal</b>", styles['SmallWhite']),
+        Paragraph("<b>Cajas</b>", styles['SmallWhite']),
+    ]
+    data = [header]
+    style_cmds = [
+        ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
+        ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+    ]
+    rif_label_style = ParagraphStyle(
+        'MRRifImpl', fontName='Helvetica-Bold', fontSize=9, textColor=COLOR_AZUL
+    )
+    row = 1
+    grand = 0
+    for rif in distribution:
+        name = rif.get('client_name') or 'Cliente'
+        rif_num = rif.get('rif') or ''
+        boxes = int(rif.get('boxes') or 0)
+        grand += boxes
+        data.append([
+            Paragraph(f"<b>{name}</b> &nbsp;—&nbsp; RIF: {rif_num}", rif_label_style),
+            '',
+            Paragraph(f"<b>{boxes}</b>", styles['SmallText']),
+        ])
+        style_cmds.append(('SPAN', (0, row), (1, row)))
+        style_cmds.append(('BACKGROUND', (0, row), (-1, row), COLOR_AZUL_CLARO))
+        row += 1
+        stores = rif.get('stores') or []
+        for j, st in enumerate(stores, 1):
+            data.append([
+                Paragraph(str(j), styles['SmallText']),
+                Paragraph(f"&nbsp;&nbsp;&nbsp;{st.get('name', '')}", styles['SmallText']),
+                Paragraph(str(int(st.get('boxes') or 0)), styles['SmallText']),
+            ])
+            row += 1
+        if not stores:
+            data.append([
+                Paragraph('', styles['SmallText']),
+                Paragraph('&nbsp;&nbsp;&nbsp;(sin sucursales)', styles['SmallText']),
+                Paragraph('—', styles['SmallText']),
+            ])
+            row += 1
+    data.append([
+        Paragraph('', styles['SmallText']),
+        Paragraph('<b>TOTAL GENERAL</b>', styles['SmallText']),
+        Paragraph(f"<b>{grand}</b>", styles['SmallText']),
+    ])
+    style_cmds.append(('BACKGROUND', (0, row), (-1, row), COLOR_AZUL_CLARO))
+    style_cmds.append(('FONTNAME', (0, row), (-1, row), 'Helvetica-Bold'))
+    t = Table(data, colWidths=[40, 330, 110], repeatRows=1)
+    t.setStyle(TableStyle(style_cmds))
+    return t
+
+
 def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branches: list, logo_path: str = None) -> bytes:
     buf = io.BytesIO()
     styles = _build_styles()
@@ -411,58 +477,68 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
 
     # ==================== 6. DISTRIBUCIÓN LOGÍSTICA ====================
     next_letter = chr(ord(section_letter) + 1)
-    elements.append(_section_banner(f"{next_letter}. DISTRIBUCION LOGISTICA (Sucursales)", styles))
-    elements.append(Spacer(1, 6))
-
-    branch_header = [
-        Paragraph("<b>#</b>", styles['SmallWhite']),
-        Paragraph("<b>Nombre de Sucursal</b>", styles['SmallWhite']),
-        Paragraph("<b>Cant. Cajas</b>", styles['SmallWhite']),
-    ]
-    branch_data = [branch_header]
-
-    if branches and len(branches) > 0:
-        for idx, b in enumerate(branches, 1):
-            branch_data.append([
-                Paragraph(str(idx), styles['SmallText']),
-                Paragraph(str(b.get('store_name', f'Sucursal {idx}')), styles['SmallText']),
-                Paragraph(str(b.get('quantity', 0)), styles['SmallText']),
-            ])
+    # VPOS Multi-RIF: si el proyecto trae la distribución jerárquica
+    # (Cliente/RIF -> Sucursales -> Cajas), se renderiza el "Detalle de
+    # Tiendas y Sucursales" jerárquico en lugar de la lista plana de sucursales.
+    multirif_distribution = quote.get("multirif_distribution") or []
+    if multirif_distribution:
+        elements.append(_section_banner(f"{next_letter}. DETALLE DE TIENDAS Y SUCURSALES (Multi-RIF)", styles))
+        elements.append(Spacer(1, 6))
+        elements.append(_build_multirif_table(multirif_distribution, styles))
+        elements.append(Spacer(1, 14))
     else:
+        elements.append(_section_banner(f"{next_letter}. DISTRIBUCION LOGISTICA (Sucursales)", styles))
+        elements.append(Spacer(1, 6))
+
+        branch_header = [
+            Paragraph("<b>#</b>", styles['SmallWhite']),
+            Paragraph("<b>Nombre de Sucursal</b>", styles['SmallWhite']),
+            Paragraph("<b>Cant. Cajas</b>", styles['SmallWhite']),
+        ]
+        branch_data = [branch_header]
+
+        if branches and len(branches) > 0:
+            for idx, b in enumerate(branches, 1):
+                branch_data.append([
+                    Paragraph(str(idx), styles['SmallText']),
+                    Paragraph(str(b.get('store_name', f'Sucursal {idx}')), styles['SmallText']),
+                    Paragraph(str(b.get('quantity', 0)), styles['SmallText']),
+                ])
+        else:
+            branch_data.append([
+                Paragraph("1", styles['SmallText']),
+                Paragraph("Sucursal Unica", styles['SmallText']),
+                Paragraph(str(cantidad_cajas), styles['SmallText']),
+            ])
+
+        total_cajas = sum(b.get('quantity', 0) for b in branches) if branches else cantidad_cajas
         branch_data.append([
-            Paragraph("1", styles['SmallText']),
-            Paragraph("Sucursal Unica", styles['SmallText']),
-            Paragraph(str(cantidad_cajas), styles['SmallText']),
+            Paragraph("", styles['SmallText']),
+            Paragraph("<b>TOTAL</b>", styles['SmallText']),
+            Paragraph(f"<b>{total_cajas}</b>", styles['SmallText']),
         ])
 
-    total_cajas = sum(b.get('quantity', 0) for b in branches) if branches else cantidad_cajas
-    branch_data.append([
-        Paragraph("", styles['SmallText']),
-        Paragraph("<b>TOTAL</b>", styles['SmallText']),
-        Paragraph(f"<b>{total_cajas}</b>", styles['SmallText']),
-    ])
-
-    branch_table = Table(branch_data, colWidths=[40, 330, 110])
-    branch_style = [
-        ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('ALIGN', (2, 0), (2, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BACKGROUND', (0, -1), (-1, -1), COLOR_AZUL_CLARO),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-    ]
-    for i in range(1, len(branch_data) - 1):
-        if i % 2 == 0:
-            branch_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
-    branch_table.setStyle(TableStyle(branch_style))
-    elements.append(branch_table)
-    elements.append(Spacer(1, 14))
+        branch_table = Table(branch_data, colWidths=[40, 330, 110])
+        branch_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, -1), (-1, -1), COLOR_AZUL_CLARO),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ]
+        for i in range(1, len(branch_data) - 1):
+            if i % 2 == 0:
+                branch_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
+        branch_table.setStyle(TableStyle(branch_style))
+        elements.append(branch_table)
+        elements.append(Spacer(1, 14))
 
     # ==================== 7. DIRECTORIO DE CONTACTOS ====================
     next_letter2 = chr(ord(next_letter) + 1)
