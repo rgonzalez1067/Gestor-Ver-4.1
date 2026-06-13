@@ -1,5 +1,10 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Mejora: desplegable de usuarios To/CC agrupado por equipo
+
+- **Frontend (`InternalEmailInput.jsx`)**: el desplegable de usuarios internos ahora agrupa por equipo con encabezados sticky y conteo: **Dirección / Ventas / Implementación / Otros** (`TEAM_SECTIONS` + useMemo `grouped`). Solo se muestran las secciones no vacías; al filtrar por texto se re-agrupa. testids: `${testId}-group-<key>`.
+- **Validado (iteration_79)**: 100% — TO/CC con headers Dirección(2)/Ventas(6)/Implementación(11), sin 'Otros' (profile strategic), filtro 'gonz' re-agrupa, selección OK.
+
 ## 2026-06-13 — Fix: lista de emails (To/CC) en Notificaciones de Proyecto venía corta
 
 - **Causa raíz (frontend `InternalEmailInput.jsx`)**: el dropdown de usuarios internos limitaba a **8** resultados (`.slice(0, 8)`), por lo que aunque el backend devolvía 19 usuarios estratégicos, solo se mostraban 8. Se eliminó el cap: con query vacío muestra TODA la lista y al escribir muestra TODAS las coincidencias (contenedor `max-h-52` con scroll).
