@@ -14,7 +14,7 @@ import sys
 # Add backend to path for imports
 sys.path.insert(0, '/app/backend')
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://vpos-multirif-fix.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://rif-desglose.preview.emergentagent.com').rstrip('/')
 
 class TestBillingPDFGeneration:
     """Test billing_pdf.py PDF generation"""

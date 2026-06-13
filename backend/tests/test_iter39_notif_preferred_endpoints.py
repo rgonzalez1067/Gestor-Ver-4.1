@@ -12,7 +12,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://vpos-multirif-fix.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://rif-desglose.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "rgonzalez@megasoft.com.ve"
 ADMIN_PASSWORD = "admin123"
 PROJECT_ID = "prj_826643491b64"

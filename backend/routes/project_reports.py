@@ -140,8 +140,9 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
     project_type = proj.get("project_type", "single")
 
     # Recolectar matrices a evaluar: lista de (label, matrix, fallback_box_count)
+    # Multitienda y Multi-RIF comparten la estructura por tienda (proj.stores).
     matrices_by_label = []
-    if project_type == "multistore":
+    if project_type in ("multistore", "multirif"):
         for st in (proj.get("stores") or []):
             if stores_filter and st.get("store_id") not in stores_filter:
                 continue
