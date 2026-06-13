@@ -1828,8 +1828,8 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    if project.get("project_type") != "multistore":
-        raise HTTPException(status_code=400, detail="Solo proyectos multitienda")
+    if project.get("project_type") not in ("multistore", "multirif"):
+        raise HTTPException(status_code=400, detail="Solo proyectos multitienda o Multi-RIF")
     if not project.get("client_notified"):
         raise HTTPException(status_code=400, detail="Debe notificar al cliente primero antes de actualizar la matriz")
 

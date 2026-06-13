@@ -1,5 +1,11 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Fix: Actualización Masiva bloqueada en proyectos Multi-RIF ("Solo proyectos multitienda")
+
+- **Backend (`projects.py` · `batch_update_multistore_matrix`, línea ~1831)**: la validación rechazaba todo proyecto con `project_type != "multistore"`, devolviendo "Solo proyectos multitienda" al aplicar en un proyecto `multirif` (aunque el botón/modal ya se mostraban tras el fix de Fase 5). Ahora acepta `("multistore", "multirif")`. El resto de la lógica (matriz por tienda, rollup, bitácora) es genérica y funciona igual.
+- **Validado E2E (curl)**: POST batch-update sobre prj_e586608e3579 (RIF Brasero, fase Recibido, 6 medios, 2 tiendas) → HTTP 200 "Actualización masiva aplicada a 2 tienda(s)". Avance reflejado: Marquez/Centro 25% (1/4 fases), rollup global 12.5%.
+
+
 ## 2026-06-13 — VPOS Multi-RIF · % de avance por RIF (modal Actualización Masiva + árbol)
 
 - **Modal "Actualización Masiva" (`BatchUpdateModal.jsx`)**: el Select de RIF ahora muestra un chip de % por opción (`batch-rif-pct-<rif_id>` y `batch-rif-pct-all`), una mini barra de avance del alcance seleccionado (`batch-rif-progress` / `batch-rif-progress-pct`) y un chip de % por cada tienda en la lista. Avance ponderado por cajas (mismo criterio que el backend/árbol).
