@@ -824,3 +824,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Backend (project_reports.py): _build_matrix_rows añade rif_id/rif/rif_name por fila; _load_project_with_filters ordena las tiendas agrupadas por su RIF (rif_order desde proj.rifs); PDF emite filas tr.rif-row (header RIF) + tr.store-row (tienda indentada) con CSS.
 - Frontend (ProjectProgressReportDialog.jsx): groupedRows emite items type:'rif' antes de type:'store'; render con data-testid='report-rif-header'.
 - Verificado: JSON (orden Brasero→Marquez/Centro; Barako→Altamira; Carbon→Altamira), PDF 200, y UI por testing_agent (iter85, frontend 100%, 7/7 checks PASS incl. filtro RIF).
+
+## 2026-06-13 · Reubicación del botón "Plantillas" + nueva Función Especial
+- Eliminado el botón 'Plantillas' (gestor global de plantillas de correo) del panel interno del proyecto (ProjectDetail.jsx); también se removió código muerto: handler openTemplatesAdmin, handleSaveTemplate/handleDeleteTemplate, estados de template, render+import de TemplatesAdminDialog.
+- El botón queda SOLO en el panel principal de Proyectos (Projects.jsx), ahora gateado por la nueva función especial 'proyectos:manage_email_templates' (label 'Gestionar Plantillas de Correo'): canManageTemplates = isAdmin || hasSpecial(flag).
+- Backend (permissions_catalog.py): agregado a SPECIAL_PERMISSIONS; se expone en GET /api/admin/permission-catalog y es asignable desde Perfiles de Seguridad (y AdminUsers lo hereda).
+- Verificado por testing_agent (iter86, frontend 100%, 6/6): botón removido del detalle, presente en panel principal solo con permiso, función visible/asignable en Perfiles, RBAC negativo (srubio no lo ve), resto del panel interno operativo.
