@@ -1,5 +1,21 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — VPOS Multi-RIF · FASE 1: Entrada Comercial + Fundamento de datos (P0, épico 5 fases)
+
+Nueva línea de producto "VPOS Multi-RIF" (lote bancario para múltiples RIFs). Fase 1 entregada:
+- **Nuevo tipo `VPOS_MULTIRIF`** en `constants.js` (QUOTE_TYPES), disponible en flujos Pyme y Corporativo.
+- **Lógica invertida en el wizard** (`QuoteWizardDialog.jsx`): al elegir el tipo se omite el selector de **Cliente** y se exige **Banco (Adquirencia)** (`multirif-bank-select`); patrocinio **implícito = Sí** (banco = patrocinador absoluto, bloque `multirif-implicit-sponsor` reemplaza la pregunta Sí/No); etiqueta **"Cajas Globales (Lote)"**; el banco de **Medios de Pago se hereda y bloquea** (useEffect → `handleBankSelect`, `select-bank` disabled), filtrando productos de esa entidad; IVA exento conservado.
+- **Flags** (`Quotes.jsx`): `isMultiRif`, `isVPOS` lo incluye (pricing = VPOS convencional); `isHeaderComplete` para multi-rif exige `sponsoring_bank_id` en lugar de `client_id`; payload `/quotes/create-with-pdf` envía `client_id:null` + `is_multirif:true`.
+- **Backend** (`quotes.py`, `models.py`): `QuoteCreateWithPDF.client_id` ahora opcional; `create-with-pdf` genera `client_name` sintético **"Lote &lt;Banco&gt; (Multi-RIF)"** y persiste `is_multirif` + `multirif_distribution` (placeholder Fase 2). Modelo `Quote` extendido con `is_multirif`/`multirif_distribution`.
+- **Validado:** testing_agent iter71 — backend 4/4 pytest, frontend 100% (Pyme + Corp invertidos, regresión VPOS intacta). Pendiente cosmético: warning hidratación `data-ve-dynamic` en QuotesTable (preexistente).
+
+### Roadmap pendiente VPOS Multi-RIF
+- **Fase 2 (P0):** Motor de distribución anidada Global→RIF→Tienda + validación de saldos ("Reel"): botón "Detalle de Tiendas/Sucursales (Multi-RIF)", buscador de Cliente/RIF con cajas, sub-sucursales (nombre+cajas), reglas Σtiendas≤RIF y ΣRIFs≤Global, bloqueo hasta 100%. Persistir en `multirif_distribution`.
+- **Fase 3 (P0):** Conversión a proyecto tipo "Multi-RIF" + tracking 3 niveles (árbol colapsable Proyecto→RIFs→Sucursales, progreso fraccionado).
+- **Fase 4 (P1):** Notificaciones — variable `{Matriz_MultiRif_Distribucion}` (tabla jerárquica Cliente(RIF)→Sucursales→Cajas).
+- **Fase 5 (P1):** Actualización Masiva con filtros en cascada (Fase→Banco→RIF→Tiendas), "Todos los RIFs" vs RIF específico.
+
+
 ## 2026-06-13 — Edición Maestra: diff de auditoría en bitácora
 
 Mejora de trazabilidad sobre los overrides de admin (`projects.py` → `master_override_project`):
