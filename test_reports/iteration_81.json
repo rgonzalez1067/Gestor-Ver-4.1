@@ -1,0 +1,67 @@
+{
+  "summary": "FRONTEND-ONLY: validada la nueva carga vía Excel de la matriz Multi-RIF en el wizard VPOS Multi-RIF. Reproducido el flujo end-to-end: login admin → /quotes → 'Nueva Cotización (Implementación)' → 'Pyme' → wizard → Tipo='VPOS Multi-RIF' → Banco Adquirencia (primero de la lista, '100% Banco') → Cajas Globales=10 → Modelo de Precios 'Modelo Convencional' → Integrador '3D Visión C.A.'. Con esto el wizard despliega secciones 2-3 y la sección final con el componente MultiRifDistributionPanel. Los 5 escenarios solicitados pasaron sin errores funcionales.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/quotes (QuotesTable) y AppRouter", "issues": ["Persisten warnings preexistentes de hydration '<span> cannot be a child of <tbody>' / '<tr> cannot be a child of <span>' por el wrapper <span data-ve-dynamic style=display:contents> alrededor de <tr>. Documentados desde iter 70-73; NO relacionados con esta feature."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MultiRifDistributionPanel.jsx (315 lns): handleExcel ejecuta REEMPLAZO sólo cuando data.ok=true (línea 112-118). Si ok=false (errores), preserva la distribución previa — correcto y consistente con la decisión 'REEMPLAZA / no bloquea ante advertencia'.",
+    "ExcelToolbar usa fileRef escondido + setExcelInput.value='' tras handleExcel (línea 132), lo que permite re-subir el MISMO archivo y disparar onChange nuevamente — buena práctica.",
+    "ImportReport: bloque success (CheckCircle, emerald), warnings (Amber con data-testid multirif-import-warning-{i}) y errores (red con data-testid multirif-import-errors y <li> con número de fila) — todos con data-testid correctos y observados en UI.",
+    "QuoteWizardDialog.jsx línea 2266-2282: MultiRifDistributionPanel renderiza correctamente cuando isMultiRif=true y globalBoxes={parseInt(cantidad_cajas)}, asignando dist via setQuoteData({...quoteData, multirif_distribution: dist}). Integración limpia.",
+    "Observación menor: el wizard requiere Modelo de Precios + Integrador antes de exponer Sección 2 → 3 → resumen ejecutivo donde vive el panel. Para QA esto NO es un bug, pero conviene mencionarlo a futuros agentes: el panel SOLO aparece después de completar Sección 1 + Integrador, no es accesible desde el primer scroll."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend-only por solicitud — endpoints sanity-checked vía page.request → /api/quotes/multirif/excel-template 200 application/vnd...spreadsheetml.sheet 6465B; POST /api/quotes/multirif/parse-excel: 3/3 escenarios con respuesta correcta)",
+    "frontend": "100% — 5/5 escenarios pasados"
+  },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (token via localStorage.session_token).",
+  "seed_data_creation": "Ninguna persistente. Se generaron 3 .xlsx en /tmp para QA: multirif_valid.xlsx (3 filas: J305857695 'Sucursal Centro' 4, 'Sucursal Este' 2; J408328747 'Sede Norte' 4 → 10 cajas), multirif_errors.xlsx (4 errores: RIF inexistente, cajas 'abc', sucursal duplicada, RIF vacío), multirif_mismatch.xlsx (J305857695 'Sucursal A' 5 + J408328747 'Sucursal B' 5 = 10 cajas).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Ruta UI para llegar al panel Multi-RIF en el wizard: 1) /quotes → btn 'create-quote-button' → 'new-impl-pyme'. 2) En el wizard: 'select-quote-type' = 'VPOS Multi-RIF' (opción visible 'VPOS Multi-RIF'). 3) 'multirif-bank-select' → primer multirif-bank-option-*. 4) 'cantidad-cajas-input' = 10. 5) Modelo de Precios (combobox sin testid; localizar por placeholder 'Seleccione modelo...') = primer option ('Modelo Convencional'). 6) Integrador (combobox sin testid) = primer 'integrator-option-*' o 'sin_integrador'. Tras esto la altura del dialog pasa de 572 a 3255px y aparecen Sección 2 (Medios de Pago), Sección Resumen Ejecutivo, y el bloque Distribución Multi-RIF con sus controles: btn-multirif-template, btn-multirif-import, multirif-excel-input, btn-expand-multirif. Para subir archivos usar page.set_input_files sobre el input oculto multirif-excel-input.",
+  "evidence": {
+    "TEST_1_PANEL_VISIBLE": {
+      "result": "PASS",
+      "details": "Tras completar Tipo+Banco+Cajas+Modelo+Integrador, MultiRifDistributionPanel renderiza. Botones data-testid='btn-expand-multirif', 'btn-multirif-template', 'btn-multirif-import' e input data-testid='multirif-excel-input' presentes en DOM."
+    },
+    "TEST_2_DESCARGA_PLANTILLA": {
+      "result": "PASS",
+      "filename": "plantilla_distribucion_multirif.xlsx",
+      "api_check": "GET /api/quotes/multirif/excel-template → 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (6465 bytes)"
+    },
+    "TEST_3_CARGA_VALIDA": {
+      "result": "PASS",
+      "file": "/tmp/multirif_valid.xlsx",
+      "expectations": "ok=true, 2 RIF(s), 3 sucursales, 10 cajas",
+      "ui": "Toast verde 'Distribución cargada: 2 RIF(s), 3 sucursal(es), 10 caja(s).' visible. Bloque verde con CheckCircle en multirif-import-report. Badge 'multirif-progress-badge' = '10 / 10 cajas' (verde, fullyDistributed). Panel expandido con ASTROCEL CELULARES, C.A. (J305857695) 6 cajas RIF + 2 sucursales (Centro 4, Este 2) y GLOBAL MARKET H&J, C.A. (J408328747) 4 cajas RIF + Sede Norte 4."
+    },
+    "TEST_4_CARGA_ERRORES": {
+      "result": "PASS",
+      "file": "/tmp/multirif_errors.xlsx",
+      "errors_found": 4,
+      "rows": [
+        "Fila 2 (RIF J-00000000-0 · Suc X): El RIF 'J-00000000-0' no corresponde a ningún Cliente registrado en el sistema.",
+        "Fila 3 (RIF J305857695 · Sucursal A): Cajas inválidas ('abc'): debe ser un número entero mayor a 0.",
+        "Fila 5 (RIF J305857695 · Sucursal Dup): Sucursal duplicada para el RIF 'J305857695' (ya aparece en la fila 4).",
+        "Fila 6 (Suc sin RIF): RIF Cliente vacío."
+      ],
+      "ui": "data-testid='multirif-import-errors' visible con 4 <li>. Toast rojo 'Se encontraron 4 error(es) en el Excel. Revise el detalle.' La distribución previa (cargada en TEST_3) NO fue reemplazada — confirmado visualmente (sigue mostrando ASTROCEL y GLOBAL MARKET con sus cajas y sucursales)."
+    },
+    "TEST_5_ADVERTENCIA_TOTAL": {
+      "result": "PASS",
+      "file": "/tmp/multirif_mismatch.xlsx (5+5=10 cajas)",
+      "global_boxes": 8,
+      "warning_testid": "multirif-import-warning-0",
+      "warning_text": "El total de cajas del Excel (10) no coincide con las Cajas Globales del lote (8); diferencia de 2 caja(s). Puede ajustar manualmente.",
+      "ui": "Bloque ámbar (AlertCircle) visible en multirif-import-report ANTES del bloque verde de éxito. La carga SÍ se aplicó (ok=true). El usuario puede ajustar — no bloquea. Coincide con la decisión del PM: ADVERTENCIA no bloquea."
+    }
+  }
+}

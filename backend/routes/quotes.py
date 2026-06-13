@@ -2462,3 +2462,249 @@ async def validate_repair_serials(
         "found_count": len(found),
         "not_found_count": len(not_found)
     }
+
+
+# ============================================================================
+# VPOS Multi-RIF: Carga de la matriz de Tiendas/Sucursales vía Excel
+# ----------------------------------------------------------------------------
+# Estructura objetivo (multirif_distribution):
+#   [{ client_id, rif, client_name, boxes, stores: [{ name, boxes }] }]
+#
+# Formato del Excel (hoja "Distribucion", una fila por Sucursal):
+#   | RIF Cliente | Nombre Sucursal | Cajas |
+# Reglas:
+#   - El RIF agrupa las sucursales por Cliente. Las "Cajas del RIF" se calculan
+#     como la suma de las cajas de sus sucursales.
+#   - El RIF debe corresponder a un Cliente registrado (se busca por RIF).
+#   - "Cajas" debe ser un entero > 0.
+#   - Sucursal no puede repetirse dentro del mismo RIF.
+# El endpoint NO persiste nada: devuelve la distribución parseada + un reporte
+# de errores/advertencias detallado (fila por fila) para que el frontend la
+# muestre y, si no hay errores, reemplace la distribución del panel.
+# ============================================================================
+
+def _mr_norm_rif(s) -> str:
+    """Normaliza un RIF para comparación: deja sólo alfanuméricos en mayúscula."""
+    import re as _re
+    return _re.sub(r'[^A-Za-z0-9]', '', str(s or '')).upper()
+
+
+def _mr_norm_header(h) -> str:
+    """Normaliza un encabezado de columna: minúsculas, sólo alfanumérico."""
+    import re as _re
+    return _re.sub(r'[^a-z0-9]', '', str(h or '').strip().lower())
+
+
+@router.get("/quotes/multirif/excel-template")
+async def multirif_excel_template(authorization: Optional[str] = Header(None)):
+    """Descarga la plantilla .xlsx para cargar la distribución Multi-RIF
+    (hoja de datos + hoja de Instrucciones)."""
+    await get_current_user(authorization)
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Distribucion"
+    headers = ["RIF Cliente", "Nombre Sucursal", "Cajas"]
+    ws.append(headers)
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="2C3E50")
+        cell.alignment = Alignment(horizontal="center")
+    ws.column_dimensions['A'].width = 22
+    ws.column_dimensions['B'].width = 36
+    ws.column_dimensions['C'].width = 10
+    # Filas de ejemplo
+    ws.append(["J-12345678-9", "Sucursal Centro", 4])
+    ws.append(["J-12345678-9", "Sucursal Este", 2])
+    ws.append(["J-98765432-1", "Sede Norte", 4])
+
+    ins = wb.create_sheet("Instrucciones")
+    lines = [
+        "INSTRUCCIONES — Carga de Distribución Multi-RIF (Tiendas/Sucursales)",
+        "",
+        "1) Complete la hoja 'Distribucion' con UNA FILA POR SUCURSAL.",
+        "2) Columnas obligatorias (no cambie los encabezados de la fila 1):",
+        "     • RIF Cliente: RIF del cliente al que pertenece la sucursal (ej. J-12345678-9).",
+        "       El cliente debe estar registrado en el sistema; se busca por RIF.",
+        "     • Nombre Sucursal: nombre de la tienda/sucursal (no puede repetirse dentro del mismo RIF).",
+        "     • Cajas: cantidad de cajas (PDV) de esa sucursal. Entero mayor a 0.",
+        "3) Las 'Cajas del RIF' se calculan automáticamente como la suma de sus sucursales.",
+        "4) Al cargar, la distribución del Excel REEMPLAZA la del panel.",
+        "5) Si el total de cajas del Excel no coincide con las Cajas Globales del lote, se mostrará",
+        "   una ADVERTENCIA (no bloquea); podrá ajustar manualmente.",
+        "",
+        "ERRORES QUE SE REPORTAN (con número de fila):",
+        "   • RIF vacío, Nombre de sucursal vacío o Cajas inválidas (no numérico / ≤ 0).",
+        "   • RIF que no corresponde a ningún Cliente registrado.",
+        "   • Sucursal duplicada dentro del mismo RIF.",
+        "   • Faltan columnas obligatorias / archivo vacío o ilegible.",
+        "",
+        "Sugerencia: borre las filas de ejemplo antes de cargar su archivo real.",
+    ]
+    for i, t in enumerate(lines, 1):
+        ins.cell(row=i, column=1, value=t)
+    ins.column_dimensions['A'].width = 110
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=plantilla_distribucion_multirif.xlsx"},
+    )
+
+
+@router.post("/quotes/multirif/parse-excel")
+async def multirif_parse_excel(
+    file: UploadFile = File(...),
+    global_boxes: Optional[int] = Form(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Parsea el Excel de distribución Multi-RIF y devuelve la distribución +
+    reporte detallado de errores/advertencias. No persiste nada."""
+    await get_current_user(authorization)
+
+    fname = (file.filename or "").lower()
+    if not fname.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un Excel (.xlsx). Use la plantilla.")
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Asegúrese de que sea un .xlsx válido (no .xls ni .csv).")
+
+    ws = wb["Distribucion"] if "Distribucion" in wb.sheetnames else wb[wb.sheetnames[0]]
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows or len(rows) < 1:
+        raise HTTPException(status_code=400, detail="La hoja de datos está vacía.")
+
+    header = [_mr_norm_header(h) for h in rows[0]]
+
+    def _find_col(*names):
+        for n in names:
+            if n in header:
+                return header.index(n)
+        return None
+
+    ci_rif = _find_col("rif", "rifcliente")
+    ci_suc = _find_col("nombresucursal", "sucursal", "tienda", "nombretienda")
+    ci_caj = _find_col("cajas", "cantidad", "cajassucursal", "cantidadcajas", "pdv")
+
+    missing = []
+    if ci_rif is None:
+        missing.append("RIF Cliente")
+    if ci_suc is None:
+        missing.append("Nombre Sucursal")
+    if ci_caj is None:
+        missing.append("Cajas")
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Faltan columnas obligatorias en la fila 1: {', '.join(missing)}. Descargue y use la plantilla.",
+        )
+
+    # Índice de clientes por RIF normalizado (incluye variante con padding).
+    clients_by_rif = {}
+    async for c in db.clients.find({}, {"_id": 0, "client_id": 1, "rif": 1, "legal_name": 1, "fantasy_name": 1}):
+        for k in {_mr_norm_rif(c.get("rif")), _mr_norm_rif(format_rif(c.get("rif")))}:
+            if k:
+                clients_by_rif[k] = c
+
+    errors = []
+    warnings = []
+    groups = {}   # norm_rif -> {client, stores, seen}
+    order = []
+    total_boxes = 0
+
+    for ridx, row in enumerate(rows[1:], start=2):
+        if row is None or all((v is None or str(v).strip() == "") for v in row):
+            continue  # fila completamente vacía → se ignora
+
+        rif_raw = row[ci_rif] if ci_rif < len(row) else None
+        suc_raw = row[ci_suc] if ci_suc < len(row) else None
+        caj_raw = row[ci_caj] if ci_caj < len(row) else None
+        rif_s = str(rif_raw).strip() if rif_raw is not None else ""
+        suc_s = str(suc_raw).strip() if suc_raw is not None else ""
+
+        row_errs = []
+        if not rif_s:
+            row_errs.append("RIF Cliente vacío.")
+        if not suc_s:
+            row_errs.append("Nombre Sucursal vacío.")
+
+        boxes = None
+        try:
+            boxes = int(float(caj_raw))
+        except (TypeError, ValueError):
+            boxes = None
+        if boxes is None or boxes <= 0:
+            row_errs.append(f"Cajas inválidas ('{caj_raw}'): debe ser un número entero mayor a 0.")
+
+        client = None
+        if rif_s:
+            client = clients_by_rif.get(_mr_norm_rif(rif_s)) or clients_by_rif.get(_mr_norm_rif(format_rif(rif_s)))
+            if not client:
+                row_errs.append(f"El RIF '{rif_s}' no corresponde a ningún Cliente registrado en el sistema.")
+
+        if row_errs:
+            errors.append({"row": ridx, "rif": rif_s, "sucursal": suc_s, "messages": row_errs})
+            continue
+
+        nk = _mr_norm_rif(client.get("rif"))
+        if nk not in groups:
+            groups[nk] = {"client": client, "stores": [], "seen": {}}
+            order.append(nk)
+        g = groups[nk]
+        skey = suc_s.lower()
+        if skey in g["seen"]:
+            errors.append({
+                "row": ridx, "rif": rif_s, "sucursal": suc_s,
+                "messages": [f"Sucursal duplicada para el RIF '{rif_s}' (ya aparece en la fila {g['seen'][skey]})."],
+            })
+            continue
+        g["seen"][skey] = ridx
+        g["stores"].append({"name": suc_s, "boxes": boxes})
+        total_boxes += boxes
+
+    distribution = []
+    for nk in order:
+        g = groups[nk]
+        c = g["client"]
+        distribution.append({
+            "client_id": c["client_id"],
+            "rif": c.get("rif", ""),
+            "client_name": c.get("fantasy_name") or c.get("legal_name") or "",
+            "boxes": sum(s["boxes"] for s in g["stores"]),
+            "stores": g["stores"],
+        })
+
+    if global_boxes is not None and total_boxes != int(global_boxes):
+        diff = total_boxes - int(global_boxes)
+        warnings.append(
+            f"El total de cajas del Excel ({total_boxes}) no coincide con las Cajas Globales del lote "
+            f"({int(global_boxes)}); diferencia de {abs(diff)} caja(s). Puede ajustar manualmente."
+        )
+
+    summary = {
+        "total_rifs": len(distribution),
+        "total_stores": sum(len(d["stores"]) for d in distribution),
+        "total_boxes": total_boxes,
+        "rows_with_errors": len(errors),
+    }
+
+    return {
+        "ok": len(errors) == 0,
+        "distribution": distribution,
+        "errors": errors,
+        "warnings": warnings,
+        "summary": summary,
+    }
