@@ -89,7 +89,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
     }
   };
 
-  const isMultistore = data?.header?.project_type === 'multistore';
+  const isMultistore = ['multistore', 'multirif'].includes(data?.header?.project_type);
   const banksAvail = data?.available?.banks || [];
   const productsAvail = data?.available?.products || [];
   const storesAvail = data?.available?.stores || [];

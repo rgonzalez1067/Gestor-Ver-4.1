@@ -1,0 +1,46 @@
+{
+  "summary": "Frontend-only verification of the 'Reporte de Avance / Estatus' modal for Multi-RIF projects. Logged in as admin, opened both Multi-RIF projects (prj_e586608e3579 with 4 stores, and prj_5c3999532fcc with 7 stores), validated modal opens, store filter is enabled (NOT 'N/A — proyecto single' nor 'Sin tiendas'), table groups rows by store with '🏬 <store>' header rows, banks/products render, and PDF download works (downloads 30KB and 32KB PDFs respectively). The Multi-RIF fix is working end-to-end on the frontend.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ProjectProgressReportDialog (Multi-RIF grouping)",
+        "issue": "On prj_e586608e3579 (4 stores) the project has TWO stores whose display label is 'Altamira'. The dialog filter shows 4 checkboxes (Marquez, Centro, Altamira, Altamira) but the table renders only 3 store group headers ('🏬 Marquez', '🏬 Centro', '🏬 Altamira'). The rows of the 4th store still appear in tbody but without a '🏬 Altamira' header row, leaving 6 Bancamiga rows visually orphaned at the bottom. Root cause is almost certainly in `groupedRows` (ProjectProgressReportDialog.jsx around L97) using the store *label* as the grouping key instead of `store_id`, so the second Altamira's rows are appended to the first Altamira group's flat list but the header is only emitted once. Recommendation: key by `row.store_id` and use the label only for display; if two stores share a label, append a disambiguator (e.g. RIF or index) in the header.",
+        "selector": "[data-testid='project-progress-report-dialog'] tr",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "ProjectProgressReportDialog / ProjectDetail (Multi-RIF tables)",
+        "issue": "Multiple React hydration warnings 'In HTML, <span> cannot be a child of <tbody/tr>' and '<span> cannot contain a nested <tr>'. Triggered by a `<span data-ve-dynamic style={{display:'contents'}}>` wrapper rendered inside <tbody>/<tr> in both MultistoreBankSection (ProjectDetail) and ProjectProgressReportDialog. It is a tooling/instrumentation wrapper, but it pollutes the console and can cause hydration mismatches. Recommend wrapping the dynamic array in a React Fragment instead of a span, or moving the wrapper outside the <table>.",
+        "selector": "table tbody span[data-ve-dynamic]",
+        "priority": "LOW"
+      },
+      {
+        "component": "ProjectProgressReportDialog",
+        "issue": "DialogContent reports 'Missing Description or aria-describedby={undefined}' — minor a11y warning from Radix.",
+        "selector": "[role='dialog']",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix duplicate-label store grouping in ProjectProgressReportDialog: switch `groupedRows` key from store label to store_id (or compose store_id+label) so every store gets its own '🏬' header row. Apply same change to the PDF generator if it also groups by label.",
+    "Optionally: wrap dynamic-instrumented spans inside <tbody>/<tr> with a Fragment to silence hydration warnings on Multi-RIF/Multistore pages.",
+    "Optionally: add aria-describedby / DialogDescription to ProjectProgressReportDialog to silence Radix a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "ProjectProgressReportDialog.jsx L97 (groupedRows) appears to key sections by store label, which collapses headers when two stores share the same display name even though they are distinct store_ids — common in Multi-RIF clients with branch-name collisions.",
+    "Hydration warnings indicate non-fragment wrappers inside <tbody>/<tr>, present in both ProjectDetail (MultistoreBankSection) and ProjectProgressReportDialog."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped", "frontend": "95%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "None — used existing projects prj_e586608e3579 and prj_5c3999532fcc.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend Multi-RIF fix is verified working: store filter enabled, store grouping headers render, PDF downloads as application/pdf. Only outstanding minor issue is the duplicate-store-label case on prj_e586608e3579 where the 4th store's rows render without their '🏬' header. Login flow note: do NOT call POST /api/auth/login via page.request and then set localStorage — the AuthContext also needs the 'user' object plus listens to login through the form. Instead, log in via the UI: fill input[type='email'], input[type='password'], click button 'Ingresar', wait for **/dashboard**. After that, page.goto('/projects/<id>') works.",
+  "rca of the issue": "The original bug ('Reporte de Avance no se ajusta a Multi-RIF') is RESOLVED — backend now includes 'multirif' in the multistore branch (project_reports.py L145, L203, L280) and the frontend treats project_type 'multirif' as multistore (ProjectProgressReportDialog.jsx L92). Verified end-to-end with two Multi-RIF projects. Residual minor bug: stores sharing the same display label produce only one '🏬' header in the table — fix by grouping by store_id rather than label."
+}

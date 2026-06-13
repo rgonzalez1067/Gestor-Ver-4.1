@@ -200,7 +200,7 @@ async def project_progress_report(
     available_banks = []
     available_products = []
     available_stores = []
-    if proj.get("project_type") == "multistore":
+    if proj.get("project_type") in ("multistore", "multirif"):
         for st in (proj.get("stores") or []):
             available_stores.append({"store_id": st.get("store_id"), "name": st.get("name"), "box_count": st.get("box_count", 0)})
             for b, ps in ((st.get("implementation_matrix") or {})).items():
@@ -277,7 +277,7 @@ async def project_progress_report_pdf(
         except Exception:
             return str(iso)[:10]
 
-    is_multi = proj.get("project_type") == "multistore"
+    is_multi = proj.get("project_type") in ("multistore", "multirif")
 
     # Tabla principal
     body_rows_html = ""
