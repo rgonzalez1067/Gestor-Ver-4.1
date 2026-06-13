@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — VPOS Multi-RIF · PDF de cotización (cliente=Banco + Detalle de Tiendas)
+
+Ajuste del PDF de cotización para Multi-RIF (previo a Fase 3):
+- **Portada y Página 2 (Datos del Cliente):** el nombre del cliente ahora es el **nombre del Banco de adquirencia**. Hidratación autoritativa server-side: `hydrate_pdf_request` resuelve el banco desde `sponsoring_bank_id` y fija `cliente_nombre` (y limpia RIF/contacto/dirección) cuando `is_multirif`.
+- **Página 5 — "Detalle de Tiendas y Sucursales":** nuevo método `_build_multirif_section()` en `pdf_generator.py` que renderiza una tabla jerárquica Cliente(RIF) → Sucursales → Cajas con TOTAL GENERAL. Invocado en `generate_vpos` (PYME) y `generate_vpos_corp` (CORP).
+- `TemplateQuotePDFRequest` extendido con `is_multirif`, `multirif_distribution`, `sponsoring_bank_id/name`. `create_quote_with_pdf` propaga estos campos al `pdf_request`. Frontend (`buildTemplatePdfData` + pdfData inline) envía cliente=banco y la distribución.
+- **Validado:** PDF generado directamente y extraído — portada/página 2 = "Banco de Venezuela", sección jerárquica correcta, TOTAL GENERAL = 10.
+
+
 ## 2026-06-13 — VPOS Multi-RIF · FASE 2: Motor de distribución anidada + barra de progreso + limpiezas (P0)
 
 - **Nuevo componente `MultiRifDistributionPanel.jsx`**: motor de distribución Global→RIF→Tienda. Buscador de Cliente/RIF (≥2 chars sobre nombre/RIF), cajas por RIF, sub-sucursales (nombre+cajas). Exporta `validateMultiRif(dist, globalBoxes)`.

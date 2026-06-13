@@ -59,6 +59,12 @@ class TemplateQuotePDFRequest(BaseModel):
     ft_equipment_items: List[dict] = []  # [{name, hardware_type, quantity, unit_price_usd}]
     # Detalle de sucursales
     branch_details: List[dict] = []  # [{store_name, quantity}]
+    # VPOS Multi-RIF: el cliente es el Banco; portada/página 2 usan el nombre del banco
+    # y se renderiza la sección "Detalle de Tiendas y Sucursales".
+    is_multirif: bool = False
+    multirif_distribution: List[dict] = []  # [{client_id, rif, client_name, boxes, stores:[{name,boxes}]}]
+    sponsoring_bank_id: Optional[str] = None
+    sponsoring_bank_name: Optional[str] = None
     # Segmento del cliente para determinar el tipo de PDF
     client_segment: str = "PYME"  # "PYME" o "CORP"
     # Cliente exento de IVA — suprime impuesto en cálculos del PDF y herencia a facturación
@@ -726,6 +732,78 @@ class DynamicQuotePDFGenerator:
         
         return elements
     
+    def _build_multirif_section(self, elements):
+        """Renderiza 'Detalle de Tiendas y Sucursales' (VPOS Multi-RIF):
+        jerarquía Cliente (RIF) -> Sucursales -> Cajas. Se ubica como página 5."""
+        dist = getattr(self.data, 'multirif_distribution', []) or []
+        if not dist:
+            return
+        elements.append(PageBreak())
+        elements.append(Paragraph("DETALLE DE TIENDAS Y SUCURSALES", ParagraphStyle(
+            'MRTitulo', parent=self.styles['TituloPortada'], fontSize=18, alignment=1, spaceAfter=10)))
+        elements.append(Spacer(1, 12))
+
+        hdr = ParagraphStyle('MRH', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white)
+        hdr_c = ParagraphStyle('MRHC', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=1)
+        rif_style = ParagraphStyle('MRRif', fontName='Helvetica-Bold', fontSize=9, textColor=self.COLOR_AZUL)
+        cell = ParagraphStyle('MRC', fontName='Helvetica', fontSize=9)
+        cell_c = ParagraphStyle('MRCC', fontName='Helvetica', fontSize=9, alignment=1)
+
+        table_data = [[
+            Paragraph("N°", hdr_c),
+            Paragraph("Cliente (RIF) / Sucursal", hdr),
+            Paragraph("Cajas", hdr_c),
+        ]]
+        style_cmds = [
+            ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+        ]
+        row = 1
+        grand = 0
+        for rif in dist:
+            name = rif.get('client_name') or 'Cliente'
+            rif_num = rif.get('rif') or ''
+            boxes = int(rif.get('boxes') or 0)
+            grand += boxes
+            table_data.append([
+                Paragraph(f"<b>{name}</b> &nbsp;—&nbsp; RIF: {rif_num}", rif_style),
+                '',
+                Paragraph(f"<b>{boxes}</b>", cell_c),
+            ])
+            style_cmds.append(('SPAN', (0, row), (1, row)))
+            style_cmds.append(('BACKGROUND', (0, row), (-1, row), colors.HexColor('#E3F2FD')))
+            row += 1
+            stores = rif.get('stores') or []
+            for j, st in enumerate(stores, 1):
+                table_data.append([
+                    Paragraph(str(j), cell_c),
+                    Paragraph(f"&nbsp;&nbsp;&nbsp;{st.get('name', '')}", cell),
+                    Paragraph(str(int(st.get('boxes') or 0)), cell_c),
+                ])
+                row += 1
+            if not stores:
+                table_data.append([
+                    Paragraph('', cell),
+                    Paragraph('&nbsp;&nbsp;&nbsp;(sin sucursales)', cell),
+                    Paragraph('—', cell_c),
+                ])
+                row += 1
+        table_data.append([
+            Paragraph('', cell),
+            Paragraph('<b>TOTAL GENERAL</b>', ParagraphStyle('MRT', fontName='Helvetica-Bold', fontSize=10, alignment=2)),
+            Paragraph(f"<b>{grand}</b>", ParagraphStyle('MRTQ', fontName='Helvetica-Bold', fontSize=10, alignment=1)),
+        ])
+        style_cmds.append(('BACKGROUND', (0, row), (-1, row), colors.HexColor('#F1F5F9')))
+
+        t = Table(table_data, colWidths=[40, 340, 100], repeatRows=1)
+        t.setStyle(TableStyle(style_cmds))
+        elements.append(t)
+
     def generate(self):
         """Generar el PDF completo con flujo dinámico"""
         if self.data.quote_type == 'LINK_PAGO':
@@ -1142,6 +1220,10 @@ class DynamicQuotePDFGenerator:
             ]))
             elements.append(branch_table)
         
+        # ==================== PÁGINA 5 (Multi-RIF): DETALLE DE TIENDAS Y SUCURSALES ====================
+        if getattr(self.data, 'is_multirif', False):
+            self._build_multirif_section(elements)
+
         # Salto de página para Términos
         elements.append(PageBreak())
         
@@ -1577,6 +1659,10 @@ class DynamicQuotePDFGenerator:
             ]))
             elements.append(branch_table)
         
+        # ==================== Multi-RIF (CORP): DETALLE DE TIENDAS Y SUCURSALES ====================
+        if getattr(self.data, 'is_multirif', False):
+            self._build_multirif_section(elements)
+
         # NO añadir términos - el Anexo Corporativa los reemplaza
         # El anexo se fusiona externamente en config.py
         

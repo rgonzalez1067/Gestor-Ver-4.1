@@ -251,6 +251,12 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 pdf_request.pinpad_id = pdf_request.pinpad_id or data.pinpad_id
                 pdf_request.sponsor_bank_id = pdf_request.sponsor_bank_id or data.sponsor_bank_id
                 pdf_request.sponsor_processor_id = pdf_request.sponsor_processor_id or data.sponsor_processor_id
+                # VPOS Multi-RIF: propagar flags y distribución para portada/cliente=Banco y página 5.
+                pdf_request.is_multirif = bool(getattr(pdf_request, "is_multirif", False) or data.is_multirif)
+                if not getattr(pdf_request, "multirif_distribution", None):
+                    pdf_request.multirif_distribution = data.multirif_distribution or []
+                pdf_request.sponsoring_bank_id = pdf_request.sponsoring_bank_id or data.sponsoring_bank_id
+                pdf_request.sponsoring_bank_name = pdf_request.sponsoring_bank_name or data.sponsoring_bank_name
                 await hydrate_pdf_request(pdf_request)
                 await _enrich_tipo_corp_from_db(pdf_request)
                 
@@ -1609,6 +1615,17 @@ async def hydrate_pdf_request(data: TemplateQuotePDFRequest):
                 contact_name = c0.get("full_name") or c0.get("name") or ""
                 if contact_name:
                     data.cliente_contacto = contact_name
+
+    # --- VPOS Multi-RIF: el "cliente" es el Banco de adquirencia ---
+    if getattr(data, "is_multirif", False):
+        bank = None
+        if getattr(data, "sponsoring_bank_id", None):
+            bank = await db.banks.find_one({"bank_id": data.sponsoring_bank_id}, {"_id": 0, "name": 1, "rif": 1})
+        bank_name = (bank.get("name") if bank else None) or data.sponsoring_bank_name or data.cliente_nombre or "Banco"
+        data.cliente_nombre = bank_name
+        data.cliente_rif = (bank.get("rif") if bank else None) or ""
+        data.cliente_contacto = ""
+        data.cliente_address = ""
 
     # --- Integrador ---
     if getattr(data, "integrator_id", None):

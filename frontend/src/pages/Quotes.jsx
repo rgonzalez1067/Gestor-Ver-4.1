@@ -1638,11 +1638,16 @@ export const Quotes = () => {
       'LINK_PAGO': 'payment_gateway', 'MPOS': 'mpos', 'LINK': 'vpos_pyme'
     };
     const templateType = templateTypeMap[quoteData.quote_type] || 'vpos_pyme';
+    const _isMultiRif = quoteData.quote_type === 'VPOS_MULTIRIF';
     return {
-      cliente_nombre: client.legal_name || client.commercial_name || client.fantasy_name || 'Cliente',
-      cliente_rif: client.rif || '',
-      cliente_contacto: client.contact_name || '',
-      cliente_address: client.address || '',
+      cliente_nombre: _isMultiRif ? (quoteData.sponsoring_bank_name || 'Banco') : (client.legal_name || client.commercial_name || client.fantasy_name || 'Cliente'),
+      cliente_rif: _isMultiRif ? '' : (client.rif || ''),
+      cliente_contacto: _isMultiRif ? '' : (client.contact_name || ''),
+      cliente_address: _isMultiRif ? '' : (client.address || ''),
+      is_multirif: _isMultiRif,
+      multirif_distribution: _isMultiRif ? (quoteData.multirif_distribution || []) : [],
+      sponsoring_bank_id: quoteData.sponsoring_bank_id || null,
+      sponsoring_bank_name: quoteData.sponsoring_bank_name || '',
       // IDs para hidratación server-side (aislamiento de RBAC): el backend resuelve
       // los nombres autoritativos desde Mongo → Previsualizar/Exportar/Guardar idénticos.
       client_id: quoteData.client_id || null,
@@ -1921,10 +1926,14 @@ export const Quotes = () => {
       const templateType = templateTypeMap[quoteData.quote_type] || 'vpos_pyme';
 
       const pdfData = {
-        cliente_nombre: client?.legal_name || client?.commercial_name || 'Cliente',
-        cliente_rif: client?.rif || '',
-        cliente_contacto: client?.contact_name || '',
-        cliente_address: client?.address || '',
+        cliente_nombre: isMultiRif ? (quoteData.sponsoring_bank_name || 'Banco') : (client?.legal_name || client?.commercial_name || 'Cliente'),
+        cliente_rif: isMultiRif ? '' : (client?.rif || ''),
+        cliente_contacto: isMultiRif ? '' : (client?.contact_name || ''),
+        cliente_address: isMultiRif ? '' : (client?.address || ''),
+        is_multirif: !!isMultiRif,
+        multirif_distribution: isMultiRif ? (quoteData.multirif_distribution || []) : [],
+        sponsoring_bank_id: quoteData.sponsoring_bank_id || null,
+        sponsoring_bank_name: quoteData.sponsoring_bank_name || '',
         quote_type: quoteData.quote_type,
         pricing_model: quoteData.pricing_model,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
