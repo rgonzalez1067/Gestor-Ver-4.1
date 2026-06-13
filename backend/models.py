@@ -702,6 +702,10 @@ class Quote(BaseModel):
     attachments: List[dict] = []  # Lista de anexos: {attachment_id, category, filename, url, uploaded_by, uploaded_at}
     # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
     branch_details: List[dict] = []  # [{store_name: str, quantity: int}]
+    # VPOS Multi-RIF: lote bancario distribuido entre múltiples RIFs/sucursales.
+    is_multirif: Optional[bool] = False
+    # Distribución jerárquica (Fase 2): [{client_id, rif, client_name, boxes, stores:[{name, boxes}]}]
+    multirif_distribution: Optional[List[dict]] = None
     # Flujo Irregular
     is_irregular: Optional[bool] = None  # True si tiene excepciones de flujo
     irregular_exceptions: Optional[List[dict]] = None  # Lista de excepciones registradas

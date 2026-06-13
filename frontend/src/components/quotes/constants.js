@@ -1,7 +1,8 @@
-import { Monitor, Smartphone, Globe, Link } from 'lucide-react';
+import { Monitor, Smartphone, Globe, Link, Building2 } from 'lucide-react';
 
 export const QUOTE_TYPES = [
   { id: 'VPOS', name: 'VPOS (Cajas)', icon: Monitor, description: 'Puntos de venta físicos' },
+  { id: 'VPOS_MULTIRIF', name: 'VPOS Multi-RIF', icon: Building2, description: 'Lote bancario para múltiples RIFs' },
   { id: 'MPOS', name: 'MPOS (Tablet/Móvil)', icon: Smartphone, description: 'Terminales móviles POS' },
   { id: 'FAST_TRACK', name: 'MPOS (Imple + POS)', icon: Smartphone, description: 'Equipos autogestionados Pyme' },
   { id: 'GATEWAY', name: 'Payment Gateway', icon: Globe, description: 'Pasarela de pagos' },

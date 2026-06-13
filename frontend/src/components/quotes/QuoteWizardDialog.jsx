@@ -11,7 +11,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 import { Plus, Download, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Trash2, Building2, RefreshCw, Unlock, Eye, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BranchDetailPanel } from '../BranchDetailPanel';
 import { MultiProductSelector } from '../MultiProductSelector';
 import { QUOTE_TYPES, PRICING_MODELS, SETUP_CONCEPTS } from './constants';
@@ -37,7 +37,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
     pdfPreviewLoading,
     // Derived
     selectedClient, selectedIntegrator, selectedPinpad, selectedSponsorBank,
-    isPaymentGateway, isVPOS, isMPOS, isFastTrackType, isMegaSoftSponsor,
+    isPaymentGateway, isVPOS, isMPOS, isFastTrackType, isMegaSoftSponsor, isMultiRif,
     isHeaderComplete, canShowItems,
     // Calculated totals
     calcularTotal, calcularTotalEstandar, calcularTotalRecurrente,
@@ -66,6 +66,14 @@ export const QuoteWizardDialog = ({ ctx }) => {
 
   // Búsqueda interna en el selector de integradores
   const [integratorSearchQuery, setIntegratorSearchQuery] = useState('');
+
+  // VPOS Multi-RIF: el banco de Medios de Pago se hereda del banco de adquirencia
+  // seleccionado al inicio (paso 1), filtrando solo sus productos.
+  useEffect(() => {
+    if (isMultiRif && quoteData.sponsoring_bank_id && selectedBankId !== quoteData.sponsoring_bank_id) {
+      handleBankSelect(quoteData.sponsoring_bank_id);
+    }
+  }, [isMultiRif, quoteData.sponsoring_bank_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Patrocinio relacional: sub-modal de asociación Procesador → Banco.
   // Se abre cuando en "Banco Patrocinante" se elige una entidad tipo Procesador.
@@ -262,6 +270,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         const isFastTrack = value === 'FAST_TRACK';
                         const isMposLike = isMposSelected || isFastTrack;
                         const isPGLike = value === 'GATEWAY' || value === 'LINK_PAGO';
+                        const isMultiRifSel = value === 'VPOS_MULTIRIF';
                         
                         // Buscar banco "Mega Soft" para default de Fast Track
                         const megaSoftBank = isFastTrack ? banks.find(b => b.name?.toLowerCase().includes('mega soft') || b.name?.toLowerCase().includes('megasoft')) : null;
@@ -292,6 +301,10 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           requires_pinpad_config: true,
                           integrator_id: newIntegratorId,
                           sponsor_bank_id: isFastTrack ? (megaSoftBank?.bank_id || quoteData.sponsor_bank_id || '') : quoteData.sponsor_bank_id,
+                          // VPOS Multi-RIF: patrocinio implícito (banco = patrocinador absoluto)
+                          // y se omite el cliente (el sujeto es el lote del banco).
+                          sponsored_implementation: isMultiRifSel ? true : quoteData.sponsored_implementation,
+                          client_id: isMultiRifSel ? '' : quoteData.client_id,
                         });
                         setSelectedBankId('');
                         setSelectedMedioPagoId('');
@@ -343,8 +356,25 @@ export const QuoteWizardDialog = ({ ctx }) => {
 
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
-                      Cliente <span className="text-red-500">*</span>
+                      {isMultiRif ? <>Banco (Adquirencia) <span className="text-red-500">*</span></> : <>Cliente <span className="text-red-500">*</span></>}
                     </Label>
+                    {isMultiRif ? (
+                      <Select
+                        value={quoteData.sponsoring_bank_id || ''}
+                        onValueChange={handleSponsoringBankSelect}
+                      >
+                        <SelectTrigger className="w-full h-10" data-testid="multirif-bank-select">
+                          <SelectValue placeholder="Seleccione el banco (adquirencia)…" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[280px]">
+                          {(banks || []).map((b) => (
+                            <SelectItem key={b.bank_id} value={b.bank_id} data-testid={`multirif-bank-option-${b.bank_id}`}>
+                              {b.name}{b.type === 'Procesador' ? ' · Procesador' : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
                     <Select
                       value={quoteData.client_id || ''}
                       onValueChange={(val) => setQuoteData(prev => ({ ...prev, client_id: val }))}
@@ -371,6 +401,12 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         ))}
                       </SelectContent>
                     </Select>
+                    )}
+                    {isMultiRif && quoteData.sponsoring_bank_name && (
+                      <p className="text-[11px] text-emerald-700 mt-1.5 font-medium" data-testid="multirif-sponsor-label">
+                        Patrocinador: {quoteData.sponsoring_processor_name ? `${quoteData.sponsoring_processor_name} — ` : ''}{quoteData.sponsoring_bank_name}
+                      </p>
+                    )}
                   </div>
 
                   {/* Hide Modelo/Cajas/Bancos for Payment Gateway */}
@@ -442,7 +478,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
 
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
-                      Cajas (VTID) <span className="text-red-500">*</span>
+                      {isMultiRif ? <>Cajas Globales (Lote) <span className="text-red-500">*</span></> : <>Cajas (VTID) <span className="text-red-500">*</span></>}
                     </Label>
                     <Input
                       type="number"
@@ -615,6 +651,17 @@ export const QuoteWizardDialog = ({ ctx }) => {
                 {/* Implementación Patrocinada — aplica a TODOS los tipos de cotización */}
                 <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg" data-testid="sponsored-impl-block">
                   <div className="flex items-start gap-4 flex-wrap">
+                    {isMultiRif ? (
+                      <div className="flex-1 min-w-0 bg-emerald-50 border border-emerald-200 rounded-lg p-3" data-testid="multirif-implicit-sponsor">
+                        <Label className="text-sm font-semibold text-emerald-800 block mb-1">
+                          Implementación Patrocinada (implícita)
+                        </Label>
+                        <p className="text-[11px] text-emerald-700 leading-tight">
+                          Multi-RIF: el banco de adquirencia seleccionado es el patrocinador absoluto del lote.
+                          {quoteData.sponsoring_bank_name ? ` Patrocinador: ${quoteData.sponsoring_processor_name ? quoteData.sponsoring_processor_name + ' — ' : ''}${quoteData.sponsoring_bank_name}.` : ''}
+                        </p>
+                      </div>
+                    ) : (<>
                     <div className="flex-shrink-0">
                       <Label className="text-sm font-semibold text-slate-800 block mb-2">
                         Implementación Patrocinada
@@ -688,6 +735,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         )}
                       </div>
                     )}
+                    </>)}
 
                     {/* Cliente exento de IVA — selector binario al lado de Implementación Patrocinada */}
                     <div className="flex-shrink-0 border-l border-slate-200 pl-4" data-testid="iva-exempt-block">
@@ -1301,7 +1349,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           <Building2 size={16} className="text-brand-blue-600" />
                           Banco
                         </Label>
-                        <Select value={selectedBankId} onValueChange={handleBankSelect}>
+                        <Select value={selectedBankId} onValueChange={handleBankSelect} disabled={isMultiRif}>
                           <SelectTrigger data-testid="select-bank">
                             <SelectValue placeholder="Seleccione banco..." />
                           </SelectTrigger>
@@ -1313,6 +1361,9 @@ export const QuoteWizardDialog = ({ ctx }) => {
                             ))}
                           </SelectContent>
                         </Select>
+                        {isMultiRif && (
+                          <p className="text-[11px] text-slate-500 mt-1.5">Banco heredado del paso 1 (adquirencia).</p>
+                        )}
                       </div>
 
                       <div>

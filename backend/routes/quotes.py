@@ -127,7 +127,7 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
 class QuoteCreateWithPDF(BaseModel):
     """Modelo combinado para crear cotización y generar PDF"""
     # Datos básicos de la cotización
-    client_id: str
+    client_id: Optional[str] = None
     quote_category: str = "implementation"
     quote_type: str = "VPOS"
     equipment_type: Optional[str] = None
@@ -179,6 +179,9 @@ class QuoteCreateWithPDF(BaseModel):
     client_segment: str = "PYME"
     # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
     branch_details: List[dict] = []  # [{store_name: str, quantity: int}]
+    # VPOS Multi-RIF
+    is_multirif: Optional[bool] = False
+    multirif_distribution: Optional[List[dict]] = None
     # Override del total calculado por el wizard del frontend
     override_total_usd: Optional[float] = None
 
@@ -371,14 +374,17 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             })
         
         # Obtener nombre del cliente
-        client_doc = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0, "legal_name": 1, "fantasy_name": 1})
+        client_doc = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0, "legal_name": 1, "fantasy_name": 1}) if data.client_id else None
         client_display_name = (client_doc.get("fantasy_name") or client_doc.get("legal_name", "")) if client_doc else ""
+        # VPOS Multi-RIF: no hay un cliente único; el sujeto es el lote del banco.
+        if data.is_multirif and not client_display_name:
+            client_display_name = f"Lote {data.sponsoring_bank_name or data.sponsor_bank_name or 'Banco'} (Multi-RIF)"
         
         # Crear la cotización
         quote = Quote(
             quote_id=quote_id,
             quote_number=quote_number,
-            client_id=data.client_id,
+            client_id=data.client_id or "",
             client_name=client_display_name,
             quote_category=data.quote_category or "implementation",
             quote_type=data.quote_type or "VPOS",
@@ -418,6 +424,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             is_production_client=data.is_production_client,
             production_items=data.production_items,
             branch_details=data.branch_details,
+            is_multirif=bool(data.is_multirif),
+            multirif_distribution=data.multirif_distribution,
             requires_pinpad_config=data.requires_pinpad_config,
             requires_vpn=data.requires_vpn,
             communication_type=data.communication_type,

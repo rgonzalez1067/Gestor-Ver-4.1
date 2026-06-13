@@ -2004,7 +2004,8 @@ export const Quotes = () => {
       };
 
       const payload = {
-        client_id: quoteData.client_id,
+        client_id: quoteData.client_id || (isMultiRif ? null : quoteData.client_id),
+        is_multirif: !!isMultiRif,
         client_segment: quoteData.client_segment || 'PYME',
         quote_category: quoteData.quote_type === 'FAST_TRACK' ? 'fast_track' : 'implementation',
         quote_type: quoteData.quote_type,
@@ -3745,14 +3746,21 @@ export const Quotes = () => {
   
   // Detectar si es cotización Payment Gateway (incluye Link de Pago) o MPOS
   const isPaymentGateway = quoteData.quote_type === 'GATEWAY' || quoteData.quote_type === 'LINK_PAGO';
-  const isVPOS = quoteData.quote_type === 'VPOS';
+  const isMultiRif = quoteData.quote_type === 'VPOS_MULTIRIF';
+  const isVPOS = quoteData.quote_type === 'VPOS' || isMultiRif;
   const isMPOS = quoteData.quote_type === 'MPOS' || quoteData.quote_type === 'FAST_TRACK';
   const isFastTrackType = quoteData.quote_type === 'FAST_TRACK';
   const isMegaSoftSponsor = selectedSponsorBank?.name?.toLowerCase().includes('mega soft') || selectedSponsorBank?.name?.toLowerCase().includes('megasoft');
   
   // Validación completa incluyendo nuevos campos obligatorios
   // En modo edición, los campos de integración son opcionales ya que pueden no haber sido configurados originalmente
-  const isHeaderCompleteBase = isPaymentGateway 
+  const isHeaderCompleteBase = isMultiRif
+    ? (quoteData.quote_type &&
+       quoteData.sponsoring_bank_id &&  // Multi-RIF: el banco (adquirencia) reemplaza al cliente
+       quoteData.pricing_model &&
+       (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '') &&
+       (isEditing || quoteData.integrator_id))
+    : isPaymentGateway 
     ? (quoteData.quote_type && quoteData.client_id && quoteData.integrator_id)
     : (quoteData.quote_type && 
        quoteData.client_id && 
@@ -3765,7 +3773,7 @@ export const Quotes = () => {
   
   // En modo edición, siempre mostrar los items si existen
   const canShowItems = isEditing 
-    ? (quoteData.quote_type && quoteData.client_id && quoteData.pricing_model)
+    ? (quoteData.quote_type && (quoteData.client_id || isMultiRif) && quoteData.pricing_model)
     : isHeaderComplete;
 
   if (loading) {
@@ -3939,7 +3947,7 @@ export const Quotes = () => {
             productionSelectedServiceId, setProductionSelectedServiceId,
             pdfPreviewLoading,
             selectedClient, selectedIntegrator, selectedPinpad, selectedSponsorBank,
-            isPaymentGateway, isVPOS, isMPOS, isFastTrackType, isMegaSoftSponsor,
+            isPaymentGateway, isVPOS, isMPOS, isFastTrackType, isMegaSoftSponsor, isMultiRif,
             isHeaderComplete, canShowItems,
             calcularTotal, calcularTotalEstandar, calcularTotalRecurrente,
             subtotalSetup, subtotalRecurringBasic, subtotalRecurringOther, subtotalRecurringAdditional,
