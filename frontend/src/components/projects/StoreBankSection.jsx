@@ -1,5 +1,31 @@
+import { useState, useEffect, useRef } from 'react';
 import { Building2 } from 'lucide-react';
 import { MiniPie } from './MiniPie';
+
+// Input numérico con estado LOCAL: el usuario escribe sin latencia y el valor se
+// PERSISTE solo al salir del campo (blur) o al presionar Enter. Evita disparar una
+// petición + recálculo por cada tecla (clave para la "transcripción" en Multi-RIF).
+const QtyInput = ({ value, onCommit, className, testid, title }) => {
+  const [val, setVal] = useState(String(value ?? 0));
+  const focusedRef = useRef(false);
+  // Sincroniza con la prop cuando cambia externamente y el input no está enfocado.
+  useEffect(() => { if (!focusedRef.current) setVal(String(value ?? 0)); }, [value]);
+  const commit = () => {
+    const n = parseInt(val, 10) || 0;
+    if (n !== (value ?? 0)) onCommit(n);
+    else setVal(String(value ?? 0));
+  };
+  return (
+    <input
+      type="number" min={0} value={val}
+      onFocus={() => { focusedRef.current = true; }}
+      onChange={e => setVal(e.target.value)}
+      onBlur={() => { focusedRef.current = false; commit(); }}
+      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+      className={className} title={title} data-testid={testid}
+    />
+  );
+};
 
 // ==================== STORE: Bank Section ====================
 export const StoreBankSection = ({ bankName, products, matrixData, storeId, onUpdateStoreQuantity, onUpdateStoreCascade, onFillStorePhase, phases, readOnly, expectedQty }) => {
@@ -38,14 +64,15 @@ export const StoreBankSection = ({ bankName, products, matrixData, storeId, onUp
                         <span className="text-[10px] font-mono text-slate-600">{processed}/{expected}</span>
                       ) : (
                         <>
-                          <input type="number" min={0} value={processed}
-                            onChange={e => onUpdateStoreQuantity(storeId, bankName, productName, phase, expected, parseInt(e.target.value) || 0)}
+                          <QtyInput
+                            value={processed}
+                            onCommit={(n) => onUpdateStoreQuantity(storeId, bankName, productName, phase, expected, n)}
                             className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
-                            data-testid={`store-qty-proc-${storeId}-${bankName}-${productName}-${phase}`} />
+                            testid={`store-qty-proc-${storeId}-${bankName}-${productName}-${phase}`} />
                           <span className="text-[10px] text-slate-400">/</span>
-                          <input type="number" min={0} value={expected}
-                            onChange={e => {
-                              const newExp = parseInt(e.target.value) || 0;
+                          <QtyInput
+                            value={expected}
+                            onCommit={(newExp) => {
                               if (onUpdateStoreCascade) {
                                 onUpdateStoreCascade(storeId, bankName, productName, newExp, phase, processed);
                               } else {
@@ -54,7 +81,7 @@ export const StoreBankSection = ({ bankName, products, matrixData, storeId, onUp
                             }}
                             className="w-8 h-5 text-[10px] text-center border rounded font-mono border-blue-300 bg-blue-50"
                             title="Cantidad de Terminales (se propaga a todas las fases)"
-                            data-testid={`store-qty-exp-${storeId}-${bankName}-${productName}-${phase}`} />
+                            testid={`store-qty-exp-${storeId}-${bankName}-${productName}-${phase}`} />
                         </>
                       )}
                     </div>

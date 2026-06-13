@@ -320,17 +320,42 @@ const ProjectDetail = () => {
     }
   };
 
+  // Parche LOCAL (optimista) del estado del proyecto: actualiza celdas de la matriz
+  // de una tienda y el rollup, evitando recargar todo el proyecto (latencia Multi-RIF).
+  const patchStoreMatrixLocal = useCallback((storeId, cellUpdates, rollup) => {
+    setProject(prev => {
+      if (!prev) return prev;
+      const stores = (prev.stores || []).map(s => {
+        if (s.store_id !== storeId) return s;
+        const matrix = { ...(s.implementation_matrix || {}) };
+        cellUpdates.forEach(({ bank, product, phase, expected, processed, completed }) => {
+          const bankObj = { ...(matrix[bank] || {}) };
+          const prodObj = { ...(bankObj[product] || {}) };
+          prodObj[phase] = { ...(prodObj[phase] || {}), expected, processed, completed };
+          bankObj[product] = prodObj;
+          matrix[bank] = bankObj;
+        });
+        return { ...s, implementation_matrix: matrix };
+      });
+      return { ...prev, stores, ...(rollup ? { rollup_progress: rollup } : {}) };
+    });
+  }, []);
+
   // Matrix update para stores (multitienda)
   const updateStoreMatrixQuantity = async (storeId, bankName, productName, phase, expected, processed) => {
     try {
-      await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+      const { data } = await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
         bank_name: bankName, product_name: productName, phase,
         completed: processed >= expected && expected > 0,
         expected, processed
       });
-      fetchProject();
+      patchStoreMatrixLocal(storeId, [{
+        bank: bankName, product: productName, phase,
+        expected: data.expected, processed: data.processed, completed: data.completed,
+      }], data.rollup_progress);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al actualizar fase de tienda');
+      fetchProject();
     }
   };
 
@@ -381,19 +406,24 @@ const ProjectDetail = () => {
       const matrixData = (store?.implementation_matrix?.[bankName]?.[productName]) || {};
       // Secuencial (no Promise.all): cada fase escribe el documento completo; en
       // paralelo se pisarían entre sí (race read-modify-write) y se perdería una fase.
+      const cellUpdates = [];
+      let lastRollup = null;
       for (const phase of STORE_PHASES) {
         const pd = matrixData[phase] || {};
         const processed = phase === editedPhase ? editedProcessed : (pd.processed || 0);
         // eslint-disable-next-line no-await-in-loop
-        await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+        const { data } = await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
           bank_name: bankName, product_name: productName, phase,
           completed: processed >= newExpected && newExpected > 0,
           expected: newExpected, processed,
         });
+        lastRollup = data.rollup_progress || lastRollup;
+        cellUpdates.push({ bank: bankName, product: productName, phase, expected: data.expected, processed: data.processed, completed: data.completed });
       }
-      fetchProject();
+      patchStoreMatrixLocal(storeId, cellUpdates, lastRollup);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al actualizar matriz en cascada');
+      fetchProject();
     }
   };
 
@@ -403,13 +433,17 @@ const ProjectDetail = () => {
         toast.error('Defina primero la cantidad Esperada');
         return;
       }
-      await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+      const { data } = await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
         bank_name: bankName, product_name: productName, phase,
         completed: true, expected, processed: expected,
       });
-      fetchProject();
+      patchStoreMatrixLocal(storeId, [{
+        bank: bankName, product: productName, phase,
+        expected: data.expected, processed: data.processed, completed: data.completed,
+      }], data.rollup_progress);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al completar fase');
+      fetchProject();
     }
   };
 
@@ -445,9 +479,12 @@ const ProjectDetail = () => {
 
   const toggleStorePhase = async (storeId, bankName, productName, phase, completed) => {
     try {
-      await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, { bank_name: bankName, product_name: productName, phase, completed: !completed });
-      fetchProject();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Error actualizando fase de tienda'); }
+      const { data } = await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, { bank_name: bankName, product_name: productName, phase, completed: !completed });
+      patchStoreMatrixLocal(storeId, [{
+        bank: bankName, product: productName, phase,
+        expected: data.expected, processed: data.processed, completed: data.completed,
+      }], data.rollup_progress);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error actualizando fase de tienda'); fetchProject(); }
   };
 
   // ==================== SEQUENTIAL NOTIFICATIONS ====================

@@ -1790,6 +1790,7 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
 
     # Recalcular roll-up de la matriz principal
     # Re-leer el proyecto con la tienda actualizada
+    rollup = None
     updated_project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if updated_project:
         rollup = _calculate_rollup_progress(updated_project)
@@ -1798,7 +1799,15 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
             {"$set": {"rollup_progress": rollup, "updated_at": now}}
         )
 
-    return {"message": "Fase de tienda actualizada", "store_id": store_id, "bank": bank_key, "product": phase_update.product_name, "phase": phase_update.phase, "completed": phase_update.completed}
+    # Devolvemos expected/processed/completed calculados + rollup para que el
+    # frontend aplique una actualización LOCAL (optimista) sin recargar todo el
+    # proyecto (clave para la latencia en Multi-RIF con muchas tiendas).
+    return {
+        "message": "Fase de tienda actualizada", "store_id": store_id, "bank": bank_key,
+        "product": phase_update.product_name, "phase": phase_update.phase,
+        "completed": is_completed, "expected": expected, "processed": processed,
+        "rollup_progress": rollup,
+    }
 
 
 class BatchMatrixUpdate(BaseModel):

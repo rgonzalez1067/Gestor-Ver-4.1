@@ -1,0 +1,60 @@
+{
+  "summary": "FRONTEND-ONLY: validado el fix de latencia/persistencia en la matriz Multi-RIF por tienda (commit-on-blur + actualización local optimista). Login admin → /projects/prj_e586608e3579 → expand RIF rif_408f1f81 (Brasero El Marquez) → expand store st_2426ab99 (Marquez) → matriz Bancamiga visible. Producto usado: 'Pago con C2P ' (con espacio final). Los 5 escenarios solicitados pasaron sin errores funcionales y los valores persistieron tras F5.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "StoreBankSection.jsx QtyInput: bien diseñado. focusedRef evita pisar el texto mientras el usuario escribe; useEffect sincroniza solo en blur. commit() compara contra value antes de llamar onCommit (evita request si no hay cambio). Enter dispara blur(). Limpio y correcto.",
+    "ProjectDetail.jsx patchStoreMatrixLocal: setProject inmutable (clona stores -> matrix -> bankObj -> prodObj). No muta. Actualiza rollup_progress también cuando lo retorna el backend. updateStoreMatrixCascade itera fases SECUENCIAL (no Promise.all) lo que evita races read-modify-write en el documento Mongo del proyecto — correcto y comentado.",
+    "Persisten ~5 warnings React de hidratación '<span> cannot be a child of <tr/tbody/th/td>' provenientes del instrumentador <span data-ve-dynamic> en Dashboard/ProjectDetail. Heredados de iteraciones previas, NO relacionados con este fix; no rompen funcionalidad. Reportado ya en iter 79.",
+    "ProjectDetail.jsx sigue >2800 líneas; recomendable extraer modales y handlers en módulos separados (deuda técnica conocida)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend-only por solicitud)",
+    "frontend": "100% — 5/5 escenarios pasados"
+  },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (/app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna. Se modificaron valores del producto 'Pago con C2P ' en tienda st_2426ab99 / Bancamiga: expected pasa de 5→6 (cascade), processed por fase quedó {Recibido:1, Configurado:2, Testeado:1, En Producción:6}. Los demás productos quedaron intactos.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Para reproducir la expansión Multi-RIF: navegar a https://vpos-multirif-fix.preview.emergentagent.com/projects/prj_e586608e3579, scroll hasta 'Seguimiento Multi-RIF · 3 Niveles', click data-testid='multirif-rif-toggle-rif_408f1f81' y luego data-testid='multirif-store-toggle-st_2426ab99'. Los nombres de producto en los data-testid pueden incluir ESPACIOS y ESPACIO FINAL (ej. 'Pago con C2P ', 'Verificación Transferencias ', 'C@mbio - Pago Móvil ', 'TDD/TDC  Liquidación en Divisas' con doble espacio). Usa selector exacto data-testid='store-qty-proc-{storeId}-{bank}-{producto}-{fase}'. Para commit hacer Tab/click fuera/Enter (no onChange).",
+  "evidence": {
+    "TEST_1_PROCESADO": {
+      "input": "store-qty-proc-st_2426ab99-Bancamiga-Pago con C2P -Configurado",
+      "before": "0", "after_blur": "3", "after_reload": "3",
+      "result": "PASS — persistencia tras blur y tras F5"
+    },
+    "TEST_2_CASCADA_EXPECTED": {
+      "input": "store-qty-exp-st_2426ab99-Bancamiga-Pago con C2P -Recibido",
+      "from": 4, "to": 6,
+      "after_blur_per_phase": {"Recibido":"6","Configurado":"6","Testeado":"6","En Producción":"6"},
+      "after_reload_per_phase": {"Recibido":"6","Configurado":"6","Testeado":"6","En Producción":"6"},
+      "result": "PASS — propagación a las 4 fases + persistencia"
+    },
+    "TEST_3_BOTON_T": {
+      "button": "store-fill-phase-st_2426ab99-Bancamiga-Pago con C2P -En Producción",
+      "pre": "0/6", "post_click": "6/6", "after_reload": "6/6",
+      "result": "PASS — T iguala procesado=esperado, persiste"
+    },
+    "TEST_4_MULTI_EDIT_OPTIMISTA": {
+      "edits": [["Recibido",1],["Configurado",2],["Testeado",1]],
+      "url_unchanged": true,
+      "values_immediate": {"Recibido":"1","Configurado":"2","Testeado":"1"},
+      "result": "PASS — ediciones consecutivas sin navegación/recarga completa; sin parpadeo (cada commit usa patchStoreMatrixLocal)"
+    },
+    "TEST_5_PERSISTENCIA_GLOBAL_Y_REGRESION": {
+      "after_reload": {"Recibido":"1","Configurado":"2","Testeado":"1"},
+      "header_global_avance": "21.9% -> 22.9% (subió tras las ediciones)",
+      "rif_marquez_pct": "32% -> 34%",
+      "sucursal_marquez_pct": "38% -> 42%",
+      "row_rollup_Pago_con_C2P": "1/4 (4 fases) con MiniPies coherentes",
+      "result": "PASS — header y rollups por RIF/sucursal reflejan los cambios; persisten tras F5"
+    }
+  }
+}
