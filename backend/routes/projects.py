@@ -67,6 +67,42 @@ class BankNotifyRequest(BaseModel):
     bank_name: str
 
 
+# ==================== MASTER OVERRIDE (Super-Admin) ====================
+class BankProductsOverride(BaseModel):
+    bank_name: str
+    products: List[str] = []
+
+
+class StoreProductsOverride(BaseModel):
+    store_id: str
+    banks_products: List[BankProductsOverride] = []
+
+
+class MasterOverridePayload(BaseModel):
+    # Campos escalares (texto libre)
+    project_number: Optional[str] = None
+    client_name: Optional[str] = None
+    client_rif: Optional[str] = None
+    client_sede: Optional[str] = None
+    total_usd: Optional[float] = None
+    total_bs: Optional[float] = None
+    integrator_name: Optional[str] = None
+    integrator_app_name: Optional[str] = None
+    pinpad_model: Optional[str] = None
+    server_name: Optional[str] = None
+    ticket_number: Optional[str] = None
+    # Dropdowns
+    status: Optional[str] = None
+    quote_type: Optional[str] = None
+    sponsoring_bank_id: Optional[str] = None
+    sponsoring_bank_name: Optional[str] = None
+    sponsoring_processor_name: Optional[str] = None
+    # Estructura relacional
+    banks_products: Optional[List[BankProductsOverride]] = None  # proyectos single
+    stores_products: Optional[List[StoreProductsOverride]] = None  # multitienda
+    hardware: Optional[List[dict]] = None
+
+
 class AdhocEmailRequest(BaseModel):
     recipients: List[str]
     subject: str
@@ -376,6 +412,173 @@ async def update_project_priority(project_id: str, body: PriorityUpdate, authori
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
     return {"message": f"Prioridad actualizada a '{body.priority}'"}
+
+
+# ==================== MASTER OVERRIDE (Super-Admin) ====================
+
+def _build_override_matrix(banks_products, existing_matrix):
+    """Reconstruye {banco: {producto: phase_data}} preservando los datos de fase
+    existentes cuando el par banco/producto no cambia (evita perder avance)."""
+    m = {}
+    existing_matrix = existing_matrix or {}
+    for bp in banks_products:
+        bn = (bp.bank_name or "").strip()
+        if not bn:
+            continue
+        m.setdefault(bn, {})
+        for prod in bp.products:
+            prod = (prod or "").strip()
+            if not prod:
+                continue
+            m[bn][prod] = (existing_matrix.get(bn, {}) or {}).get(prod, {})
+    return m
+
+
+def _build_override_services(banks_products, existing_services, box_count):
+    """Reconstruye los items 'additional' (medios de pago por banco) desde el
+    override, preservando precios de los items que coinciden y descartando los
+    eliminados. Los items que no son 'additional' se conservan intactos."""
+    existing_services = existing_services or []
+    kept = [s for s in existing_services if s.get("item_type") != "additional"]
+    existing_add = {
+        ((s.get("bank_name") or "").strip(), (s.get("item_name") or "").strip()): s
+        for s in existing_services if s.get("item_type") == "additional"
+    }
+    qty = box_count or 1
+    for bp in banks_products:
+        bn = (bp.bank_name or "").strip()
+        if not bn:
+            continue
+        for prod in bp.products:
+            prod = (prod or "").strip()
+            if not prod:
+                continue
+            match = existing_add.get((bn, prod))
+            if match:
+                kept.append(match)
+            else:
+                kept.append({
+                    "item_type": "additional",
+                    "item_id": None,
+                    "item_name": prod,
+                    "bank_name": bn,
+                    "quantity": qty,
+                    "cantidad_cajas": qty,
+                    "cantidad_bancos": 1,
+                    "unit_price_usd": 0,
+                    "total_usd": 0,
+                })
+    return kept
+
+
+@router.put("/projects/{project_id}/master-override")
+async def master_override_project(project_id: str, payload: MasterOverridePayload, authorization: Optional[str] = Header(None)):
+    """Edición Maestra (Super-Admin Override). Sobrescribe de forma directa y sin
+    restricciones los datos del proyecto, reconstruyendo de forma consistente las
+    estructuras relacionales (banks[], services[], implementation_matrix y, en
+    multitienda, las matrices por tienda). EXCLUSIVO para rol Administrador."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado: la Edición Maestra es exclusiva para Administradores.")
+
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
+    update = {"updated_at": now, "updated_by": current_user.get("email", "")}
+
+    # --- Campos escalares de texto ---
+    for f in ("project_number", "client_name", "client_rif", "client_sede",
+              "integrator_name", "integrator_app_name", "pinpad_model", "server_name"):
+        val = getattr(payload, f)
+        if val is not None:
+            update[f] = val
+    if payload.total_usd is not None:
+        update["total_usd"] = payload.total_usd
+    if payload.total_bs is not None:
+        update["total_bs"] = payload.total_bs
+    if payload.ticket_number is not None:
+        update["ticket_number"] = payload.ticket_number.strip()
+
+    # --- Dropdowns ---
+    if payload.status is not None:
+        if payload.status not in PROJECT_STATUSES:
+            raise HTTPException(status_code=400, detail=f"Estado inválido. Válidos: {PROJECT_STATUSES}")
+        update["status"] = payload.status
+        if payload.status == "Culminado":
+            update["completed_at"] = now
+    if payload.quote_type is not None:
+        update["quote_type"] = (payload.quote_type or "").upper()
+
+    # --- Banco Patrocinador ---
+    if payload.sponsoring_bank_name is not None:
+        bank_name = (payload.sponsoring_bank_name or "").strip()
+        proc = (payload.sponsoring_processor_name or "").strip()
+        update["sponsoring_bank_name"] = bank_name or None
+        update["sponsoring_bank_id"] = payload.sponsoring_bank_id or None
+        update["sponsoring_processor_name"] = proc or None
+        update["sponsored_implementation"] = bool(bank_name)
+        update["patrocinador_label"] = (f"{proc} — {bank_name}" if proc and bank_name else (bank_name or None))
+
+    # --- Hardware ---
+    if payload.hardware is not None:
+        update["hardware"] = payload.hardware
+
+    # --- Estructura relacional (Banco ↔ Productos) ---
+    is_multistore = project.get("project_type") == "multistore"
+    if is_multistore and payload.stores_products is not None:
+        sp_map = {s.store_id: s.banks_products for s in payload.stores_products}
+        union = {}  # banco -> set(productos)
+        new_stores = []
+        for st in project.get("stores", []):
+            sid = st.get("store_id")
+            if sid in sp_map:
+                bps = sp_map[sid]
+                st["implementation_matrix"] = _build_override_matrix(bps, st.get("implementation_matrix", {}))
+                for bp in bps:
+                    union.setdefault((bp.bank_name or "").strip(), set()).update(
+                        [(p or "").strip() for p in bp.products if (p or "").strip()]
+                    )
+            else:
+                for bn, prods in (st.get("implementation_matrix") or {}).items():
+                    union.setdefault(bn, set()).update(prods.keys())
+            new_stores.append(st)
+        update["stores"] = new_stores
+        # La matriz principal de multitienda es la unión de las tiendas
+        principal = [BankProductsOverride(bank_name=bn, products=sorted(prods)) for bn, prods in union.items() if bn]
+        update["implementation_matrix"] = _build_override_matrix(principal, project.get("implementation_matrix", {}))
+        update["banks"] = [{"bank_name": bn} for bn in union.keys() if bn]
+        update["services"] = _build_override_services(principal, project.get("services", []), project.get("box_count"))
+    elif payload.banks_products is not None:
+        bps = payload.banks_products
+        update["implementation_matrix"] = _build_override_matrix(bps, project.get("implementation_matrix", {}))
+        update["banks"] = [{"bank_name": (bp.bank_name or "").strip()} for bp in bps if (bp.bank_name or "").strip()]
+        update["services"] = _build_override_services(bps, project.get("services", []), project.get("box_count"))
+
+    # --- Auditoría ---
+    note = {
+        "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+        "text": f"[Edición Maestra] Override de Administrador ({user_name}).",
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+    }
+    bitacora_entry = {
+        "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
+        "text": f"[Edición Maestra] Datos del proyecto sobrescritos por Administrador ({user_name}).",
+        "execution_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+        "type": "master_override",
+    }
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": update, "$push": {"notes": note, "bitacora": bitacora_entry}},
+    )
+    return {"message": "Proyecto actualizado (Edición Maestra)", "project_id": project_id}
 
 
 # ==================== NOTIFICATION ENDPOINTS ====================

@@ -1,0 +1,36 @@
+{
+  "summary": "Validated Master Override (Super-Admin) feature on backend (5/5 pytest pass) and frontend UI. RBAC, dropdowns, position of pencil icon, product filtering by type, modal contents, multistore tabs, and relational rebuild all verified. Ficha técnica still generates correctly after override.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/projects table & /dashboard commitments table", "issues": ["Pre-existing React hydration warning: '<span> cannot be a child of <tbody>' and '<span> cannot contain a nested <tr>'. Origin appears to be a wrapping <span data-ve-dynamic style='display:contents'> injected by tooling around <tr> elements in Projects.jsx (line 571 region) and Dashboard.jsx (line 389 region). Not introduced by this iteration but affects HTML validity."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_master_override.py",
+    "/app/test_reports/pytest/iter70_master_override.xml"
+  ],
+  "action_items": [
+    "Optional: revise the <span x-ve-dynamic> wrappers around <tr> elements in Projects.jsx and Dashboard.jsx to avoid invalid HTML nesting (hydration warnings)."
+  ],
+  "critical_code_review_comments": [
+    "MasterOverridePayload.hardware is typed as List[dict] — acceptable but a Pydantic submodel (hardware_id, name, type) would harden validation.",
+    "_build_override_matrix correctly trims product names (resolves trailing-space mismatches we observed against the bank catalog).",
+    "Non-admin users in this app don't see the delete button at all (delete is admin-only on the Projects page too); this matches the design but is broader than just the master-override feature.",
+    "Backend route correctly returns 403 with Spanish message and includes a bitacora/notes audit entry on override (good traceability)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_master_override.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100%"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 ; Non-admin: srubio@megasoft.com.ve / Test1234!",
+  "seed_data_creation": "None; reused existing 75 projects. Tests modified status/quote_type/banks of a couple of single + 1 multistore project (test data).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Master Override feature is fully functional end-to-end. Pytest file at /app/backend/tests/test_master_override.py exercises RBAC + single + multistore + ficha técnica. Frontend modal data-testids in MasterEditDialog.jsx all resolve correctly. Pencil icon is BEFORE the delete (trash) icon in the Acciones column for admin users; both icons are hidden for non-admin users (the delete icon was already admin-only in this app, not just the new master-edit). Pre-existing React hydration warning about <span> wrappers around <tr> in Projects.jsx and Dashboard.jsx is unrelated to this iteration."
+}

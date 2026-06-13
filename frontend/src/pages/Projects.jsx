@@ -18,9 +18,10 @@ import { BulkReassignModal } from '../components/BulkReassignModal';
 import { CommitmentModal } from '../components/CommitmentModal';
 import { WorkloadReportFiltersModal } from '../components/WorkloadReportFiltersModal';
 import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
+import { MasterEditDialog } from '../components/projects/MasterEditDialog';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -116,6 +117,10 @@ const Projects = () => {
   const [statusForm, setStatusForm] = useState({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
   const [statusFile, setStatusFile] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
+
+  // Edición Maestra (Super-Admin Override)
+  const [masterEditOpen, setMasterEditOpen] = useState(false);
+  const [masterEditProject, setMasterEditProject] = useState(null);
 
   // Gestor global de Plantillas de Correo (acceso desde el maestro de Proyectos)
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -723,6 +728,13 @@ const Projects = () => {
                               );
                             })()}
                             {isAdmin && (
+                              <Button size="sm" variant="outline" title="Edición Maestra (Admin)"
+                                onClick={() => { setMasterEditProject(project); setMasterEditOpen(true); }}
+                                className="h-8 px-2 text-slate-500 hover:text-slate-800 hover:border-slate-400" data-testid={`master-edit-btn-${project.project_id}`}>
+                                <Pencil size={14} />
+                              </Button>
+                            )}
+                            {isAdmin && (
                               <Button size="sm" variant="outline" title="Eliminar Proyecto"
                                 onClick={() => handleDeleteProject(project)}
                                 className="h-8 px-2 text-slate-300 hover:text-rose-600 hover:border-rose-300" data-testid={`delete-btn-${project.project_id}`}>
@@ -979,6 +991,15 @@ const Projects = () => {
           handleSaveTemplate={handleSaveTemplate}
           handleDeleteTemplate={handleDeleteTemplate}
         />
+
+        {masterEditProject && (
+          <MasterEditDialog
+            open={masterEditOpen}
+            onOpenChange={(o) => { setMasterEditOpen(o); if (!o) setMasterEditProject(null); }}
+            project={masterEditProject}
+            onSaved={fetchProjects}
+          />
+        )}
       </main>
     </div>
   );
