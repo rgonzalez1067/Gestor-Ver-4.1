@@ -99,7 +99,7 @@ def _build_matrix_rows(matrices_with_fallback: list, banks: List[str], products:
     está vacía). Permite detectar inconsistencias entre fases visualmente.
     """
     rows = []
-    for label, matrix, fallback_box in matrices_with_fallback:
+    for label, matrix, fallback_box, store_id in matrices_with_fallback:
         for bank, bank_products in (matrix or {}).items():
             for prod, phases in (bank_products or {}).items():
                 # Solo descarta el producto si TODAS las fases dan expected=0 y no hay box_count
@@ -121,6 +121,7 @@ def _build_matrix_rows(matrices_with_fallback: list, banks: List[str], products:
                     continue
                 rows.append({
                     "store_label": label,
+                    "store_id": store_id,
                     "bank": bank,
                     "product": prod.strip(),
                     "phases": row_phases,
@@ -149,11 +150,11 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
             label = st.get("name") or st.get("store_id") or "—"
             mat = _filter_matrix(st.get("implementation_matrix") or {}, banks_filter, products_filter)
             if mat:
-                matrices_by_label.append((label, mat, int(st.get("box_count") or 0)))
+                matrices_by_label.append((label, mat, int(st.get("box_count") or 0), st.get("store_id")))
     else:
         mat = _filter_matrix(proj.get("implementation_matrix") or {}, banks_filter, products_filter)
         if mat:
-            matrices_by_label.append(("—", mat, int(proj.get("box_count") or 0)))
+            matrices_by_label.append(("—", mat, int(proj.get("box_count") or 0), None))
 
     return proj, matrices_by_label, {
         "banks": banks_filter,
@@ -194,7 +195,7 @@ async def project_progress_report(
 
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
-    totals = _aggregate_phases([(m, fb) for _l, m, fb in matrices_by_label])
+    totals = _aggregate_phases([(m, fb) for _l, m, fb, _sid in matrices_by_label])
 
     # Catálogos disponibles para popular la pantalla de filtros (no filtrados)
     available_banks = []
@@ -266,7 +267,7 @@ async def project_progress_report_pdf(
     proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv)
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
-    totals = _aggregate_phases([(m, fb) for _l, m, fb in matrices_by_label])
+    totals = _aggregate_phases([(m, fb) for _l, m, fb, _sid in matrices_by_label])
 
     # Helpers
     def fmt_dt(iso):
@@ -286,9 +287,10 @@ async def project_progress_report_pdf(
     else:
         last_store = None
         for r in rows:
-            if is_multi and r["store_label"] != last_store:
+            store_key = r.get("store_id") or r["store_label"]
+            if is_multi and store_key != last_store:
                 body_rows_html += f'<tr class="store-row"><td colspan="{6 if is_multi else 5}">🏬 {r["store_label"]}</td></tr>'
-                last_store = r["store_label"]
+                last_store = store_key
             phase_cells = "".join(_phase_cell_html(r["phases"][ph]) for ph in PHASES)
             body_rows_html += (
                 f'<tr><td class="bank">{r["bank"]}</td><td class="prod">{r["product"]}</td>{phase_cells}</tr>'

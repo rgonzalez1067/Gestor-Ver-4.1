@@ -805,3 +805,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - **Backend** (`direct_projects.py`): nuevo campo `pinpad_provider` ('client'|'infrastructure'|'bank'; vacío legacy→bank). Inyecta en la Ficha (Sección B, fila Patrocinador de Pinpads) la glosa "Los Pinpads son suministrados por el Cliente/Infraestructura" (vía sponsor_bank_name) o el banco/procesador estándar. Persiste `pinpad_provider` en el proyecto.
 - **Notificación**: nueva acción configurable `notify_infrastructure_pinpads` (catálogo `action_notifications.py`, permitida en `proyectos_directos`). Al crear un Proyecto Directo con provider='infrastructure' se dispara vía el motor (con Ficha Técnica adjunta), igual mecanismo que "Enviar a Implementación". Config sembrada: destinatario dept. Infraestructura (Martín Ochoa), canal inbox — el admin la ajusta en Configuración → Notificaciones.
 - Verificado Iter68: 5/5 backend + UI 3 escenarios. Test: `backend/tests/test_iteration68_pinpad_provider.py`.
+
+## 2026-06-13 · Fix P0: Reporte de Avance ahora soporta Multi-RIF
+- Causa raíz: el agente previo solo corrigió 1 de 4 compuertas. Faltaba incluir 'multirif' en: catálogos de filtros (project_reports.py L203), encabezado por tienda del PDF (is_multi L280) y agrupación/filtro de tienda en el modal (ProjectProgressReportDialog.jsx L92).
+- Fix: extendidas las 4 compuertas a `in ('multistore','multirif')`.
+- Bug MEDIO adicional (hallado por testing_agent iter82): tiendas con mismo nombre ("Altamira" x2) colapsaban en un solo grupo por agrupar por label. Solucionado agrupando por `store_id` (backend `_build_matrix_rows` añade `store_id`; PDF y frontend `groupedRows` agrupan por store_id).
+- Validado: JSON avance (4 grupos distintos, 2 Altamira separadas), PDF 200/application/pdf (prj_e586608e3579 30KB, prj_5c3999532fcc 32KB, 2 headers Altamira confirmados por extracción), modal UI verificado por testing_agent (frontend 95%, store filter habilitado, agrupación por tienda OK).
+- Pendiente P3 (no bloqueante): hydration warnings `<span data-ve-dynamic>` dentro de <tbody>/<tr> (wrapper de instrumentación de plataforma) y warning a11y Radix en el dialog.

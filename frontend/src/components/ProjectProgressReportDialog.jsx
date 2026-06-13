@@ -99,9 +99,10 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
     const g = [];
     let lastStore = null;
     for (const r of data.rows) {
-      if (isMultistore && r.store_label !== lastStore) {
+      const storeKey = r.store_id || r.store_label;
+      if (isMultistore && storeKey !== lastStore) {
         g.push({ type: 'store', label: r.store_label });
-        lastStore = r.store_label;
+        lastStore = storeKey;
       }
       g.push({ type: 'data', row: r });
     }
