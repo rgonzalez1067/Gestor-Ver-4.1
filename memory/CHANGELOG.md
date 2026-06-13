@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Fix de rendimiento: latencia al capturar tiendas en proyectos Multi-RIF
+
+- **Causa raíz**: los inputs de la matriz por tienda (`StoreBankSection.jsx`) disparaban la actualización en **cada tecla** (`onChange`), y cada edición ejecutaba un `fetchProject()` que **recargaba TODO el proyecto** (documento grande en Multi-RIF) + re-render completo del árbol. La cascada hacía 4 PUT + 1 GET por dígito.
+- **Solución (frontend)**:
+  - `StoreBankSection.jsx`: nuevo `QtyInput` con estado local → la escritura es instantánea y se **persiste solo en blur/Enter** (no por tecla).
+  - `ProjectDetail.jsx`: `patchStoreMatrixLocal` aplica una **actualización local optimista** (parchea la celda + rollup) en lugar de `fetchProject()` en los 4 handlers de tienda (quantity, cascade, fill, toggle). En error se hace `fetchProject()` para resync.
+- **Solución (backend `projects.py` · `update_store_matrix_phase`)**: el PUT ahora retorna `expected/processed/completed` + `rollup_progress`, para que el frontend actualice sin recargar.
+- **Validado (iteration_80)**: 100% — escritura fluida, persistencia tras F5, cascada propaga a las 4 fases, botón "T" completa, avance global se actualiza sin recargar. Sin pérdida de datos ni parpadeo.
+
+
 ## 2026-06-13 — Fix: Reporte de Carga (PDF) de Proyectos no contemplaba Multi-RIF
 
 - **Causa (backend `projects.py` · `projects_workload_pdf`)**: los proyectos `quote_type='VPOS_MULTIRIF'` mostraban Cajas "—" (el gate era `qt in ("VPOS","MPOS")`), no sumaban a la carga del implementador, no tenían badge/etiqueta de tipo y no aparecían en la agrupación/filtro por Tipo. Además, en Multi-RIF `cantidad_cajas` viene vacío (el total vive en `rifs`/`stores`).
