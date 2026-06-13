@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Nueva función: carga vía Excel de la distribución Multi-RIF (Tiendas/Sucursales)
+
+- **Backend (`quotes.py`)**: 2 endpoints nuevos:
+  - `GET /quotes/multirif/excel-template` → plantilla .xlsx (hoja "Distribucion" + hoja "Instrucciones") con columnas `RIF Cliente | Nombre Sucursal | Cajas`.
+  - `POST /quotes/multirif/parse-excel` (multipart `file` + `global_boxes`) → parsea, valida y devuelve `{ok, distribution, errors, warnings, summary}` SIN persistir. Agrupa por RIF (busca el Cliente por RIF), calcula cajas del RIF = suma de sus sucursales.
+- **Reporte de errores documentado (fila por fila)**: RIF/sucursal vacíos, Cajas no numérica o ≤0, RIF sin Cliente registrado, sucursal duplicada en el mismo RIF, columnas faltantes / archivo ilegible. Advertencia (no bloquea) si total de cajas ≠ Cajas Globales del lote.
+- **Frontend (`MultiRifDistributionPanel.jsx`)**: barra con "Plantilla" (descarga .xlsx) y "Cargar Excel" (input oculto). Al cargar sin errores, **reemplaza** la distribución (`onChange`); muestra `ImportReport` con éxito/advertencias/errores (con número de fila) y resumen (RIFs/sucursales/cajas). Disponible en estado colapsado y expandido.
+- **Validado**: curl (plantilla 2 hojas, parseo válido, 4 tipos de error con fila, advertencia por mismatch, resumen) + testing agent (iteration_81, 5/5 escenarios en el wizard VPOS Multi-RIF).
+
+
 ## 2026-06-13 — Fix de rendimiento: latencia al capturar tiendas en proyectos Multi-RIF
 
 - **Causa raíz**: los inputs de la matriz por tienda (`StoreBankSection.jsx`) disparaban la actualización en **cada tecla** (`onChange`), y cada edición ejecutaba un `fetchProject()` que **recargaba TODO el proyecto** (documento grande en Multi-RIF) + re-render completo del árbol. La cascada hacía 4 PUT + 1 GET por dígito.
