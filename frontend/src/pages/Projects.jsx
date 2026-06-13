@@ -507,8 +507,8 @@ const Projects = () => {
               <p className="text-sm text-slate-400">Los proyectos se crean automáticamente al enviar una cotización a Implementación</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-              <table className="w-full">
+            <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+              <table className="w-full min-w-[1100px]">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Cliente / Ticket</th>
@@ -686,13 +686,12 @@ const Projects = () => {
                               data-testid={`status-btn-${project.project_id}`}>
                               <RefreshCw size={14} />
                             </Button>
-                            {/* Asignar / Reasignar */}
+                            {/* Asignar / Reasignar — solo icono para no desbordar la columna */}
                             {canEdit && <Button size="sm" variant="outline" onClick={() => openAssignDialog(project)}
                               title={hasAssignee ? 'Reasignar' : 'Asignar'}
-                              className={`h-8 px-2 text-xs gap-1 ${hasAssignee ? 'text-purple-600 hover:bg-purple-50' : 'text-blue-600 hover:bg-blue-50'}`}
+                              className={`h-8 px-2 ${hasAssignee ? 'text-purple-600 hover:bg-purple-50' : 'text-blue-600 hover:bg-blue-50'}`}
                               data-testid={`assign-btn-${project.project_id}`}>
                               {hasAssignee ? <UserPlus size={14} /> : <UserCheck size={14} />}
-                              <span className="hidden xl:inline">{hasAssignee ? 'Reasignar' : 'Asignar'}</span>
                             </Button>}
                             {/* Ver Detalle — Iter39: deshabilitado si no hay implementador asignado. */}
                             <Button
