@@ -1,5 +1,13 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Edición Maestra: diff de auditoría en bitácora
+
+Mejora de trazabilidad sobre los overrides de admin (`projects.py` → `master_override_project`):
+- Nuevo helper `_master_diff()` que compara los valores anteriores del proyecto contra el override y produce una lista de cambios `{field, label, old, new}` (campos escalares, Estado, Tipo, Banco Patrocinador, Hardware, y resumen Bancos/Productos vía `_summarize_matrix`; en multitienda, diff por tienda).
+- La bitácora (`type='master_override'`) ahora guarda: texto legible "N campo(s) modificado(s) por {admin}: Estado: 'X' → 'Y'; ..." **y** la estructura `changes` para trazabilidad programática. Respuesta incluye `changes_count`.
+- Validado por curl: detecta solo los campos realmente cambiados (Ticket/Estado/Bancos-Productos) e ignora los iguales.
+
+
 ## 2026-06-13 — Edición Maestra (Super-Admin Overrides) en Módulo de Proyectos (P0)
 
 Función de edición global/permisiva exclusiva para rol Administrador:

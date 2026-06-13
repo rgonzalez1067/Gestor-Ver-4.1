@@ -471,6 +471,63 @@ def _build_override_services(banks_products, existing_services, box_count):
     return kept
 
 
+def _summarize_matrix(matrix):
+    """Convierte {banco: {producto: {...}}} en un texto legible 'Banco: p1, p2'."""
+    if not matrix:
+        return "—"
+    parts = []
+    for bn, prods in matrix.items():
+        prod_list = ", ".join(sorted((prods or {}).keys())) or "(sin productos)"
+        parts.append(f"{bn}: {prod_list}")
+    return " | ".join(parts)
+
+
+def _master_diff(old_project, update, is_multistore):
+    """Calcula el diff de auditoría (campo, etiqueta, anterior, nuevo) entre el
+    proyecto previo y el override aplicado. Devuelve lista de cambios."""
+    labels = {
+        "project_number": "Nro de Proyecto", "client_name": "Cliente", "client_rif": "RIF",
+        "client_sede": "Sede", "total_usd": "Total USD", "total_bs": "Total Bs",
+        "integrator_name": "Integrador", "integrator_app_name": "App Integrador",
+        "pinpad_model": "Modelo Pinpad", "server_name": "Servidor", "ticket_number": "Nro de Ticket",
+        "status": "Estado", "quote_type": "Tipo de Proyecto", "sponsoring_bank_name": "Banco Patrocinador",
+    }
+    changes = []
+    for field, label in labels.items():
+        if field not in update:
+            continue
+        old_val = old_project.get(field)
+        new_val = update.get(field)
+        if (old_val or "") != (new_val or "") and not (old_val in (None, "") and new_val in (None, "")):
+            changes.append({"field": field, "label": label, "old": old_val, "new": new_val})
+
+    if "hardware" in update:
+        old_hw = ", ".join(sorted([h.get("name", "") for h in (old_project.get("hardware") or [])])) or "—"
+        new_hw = ", ".join(sorted([h.get("name", "") for h in (update.get("hardware") or [])])) or "—"
+        if old_hw != new_hw:
+            changes.append({"field": "hardware", "label": "Hardware", "old": old_hw, "new": new_hw})
+
+    if "implementation_matrix" in update:
+        old_sum = _summarize_matrix(old_project.get("implementation_matrix"))
+        new_sum = _summarize_matrix(update.get("implementation_matrix"))
+        if old_sum != new_sum:
+            changes.append({"field": "implementation_matrix", "label": "Bancos/Productos", "old": old_sum, "new": new_sum})
+
+    if is_multistore and "stores" in update:
+        old_stores = {s.get("store_id"): s for s in (old_project.get("stores") or [])}
+        for st in update.get("stores") or []:
+            sid = st.get("store_id")
+            o_sum = _summarize_matrix((old_stores.get(sid) or {}).get("implementation_matrix"))
+            n_sum = _summarize_matrix(st.get("implementation_matrix"))
+            if o_sum != n_sum:
+                changes.append({
+                    "field": f"store:{sid}",
+                    "label": f"Tienda «{st.get('name', sid)}»",
+                    "old": o_sum, "new": n_sum,
+                })
+    return changes
+
+
 @router.put("/projects/{project_id}/master-override")
 async def master_override_project(project_id: str, payload: MasterOverridePayload, authorization: Optional[str] = Header(None)):
     """Edición Maestra (Super-Admin Override). Sobrescribe de forma directa y sin
@@ -557,28 +614,42 @@ async def master_override_project(project_id: str, payload: MasterOverridePayloa
         update["banks"] = [{"bank_name": (bp.bank_name or "").strip()} for bp in bps if (bp.bank_name or "").strip()]
         update["services"] = _build_override_services(bps, project.get("services", []), project.get("box_count"))
 
-    # --- Auditoría ---
+    # --- Auditoría con diff (campo: anterior → nuevo) ---
+    changes = _master_diff(project, update, is_multistore)
+
+    def _fmt(v):
+        if v in (None, ""):
+            return "—"
+        return str(v)
+
+    if changes:
+        diff_lines = "; ".join(f"{c['label']}: '{_fmt(c['old'])}' → '{_fmt(c['new'])}'" for c in changes)
+        summary_text = f"[Edición Maestra] {len(changes)} campo(s) modificado(s) por {user_name}: {diff_lines}"
+    else:
+        summary_text = f"[Edición Maestra] {user_name} guardó sin cambios efectivos."
+
     note = {
         "note_id": f"pn_{uuid.uuid4().hex[:8]}",
-        "text": f"[Edición Maestra] Override de Administrador ({user_name}).",
+        "text": summary_text,
         "created_by": current_user.get("user_id", ""),
         "created_by_name": user_name,
         "created_at": now,
     }
     bitacora_entry = {
         "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
-        "text": f"[Edición Maestra] Datos del proyecto sobrescritos por Administrador ({user_name}).",
+        "text": summary_text,
         "execution_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "created_by": current_user.get("user_id", ""),
         "created_by_name": user_name,
         "created_at": now,
         "type": "master_override",
+        "changes": changes,
     }
     await db.projects.update_one(
         {"project_id": project_id},
         {"$set": update, "$push": {"notes": note, "bitacora": bitacora_entry}},
     )
-    return {"message": "Proyecto actualizado (Edición Maestra)", "project_id": project_id}
+    return {"message": "Proyecto actualizado (Edición Maestra)", "project_id": project_id, "changes_count": len(changes)}
 
 
 # ==================== NOTIFICATION ENDPOINTS ====================
