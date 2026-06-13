@@ -79,7 +79,8 @@ const PROJECT_TYPE_FILTERS = [
 ];
 
 const Projects = () => {
-  const { canEdit, user: currentUser } = usePermission('proyectos');
+  const { canEdit, hasSpecial, isAdmin: isAdminPerm, user: currentUser } = usePermission('proyectos');
+  const canManageTemplates = isAdminPerm || hasSpecial('proyectos:manage_email_templates');
   // Coord/Gerente/Admin → acciones gerenciales (reasignación masiva + compromisos)
   const canManage = (() => {
     const role = (currentUser?.role || '').toLowerCase();
@@ -337,14 +338,14 @@ const Projects = () => {
               <p className="text-slate-600">Seguimiento de implementaciones post-venta</p>
             </div>
             <div className="flex items-center gap-2">
-              {canEdit && (
+              {canManageTemplates && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={openTemplatesAdmin}
                   data-testid="projects-templates-btn"
                   className="border-slate-300 text-slate-700 hover:bg-slate-50"
-                  title="Gestionar plantillas de correo de implementación (acceso global)"
+                  title="Gestionar plantillas de correo de implementación (función especial autorizada por perfil)"
                 >
                   <ClipboardList size={14} className="mr-1.5" />
                   Plantillas

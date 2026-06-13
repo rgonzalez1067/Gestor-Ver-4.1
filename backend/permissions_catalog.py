@@ -101,6 +101,10 @@ SPECIAL_PERMISSIONS = [
     {"id": "reportes_ventas:executive_summary", "module": "reportes_ventas",
      "label": "Generar Resumen Ejecutivo PDF",
      "description": "Habilita la descarga del Resumen Ejecutivo (PDF consolidado de los 8 reportes). Útil para gerencia."},
+    # Proyectos — Gestor global de Plantillas de Correo
+    {"id": "proyectos:manage_email_templates", "module": "proyectos",
+     "label": "Gestionar Plantillas de Correo",
+     "description": "Habilita el gestor global de plantillas de correo de implementación (botón 'Plantillas') en el panel principal de Proyectos."},
 ]
 
 SPECIAL_FLAG_IDS = [s["id"] for s in SPECIAL_PERMISSIONS]

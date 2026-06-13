@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only validation of the 'Plantillas' button relocation + new special permission 'proyectos:manage_email_templates'. All 6 requested checks PASS: (1) Admin login OK, (2) projects-templates-btn visible & functional in /projects main panel for admin — opens TemplatesAdminDialog with title 'Gestionar Plantillas de Correo' listing 7 plantillas, (3) ProjectDetail (prj_e586608e3579) NO longer renders 'manage-templates-btn' nor any button with text 'Plantillas'; download-ficha-tecnica-btn is still present, plus Notificaciones / Reporte de Avance / Mis Alertas / Ficha Técnica all rendered, (4) AdminProfiles page renders the new special permission label 'Gestionar Plantillas de Correo' (consumed from /api/admin/permission-catalog), (5) RBAC negative: srubio@megasoft.com.ve (proyectos=read, no special perm) does NOT see projects-templates-btn in /projects, (6) Internal project panel features remain operational without errors after code cleanup.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Multiple pages (Dashboard, Projects, ProjectDetail, AdminProfiles)", "issues": ["Pre-existing React hydration warnings from Visual Edit x-source instrumentation (data-ve-dynamic <span> wrappers producing invalid HTML nesting: span inside tr/tbody/th). Non-blocking — already reported in iteration_85. Not caused by this iteration's changes."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Projects.jsx still imports TemplatesAdminDialog at top (line 20) — correct since the dialog is rendered from the main Projects page now (L982). ProjectDetail.jsx properly removed the import/dialog/handlers per spec.",
+    "AdminProfiles renders specials from /api/admin/permission-catalog catalog dynamically; new 'proyectos:manage_email_templates' label appears as expected. AdminUsers also consumes the same catalog (line 430 specialsByModule) and will automatically reflect the new entry."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (UI); No-admin srubio@megasoft.com.ve / Test1234! (UI).",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Plantillas button is now gated by canManageTemplates = isAdmin || hasSpecial('proyectos:manage_email_templates') in Projects.jsx (L83) and only rendered on the main Projects list (data-testid='projects-templates-btn', L341/346). ProjectDetail.jsx no longer contains manage-templates-btn / TemplatesAdminDialog. AdminProfiles + AdminUsers automatically pick up the new special permission from the permission-catalog endpoint.",
+  "rca of the issue": "N/A — feature relocation working as designed and RBAC gating verified for both admin (button shown) and non-admin without special perm (button hidden)."
+}

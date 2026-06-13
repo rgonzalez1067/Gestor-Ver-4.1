@@ -29,7 +29,6 @@ import { TemplateBodyEditor } from '../components/projects/TemplateBodyEditor';
 import { ProjectProgressReportDialog } from '../components/ProjectProgressReportDialog';
 import { BatchUpdateModal } from '../components/projects/BatchUpdateModal';
 import { EmailDetailViewer } from '../components/projects/EmailDetailViewer';
-import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { EmailPreviewDialog } from '../components/projects/EmailPreviewDialog';
 import { CommitmentModal } from '../components/CommitmentModal';
@@ -176,12 +175,6 @@ const ProjectDetail = () => {
   const [previewSending, setPreviewSending] = useState(false);
   const [previewContext, setPreviewContext] = useState(null); // {type: 'sequential'|'adhoc', target, bankName}
   const editorRef = useRef(null);
-
-  // Admin: template management
-  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
-  const [templateForm, setTemplateForm] = useState({ name: '', subject: '', body: '' });
-  const [editingTemplateId, setEditingTemplateId] = useState(null);
-  const [templateSaving, setTemplateSaving] = useState(false);
 
   // Security Lock: ticket number
   const [ticketInput, setTicketInput] = useState('');
@@ -976,14 +969,6 @@ const ProjectDetail = () => {
     finally { setBitacoraSubmitting(false); }
   };
 
-  // ==================== TEMPLATE ADMIN ====================
-  const openTemplatesAdmin = () => {
-    fetchTemplates();
-    setTemplateForm({ name: '', subject: '', body: '' });
-    setEditingTemplateId(null);
-    setTemplatesDialogOpen(true);
-  };
-
   // ==================== FICHA TÉCNICA (PDF on-the-fly) ====================
   const downloadFichaTecnica = async () => {
     setFichaDownloading(true);
@@ -1054,42 +1039,6 @@ const ProjectDetail = () => {
       fetchProject();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al eliminar VTIDs'); }
     finally { setVtidDeleting(false); }
-  };
-
-  const handleSaveTemplate = async () => {
-    if (!templateForm.name.trim() || !templateForm.subject.trim()) { toast.error('Nombre y asunto son obligatorios'); return; }
-    setTemplateSaving(true);
-    try {
-      const tid = editingTemplateId || `tpl_${Date.now()}`;
-      const payload = {
-        template_id: tid,
-        name: templateForm.name,
-        subject: templateForm.subject,
-        body_html: templateForm.body,
-        context: 'IMPLEMENTACION',
-      };
-      if (editingTemplateId) {
-        await api.put(`/email-templates/${editingTemplateId}`, payload);
-        toast.success('Plantilla actualizada');
-      } else {
-        await api.post('/email-templates', payload);
-        toast.success('Plantilla creada');
-      }
-      setTemplateForm({ name: '', subject: '', body: '' });
-      setEditingTemplateId(null);
-      fetchTemplates();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Error guardando plantilla'); }
-    finally { setTemplateSaving(false); }
-  };
-
-  const handleDeleteTemplate = async (tid) => {
-    if (!window.confirm('¿Está seguro de eliminar esta plantilla? Esta acción no se puede deshacer.')) return;
-    try {
-      await api.delete(`/email-templates/${tid}`);
-      toast.success('Plantilla eliminada');
-      if (editingTemplateId === tid) { setEditingTemplateId(null); setTemplateForm({ name: '', subject: '', body: '' }); }
-      fetchTemplates();
-    } catch { toast.error('Error eliminando plantilla'); }
   };
 
   // ==================== HELPERS ====================
@@ -1189,9 +1138,6 @@ const ProjectDetail = () => {
                   })()}
                   <Button variant="outline" size="sm" onClick={downloadFichaTecnica} disabled={fichaDownloading} className="text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-7 px-2" data-testid="download-ficha-tecnica-btn">
                     <FileDown size={12} />{fichaDownloading ? 'Generando...' : 'Ficha Técnica'}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={openTemplatesAdmin} className="text-xs gap-1 border-slate-200 text-slate-600 hover:bg-slate-50 h-7 px-2" data-testid="manage-templates-btn">
-                    <ClipboardList size={12} />Plantillas
                   </Button>
                 </div>
               </div>
@@ -2728,20 +2674,6 @@ const ProjectDetail = () => {
           open={emailDetailOpen}
           onOpenChange={setEmailDetailOpen}
           data={emailDetailData}
-        />
-
-        {/* ==================== TEMPLATES ADMIN DIALOG ==================== */}
-        <TemplatesAdminDialog
-          open={templatesDialogOpen}
-          onOpenChange={setTemplatesDialogOpen}
-          emailTemplates={emailTemplates}
-          editingTemplateId={editingTemplateId}
-          setEditingTemplateId={setEditingTemplateId}
-          templateForm={templateForm}
-          setTemplateForm={setTemplateForm}
-          templateSaving={templateSaving}
-          handleSaveTemplate={handleSaveTemplate}
-          handleDeleteTemplate={handleDeleteTemplate}
         />
 
         {/* ==================== EMAIL PREVIEW / EDITOR DIALOG ==================== */}
