@@ -818,3 +818,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Backend (project_reports.py): `_load_project_with_filters` acepta `rifs_csv` y filtra stores por `rif_id`; endpoints avance y PDF aceptan `rifs`; avance expone `available.rifs` (rif_id/rif/client_name/box_count) y `available.stores` incluye `rif_id`; PDF agrega chip 'RIF:'.
 - Frontend (ProjectProgressReportDialog.jsx): estado selRifs, cascada storesAvail, toggleRif poda selStores, params.rifs en applyFilters+downloadPdf, reset en useEffect/Limpiar.
 - Bug HIGH (iter83): applyFilters no enviaba `rifs` → la vista previa no filtraba. Corregido (iter84 100% PASS: 2 grupos Marquez/Centro, cascada, reset, Limpiar, PDF OK).
+
+## 2026-06-13 · Feature: Agrupación por RIF en tabla del Reporte de Avance
+- A pedido del usuario, la tabla (modal + PDF) del Reporte de Avance ahora muestra para proyectos multirif un encabezado por RIF con el número de RIF y el nombre del comercio ('🆔 RIF J501546010 · Brasero El Marqúez'), y debajo SOLO las tiendas correspondientes a ese RIF ('🏬 Marquez', '🏬 Centro').
+- Backend (project_reports.py): _build_matrix_rows añade rif_id/rif/rif_name por fila; _load_project_with_filters ordena las tiendas agrupadas por su RIF (rif_order desde proj.rifs); PDF emite filas tr.rif-row (header RIF) + tr.store-row (tienda indentada) con CSS.
+- Frontend (ProjectProgressReportDialog.jsx): groupedRows emite items type:'rif' antes de type:'store'; render con data-testid='report-rif-header'.
+- Verificado: JSON (orden Brasero→Marquez/Centro; Barako→Altamira; Carbon→Altamira), PDF 200, y UI por testing_agent (iter85, frontend 100%, 7/7 checks PASS incl. filtro RIF).
