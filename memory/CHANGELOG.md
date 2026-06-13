@@ -1,5 +1,23 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — VPOS Multi-RIF · Fase 4.5 (corrección de bypass) + Ficha Técnica + Fase 5 (filtro RIF en Actualización Masiva)
+
+### Corrección del bypass agresivo (Enviar a Implementación)
+- **Frontend (`Quotes.jsx` · `openMultistoreDialog`)**: se REVIRTIÓ el early-return que enviaba directo a implementación. Ahora para `VPOS_MULTIRIF`: abre el wizard, setea `is_multistore=true` + `projectTypeImpl='vpos_mpos'` y enruta a `multistorePhase='pinpad_question'`. Se omite ÚNICAMENTE el modal "¿Es Multitienda?" y se MANTIENEN obligatorios los pasos: Pinpads → Impresora Fiscal → Datos Consolidados (Servidor/Servi) → Confirmación de Implementador. El flujo no-Multi-RIF queda intacto (regresión validada).
+- **Frontend (`QuoteModals.jsx` · fase `pinpad_question`)**: el botón "Atrás" cierra el wizard cuando la cotización es `VPOS_MULTIRIF` (es el primer paso), en vez de navegar a fases inexistentes ('collect'/'ask').
+- **Validado (iteration_73)**: al "Enviar a Implementación" de un VPOS_MULTIRIF aparece la fase Pinpads (no envío directo). 3/3 tests críticos frontend ✓.
+
+### Ficha Técnica PDF jerárquica Multi-RIF
+- **Backend (`implementation_pdf.py`)**: nuevo helper `_build_multirif_table` + render de "DETALLE DE TIENDAS Y SUCURSALES (Multi-RIF)" (Cliente/RIF → Sucursales → Cajas + TOTAL GENERAL) en la sección de Distribución Logística cuando `quote.multirif_distribution` existe (en send-time el campo viene del quote; el formato coincide). Fallback a la tabla plana de sucursales para proyectos normales.
+- **Backend (`projects.py` · `download_ficha_tecnica`)**: construye `multirif_distribution` desde `project.rifs` + `project.stores` (agrupando por `rif_id`).
+- **Validado**: pytest `tests/test_ficha_multirif.py` (2/2) + curl live de `GET /projects/prj_e586608e3579/ficha-tecnica` → 3 RIFs (Brasero/Barako/Carbon), TOTAL GENERAL=28.
+
+### Fase 5 — Filtro en cascada por RIF en "Actualización Masiva"
+- **Frontend (`BatchUpdateModal.jsx`)**: nuevo Select de RIF (Fase → Banco → RIF → Tiendas). Opción "Todos los RIFs" vs RIF específico; al elegir un RIF, la lista "Tiendas a procesar" filtra por `store.rif_id`. Solo se muestra en proyectos Multi-RIF (`project.rifs.length>0`).
+- **Frontend (`ProjectDetail.jsx`)**: estados `batchRif`, `handleBatchRifChange` (resetea selección de tiendas), `getBatchFilteredStores`, `toggleAllBatchStores` acotado a tiendas filtradas. **Fix de gating**: el botón "Actualización Masiva" ahora se muestra con `(isMultistore || isMultiRif)` (antes solo `isMultistore`, ocultaba el botón en proyectos `project_type='multirif'`). Backend sin cambios (recibe `store_ids` ya acotados).
+- **Validado (iteration_74 detectó gating oculto → corregido → iteration_75)**: 100% del flujo Fase 5 (botón visible, modal, filtrado 4→2→1→1→4, reset de selección) ✓.
+
+
 ## 2026-06-13 — VPOS Multi-RIF · Bypass del modal "¿Es Multitienda?" en Enviar a Implementación
 
 - **Frontend (`Quotes.jsx`)**: `openMultistoreDialog` ahora hace **early-return** cuando `quote_type === 'VPOS_MULTIRIF'`: omite el modal "¿Es Multitienda?" y llama directo a `handleSendToImplementation` (preservando `exceptionInfo` para el flujo irregular). Para el resto de tipos, el modal tradicional Sí/No se mantiene intacto.
