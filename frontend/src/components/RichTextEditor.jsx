@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Extension } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
@@ -11,11 +11,14 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
 import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import { toast } from 'sonner';
+import api from '../utils/api';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Palette, Highlighter, Link as LinkIcon, Eye, X, Undo2, Redo2,
-  Rows3, Trash2,
+  Rows3, Trash2, ImagePlus,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
@@ -249,9 +252,46 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
   minHeight = 110,
   maxHeight = 260,
   tableRowActions = false,
+  enableImagePaste = true,
+  imageUploadUrl = '/projects/upload-image',
 }, ref) {
   const [showHighlights, setShowHighlights] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const editorRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Sube un Blob/File de imagen al servidor de archivos y devuelve la URL pública absoluta.
+  const uploadImageBlob = async (file) => {
+    const mimeExt = (file.type && file.type.split('/')[1]) || 'png';
+    const ext = mimeExt === 'jpeg' ? 'jpg' : mimeExt;
+    const filename = file.name && file.name.includes('.') ? file.name : `pegado_${Date.now()}.${ext}`;
+    const fd = new FormData();
+    fd.append('file', file, filename);
+    const { data } = await api.post(imageUploadUrl, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+    return data?.url;
+  };
+
+  // Procesa una imagen del portapapeles / drop / selector e inserta <img> en el cursor.
+  const handleImageFile = async (file) => {
+    const ed = editorRef.current;
+    if (!ed || !file) return;
+    const tId = toast.loading('Subiendo imagen…');
+    setUploadingImage(true);
+    try {
+      const url = await uploadImageBlob(file);
+      if (url) {
+        ed.chain().focus().setImage({ src: url, alt: file.name || 'imagen' }).run();
+        toast.success('Imagen insertada', { id: tId });
+      } else {
+        toast.error('No se recibió la URL de la imagen', { id: tId });
+      }
+    } catch (e) {
+      toast.error('No se pudo subir la imagen', { id: tId });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const editor = useEditor({
     extensions: [
@@ -267,6 +307,11 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
         autolink: true,
         HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank', class: 'text-blue-600 underline' },
       }),
+      Image.configure({
+        inline: false,
+        allowBase64: false,
+        HTMLAttributes: { style: 'max-width:100%;height:auto;border-radius:6px;display:block;margin:6px 0;' },
+      }),
       ...(tableRowActions ? [TableRowActions] : []),
     ],
     content: value || '',
@@ -275,6 +320,39 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
         class: 'prose prose-sm max-w-none focus:outline-none px-3 py-2 text-sm',
         style: `min-height:${minHeight}px;max-height:${maxHeight}px;overflow-y:auto;`,
         'data-testid': `${testid}-content`,
+      },
+      // Pegado en caliente (Ctrl+V) de imágenes del portapapeles → upload + <img>.
+      handlePaste: (view, event) => {
+        if (!enableImagePaste) return false;
+        const items = event.clipboardData && event.clipboardData.items;
+        if (!items) return false;
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          if (it.kind === 'file' && it.type && it.type.startsWith('image/')) {
+            const file = it.getAsFile();
+            if (file) {
+              event.preventDefault();
+              handleImageFile(file);
+              return true;
+            }
+          }
+        }
+        return false;
+      },
+      // Soporte de arrastrar-y-soltar imágenes.
+      handleDrop: (view, event) => {
+        if (!enableImagePaste) return false;
+        const files = event.dataTransfer && event.dataTransfer.files;
+        if (files && files.length) {
+          for (let i = 0; i < files.length; i++) {
+            if (files[i].type && files[i].type.startsWith('image/')) {
+              event.preventDefault();
+              handleImageFile(files[i]);
+              return true;
+            }
+          }
+        }
+        return false;
       },
     },
     onUpdate: ({ editor }) => {
@@ -287,6 +365,8 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
       onChange && onChange(html, plainText.length);
     },
   });
+
+  useEffect(() => { editorRef.current = editor; }, [editor]);
 
   useEffect(() => {
     if (editor && value !== undefined && value !== editor.getHTML()) {
@@ -425,6 +505,28 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
         <span className="mx-1 h-4 w-px bg-slate-300" />
 
         <Btn active={editor.isActive('link')} onClick={addLink} title="Insertar enlace" tid={`${testid}-link`}><LinkIcon size={14} /></Btn>
+        {enableImagePaste && (
+          <Btn
+            disabled={uploadingImage}
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            title="Insertar imagen (o pega con Ctrl+V)"
+            tid={`${testid}-image`}
+          ><ImagePlus size={14} /></Btn>
+        )}
+        {enableImagePaste && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+            className="hidden"
+            data-testid={`${testid}-image-input`}
+            onChange={(e) => {
+              const f = e.target.files && e.target.files[0];
+              if (f) handleImageFile(f);
+              e.target.value = '';
+            }}
+          />
+        )}
 
         <span className="mx-1 h-4 w-px bg-slate-300" />
 

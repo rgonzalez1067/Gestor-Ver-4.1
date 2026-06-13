@@ -1475,7 +1475,7 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
         "entity_label": email_data["entity_label"],
         "prefix": NOTIFICATION_PREFIXES[prefix_idx],
         "send_number": send_count + 1,
-        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales")},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto")},
         "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
     }
 
@@ -1518,7 +1518,7 @@ async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, author
     return {
         "subject": f"{ticket_label}{rendered_subject}",
         "html": html,
-        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales")},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto")},
     }
 
 
@@ -1532,7 +1532,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
 
     template_vars = await resolve_project_template_vars(project)
     return {
-        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales")},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto")},
         "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
         "available_tags": [
             {"key": "Nombre_Cliente", "label": "Nombre del Cliente", "source": "Clientes.razon_social"},
@@ -1545,6 +1545,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
             {"key": "Matriz_Bancos_Productos", "label": "Tabla Bancos/Productos (HTML)", "source": "Proyecto.implementation_matrix"},
             {"key": "Matriz_MultiRif_Distribucion", "label": "Tabla Multi-RIF: Distribución (Cliente/RIF → Sucursales → Cajas)", "source": "Proyecto.rifs"},
             {"key": "Matriz_MultiRif_Avance", "label": "Tabla Multi-RIF: Distribución + Avance % (3 niveles)", "source": "Proyecto.rifs"},
+            {"key": "Matriz_Avance_Proyecto", "label": "Matriz de Avance del Proyecto (Banco→Producto→Fases · % por fase · KPI Global)", "source": "Proyecto.implementation_matrix / stores"},
             {"key": "project_number", "label": "Nro. Proyecto", "source": "Proyecto.project_number"},
             {"key": "quote_number", "label": "Nro. Cotización", "source": "Proyecto.quote_number"},
             {"key": "ticket_number", "label": "Nro. Ticket", "source": "Proyecto.ticket_number"},
@@ -2801,6 +2802,39 @@ MIME_TYPES = {
 }
 
 
+def _compress_image(data: bytes, ext: str):
+    """Compresión ligera para imágenes pegadas: reescala a máx 1600px y recomprime,
+    reduciendo el peso de los correos. GIF (posible animación) se deja intacto.
+    Retorna (bytes, ext, content_type). Si algo falla, devuelve el original."""
+    ext = (ext or "png").lower()
+    if ext == "gif":
+        return data, ext, MIME_TYPES.get(ext, "image/gif")
+    try:
+        from io import BytesIO
+        from PIL import Image as PILImage
+
+        img = PILImage.open(BytesIO(data))
+        max_dim = 1600
+        if max(img.size) > max_dim:
+            ratio = max_dim / float(max(img.size))
+            img = img.resize((int(img.size[0] * ratio), int(img.size[1] * ratio)), PILImage.LANCZOS)
+
+        out = BytesIO()
+        has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+        if ext in ("jpg", "jpeg") and not has_alpha:
+            img.convert("RGB").save(out, format="JPEG", quality=82, optimize=True)
+            return out.getvalue(), "jpg", "image/jpeg"
+        if ext == "webp":
+            img.save(out, format="WEBP", quality=82, method=4)
+            return out.getvalue(), "webp", "image/webp"
+        # PNG (o JPG con transparencia → se preserva como PNG)
+        img.save(out, format="PNG", optimize=True)
+        return out.getvalue(), "png", "image/png"
+    except Exception as e:
+        logger.warning(f"[upload_image] compresión omitida: {e}")
+        return data, ext, MIME_TYPES.get(ext, "application/octet-stream")
+
+
 @router.post("/projects/upload-image")
 async def upload_image(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     """Upload image to object storage and return public URL."""
@@ -2816,6 +2850,9 @@ async def upload_image(file: UploadFile = File(...), authorization: Optional[str
 
     if len(data) > 10 * 1024 * 1024:  # 10MB limit
         raise HTTPException(status_code=400, detail="La imagen excede el tamaño máximo de 10MB")
+
+    # Compresión ligera (reescala + recomprime) para aligerar los correos.
+    data, ext, content_type = _compress_image(data, ext)
 
     file_id = uuid.uuid4().hex[:12]
     storage_path = f"{os.environ.get('APP_NAME', 'meganexus')}/email-images/{user_id}/{file_id}.{ext}"

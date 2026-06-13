@@ -356,6 +356,134 @@ def _build_multirif_distribution_html(project: dict, with_progress: bool = False
     return html
 
 
+def _phase_cell_value(phase_data: dict):
+    """Valor de una celda de fase según las reglas de negocio:
+      - Fase Cumplida/Finalizada  → '100%'
+      - Fase En Proceso           → '{pct}%' (processed/expected real)
+      - Fase No Iniciada          → '—' (guion, sin ceros)
+    Retorna (texto, tipo) con tipo ∈ {'done','progress','none'}.
+    """
+    pd = phase_data or {}
+    try:
+        expected = int(pd.get("expected") or 0)
+    except (TypeError, ValueError):
+        expected = 0
+    try:
+        processed = int(pd.get("processed") or 0)
+    except (TypeError, ValueError):
+        processed = 0
+    if pd.get("completed"):
+        return ("100%", "done")
+    if processed > 0 and expected > 0:
+        if processed >= expected:
+            return ("100%", "done")
+        return (f"{round(processed / expected * 100)}%", "progress")
+    return ("—", "none")
+
+
+def _avance_phase_table(matrix: dict) -> str:
+    """Tabla HTML Banco → Producto → 4 Fases para una matriz de implementación."""
+    phases = _MULTIRIF_STORE_PHASES
+    if not matrix:
+        return '<p style="font-family:Arial,sans-serif;font-size:12px;color:#888;margin:2px 0 10px;"><em>Sin matriz de implementación.</em></p>'
+    th_phases = ''.join(
+        f'<th style="padding:8px 10px;border:1px solid #ddd;text-align:center;">{p}</th>' for p in phases
+    )
+    html = (
+        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;margin:4px 0 12px;">'
+        '<thead><tr style="background:#2c3e50;color:white;">'
+        '<th style="padding:8px 10px;border:1px solid #ddd;text-align:left;">Banco / Producto</th>'
+        f'{th_phases}</tr></thead><tbody>'
+    )
+    for bank, products in matrix.items():
+        html += (
+            f'<tr style="background:#e8eef5;color:#1f3a5f;font-weight:bold;">'
+            f'<td colspan="{len(phases) + 1}" style="padding:6px 10px;border:1px solid #e9ecef;">Banco: {bank}</td></tr>'
+        )
+        for product, phdata in (products or {}).items():
+            cells = ''
+            for p in phases:
+                val, kind = _phase_cell_value((phdata or {}).get(p))
+                color = '#16a34a' if kind == 'done' else '#d97706' if kind == 'progress' else '#9ca3af'
+                weight = '700' if kind in ('done', 'progress') else '400'
+                cells += (
+                    f'<td style="padding:6px 10px;border:1px solid #e9ecef;text-align:center;'
+                    f'color:{color};font-weight:{weight};">{val}</td>'
+                )
+            html += f'<tr><td style="padding:6px 10px 6px 22px;border:1px solid #e9ecef;">{product}</td>{cells}</tr>'
+    html += '</tbody></table>'
+    return html
+
+
+def _avance_store_block(store: dict, rif_label: str = "") -> str:
+    """Bloque de una sucursal: encabezado (nombre · cajas · avance) + tabla de fases."""
+    name = store.get("name", "Sucursal")
+    boxes = store.get("box_count", 0) or 0
+    pct = _multirif_store_progress(store)
+    color = '#16a34a' if pct >= 100 else '#d97706' if pct > 0 else '#9ca3af'
+    suffix = f' · {rif_label}' if rif_label else ''
+    header = (
+        f'<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:600;color:#334155;'
+        f'margin:8px 0 0;padding:6px 10px;background:#f1f5f9;border-left:3px solid {color};">'
+        f'Sucursal: {name} · {boxes} caja(s){suffix} · '
+        f'<span style="color:{color};font-weight:700;">Avance {pct}%</span></div>'
+    )
+    return header + _avance_phase_table(store.get("implementation_matrix") or {})
+
+
+def _build_avance_matrix_html(project: dict) -> str:
+    """Variable {Matriz_Avance_Proyecto}: matriz jerárquica de avance.
+      - Estándar (single):        Banco → Producto → Fases
+      - Multitienda / Multi-RIF:  Tienda/Sucursal → Banco → Producto → Fases
+    Cabecera con KPI de Avance Global (el mismo del dashboard del proyecto)."""
+    ptype = (project.get("project_type") or "").lower()
+    stores = project.get("stores") or []
+    rollup = project.get("rollup_progress") or {}
+    global_pct = rollup.get("global_progress")
+    if global_pct is None:
+        global_pct = _multirif_weighted_progress(stores) if stores else 0
+    try:
+        gp = round(float(global_pct))
+    except (TypeError, ValueError):
+        gp = 0
+    gcolor = '#16a34a' if gp >= 100 else '#2563eb' if gp > 0 else '#9ca3af'
+    header = (
+        '<div style="font-family:Arial,sans-serif;margin:6px 0 12px;padding:10px 14px;border-radius:8px;'
+        'background:#f0f6ff;border:1px solid #cfe0f5;">'
+        '<span style="font-size:13px;color:#334155;font-weight:600;">Avance Global del Proyecto:</span> '
+        f'<span style="font-size:16px;font-weight:800;color:{gcolor};">{gp}%</span></div>'
+    )
+
+    if ptype in ("multistore", "multirif") and stores:
+        blocks = []
+        rifs = project.get("rifs") or []
+        if ptype == "multirif" and rifs:
+            for rif in rifs:
+                rif_stores = [s for s in stores if s.get("rif_id") == rif.get("rif_id")]
+                if not rif_stores:
+                    continue
+                blocks.append(
+                    f'<div style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#1565c0;'
+                    f'margin:12px 0 2px;">{rif.get("client_name", "Cliente")} — RIF: {rif.get("rif", "")}</div>'
+                )
+                for s in rif_stores:
+                    blocks.append(_avance_store_block(s))
+            # Sucursales sin RIF asociado (borde): mostrarlas igual.
+            assigned_ids = {rid for rif in rifs for rid in [rif.get("rif_id")]}
+            orphan = [s for s in stores if s.get("rif_id") not in assigned_ids]
+            for s in orphan:
+                blocks.append(_avance_store_block(s))
+        else:
+            for s in stores:
+                blocks.append(_avance_store_block(s))
+        return header + ''.join(blocks)
+
+    # Proyecto estándar (single)
+    return header + _avance_phase_table(project.get("implementation_matrix") or {})
+
+
+
+
 
 
 async def resolve_project_template_vars(project: dict) -> dict:
@@ -540,6 +668,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Matriz_Bancos_Productos": matriz_html,
         "Matriz_MultiRif_Distribucion": _build_multirif_distribution_html(project, with_progress=False),
         "Matriz_MultiRif_Avance": _build_multirif_distribution_html(project, with_progress=True),
+        "Matriz_Avance_Proyecto": _build_avance_matrix_html(project),
         "Patrocinador": patrocinador,
         "Lista_VTID": lista_vtid,
         "Modelo_Seriales_Equipos": modelo_seriales_html,

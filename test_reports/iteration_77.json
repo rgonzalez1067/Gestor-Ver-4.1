@@ -1,0 +1,81 @@
+{
+  "summary": "Validación FRONTEND-ONLY de (1) variable {Matriz_Avance_Proyecto} y (2) inserción/pegado de imágenes en RichTextEditor para el proyecto Multi-RIF prj_e586608e3579. Navegación DENTRO de la app (login → Gestión de Implementación → Proyectos → detail-btn-prj_e586608e3579 → 'Otras Notificaciones'). La VISTA PREVIA del modal (preview-adhoc-email-btn, backend /api/projects/.../preview-adhoc-email) renderiza correctamente la matriz: KPI 'Avance Global del Proyecto: 23%', bloques por RIF (Brasero/Barako/Carbon) y por Sucursal (Marquez 42%, Centro 25%, Altamira 0%), tabla con cabeceras Recibido/Configurado/Testeado/En Producción, celdas '100%' y '—'. La INSERCIÓN DE IMAGEN funciona end-to-end: botón `email-message-image` visible, input `email-message-image-input` funcional, POST /api/projects/upload-image OK, <img> insertada con src absoluto bajo /api/projects/images/, toast 'Imagen insertada' mostrado, contador/envío intactos. Se detectan DOS hallazgos (no bloqueantes pero recomendados de arreglar): (A) el chip de variable {Matriz_Avance_Proyecto} NO aparece en el panel 'Variables disponibles' del modal 'Otras Notificaciones' porque ALL_TOKENS en projectConstants.js no la incluye — el usuario tiene que escribirla manualmente; (B) el botón 'Vista Previa' de la toolbar del RichTextEditor (showPreview interno) muestra literal '[Matriz_Avance_Proyecto]' porque DEFAULT_EXAMPLE_VALUES/substituteTokens no resuelve esa variable (la Vista Previa REAL del modal sí la resuelve vía backend, así que el envío real es correcto).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ProjectDetail · Otras Notificaciones · Variables disponibles",
+        "issue": "El chip clickeable {Matriz_Avance_Proyecto} NO aparece en el panel de variables del modal de notificaciones de proyecto. ALL_TOKENS en /app/frontend/src/components/projects/projectConstants.js no incluye 'Matriz_Avance_Proyecto'. El usuario debe escribirla a mano. Agregar el token al array (sección 'Proyecto' o 'Infraestructura') resuelve el issue.",
+        "selector": "details > summary 'Variables disponibles (clic para insertar en el mensaje)' (en email dialog de proyecto)",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "RichTextEditor · Toolbar Vista Previa (showPreview)",
+        "issue": "El botón {testid}-preview-btn de la toolbar usa substituteTokens(DEFAULT_EXAMPLE_VALUES) y muestra literal '[Matriz_Avance_Proyecto]' en lugar de la matriz HTML. DEFAULT_EXAMPLE_VALUES en RichTextEditor.jsx no tiene una muestra para esta variable. Recomendado: importar VARIABLE_PREVIEW_HTML.Matriz_Avance_Proyecto desde templateVariables.js (ya existe el HTML demo) y añadirlo al map, igual que se hizo con Matriz_Sucursales. Nota: la Vista Previa del MODAL DE NOTIFICACIÓN (data-testid='preview-adhoc-email-btn') sí resuelve la variable vía backend correctamente — el envío real funciona.",
+        "selector": "[data-testid='email-message-preview-btn'] / cualquier {testid}-preview-btn",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Añadir 'Matriz_Avance_Proyecto' al array ALL_TOKENS en /app/frontend/src/components/projects/projectConstants.js (categoría Proyecto/Infra) para exponer el chip insertable en el modal 'Otras Notificaciones' y en el cuerpo de plantillas (TemplatesAdminDialog ya lo expone vía templateVariables.js).",
+    "Agregar entrada Matriz_Avance_Proyecto al objeto DEFAULT_EXAMPLE_VALUES en /app/frontend/src/components/RichTextEditor.jsx (o reusar VARIABLE_PREVIEW_HTML.Matriz_Avance_Proyecto desde templateVariables.js) para que la 'Vista Previa' interna de la toolbar muestre una muestra renderizada en lugar de '[Matriz_Avance_Proyecto]'."
+  ],
+  "critical_code_review_comments": [
+    "Duplicación del catálogo de variables: existen DOS fuentes — templateVariables.js (usado por EmailTemplatesEditor y TemplatesAdminDialog) y ALL_TOKENS en projectConstants.js (usado por los chips de 'Variables disponibles' en ProjectDetail.jsx líneas 2337 y 2634). Esta divergencia causó precisamente el bug reportado: Matriz_Avance_Proyecto se añadió a templateVariables.js pero NO a ALL_TOKENS. Recomendado: derivar ALL_TOKENS desde VARIABLE_CATEGORIES (filtrando categorías irrelevantes) para single-source-of-truth.",
+    "Persisten warnings de hidratación React 'In HTML, <span> cannot be a child of <tbody>/<tr>/<th>' provenientes del instrumentador <span data-ve-dynamic> en Dashboard.jsx (heredado de iteraciones previas, no nuevo).",
+    "RichTextEditor.jsx ya alcanza ~620 líneas con responsabilidades múltiples (toolbar, image-paste/upload, extensión TableRowActions, sustitución de tokens, dialogo de Vista Previa). Considerar extraer (a) TableRowActions extension a un módulo aparte, (b) substituteTokens + DEFAULT_EXAMPLE_VALUES a un util compartido con EmailTemplatesEditor (que ya tiene sus propios sample values). Esto evita drift como el observado en este iter."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend-only por solicitud)",
+    "frontend": "Feature 1 (variable Matriz_Avance_Proyecto): 80% — render backend OK, falta chip + sample local. Feature 2 (image insert): 100%."
+  },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (de /app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna. Se usó el proyecto existente prj_e586608e3579 (Multi-RIF Bancamiga, 3 RIFs, 4 tiendas). La matriz ya tenía fases completadas (Avance Global 23%), lo que permitió validar valores 100% y — en celdas.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Para el modal 'Otras Notificaciones' el testid base del editor es 'email-message' → imagen: 'email-message-image', input file: 'email-message-image-input', content: 'email-message-content'. El botón 'Vista Previa' del MODAL (que sí resuelve variables vía backend) es 'preview-adhoc-email-btn'; el de la toolbar del editor (substituciones LOCALES con DEFAULT_EXAMPLE_VALUES) es 'email-message-preview-btn'. La diferencia es crítica: para validar render real de Matriz_Avance_Proyecto SIEMPRE usar el botón del modal (preview-adhoc-email-btn) o equivalente backend; el de la toolbar es solo cosmético/local. Las plantillas de Clients/Quotes/Integradores usan el MISMO RichTextEditor con enableImagePaste por defecto true — el botón de imagen aparecerá automáticamente; no se hizo recorrido E2E por las 4 áreas por economía de tiempo, pero un grep confirma que ningún consumidor pasa enableImagePaste=false.",
+  "evidence": {
+    "image_insertion": {
+      "image_button_visible": true,
+      "image_input_present": true,
+      "upload_endpoint_response": "200 OK",
+      "img_tag_inserted_in_editor": true,
+      "img_src_example": "https://vpos-multirif-fix.preview.emergentagent.com/api/projects/images/0b009267f75d.png (absoluto, prefijo /api/projects/images/)",
+      "toast_imagen_insertada": true,
+      "counter_intact": "24/20000 visible tras la inserción; el render del editor sigue funcional"
+    },
+    "matriz_backend_preview": {
+      "endpoint": "POST /api/projects/prj_e586608e3579/preview-adhoc-email",
+      "kpi": "Avance Global del Proyecto: 23%",
+      "variables_resueltas_count": 78,
+      "multirif_blocks": [
+        "Brasero El Marqúez — RIF: J501546010 → Sucursal Marquez 5 cajas (Avance 42%), Sucursal Centro 4 cajas (Avance 25%)",
+        "Barako — RIF: J507060810 → Sucursal Altamira 9 cajas (Avance 0%)",
+        "Carbon — RIF: (visible bajo scroll)"
+      ],
+      "table_columns": ["Banco / Producto", "Recibido", "Configurado", "Testeado", "En Producción"],
+      "phase_cell_values_observed": ["100%", "—"],
+      "banco_grouping": "Banco: Bancamiga (fila destacada antes de productos)"
+    },
+    "matriz_toolbar_preview_BUG": {
+      "rendered_as": "[Matriz_Avance_Proyecto]",
+      "root_cause": "RichTextEditor.substituteTokens / DEFAULT_EXAMPLE_VALUES no tiene la clave Matriz_Avance_Proyecto",
+      "fix_hint": "Usar VARIABLE_PREVIEW_HTML.Matriz_Avance_Proyecto de templateVariables.js o añadir un sample minimal"
+    },
+    "variables_chip_panel_BUG": {
+      "where": "details>summary 'Variables disponibles (clic para insertar en el mensaje)' en el modal 'Otras Notificaciones'",
+      "tokens_listed_count": "~52 ([Nombre_Cliente]..[almacen_custodia])",
+      "missing_chip": "{Matriz_Avance_Proyecto}",
+      "root_cause": "ALL_TOKENS en /app/frontend/src/components/projects/projectConstants.js no contiene 'Matriz_Avance_Proyecto'"
+    },
+    "multi_editor_availability": {
+      "code_review": "Todos los consumidores del componente (ProjectDetail, ClientTemplatesConfig, EntityTemplatesConfig, QuoteModals, TemplatesAdminDialog) NO pasan enableImagePaste=false; el default true rige. El botón data-testid='${testid}-image' y el input '${testid}-image-input' se renderizan en TODAS las instancias. Se validó on-screen el de email-message; las demás se asumen funcionales por simetría de código."
+    }
+  },
+  "rca of the issue": "La feature está implementada correctamente en backend (validado por curl según contexto) y en TipTap (la imagen sube e inserta con src absoluto, el modal de notificación renderiza la matriz Multi-RIF perfectamente vía preview-adhoc-email). Sin embargo, persiste una divergencia de catálogos en el frontend: templateVariables.js (usado por los editores de PLANTILLAS) sí incluye Matriz_Avance_Proyecto, pero ALL_TOKENS de projectConstants.js (usado por el panel de chips del modal de notificaciones de PROYECTO) NO la incluye, por lo que el chip insertable no aparece. Paralelamente, DEFAULT_EXAMPLE_VALUES del RichTextEditor — usado para su Vista Previa LOCAL (sustitución de tokens en cliente) — tampoco tiene un sample para esa variable, por lo que aparece '[Matriz_Avance_Proyecto]' en la previa local (la previa real del modal usa backend y sí resuelve)."
+}
