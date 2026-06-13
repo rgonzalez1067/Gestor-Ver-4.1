@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — VPOS Multi-RIF · FASE 2: Motor de distribución anidada + barra de progreso + limpiezas (P0)
+
+- **Nuevo componente `MultiRifDistributionPanel.jsx`**: motor de distribución Global→RIF→Tienda. Buscador de Cliente/RIF (≥2 chars sobre nombre/RIF), cajas por RIF, sub-sucursales (nombre+cajas). Exporta `validateMultiRif(dist, globalBoxes)`.
+- **"Reel" de saldos**: Σsucursales ≤ cajas del RIF (error inline `multirif-rif-error-{i}`); ΣRIFs ≤ Cajas Globales. **Guardado bloqueado** hasta distribuir el 100% (validación en `handleSubmitQuote` con toast).
+- **Barra de progreso en vivo** (`multirif-progress-bar` + badge): "asignadas / globales", **azul/ámbar** (faltan), **verde** al 100% ("¡Lote distribuido al 100%!"), **roja** si excede.
+- **Ambos paneles disponibles** en Multi-RIF: "Detalle de Sucursales" (convencional) + "Detalle de Tiendas/Sucursales (Multi-RIF)".
+- **Persistencia**: `multirif_distribution` `[{client_id, rif, client_name, boxes, stores:[{name,boxes}]}]` enviado en el payload y guardado en la cotización.
+- **Limpiezas Fase 1 (solo Multi-RIF)**: ocultos el campo **Bancos/Entes** (siempre 1 banco) y la pregunta **¿Exento de IVA?** (ningún banco exento). Regresión VPOS normal intacta.
+- **Validado:** testing_agent iter72 — backend 2/2 pytest, frontend 100% (Reel 12/10 rojo, 5+5 verde, sucursal 6>5 error, bloqueo 7/10). Pendiente cosmético: warning hidratación `data-ve-dynamic`.
+
+
 ## 2026-06-13 — VPOS Multi-RIF · FASE 1: Entrada Comercial + Fundamento de datos (P0, épico 5 fases)
 
 Nueva línea de producto "VPOS Multi-RIF" (lote bancario para múltiples RIFs). Fase 1 entregada:
