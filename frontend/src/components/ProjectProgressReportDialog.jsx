@@ -31,6 +31,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
   const [selBanks, setSelBanks] = useState([]);
   const [selProducts, setSelProducts] = useState([]);
   const [selStores, setSelStores] = useState([]);
+  const [selRifs, setSelRifs] = useState([]);
 
   // Carga inicial: catálogos (sin filtros) → mostrar Todo el Proyecto
   const fetchReport = async (params) => {
@@ -70,6 +71,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
       if (selBanks.length) params.banks = selBanks.join(',');
       if (selProducts.length) params.products = selProducts.join(',');
       if (selStores.length) params.stores = selStores.join(',');
+      if (selRifs.length) params.rifs = selRifs.join(',');
       const res = await api.get(`/projects/${projectId}/report/avance/pdf`, { params, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const a = document.createElement('a');
@@ -90,9 +92,15 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
   };
 
   const isMultistore = ['multistore', 'multirif'].includes(data?.header?.project_type);
+  const isMultirif = data?.header?.project_type === 'multirif';
   const banksAvail = data?.available?.banks || [];
   const productsAvail = data?.available?.products || [];
-  const storesAvail = data?.available?.stores || [];
+  const rifsAvail = data?.available?.rifs || [];
+  const allStoresAvail = data?.available?.stores || [];
+  // Cascada: si hay RIF seleccionados, solo mostrar las tiendas de esos RIF
+  const storesAvail = selRifs.length
+    ? allStoresAvail.filter((s) => selRifs.includes(s.rif_id))
+    : allStoresAvail;
 
   const groupedRows = useMemo(() => {
     if (!data?.rows) return [];
@@ -119,6 +127,18 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
 
   const toggleArrayItem = (arr, item) =>
     arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
+
+  // Cascada RIF → Tiendas: al deseleccionar un RIF, se podan sus tiendas seleccionadas.
+  const toggleRif = (rifId) => {
+    setSelRifs((cur) => {
+      const next = toggleArrayItem(cur, rifId);
+      if (!next.includes(rifId)) {
+        const prunedStoreIds = allStoresAvail.filter((s) => s.rif_id === rifId).map((s) => s.store_id);
+        setSelStores((curS) => curS.filter((sid) => !prunedStoreIds.includes(sid)));
+      }
+      return next;
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -158,6 +178,29 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
             {/* FILTROS */}
             <div className="border border-slate-200 rounded-lg p-4 bg-white">
               <p className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-3">Filtros</p>
+              {/* RIF (solo Multi-RIF) — cascada hacia Tiendas */}
+              {isMultirif && (
+                <div className="mb-4">
+                  <Label className="text-xs font-semibold text-slate-600">RIF / Razón Social</Label>
+                  <div className="mt-1 max-h-32 overflow-y-auto border border-slate-200 rounded p-2 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 bg-slate-50">
+                    {rifsAvail.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">Sin RIF</p>
+                    ) : (
+                      rifsAvail.map((rf) => (
+                        <label key={rf.rif_id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-white rounded px-1 py-0.5">
+                          <Checkbox
+                            checked={selRifs.includes(rf.rif_id)}
+                            onCheckedChange={() => toggleRif(rf.rif_id)}
+                            data-testid={`filter-rif-${rf.rif_id}`}
+                          />
+                          <span className="truncate"><span className="font-semibold">{rf.rif}</span> · {rf.client_name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">{selRifs.length === 0 ? 'Todos los RIF' : `${selRifs.length} RIF seleccionado(s) — las tiendas se filtran por estos RIF`}</p>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Bancos */}
                 <div>
@@ -231,7 +274,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
               </div>
 
               <div className="flex justify-end gap-2 mt-3">
-                <Button variant="outline" size="sm" onClick={() => { setSelBanks([]); setSelProducts([]); setSelStores([]); fetchReport({}); }}>
+                <Button variant="outline" size="sm" onClick={() => { setSelBanks([]); setSelProducts([]); setSelStores([]); setSelRifs([]); fetchReport({}); }}>
                   Limpiar
                 </Button>
                 <Button onClick={applyFilters} disabled={loading} size="sm" className="bg-sky-600 hover:bg-sky-700 text-white" data-testid="apply-filters-btn">

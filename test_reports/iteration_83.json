@@ -1,0 +1,52 @@
+{
+  "summary": "Frontend-only validation of the new RIF filter in 'Reporte de Avance' modal for Multi-RIF project prj_e586608e3579. UI block, cascade Tiendas list, Limpiar and PDF download work as expected. However, the 'Vista previa' button does NOT send the selected RIFs to the backend — the matrix table is therefore NOT filtered by RIF, contradicting the feature spec. Also fixed a stray corrupted line at the bottom of the component file that would have caused a runtime ReferenceError.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ProjectProgressReportDialog (applyFilters)",
+        "issue": "applyFilters() omits selRifs from query params. After selecting RIF Brasero (rif_408f1f81) and clicking 'Vista previa', the matrix table still renders 4 store groups ['🏬 Marquez','🏬 Centro','🏬 Altamira','🏬 Altamira'] instead of the expected 2 ('Marquez' y 'Centro'). The cascade only affects the visible Tienda checkbox list, but unless the user manually marks the cascaded stores, the backend receives no `rifs` and no `stores`, so all stores are returned.",
+        "selector": "[data-testid='apply-filters-btn']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "ProjectProgressReportDialog (useEffect on open)",
+        "issue": "When the dialog reopens, setSelBanks/setSelProducts/setSelStores are reset but selRifs is NOT reset. If the modal is closed and reopened, previously selected RIFs persist and the cascade behaves inconsistently with the other filters' reset semantics.",
+        "selector": "[data-testid='project-progress-report-dialog']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Reporte de Avance → Vista previa (preview)",
+        "issue": "Front passes only banks/products/stores; backend never receives `rifs`, so the rendered matrix ignores the RIF filter. PDF works (downloadPdf already includes selRifs), but the on-screen preview is out of sync with the PDF.",
+        "affected_selectors": ["[data-testid='apply-filters-btn']", "[data-testid='progress-matrix-table']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/.screenshots/cascade.png",
+    "/app/.screenshots/table_filtered.png"
+  ],
+  "action_items": [
+    "Fix /app/frontend/src/components/ProjectProgressReportDialog.jsx — add `if (selRifs.length) params.rifs = selRifs.join(',');` inside applyFilters() (after the stores line, mirroring downloadPdf).",
+    "Also include setSelRifs([]) in the useEffect reset block (line ~52) so RIF selection is cleared every time the modal opens.",
+    "After fix, retest 'Vista previa' with rif_408f1f81 selected — the matrix should show exactly 2 store groups (🏬 Marquez, 🏬 Centro)."
+  ],
+  "critical_code_review_comments": [
+    "Found and removed a corrupted trailing identifier line `ojectProgressReportDialog;` after `export default ProjectProgressReportDialog;` (last line of the file). Although webpack compiled, this would throw `ReferenceError: ojectProgressReportDialog is not defined` at runtime when the module is evaluated in some build modes. Auto-fixed.",
+    "downloadPdf and applyFilters duplicate the params-building logic. Recommend extracting a shared `buildFilterParams()` helper so future filter additions don't drift again (this is exactly how this RIF bug slipped in).",
+    "The Tienda filter currently lists duplicate 'Altamira' entries — pre-existing in data (one Altamira per RIF). Not a regression of this change, but consider showing the parent RIF tag next to each Tienda name to disambiguate."
+  ],
+  "updated_files": [
+    "/app/frontend/src/components/ProjectProgressReportDialog.jsx (removed corrupted trailing identifier line only)"
+  ],
+  "success_rate": { "backend": "n/a (skipped)", "frontend": "70%" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (UI login OK).",
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Project prj_e586608e3579 is Multi-RIF with 3 RIFs (rif_408f1f81 Brasero, rif_fe660ab3 Barako, rif_c4d25c69 Carbon). RIF Brasero owns stores Marquez & Centro. Backend GET /projects/{id}/report/avance?rifs=rif_408f1f81 already returns the correct filtered set (validated previously by curl). After the main agent patches applyFilters to forward selRifs, retest by clicking 'Vista previa' with only rif_408f1f81 checked and asserting `page.locator('[data-testid=\"progress-matrix-table\"] tbody tr').filter(has-text=🏬).count() === 2` and labels in ['🏬 Marquez','🏬 Centro'].",
+  "rca of the issue": "RCA: ProjectProgressReportDialog.applyFilters() (lines 58-64) was added before the RIF feature and was not updated when selRifs was introduced. downloadPdf() WAS updated (line 74 contains `if (selRifs.length) params.rifs = selRifs.join(',');`) which is why PDF filtering works correctly, but the inline 'Vista previa' table does not. Repro: 1) login admin → /projects/prj_e586608e3579 → click 'Reporte de Avance'. 2) Check rif_408f1f81 (Brasero). Observe the Tienda list cascades to {Marquez, Centro} (frontend-only cascade). 3) Click 'Vista previa' without manually checking the Tienda boxes. 4) Observed: matrix renders 4 🏬 store groups (Marquez, Centro, Altamira, Altamira). Expected: 2 (Marquez, Centro). Mitigation: add `if (selRifs.length) params.rifs = selRifs.join(',');` inside applyFilters and also reset selRifs in the useEffect that runs on dialog open."
+}

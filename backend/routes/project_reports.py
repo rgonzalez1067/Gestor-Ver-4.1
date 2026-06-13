@@ -129,7 +129,7 @@ def _build_matrix_rows(matrices_with_fallback: list, banks: List[str], products:
     return rows
 
 
-async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], products_csv: Optional[str], stores_csv: Optional[str]):
+async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], products_csv: Optional[str], stores_csv: Optional[str], rifs_csv: Optional[str] = None):
     proj = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not proj:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
@@ -137,6 +137,7 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
     banks_filter = _split_csv(banks_csv)
     products_filter = _split_csv(products_csv)
     stores_filter = [s for s in _split_csv(stores_csv) if s and s != "all"]
+    rifs_filter = [r for r in _split_csv(rifs_csv) if r and r != "all"]
 
     project_type = proj.get("project_type", "single")
 
@@ -145,6 +146,8 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
     matrices_by_label = []
     if project_type in ("multistore", "multirif"):
         for st in (proj.get("stores") or []):
+            if rifs_filter and st.get("rif_id") not in rifs_filter:
+                continue
             if stores_filter and st.get("store_id") not in stores_filter:
                 continue
             label = st.get("name") or st.get("store_id") or "—"
@@ -160,6 +163,7 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
         "banks": banks_filter,
         "products": products_filter,
         "stores": stores_filter if stores_filter else ["all"],
+        "rifs": rifs_filter if rifs_filter else ["all"],
     }
 
 
@@ -185,13 +189,14 @@ async def project_progress_report(
     banks: Optional[str] = Query(None, description="Lista coma-separada de bank_name"),
     products: Optional[str] = Query(None, description="Lista coma-separada de product_name"),
     stores: Optional[str] = Query(None, description="Lista coma-separada de store_id"),
+    rifs: Optional[str] = Query(None, description="Lista coma-separada de rif_id"),
     store_id: Optional[str] = Query(None, description="(deprecated) un solo store_id; usar 'stores'"),
     authorization: Optional[str] = Header(None),
 ):
     """Devuelve el reporte en JSON: encabezado + matriz filtrada + totales por fase."""
     await get_current_user(authorization)
     stores_csv = stores or store_id
-    proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv)
+    proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv, rifs)
 
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
@@ -201,9 +206,23 @@ async def project_progress_report(
     available_banks = []
     available_products = []
     available_stores = []
+    available_rifs = []
     if proj.get("project_type") in ("multistore", "multirif"):
+        for rf in (proj.get("rifs") or []):
+            available_rifs.append({
+                "rif_id": rf.get("rif_id"),
+                "rif": rf.get("rif"),
+                "client_name": rf.get("client_name"),
+                "box_count": rf.get("box_count", 0),
+            })
         for st in (proj.get("stores") or []):
-            available_stores.append({"store_id": st.get("store_id"), "name": st.get("name"), "box_count": st.get("box_count", 0)})
+            available_stores.append({
+                "store_id": st.get("store_id"),
+                "name": st.get("name"),
+                "box_count": st.get("box_count", 0),
+                "rif_id": st.get("rif_id"),
+                "rif": st.get("rif"),
+            })
             for b, ps in ((st.get("implementation_matrix") or {})).items():
                 if b not in available_banks:
                     available_banks.append(b)
@@ -227,6 +246,7 @@ async def project_progress_report(
             "banks": sorted(available_banks),
             "products": sorted(available_products),
             "stores": available_stores,
+            "rifs": available_rifs,
         },
         "totals": totals,
         "rows": rows,
@@ -258,13 +278,14 @@ async def project_progress_report_pdf(
     banks: Optional[str] = Query(None),
     products: Optional[str] = Query(None),
     stores: Optional[str] = Query(None),
+    rifs: Optional[str] = Query(None),
     store_id: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Genera PDF elegante con membrete MegaNexus."""
     user = await get_current_user(authorization)
     stores_csv = stores or store_id
-    proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv)
+    proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv, rifs)
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
     totals = _aggregate_phases([(m, fb) for _l, m, fb, _sid in matrices_by_label])
@@ -298,6 +319,12 @@ async def project_progress_report_pdf(
 
     # Filtros aplicados
     filt_chips = []
+    if filters.get("rifs") and filters["rifs"] != ["all"]:
+        rif_names = []
+        for rid in filters["rifs"]:
+            rf_match = next((r for r in (proj.get("rifs") or []) if r.get("rif_id") == rid), None)
+            rif_names.append((rf_match or {}).get("client_name") or (rf_match or {}).get("rif") or rid)
+        filt_chips.append(f"RIF: {', '.join(rif_names)}")
     if filters["banks"]:
         filt_chips.append(f"Bancos: {', '.join(filters['banks'])}")
     if filters["products"]:
