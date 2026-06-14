@@ -4,6 +4,20 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+
+### Iteration 89: Proyectos Directos Multi-RIF — Jun 2026
+
+**Requerimiento (P0):** Clonar el flujo de Proyectos Directos añadiendo distribución jerárquica Multi-RIF (Global → RIF/Cliente → Sucursal). Selector [Directo Simple]|[Directo Multi-RIF]; bifurcación de patrocinio (Banco vs Cliente); cuadre estricto de cajas (Σ sucursales==cajas del RIF y Σ RIFs==Cantidad global); pregunta "¿todas las tiendas comparten Bancos/Productos?" (matriz compartida vs por RIF); ocultar "Control Multitienda" en modo Multi-RIF; resto del formulario intacto.
+
+**Backend (`routes/direct_projects.py`):** `DirectProjectCreate` + `project_type` ('simple'|'multirif'), `multirif_sponsorship` ('bank'|'client'), `shared_matrix` (bool), `multirif_distribution` (RIF→stores, con `boxes_grid` por RIF cuando matriz no compartida). Helpers `_grid_to_services` / `_grid_to_matrix`. Validación de cuadre estricto (400 si no cuadra). Construye `is_multirif` + `multirif_distribution` para `_create_project_from_quote`; en matriz compartida usa el reel global, en matriz por RIF agrega cada grilla y adjunta `implementation_matrix` por RIF. Multi-RIF y Multitienda excluyentes. Persiste `multirif_sponsorship`/`shared_matrix` para auditoría.
+**Backend (`routes/quote_transitions.py`):** El bloque multirif de `_create_project_from_quote` ahora usa `rif.implementation_matrix` (si viene pre-construida) para las tiendas de ese RIF; si no, deep-copy de la matriz global (compatibilidad con cotizaciones).
+
+**Frontend:** `pages/DirectProjectCreation.jsx` (card selector de tipo `dp-type-simple`/`dp-type-multirif`; bifurcación `dp-multirif-sponsorship` con `dp-sponsorship-bank`/`dp-sponsorship-client` que gatea `dp-sponsor-bank`; card `dp-multirif-card` con `dp-shared-matrix-toggle`; Control Multitienda envuelto en `{!isMultirif}`; Reel envuelto en `{(!isMultirif || shared_matrix)}`; validación de cuadre en `errors`). Nuevo componente `components/projects/DirectMultiRifSection.jsx` (reutiliza `MultiRifDistributionPanel` + `RifMatrixBuilder` por RIF).
+
+**QA:** pytest `tests/test_direct_multirif.py` 4/4 PASS (matriz por RIF, matriz compartida, 2 casos de cuadre estricto→400; cleanup automático). testing_agent iteration_89.json → 7/7 escenarios frontend PASS (selector, bifurcación, toggle matriz, panel distribución, ocultamiento multitienda, cuadre estricto deshabilita submit, matriz por RIF). Sin proyectos basura.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+**Pendiente (no bloqueante):** warning de hidratación recurrente `<tr>`/`<span>` en el shell (no introducido por esta feature). `DirectProjectCreation.jsx` ~1410 líneas (candidato a refactor).
+
 ### Iteration 72: Proyectos Directos — Sede automática, patrocinio relacional de Pinpads y selección inteligente de Aplicativo — Jun 2026
 
 **Requerimiento:** (1) Eliminar el desplegable 'Sede' de la UI; la sede del proyecto se hereda del usuario en sesión (seguridad de perfiles). (2) 'Patrocinador de Pinpads': replicar la lógica relacional Procesador→Banco del 'Banco Patrocinante' (sub-modal con bancos vinculados). (3) Selección inteligente de Aplicativo: 1 app → auto-rellena y bloquea; 2+ apps → drop-list obligatorio.
