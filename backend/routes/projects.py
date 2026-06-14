@@ -1477,7 +1477,7 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
         "entity_label": email_data["entity_label"],
         "prefix": NOTIFICATION_PREFIXES[prefix_idx],
         "send_number": send_count + 1,
-        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto")},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto", "Matriz_Avance_Proyecto_Con_Fecha")},
         "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
     }
 
@@ -1520,7 +1520,7 @@ async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, author
     return {
         "subject": f"{ticket_label}{rendered_subject}",
         "html": html,
-        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto")},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto", "Matriz_Avance_Proyecto_Con_Fecha")},
     }
 
 
@@ -1534,7 +1534,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
 
     template_vars = await resolve_project_template_vars(project)
     return {
-        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto")},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto", "Matriz_Avance_Proyecto_Con_Fecha")},
         "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
         "available_tags": [
             {"key": "Nombre_Cliente", "label": "Nombre del Cliente", "source": "Clientes.razon_social"},
@@ -1548,6 +1548,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
             {"key": "Matriz_MultiRif_Distribucion", "label": "Tabla Multi-RIF: Distribución (Cliente/RIF → Sucursales → Cajas)", "source": "Proyecto.rifs"},
             {"key": "Matriz_MultiRif_Avance", "label": "Tabla Multi-RIF: Distribución + Avance % (3 niveles)", "source": "Proyecto.rifs"},
             {"key": "Matriz_Avance_Proyecto", "label": "Matriz de Avance del Proyecto (Banco→Producto→Fases · % por fase · KPI Global)", "source": "Proyecto.implementation_matrix / stores"},
+            {"key": "Matriz_Avance_Proyecto_Con_Fecha", "label": "Matriz de Avance del Proyecto CON FECHA (% por fase + fecha en que se alcanzó · KPI Global)", "source": "Proyecto.implementation_matrix / stores"},
             {"key": "project_number", "label": "Nro. Proyecto", "source": "Proyecto.project_number"},
             {"key": "quote_number", "label": "Nro. Cotización", "source": "Proyecto.quote_number"},
             {"key": "ticket_number", "label": "Nro. Ticket", "source": "Proyecto.ticket_number"},

@@ -356,6 +356,18 @@ def _build_multirif_distribution_html(project: dict, with_progress: bool = False
     return html
 
 
+def _fmt_short_date(value) -> str:
+    """ISO → 'dd/mm/yyyy'. Vacío si no parsea."""
+    if not value:
+        return ""
+    try:
+        from datetime import datetime as _dt
+        d = _dt.fromisoformat(str(value).replace("Z", "+00:00"))
+        return d.strftime("%d/%m/%Y")
+    except Exception:
+        return ""
+
+
 def _phase_cell_value(phase_data: dict):
     """Valor de una celda de fase según las reglas de negocio:
       - Fase Cumplida/Finalizada  → '100%'
@@ -381,8 +393,10 @@ def _phase_cell_value(phase_data: dict):
     return ("—", "none")
 
 
-def _avance_phase_table(matrix: dict) -> str:
-    """Tabla HTML Banco → Producto → 4 Fases para una matriz de implementación."""
+def _avance_phase_table(matrix: dict, with_dates: bool = False) -> str:
+    """Tabla HTML Banco → Producto → 4 Fases para una matriz de implementación.
+    Si `with_dates`, cada celda con avance muestra debajo la fecha (updated_at)
+    en que se alcanzó ese porcentaje."""
     phases = _MULTIRIF_STORE_PHASES
     if not matrix:
         return '<p style="font-family:Arial,sans-serif;font-size:12px;color:#888;margin:2px 0 10px;"><em>Sin matriz de implementación.</em></p>'
@@ -403,19 +417,27 @@ def _avance_phase_table(matrix: dict) -> str:
         for product, phdata in (products or {}).items():
             cells = ''
             for p in phases:
-                val, kind = _phase_cell_value((phdata or {}).get(p))
+                pcell = (phdata or {}).get(p)
+                val, kind = _phase_cell_value(pcell)
                 color = '#16a34a' if kind == 'done' else '#d97706' if kind == 'progress' else '#9ca3af'
                 weight = '700' if kind in ('done', 'progress') else '400'
+                date_html = ''
+                if with_dates and kind in ('done', 'progress'):
+                    ds = _fmt_short_date((pcell or {}).get('updated_at'))
+                    if ds:
+                        date_html = (
+                            f'<div style="font-size:10px;color:#64748b;font-weight:400;margin-top:2px;">{ds}</div>'
+                        )
                 cells += (
                     f'<td style="padding:6px 10px;border:1px solid #e9ecef;text-align:center;'
-                    f'color:{color};font-weight:{weight};">{val}</td>'
+                    f'color:{color};font-weight:{weight};">{val}{date_html}</td>'
                 )
             html += f'<tr><td style="padding:6px 10px 6px 22px;border:1px solid #e9ecef;">{product}</td>{cells}</tr>'
     html += '</tbody></table>'
     return html
 
 
-def _avance_store_block(store: dict, rif_label: str = "") -> str:
+def _avance_store_block(store: dict, rif_label: str = "", with_dates: bool = False) -> str:
     """Bloque de una sucursal: encabezado (nombre · cajas · avance) + tabla de fases."""
     name = store.get("name", "Sucursal")
     boxes = store.get("box_count", 0) or 0
@@ -428,14 +450,16 @@ def _avance_store_block(store: dict, rif_label: str = "") -> str:
         f'Sucursal: {name} · {boxes} caja(s){suffix} · '
         f'<span style="color:{color};font-weight:700;">Avance {pct}%</span></div>'
     )
-    return header + _avance_phase_table(store.get("implementation_matrix") or {})
+    return header + _avance_phase_table(store.get("implementation_matrix") or {}, with_dates=with_dates)
 
 
-def _build_avance_matrix_html(project: dict) -> str:
+def _build_avance_matrix_html(project: dict, with_dates: bool = False) -> str:
     """Variable {Matriz_Avance_Proyecto}: matriz jerárquica de avance.
       - Estándar (single):        Banco → Producto → Fases
       - Multitienda / Multi-RIF:  Tienda/Sucursal → Banco → Producto → Fases
-    Cabecera con KPI de Avance Global (el mismo del dashboard del proyecto)."""
+    Cabecera con KPI de Avance Global (el mismo del dashboard del proyecto).
+    Si `with_dates`, cada % muestra la fecha en que se alcanzó (variable
+    {Matriz_Avance_Proyecto_Con_Fecha})."""
     ptype = (project.get("project_type") or "").lower()
     stores = project.get("stores") or []
     rollup = project.get("rollup_progress") or {}
@@ -467,19 +491,19 @@ def _build_avance_matrix_html(project: dict) -> str:
                     f'margin:12px 0 2px;">{rif.get("client_name", "Cliente")} — RIF: {rif.get("rif", "")}</div>'
                 )
                 for s in rif_stores:
-                    blocks.append(_avance_store_block(s))
+                    blocks.append(_avance_store_block(s, with_dates=with_dates))
             # Sucursales sin RIF asociado (borde): mostrarlas igual.
             assigned_ids = {rid for rif in rifs for rid in [rif.get("rif_id")]}
             orphan = [s for s in stores if s.get("rif_id") not in assigned_ids]
             for s in orphan:
-                blocks.append(_avance_store_block(s))
+                blocks.append(_avance_store_block(s, with_dates=with_dates))
         else:
             for s in stores:
-                blocks.append(_avance_store_block(s))
+                blocks.append(_avance_store_block(s, with_dates=with_dates))
         return header + ''.join(blocks)
 
     # Proyecto estándar (single)
-    return header + _avance_phase_table(project.get("implementation_matrix") or {})
+    return header + _avance_phase_table(project.get("implementation_matrix") or {}, with_dates=with_dates)
 
 
 
@@ -669,6 +693,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Matriz_MultiRif_Distribucion": _build_multirif_distribution_html(project, with_progress=False),
         "Matriz_MultiRif_Avance": _build_multirif_distribution_html(project, with_progress=True),
         "Matriz_Avance_Proyecto": _build_avance_matrix_html(project),
+        "Matriz_Avance_Proyecto_Con_Fecha": _build_avance_matrix_html(project, with_dates=True),
         "Patrocinador": patrocinador,
         "Lista_VTID": lista_vtid,
         "Modelo_Seriales_Equipos": modelo_seriales_html,

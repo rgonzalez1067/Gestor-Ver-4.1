@@ -5,7 +5,39 @@ No iniciada -> '—'. KPI Global = rollup_progress.global_progress (dashboard).
 Jerarquía: single = Banco->Producto->Fases ; multitienda/Multi-RIF añade
 nivel Tienda/Sucursal.
 """
-from services.project_template_vars import _build_avance_matrix_html, _phase_cell_value
+from services.project_template_vars import _build_avance_matrix_html, _phase_cell_value, _fmt_short_date
+
+
+def test_fmt_short_date():
+    assert _fmt_short_date("2026-06-11T17:36:30.923180+00:00") == "11/06/2026"
+    assert _fmt_short_date("") == ""
+    assert _fmt_short_date(None) == ""
+    assert _fmt_short_date("no-fecha") == ""
+
+
+def test_matriz_con_fecha():
+    """La variante con_fecha muestra la fecha (updated_at) bajo cada % alcanzado;
+    la base NO la muestra."""
+    single = {
+        "project_type": "single",
+        "rollup_progress": {"global_progress": 62},
+        "implementation_matrix": {
+            "Bancamiga": {
+                "Tarjeta": {
+                    "Recibido": {"completed": True, "expected": 5, "processed": 5, "updated_at": "2026-06-10T12:00:00+00:00"},
+                    "Configurado": {"completed": False, "expected": 4, "processed": 2, "updated_at": "2026-06-11T12:00:00+00:00"},
+                    "Testeado": {"completed": False, "expected": 0, "processed": 0},
+                    "En Producción": {"completed": False, "expected": 0, "processed": 0},
+                }
+            }
+        },
+    }
+    base = _build_avance_matrix_html(single, with_dates=False)
+    con_fecha = _build_avance_matrix_html(single, with_dates=True)
+    assert "10/06/2026" not in base and "11/06/2026" not in base
+    assert "100%" in con_fecha and "10/06/2026" in con_fecha
+    assert "50%" in con_fecha and "11/06/2026" in con_fecha
+
 
 
 def test_phase_cell_rules():
