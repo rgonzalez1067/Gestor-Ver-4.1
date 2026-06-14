@@ -262,6 +262,7 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
         "assigned_at": now,
         "fecha_asignacion": now,
         "status": new_status,
+        "status_changed_at": now,
         "updated_at": now,
     }
     if assignment.estimated_delivery_date:
@@ -347,7 +348,7 @@ async def update_project_status(
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
     now = datetime.now(timezone.utc).isoformat()
-    update_data = {"status": new_status, "updated_at": now}
+    update_data = {"status": new_status, "status_changed_at": now, "updated_at": now}
     if new_status == "Culminado":
         update_data["completed_at"] = now
 
@@ -564,6 +565,7 @@ async def master_override_project(project_id: str, payload: MasterOverridePayloa
         if payload.status not in PROJECT_STATUSES:
             raise HTTPException(status_code=400, detail=f"Estado inválido. Válidos: {PROJECT_STATUSES}")
         update["status"] = payload.status
+        update["status_changed_at"] = now
         if payload.status == "Culminado":
             update["completed_at"] = now
     if payload.quote_type is not None:
@@ -2593,6 +2595,7 @@ async def update_ticket_number(project_id: str, body: TicketNumberUpdate, author
     from models import PROJECT_MANUAL_STATUSES
     if (project.get("status") or "") not in PROJECT_MANUAL_STATUSES:
         update_set["status"] = "En Gestión"
+        update_set["status_changed_at"] = now
 
     # Proyectos Directos: el Nro. de Ticket es condición suficiente para desbloquear
     # la ejecución (matriz incluida). El envío de notificaciones por correo es

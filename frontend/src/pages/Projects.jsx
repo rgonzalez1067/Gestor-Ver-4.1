@@ -90,6 +90,7 @@ const Projects = () => {
   const isAdmin = currentUser?.role === 'admin';
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
+  const [slaConfig, setSlaConfig] = useState(null); // matriz de días por etapa
   const [clientMap, setClientMap] = useState({}); // client_id → {fantasy_name, legal_name}
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
@@ -210,6 +211,11 @@ const Projects = () => {
   }, []);
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
+  useEffect(() => {
+    api.get('/project-sla/config')
+      .then((r) => setSlaConfig(r.data.config?.stages || null))
+      .catch(() => setSlaConfig(null));
+  }, []);
 
   // ==================== ASSIGN / REASSIGN ====================
   const openAssignDialog = (project) => {
@@ -538,7 +544,22 @@ const Projects = () => {
                     let slaDays = 0;
                     let slaLabel = '';
                     let slaColor = 'bg-emerald-500';
-                    
+
+                    // Umbrales configurables por etapa (matriz SLA). Fallback 2/4.
+                    const _th = (stageKey) => {
+                      const c = (slaConfig && slaConfig[stageKey]) || {};
+                      return { w: Number(c.warning_days ?? 2), d: Number(c.delay_days ?? 4) };
+                    };
+                    const _color = (days, stageKey) => {
+                      const { w, d } = _th(stageKey);
+                      return days >= d ? 'bg-red-500' : days >= w ? 'bg-yellow-500' : 'bg-emerald-500';
+                    };
+                    const _enteredDays = (...candidates) => {
+                      const ref = candidates.find(Boolean);
+                      const refDate = ref ? new Date(ref) : now;
+                      return Math.floor((now - refDate) / (1000 * 60 * 60 * 24));
+                    };
+
                     if (isSuspended) {
                       slaColor = 'bg-slate-400';
                       slaLabel = 'Detenido';
@@ -546,25 +567,20 @@ const Projects = () => {
                       slaColor = 'bg-blue-500';
                       slaLabel = project.status;
                     } else if (!project.assigned_to_name) {
-                      // Etapa A: Sin asignar
-                      const createdDate = project.created_at ? new Date(project.created_at) : now;
-                      slaDays = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+                      // Etapa A: Sin asignar — desde que entró al estado actual
+                      slaDays = _enteredDays(project.status_changed_at, project.sent_to_implementation_at, project.created_at);
                       slaLabel = `Sin asignar · ${slaDays}d`;
-                      slaColor = slaDays <= 2 ? 'bg-emerald-500' : slaDays <= 4 ? 'bg-amber-500' : 'bg-red-500';
+                      slaColor = _color(slaDays, 'por_asignar');
                     } else if (!project.ticket_number) {
                       // Etapa B: Asignado sin desbloquear
-                      const assignedDate = project.assigned_at ? new Date(project.assigned_at) : now;
-                      slaDays = Math.floor((now - assignedDate) / (1000 * 60 * 60 * 24));
+                      slaDays = _enteredDays(project.status_changed_at, project.assigned_at, project.created_at);
                       slaLabel = `Pendiente desbloqueo · ${slaDays}d`;
-                      slaColor = slaDays <= 2 ? 'bg-emerald-500' : slaDays <= 4 ? 'bg-amber-500' : 'bg-red-500';
+                      slaColor = _color(slaDays, 'asignado');
                     } else {
-                      // Etapa C: Desbloqueado — días desde última bitácora
-                      const bitacora = project.bitacora || [];
-                      const lastEntry = bitacora.length > 0 ? bitacora[bitacora.length - 1] : null;
-                      const refDate = lastEntry?.created_at ? new Date(lastEntry.created_at) : (project.unblocked_at ? new Date(project.unblocked_at) : (project.assigned_at ? new Date(project.assigned_at) : now));
-                      slaDays = Math.floor((now - refDate) / (1000 * 60 * 60 * 24));
-                      slaLabel = `Última actividad · ${slaDays}d`;
-                      slaColor = slaDays <= 2 ? 'bg-emerald-500' : slaDays <= 4 ? 'bg-amber-500' : 'bg-red-500';
+                      // Etapa C: Desbloqueado / En Gestión — desde que entró al estado actual
+                      slaDays = _enteredDays(project.status_changed_at, project.unblocked_at, project.assigned_at, project.created_at);
+                      slaLabel = `En gestión · ${slaDays}d`;
+                      slaColor = _color(slaDays, 'en_gestion');
                     }
                     
                     return (
@@ -756,7 +772,7 @@ const Projects = () => {
                               isSuspended ? 'bg-slate-100 text-slate-500' :
                               isFinished ? 'bg-blue-50 text-blue-600' :
                               slaColor === 'bg-emerald-500' ? 'bg-emerald-50 text-emerald-700' :
-                              slaColor === 'bg-amber-500' ? 'bg-amber-50 text-amber-700' :
+                              slaColor === 'bg-yellow-500' ? 'bg-yellow-50 text-yellow-700' :
                               'bg-red-50 text-red-700'
                             }`} data-testid={`sla-badge-${project.project_id}`}>
                               {slaLabel}

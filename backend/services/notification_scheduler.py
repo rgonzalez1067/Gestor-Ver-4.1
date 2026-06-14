@@ -360,11 +360,14 @@ def start_scheduler() -> None:
     scheduler.add_job(job_project_assigned_not_started, CronTrigger(hour=8, minute=5), id="proj_not_started", replace_existing=True)
     scheduler.add_job(job_project_stalled_5_days, CronTrigger(hour=8, minute=10), id="proj_stalled", replace_existing=True)
     scheduler.add_job(job_implementer_alerts_due, CronTrigger(hour=8, minute=15), id="impl_alerts_due", replace_existing=True)
+    # Semáforo de Tiempos (SLA) de Proyectos: evalúa transiciones de color y dispara acciones.
+    from services.project_sla_engine import job_project_sla_transitions
+    scheduler.add_job(job_project_sla_transitions, CronTrigger(hour=8, minute=20), id="project_sla", replace_existing=True)
+    scheduler.add_job(job_project_sla_transitions, IntervalTrigger(minutes=30), id="project_sla_interval", replace_existing=True)
     # Recuérdame: chequeo frecuente (cada minuto) de vencimientos del Centro de Mensajes.
     scheduler.add_job(job_inbox_reminders_due, IntervalTrigger(minutes=1), id="inbox_reminders", replace_existing=True)
     scheduler.start()
     logger.info("[scheduler] started with 5 jobs (4 daily + inbox_reminders cada 1 min)")
-
 
 def stop_scheduler() -> None:
     global scheduler

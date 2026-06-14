@@ -27,7 +27,7 @@ const weightedProgress = (stores) => {
   return Math.round(stores.reduce((s, st) => s + calcStoreProgress(st) * (st.box_count || 0), 0) / totalBoxes);
 };
 
-// Colores semáforo: 0% rojo · <50% ámbar · ≥50% verde.
+// Colores semáforo: 0% rojo · <50% amarillo · ≥50% verde.
 const pctChipClass = (pct) =>
   pct === 0 ? 'bg-red-100 text-red-700' : pct < 50 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
 const pctBarClass = (pct) =>

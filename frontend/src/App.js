@@ -20,6 +20,7 @@ import { CommercialCategories } from './pages/CommercialCategories';
 import { NotificationConfig } from './pages/NotificationConfig';
 import ActionNotificationsConfig from './pages/ActionNotificationsConfig';
 import OtherActionsConfig from './pages/OtherActionsConfig';
+import ProjectSlaConfig from './pages/ProjectSlaConfig';
 import ConnectedUsers from './pages/ConnectedUsers';
 import BackupCenter from './pages/BackupCenter';
 import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
@@ -229,6 +230,11 @@ function AppRouter() {
       <Route path="/settings/other-actions" element={
         <ProtectedRoute>
           <OtherActionsConfig />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings/project-sla" element={
+        <ProtectedRoute>
+          <ProjectSlaConfig />
         </ProtectedRoute>
       } />
       <Route path="/settings/connected-users" element={

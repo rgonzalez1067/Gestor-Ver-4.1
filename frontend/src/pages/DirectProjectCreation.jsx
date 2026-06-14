@@ -547,7 +547,7 @@ export default function DirectProjectCreation() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50/30 to-slate-50">
       <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-5" data-testid="direct-project-page">
 
-      {/* Hero header con gradiente ámbar — alineado con la identidad "Proyecto Directo" */}
+      {/* Hero header con gradiente amarillo — alineado con la identidad "Proyecto Directo" */}
       <div className="rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 shadow-lg px-5 py-4 text-white flex items-center justify-between" data-testid="dp-hero">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="text-white hover:bg-white/15" data-testid="dp-back-btn">

@@ -34,7 +34,7 @@ export const NotificationBell = () => {
   const seenRef = useRef(new Set());
 
   // Alerta intensa persistente cuando llega una notificación o mensaje interno.
-  // Color por prioridad: rojo=alta, naranja=media, ámbar=baja, morado=mensaje interno.
+  // Color por prioridad: rojo=alta, naranja=media, amarillo=baja, morado=mensaje interno.
   useEffect(() => {
     setOnIncoming((payload) => {
       const isInternal = payload?.kind === 'internal';

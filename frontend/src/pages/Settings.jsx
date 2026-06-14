@@ -742,6 +742,37 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Configuración de Tiempos y SLA de Proyectos (semáforo + motor de acciones) */}
+          <div className="bg-white rounded-lg border-2 border-blue-200 p-6 mb-6" data-testid="project-sla-card">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Settings2 size={24} className="text-blue-600 flex-shrink-0" />
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
+                    Configuración de Tiempos y SLA de Proyectos
+                  </h2>
+                  <p className="text-sm text-slate-600 max-w-2xl">
+                    Parametriza la matriz de días del semáforo (Verde → Amarillo → Rojo) por etapa del
+                    proyecto y configura las acciones automáticas (correo o Centro de Mensajes) que se
+                    disparan cuando un proyecto cambia su color de alerta de tiempo.
+                  </p>
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
+                    Semáforo configurable · 6 disparadores automáticos
+                  </Badge>
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate('/settings/project-sla')}
+                variant="outline"
+                className="flex-shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
+                data-testid="open-project-sla-btn"
+              >
+                Configurar
+                <ChevronRight size={16} className="ml-1" />
+              </Button>
+            </div>
+          </div>
+
           {/* Centro de Respaldos (Admin) — Exportación/Importación unificada */}
           {(() => {
             let isAdminUser = false;

@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend-only e2e validation of 'Configuración de Tiempos y SLA de Proyectos' (Megasoft MegaNexus). All 10 review-request checks PASS: (1) Admin login OK via UI form; (2) /settings shows data-testid=project-sla-card + open-project-sla-btn, button navigates to /settings/project-sla; (3) /settings/project-sla renders data-testid=project-sla-config-page and sla-matrix-card with 3 rows × 2 columns of inputs (sla-matrix-warning/delay × por_asignar/asignado/en_gestion) — all 6 inputs found with defaults 2/4; (4) Saved en_gestion warning=3, delay=5 via sla-matrix-save-btn → success toast 'Matriz de tiempos (SLA) guardada' captured; reload confirms persistence (warning=3, delay=5); (5) Invalid variant rejected — set warning=5, delay=3 and got error message 'Los días de retraso deben ser ≥ a los de advertencia' (form did NOT persist invalid values); (6) Configurador de Acciones: 6 trigger cards verified, 3 in Bloque 1 (Verde→Amarillo) + 3 in Bloque 2 (Amarillo→Rojo) — all data-testids sla-action-toggle-sla_warning_{por_asignar,asignado,en_gestion} and sla-action-toggle-sla_delay_{...} present; (7) Expand+Add Row UI works (sla-action-add-row-* + sla-action-save-*); (8) Tipo (receptor) selector offers exactly 3 options: 'Generador del Proyecto', 'Cliente Externo (correo)', 'Usuario interno'; with 'Cliente Externo' selected, Canal combobox is locked (disabled=True) with value '📧 Correo Electrónico' as required; (9) sla-evaluate-btn ('Evaluar Ahora') executes evaluation and shows success toast 'Evaluación ejecutada: 22 proyectos, 0 cambios de color, 0 envíos'; (10) Nomenclatura — 0 occurrences of 'Ámbar/Ambar' on /settings/project-sla or /projects; all 'Amarillo' usage; /projects SLA badges (data-testid=sla-badge-<project_id>) use emerald (currently no projects in warning state); page contains 6 elements with class bg-yellow-500 and 0 elements with class bg-amber-500 — the SLA traffic-light intermediate color is yellow.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Multiple pages (Dashboard, Settings, ProjectSlaConfig, Projects)", "issues": ["Pre-existing React hydration warnings from Visual Edit x-source instrumentation (data-ve-dynamic <span> wrappers inside <tbody>/<tr>). Already reported in iterations 85-86. Non-blocking, unrelated to SLA work."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ProjectSlaConfig.jsx (line 28 Projects.jsx) — note the 'Por asignar' status badge still uses bg-amber-100 text-amber-800 in Projects.jsx; that's the status pill (project state), not the SLA traffic-light. Since the review request scopes the rename to the SLA semáforo (badge/barra de SLA), this is acceptable, but worth confirming with PO whether the status pill 'Por asignar' should also migrate from amber-* to yellow-* for visual consistency.",
+    "Backend validation rule (matriz: delay >= warning) is enforced and surfaces cleanly to the UI as a toast — good UX.",
+    "Channel field is correctly hard-locked to 'Correo Electrónico' when Tipo=Cliente Externo (radix combobox is disabled). Good safeguard against inbox delivery to non-internal recipients."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (UI login).",
+  "seed_data_creation": "Persisted matrix values en_gestion = 3 (warning) / 5 (delay), as noted acceptable in review-request other_misc_info.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ProjectSlaConfig.jsx exposes: sla-matrix-card with 3 stages (por_asignar, asignado, en_gestion) × 2 metrics (warning, delay) inputs; sla-matrix-save-btn (POST /project-sla/config); 6 action cards sla-action-toggle-<trigger> where trigger ∈ {sla_warning_por_asignar, sla_warning_asignado, sla_warning_en_gestion, sla_delay_por_asignar, sla_delay_asignado, sla_delay_en_gestion}. Each expanded card has sla-action-add-row-<trigger>, sla-action-save-<trigger>, and per-row Tipo/Plantilla/Canal radix combos. Recipient types: 'Generador del Proyecto', 'Cliente Externo (correo)' (forces channel=correo), 'Usuario interno'. sla-evaluate-btn triggers backend POST /project-sla/evaluate and surfaces a Sonner toast with project counters. /projects SLA badge: data-testid='sla-badge-<project_id>'; uses bg-emerald-50 / bg-yellow-50 / bg-red-50 — no amber-* classes for SLA visuals. Note: minor test-script flakiness selecting nested radix Plantilla options via [role=option] (popper-content-wrapper renders detached). Click via specific text='<template-name>' if needed.",
+  "rca of the issue": "N/A — feature behaves as designed end-to-end."
+}
