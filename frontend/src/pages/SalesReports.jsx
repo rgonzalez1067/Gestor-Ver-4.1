@@ -15,6 +15,7 @@ import {
 import { TrendingUp, Filter, Clock, BarChart3, RefreshCw, Download, DollarSign, Users, Wrench, Package, Target, ArrowUp, ArrowDown, Minus, FileText, AlertTriangle, Rocket } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { AdvancedSalesTab } from '../components/reports/AdvancedSalesTab';
 
 const fmtUSD = (n) => `$${(n || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -304,6 +305,7 @@ const SalesReports = () => {
               <TabsTrigger value="stock" data-testid="tab-stock"><Package size={14} className="mr-1" /> Stock</TabsTrigger>
               <TabsTrigger value="leads" data-testid="tab-leads"><Target size={14} className="mr-1" /> Leads</TabsTrigger>
               <TabsTrigger value="irregular" data-testid="tab-irregular"><AlertTriangle size={14} className="mr-1" /> Irregulares</TabsTrigger>
+              <TabsTrigger value="advanced" data-testid="tab-advanced"><FileText size={14} className="mr-1" /> Consulta Avanzada</TabsTrigger>
             </TabsList>
 
             {/* === FUNNEL === */}
@@ -1040,6 +1042,10 @@ const SalesReports = () => {
                   )}
                 </>
               )}
+            </TabsContent>
+
+            <TabsContent value="advanced" className="mt-4">
+              <AdvancedSalesTab />
             </TabsContent>
           </Tabs>
         </div>

@@ -1647,3 +1647,271 @@ header {{ border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
+
+
+# =====================================================================
+# CONSULTA DE VENTAS AVANZADA — Embudo administrativo + Trazabilidad + CRM + Excel
+# =====================================================================
+
+# Los 5 hitos del embudo administrativo (excluyentes; cada cotización cuenta
+# en su etapa más avanzada alcanzada). Orden de mayor a menor.
+ADV_FUNNEL = [
+    ("entregada", "Emitidas, aprobadas, facturadas, pagadas y entregadas (Implementación)"),
+    ("pagada", "Emitidas, aprobadas, facturadas y pagadas"),
+    ("facturada", "Emitidas, aprobadas y facturadas"),
+    ("aprobada", "Emitidas y aprobadas"),
+    ("enviada", "Emitidas y solo enviadas"),
+]
+ADV_STAGE_LABELS = {k: v for k, v in ADV_FUNNEL}
+
+
+def _adv_stage_of(q: dict) -> Optional[str]:
+    """Etapa más avanzada alcanzada por la cotización (excluyente). None = Borrador."""
+    if q.get("sent_to_implementation_at") or q.get("quote_status") == "Enviada a Imple" \
+            or _is_to_project_trigger(q.get("archived_trigger")):
+        return "entregada"
+    if q.get("paid_at") or q.get("quote_status") == "Pagada":
+        return "pagada"
+    if q.get("invoice_number") or q.get("invoiced_at") or q.get("quote_status") == "Facturada":
+        return "facturada"
+    if q.get("approved_at") or q.get("quote_status") == "Aprobada":
+        return "aprobada"
+    if q.get("sent_to_client_at") or q.get("quote_status") == "Enviada":
+        return "enviada"
+    return None
+
+
+def _adv_progress_stations(q: dict) -> list:
+    """Lista textual de estaciones del flujo administrativo completadas por la cotización."""
+    flow = _get_flow(q.get("quote_category"))
+    completed = []
+    for field, label in flow:
+        val = q.get(field)
+        if not val and field == "sent_to_implementation_at" and (
+                q.get("quote_status") == "Enviada a Imple" or _is_to_project_trigger(q.get("archived_trigger"))):
+            val = q.get("archived_at") or True
+        if not val and field == "invoiced_at" and q.get("invoice_number"):
+            val = True
+        if val:
+            completed.append(label)
+    return completed
+
+
+def _adv_origin(q: dict) -> str:
+    return "Renovación" if q.get("parent_quote_id") else "Generado por Ejecutivo"
+
+
+async def _adv_creator_map() -> dict:
+    """uid -> nombre completo del generador."""
+    out = {}
+    async for u in db.users.find({}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}):
+        name = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or u.get("email", "")
+        out[u["user_id"]] = name
+    return out
+
+
+async def _adv_crm_conversion(date_from: Optional[str], date_to: Optional[str]) -> dict:
+    """Conversión Contacto Inicial -> Prospecto: contactos iniciales convertidos cuya
+    PRIMERA cotización (del cliente convertido) cae dentro del rango."""
+    converted = await db.initial_contacts.find(
+        {"is_converted": True, "converted_client_id": {"$ne": None}},
+        {"_id": 0, "contact_id": 1, "contact_name": 1, "converted_client_id": 1, "created_at": 1},
+    ).to_list(None)
+
+    lo = date_from or None
+    hi = (date_to + "T23:59:59") if date_to else None
+    count = 0
+    rows = []
+    for c in converted:
+        cid = c.get("converted_client_id")
+        first = await db.quotes.find_one(
+            {"client_id": cid}, {"_id": 0, "created_at": 1, "client_name": 1}, sort=[("created_at", 1)],
+        )
+        if not first:
+            continue
+        fdate = first.get("created_at")
+        if not fdate:
+            continue
+        if (lo and fdate < lo) or (hi and fdate > hi):
+            continue
+        count += 1
+        rows.append({
+            "contact_name": c.get("contact_name", ""),
+            "client_name": first.get("client_name", ""),
+            "first_quote_date": fdate[:10],
+        })
+    return {"count": count, "rows": rows}
+
+
+async def _adv_build_dataset(date_from, date_to, quote_types, origins):
+    match = {}
+    if date_from or date_to:
+        rng = {}
+        if date_from:
+            rng["$gte"] = date_from
+        if date_to:
+            rng["$lte"] = date_to + "T23:59:59"
+        match["created_at"] = rng
+    qt_filter = [t for t in (quote_types or "").split(",") if t and t != "all"]
+    if qt_filter:
+        match["quote_type"] = {"$in": qt_filter}
+
+    quotes = await db.quotes.find(match, {"_id": 0}).sort("created_at", -1).to_list(None)
+    creators = await _adv_creator_map()
+    origin_filter = [o for o in (origins or "").split(",") if o and o != "all"]
+
+    funnel = {k: {"label": ADV_STAGE_LABELS[k], "count": 0, "total_usd": 0.0} for k, _ in ADV_FUNNEL}
+    rows = []
+    for q in quotes:
+        origin = _adv_origin(q)
+        if origin_filter and origin not in origin_filter:
+            continue
+        stage = _adv_stage_of(q)
+        try:
+            amount = float(q.get("total_usd") or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        if stage:
+            funnel[stage]["count"] += 1
+            funnel[stage]["total_usd"] += amount
+        stations = _adv_progress_stations(q)
+        creator = creators.get(q.get("created_by_user_id")) or q.get("updated_by") or "—"
+        rows.append({
+            "quote_id": q.get("quote_id"),
+            "quote_number": q.get("quote_number", ""),
+            "client_name": q.get("client_name", ""),
+            "created_at": (q.get("created_at") or "")[:10],
+            "total_usd": round(amount, 2),
+            "creator": creator,
+            "quote_type": q.get("quote_type", "") or "—",
+            "origin": origin,
+            "stage": stage,
+            "progress": stations,
+            "last_step": stations[-1] if stations else (q.get("quote_status") or "Borrador"),
+        })
+
+    for v in funnel.values():
+        v["total_usd"] = round(v["total_usd"], 2)
+    return funnel, rows
+
+
+@router.get("/reports/sales/advanced/filters")
+async def advanced_filters(authorization: Optional[str] = Header(None)):
+    """Catálogo de filtros: tipos de cotización y orígenes disponibles."""
+    await get_current_user(authorization)
+    types = sorted([t for t in await db.quotes.distinct("quote_type") if t])
+    return {
+        "quote_types": types,
+        "origins": ["Generado por Ejecutivo", "Renovación"],
+    }
+
+
+@router.get("/reports/sales/advanced")
+async def advanced_sales_report(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    quote_types: Optional[str] = Query(None),
+    origins: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Consulta de Ventas Avanzada: embudo administrativo excluyente + grilla de
+    trazabilidad + KPI de conversión CRM (Contacto Inicial -> Prospecto)."""
+    await get_current_user(authorization)
+    funnel, rows = await _adv_build_dataset(date_from, date_to, quote_types, origins)
+    crm = await _adv_crm_conversion(date_from, date_to)
+    return {
+        "filters": {"date_from": date_from, "date_to": date_to,
+                    "quote_types": quote_types or "all", "origins": origins or "all"},
+        "funnel": [{"key": k, **funnel[k]} for k, _ in ADV_FUNNEL],
+        "crm_conversion": crm,
+        "rows": rows,
+        "total_rows": len(rows),
+    }
+
+
+@router.get("/reports/sales/advanced/export")
+async def advanced_sales_export(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    quote_types: Optional[str] = Query(None),
+    origins: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Exporta el reporte a Excel (.xlsx) con 2 pestañas: Resumen y Detalle."""
+    await get_current_user(authorization)
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    funnel, rows = await _adv_build_dataset(date_from, date_to, quote_types, origins)
+    crm = await _adv_crm_conversion(date_from, date_to)
+
+    wb = Workbook()
+    head_fill = PatternFill("solid", fgColor="2C3E50")
+    head_font = Font(color="FFFFFF", bold=True)
+    title_font = Font(bold=True, size=13, color="1F3A5F")
+
+    # --- Pestaña 1: Resumen ---
+    ws1 = wb.active
+    ws1.title = "Resumen"
+    ws1["A1"] = "Consulta de Ventas Avanzada — Resumen"
+    ws1["A1"].font = title_font
+    ws1["A3"] = "Filtros aplicados"
+    ws1["A3"].font = Font(bold=True)
+    ws1["A4"] = "Rango de fecha"
+    ws1["B4"] = f"{date_from or '—'} a {date_to or '—'}"
+    ws1["A5"] = "Tipo de cotización"
+    ws1["B5"] = quote_types or "Todos"
+    ws1["A6"] = "Origen"
+    ws1["B6"] = origins or "Todos"
+
+    ws1["A8"] = "Embudo Administrativo (etapa más avanzada alcanzada)"
+    ws1["A8"].font = Font(bold=True)
+    ws1["A9"], ws1["B9"], ws1["C9"] = "Hito", "Cotizaciones", "Monto Total USD"
+    for col in ("A9", "B9", "C9"):
+        ws1[col].fill = head_fill
+        ws1[col].font = head_font
+    r = 10
+    for k, label in ADV_FUNNEL:
+        ws1[f"A{r}"] = label
+        ws1[f"B{r}"] = funnel[k]["count"]
+        ws1[f"C{r}"] = funnel[k]["total_usd"]
+        r += 1
+
+    r += 1
+    ws1[f"A{r}"] = "Conversión de Leads: Contacto a Prospecto"
+    ws1[f"A{r}"].font = Font(bold=True)
+    ws1[f"B{r}"] = crm["count"]
+    ws1.column_dimensions["A"].width = 58
+    ws1.column_dimensions["B"].width = 16
+    ws1.column_dimensions["C"].width = 18
+
+    # --- Pestaña 2: Detalle ---
+    ws2 = wb.create_sheet("Detalle")
+    headers = ["ID Cotización", "Cliente / Empresa", "Fecha de Emisión", "Monto Total USD",
+               "Generador", "Tipo", "Origen", "Progreso Administrativo", "Último Paso Ejecutado"]
+    ws2.append(headers)
+    for i, _ in enumerate(headers, start=1):
+        cell = ws2.cell(row=1, column=i)
+        cell.fill = head_fill
+        cell.font = head_font
+        cell.alignment = Alignment(horizontal="center")
+    for row in rows:
+        ws2.append([
+            row["quote_number"], row["client_name"], row["created_at"], row["total_usd"],
+            row["creator"], row["quote_type"], row["origin"],
+            " → ".join(row["progress"]) if row["progress"] else "Borrador",
+            row["last_step"],
+        ])
+    widths = [22, 34, 16, 16, 26, 16, 22, 52, 24]
+    for i, w in enumerate(widths, start=1):
+        ws2.column_dimensions[ws2.cell(row=1, column=i).column_letter].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"consulta_ventas_avanzada_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )

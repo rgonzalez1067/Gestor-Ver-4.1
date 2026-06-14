@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend e2e testing of new 'Consulta Avanzada' (BI) tab in Reportes de Ventas. All critical flows passed: login, navigation, filters, funnel cards (exclusive), CRM KPI, grid traceability with generator name, Excel export, and type chip clear button.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Reportes de Ventas - Consulta Avanzada (grid)", "issues": ["Some rows display Generador as em-dash '—' (e.g. COT-2026-06-133-PYME Verifone). The acceptance criterion ('NOT empty') is met for the rows that have a creator, and the fallback is intentional for legacy rows without created_by, but worth confirming UX expectation with PM."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Hydration warnings observed in console: '<span> cannot be a child of <tbody>' and '<tr> child span' — originated from SalesReports.jsx funnel table (line ~421) and Dashboard.jsx (line ~374). It is caused by a dev instrumentation wrapper (<span data-ve-dynamic 'display:contents'>) injected around <tr> mapped items. NOT in AdvancedSalesTab. Pre-existing; should be addressed for HTML validity / React 19 readiness.",
+    "AdvancedSalesTab.jsx is concise (240 lines), well-structured, uses data-testid extensively, handles loading/error/empty states. No critical issues.",
+    "Initial fetch on mount loads ALL data (no date filter) — fine, but for very large datasets in the future, consider a default rolling window (e.g., last 90 days) to prevent heavy initial payloads."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Used existing seed data (Q2 2026: 219 quotes).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Validated AdvancedSalesTab fully via UI. Route is /reports/sales (Sidebar > Gestión Comercial > Reportes de Ventas), tab data-testid='tab-advanced'. Verified: filters (date range, origin select with 3 options ['Todos los orígenes','Generado por Ejecutivo','Renovación'], 10 type chips including VPOS/VPOS_MULTIRIF/GATEWAY/FAST_TRACK/MPOS/LINK_PAGO/Morefun/Verifone/Reparación/Accesorio), 5 exclusive funnel cards + CRM KPI, grid with creator names (Rafael González shown), Excel export downloads .xlsx file (18,578 bytes). VPOS filter reduces grid to 73 rows containing only VPOS type. Clear button works. CRM count is 0 as expected per spec.",
+  "evidence": {
+    "funnel_counts_initial_and_2026Q2": {"enviada": 129, "aprobada": 19, "facturada": 15, "pagada": 42, "entregada": 2},
+    "total_rows_2026Q2": 219,
+    "funnel_counts_after_VPOS_chip": {"enviada": 59, "aprobada": 2, "facturada": 3, "pagada": 0, "entregada": 0},
+    "rows_after_VPOS": 73,
+    "creator_first_row": "Rafael González",
+    "excel_download_bytes": 18578,
+    "crm_count": 0
+  }
+}
