@@ -45,7 +45,7 @@
       "image_input_present": true,
       "upload_endpoint_response": "200 OK",
       "img_tag_inserted_in_editor": true,
-      "img_src_example": "https://rif-desglose.preview.emergentagent.com/api/projects/images/0b009267f75d.png (absoluto, prefijo /api/projects/images/)",
+      "img_src_example": "https://rif-distribution.preview.emergentagent.com/api/projects/images/0b009267f75d.png (absoluto, prefijo /api/projects/images/)",
       "toast_imagen_insertada": true,
       "counter_intact": "24/20000 visible tras la inserción; el render del editor sigue funcional"
     },

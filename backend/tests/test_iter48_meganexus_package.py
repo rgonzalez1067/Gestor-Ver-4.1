@@ -15,7 +15,7 @@ import time
 import requests
 import pytest
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://rif-desglose.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://rif-distribution.preview.emergentagent.com").rstrip("/")
 
 ADMIN = {"email": "rgonzalez@megasoft.com.ve", "password": "admin123"}
 USER = {"email": "srubio@megasoft.com.ve", "password": "Test1234!"}
