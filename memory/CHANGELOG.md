@@ -849,3 +849,11 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Backend (project_template_vars.py): builders _avance_phase_table/_avance_store_block/_build_avance_matrix_html refactorizados con flag with_dates (DRY); nuevo helper _fmt_short_date; registrada en resolve_project_template_vars y en el catálogo + listas de exclusión de projects.py.
 - Frontend: registrada en templateVariables.js (label+preview), RichTextEditor.jsx (preview), EmailTemplatesEditor.jsx (4 listas) y projectConstants.js (known vars).
 - Verificado: render directo (base sin fecha, con_fecha con 100%+10/06/2026 y 50%+11/06/2026), catálogo /template-variables incluye la clave, pytest test_matriz_avance_proyecto.py 5/5, frontend compila.
+
+## 2026-06-13 · Módulo de Consulta de Ventas Avanzada (BI) + Trazabilidad + Excel
+- Nueva pestaña 'Consulta Avanzada' en Reportes de Ventas (/reports/sales): filtros acumulativos (rango fecha por created_at, tipo de cotización múltiple por chips, origen), 5 tarjetas de embudo administrativo EXCLUYENTE (enviada/aprobada/facturada/pagada/entregada — cada cotización en su etapa más avanzada vía timestamps sent_to_client_at/approved_at/invoice_number/paid_at/sent_to_implementation_at), KPI CRM 'Conversión de Leads: Contacto a Prospecto', y grilla de trazabilidad.
+- Grilla detallada incluye el NOMBRE DEL GENERADOR (creator_name → resolución por uid → updated_by) y la columna 'Progreso Administrativo' con tags encadenados de las estaciones del flujo (CATEGORY_FLOWS).
+- Origen: Renovación si parent_quote_id, resto 'Generado por Ejecutivo'. CRM: contactos iniciales convertidos (initial_contacts.is_converted) cuya PRIMERA cotización del cliente cae en el rango.
+- Export Excel (.xlsx, openpyxl) de 2 pestañas: Resumen (filtros + 5 totales del funnel + monto + CRM) y Detalle (grilla plana + Generador + Último Paso).
+- Backend: endpoints GET /api/reports/sales/advanced, /advanced/filters, /advanced/export en sales_reports.py.
+- Verificado: backend e2e curl (219 filas Q2-2026, funnel excluyente enviada129/aprobada19/facturada15/pagada42/entregada2; export 200 2-hojas; 209/219 con generador), pytest test_advanced_sales_report.py 3/3, testing_agent iter88 frontend 100% (filtros, funnel, CRM, grilla con generador, export Excel 18KB, filtro VPOS→73 filas, limpiar chips).

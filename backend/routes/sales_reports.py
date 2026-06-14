@@ -1775,7 +1775,7 @@ async def _adv_build_dataset(date_from, date_to, quote_types, origins):
             funnel[stage]["count"] += 1
             funnel[stage]["total_usd"] += amount
         stations = _adv_progress_stations(q)
-        creator = creators.get(q.get("created_by_user_id")) or q.get("updated_by") or "—"
+        creator = q.get("creator_name") or creators.get(q.get("created_by_user_id")) or q.get("updated_by") or "—"
         rows.append({
             "quote_id": q.get("quote_id"),
             "quote_number": q.get("quote_number", ""),
