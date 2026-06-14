@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only validation of the new 'Proyectos Directos Multi-RIF' wizard in /direct-projects. All 7 user-confirmed UX scenarios validated end-to-end via Playwright with admin rgonzalez@megasoft.com.ve. No project was actually submitted (per agent note); validation focused on render, conditional sections, sponsorship branching, strict box matching, and shared-matrix toggle behavior.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "App shell (global, not feature-specific)", "issues": ["Pre-existing React hydration warnings in console: '<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>' coming from notification/router layout. Not introduced by Multi-RIF feature but should be cleaned up by main agent in a follow-up."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "DirectProjectCreation.jsx is ~1410 lines — consider splitting into smaller modules (Definicion Comercial, Hardware, Tech Config, Reel, Multi-RIF) for maintainability.",
+    "Pre-existing hydration warning in App shell about invalid <tr>/<span> nesting; unrelated to Multi-RIF but visible in every screenshot. Worth fixing in a separate cleanup."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped per request)", "frontend": "100%" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. NO project was created/submitted; just rendered the form and validated enablement/disablement.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 7 Multi-RIF UX rules validated: (1) Type selector card with dp-type-simple/dp-type-multirif renders with default 'simple'. (2) In Simple mode dp-multistore-toggle and dp-boxes-grid (Reel) are visible; dp-multirif-card NOT present. (3) Clicking dp-type-multirif: dp-multirif-card with dp-shared-matrix-toggle becomes visible, dp-multistore-toggle is hidden. (4) Sponsorship bifurcation dp-multirif-sponsorship with dp-sponsorship-bank/dp-sponsorship-client toggles dp-sponsor-bank visibility (bank=visible, client=hidden) as expected. (5) Full flow with shared_matrix=true: selected client 'BANCO NACIONAL DE CREDITO', cantidad_cajas=4, client-sponsored, RIF with 4 cajas + 2 stores (2+2), server 'Multicomercio MSC', SSL, added reel bank/product → dp-errors not visible, dp-submit-btn enabled. (6) Strict matching: with stores 2+1=3 vs RIF 4 → dp-errors visible, dp-multirif-store-warning visible, dp-submit-btn disabled; corrected to 2+2 → warning cleared. (7) Toggling shared-matrix OFF after adding a RIF → dp-boxes-grid hidden, dp-multirif-matrix-block visible with one dp-rif-matrix-* containing dp-rif-bank-* select and dp-rif-add-* button; per-RIF validation error 'BNC: define bancos/productos para este RIF' appears as expected. Backend already validated by main agent (pytest 4/4) so not retested.",
+  "rca of the issue": "N/A — no defects found in feature scope."
+}

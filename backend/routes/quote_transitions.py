@@ -303,6 +303,11 @@ async def _create_project_from_quote(
                 "box_count": int(rif.get("boxes") or 0),
                 "status": "Pendiente",
             })
+            # Matriz de implementación por tienda: por defecto se comparte la matriz
+            # global (deep copy). Si el RIF trae su propia matriz pre-construida
+            # (`rif.implementation_matrix`, caso "matriz por RIF" en Proyectos
+            # Directos Multi-RIF), se usa esa para todas las tiendas del RIF.
+            rif_matrix = rif.get("implementation_matrix") or implementation_matrix
             for st in rif.get("stores", []):
                 project["stores"].append({
                     "store_id": f"st_{uuid.uuid4().hex[:8]}",
@@ -311,7 +316,7 @@ async def _create_project_from_quote(
                     "client_name": rif.get("client_name"),
                     "name": st.get("name", ""),
                     "box_count": int(st.get("boxes") or 0),
-                    "implementation_matrix": copy.deepcopy(implementation_matrix),
+                    "implementation_matrix": copy.deepcopy(rif_matrix),
                     "status": "Pendiente",
                     "notes": [],
                 })

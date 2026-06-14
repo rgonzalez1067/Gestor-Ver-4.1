@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Checkbox } from '../components/ui/checkbox';
 import { ProcessorLinkBankModal } from '../components/shared/ProcessorLinkBankModal';
+import { DirectMultiRifSection } from '../components/projects/DirectMultiRifSection';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { usePermission } from '../hooks/usePermission';
@@ -195,6 +196,11 @@ export default function DirectProjectCreation() {
     quote_type: 'VPOS',
     sede: 'PYME',
     cantidad_cajas: 1,
+    // Multi-RIF
+    project_type: 'simple',            // 'simple' | 'multirif'
+    multirif_sponsorship: 'bank',      // 'bank' | 'client' (solo multirif)
+    shared_matrix: true,               // ¿todas las tiendas comparten bancos/productos?
+    multirif_distribution: [],         // [{ client_id, rif, client_name, boxes, stores, boxes_grid }]
     sponsor_bank_id: '',
     sponsor_bank_name: '',
     sponsor_processor_id: '',
@@ -230,6 +236,7 @@ export default function DirectProjectCreation() {
   const [assignModal, setAssignModal] = useState({ open: false, scenario: null, name: '' });
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  const isMultirif = form.project_type === 'multirif';
 
   /* Carga inicial */
   useEffect(() => {
@@ -441,7 +448,43 @@ export default function DirectProjectCreation() {
         errs.push(`Suma cajas multitienda (${totalStoreBoxes}) ≠ Cantidad de Cajas (${form.cantidad_cajas})`);
       }
     }
-    if (form.boxes_grid.length === 0) {
+
+    // === Multi-RIF: validación de distribución jerárquica + cuadre estricto ===
+    const mr = form.project_type === 'multirif';
+    if (mr) {
+      const dist = form.multirif_distribution || [];
+      if (dist.length === 0) {
+        errs.push('Multi-RIF: agrega al menos un Cliente/RIF');
+      } else {
+        let sumRifs = 0;
+        dist.forEach((r, i) => {
+          if (!r.client_id) errs.push(`RIF #${i + 1}: selecciona un cliente`);
+          const rb = parseInt(r.boxes) || 0;
+          sumRifs += rb;
+          const ss = (r.stores || []).reduce((a, s) => a + (parseInt(s.boxes) || 0), 0);
+          if ((r.stores || []).length === 0) {
+            errs.push(`${r.client_name || 'RIF #' + (i + 1)}: agrega al menos una sucursal`);
+          }
+          if (ss !== rb) {
+            errs.push(`${r.client_name || 'RIF #' + (i + 1)}: cajas de sucursales (${ss}) ≠ cajas del RIF (${rb})`);
+          }
+          if (!form.shared_matrix && (r.boxes_grid || []).length === 0) {
+            errs.push(`${r.client_name || 'RIF #' + (i + 1)}: define bancos/productos para este RIF`);
+          }
+        });
+        if (sumRifs !== Number(form.cantidad_cajas)) {
+          errs.push(`Suma cajas de RIFs (${sumRifs}) ≠ Cantidad de Cajas global (${form.cantidad_cajas})`);
+        }
+      }
+      // Patrocinio: si es "Banco", debe haber un banco patrocinante seleccionado.
+      if (form.multirif_sponsorship === 'bank' && !form.sponsor_bank_id && !form.sponsor_bank_name) {
+        errs.push('Multi-RIF (Patrocinada por Banco): selecciona el Banco Patrocinante');
+      }
+    }
+
+    // Grilla global (Reel): obligatoria EXCEPTO en Multi-RIF con matriz por RIF.
+    const gridRequired = !(mr && !form.shared_matrix);
+    if (gridRequired && form.boxes_grid.length === 0) {
       errs.push('Agrega al menos una fila a la grilla');
     } else {
       form.boxes_grid.forEach((b, i) => {
@@ -506,6 +549,21 @@ export default function DirectProjectCreation() {
       if (form.sponsor_bank_id && !form.sponsor_bank_name) {
         const b = banks.find((x) => x.bank_id === form.sponsor_bank_id);
         if (b) payload.sponsor_bank_name = b.name;
+      }
+      // Multi-RIF y Multitienda son excluyentes: en Multi-RIF la distribución de
+      // tiendas viaja en multirif_distribution.
+      if (isMultirif) {
+        payload.is_multistore = false;
+        payload.stores = [];
+        // Si la implementación la paga el Cliente, no hay banco patrocinante.
+        if (form.multirif_sponsorship === 'client') {
+          payload.sponsor_bank_id = '';
+          payload.sponsor_bank_name = '';
+          payload.sponsor_processor_id = '';
+          payload.sponsor_processor_name = '';
+        }
+      } else {
+        payload.multirif_distribution = [];
       }
       const res = await api.post('/direct-projects', payload);
       const d = res.data;
@@ -603,6 +661,40 @@ export default function DirectProjectCreation() {
         </div>
       )}
 
+      {/* Selector de Tipo de Proyecto Directo: Simple vs Multi-RIF */}
+      <Card className="border-indigo-200 shadow-sm" data-testid="dp-project-type-card">
+        <CardContent className="py-4">
+          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 shrink-0">
+              <Layers size={16} className="text-indigo-600" /> Tipo de Proyecto Directo
+            </div>
+            <div className="flex gap-2" role="radiogroup" aria-label="Tipo de Proyecto Directo">
+              <button
+                type="button"
+                onClick={() => set({ project_type: 'simple', multirif_distribution: [] })}
+                data-testid="dp-type-simple"
+                className={`px-4 py-2 rounded-md text-sm font-semibold border-2 transition ${form.project_type === 'simple' ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-amber-400'}`}
+              >
+                <Zap size={14} className="inline mr-1.5" /> Directo Simple
+              </button>
+              <button
+                type="button"
+                onClick={() => set({ project_type: 'multirif', is_multistore: false, stores: [] })}
+                data-testid="dp-type-multirif"
+                className={`px-4 py-2 rounded-md text-sm font-semibold border-2 transition ${form.project_type === 'multirif' ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400'}`}
+              >
+                <Building2 size={14} className="inline mr-1.5" /> Directo Multi-RIF
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 md:ml-auto">
+              {isMultirif
+                ? 'Distribución jerárquica por Cliente (RIF) → Sucursales, con cuadre estricto de cajas.'
+                : 'Implementación de un único cliente (puede ser multitienda).'}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Card 1: Cliente */}
       <Card className="border-blue-100 shadow-sm">
         <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-blue-50/30 border-b border-blue-100 rounded-t-lg">
@@ -639,6 +731,35 @@ export default function DirectProjectCreation() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Bifurcación de Patrocinio (solo Multi-RIF) */}
+          {isMultirif && (
+            <div className="rounded-md border border-indigo-200 bg-indigo-50/40 p-3" data-testid="dp-multirif-sponsorship">
+              <Label className="text-xs font-semibold text-indigo-900">¿La implementación es patrocinada por un Banco o pagada por el Cliente? *</Label>
+              <div className="flex gap-2 mt-2" role="radiogroup" aria-label="Patrocinio Multi-RIF">
+                <button
+                  type="button"
+                  onClick={() => set({ multirif_sponsorship: 'bank' })}
+                  data-testid="dp-sponsorship-bank"
+                  className={`px-4 py-2 rounded-md text-sm font-semibold border-2 transition ${form.multirif_sponsorship === 'bank' ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400'}`}
+                >
+                  Patrocinada por un Banco
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set({ multirif_sponsorship: 'client', sponsor_bank_id: '', sponsor_bank_name: '', sponsor_processor_id: '', sponsor_processor_name: '' })}
+                  data-testid="dp-sponsorship-client"
+                  className={`px-4 py-2 rounded-md text-sm font-semibold border-2 transition ${form.multirif_sponsorship === 'client' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'}`}
+                >
+                  Pagada por el Cliente
+                </button>
+              </div>
+              <p className="text-[11px] text-indigo-700/80 mt-1.5">
+                {form.multirif_sponsorship === 'bank'
+                  ? 'Selecciona el Banco Patrocinante abajo (si es un Procesador, designa el banco vinculado).'
+                  : 'El cliente padre (seleccionado arriba) asume el costo de la implementación.'}
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs">Tipo de Proyecto *</Label>
@@ -655,8 +776,9 @@ export default function DirectProjectCreation() {
                      onChange={(e) => set({ cantidad_cajas: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
                      data-testid="dp-cantidad-cajas" />
             </div>
+            {(!isMultirif || form.multirif_sponsorship === 'bank') && (
             <div>
-              <Label className="text-xs">Banco Patrocinante</Label>
+              <Label className="text-xs">Banco Patrocinante{isMultirif && form.multirif_sponsorship === 'bank' ? ' *' : ''}</Label>
               <Select value={form.sponsor_bank_id || ''} onValueChange={(v) => {
                 const b = banks.find((x) => x.bank_id === v);
                 if (b && b.type === 'Procesador') {
@@ -677,6 +799,7 @@ export default function DirectProjectCreation() {
                 </p>
               )}
             </div>
+            )}
             {/* Cascada Integrador → App: 1 app = auto-selección; 2+ = drop-list obligatorio */}
             <div>
               <Label className="text-xs">Integrador</Label>
@@ -931,7 +1054,42 @@ export default function DirectProjectCreation() {
         </CardContent>
       </Card>
 
-      {/* Card 4: Multitienda */}
+      {/* Card 4-MR: Distribución Multi-RIF (reemplaza a Control Multitienda) */}
+      {isMultirif && (
+        <Card className="border-indigo-200 shadow-sm" data-testid="dp-multirif-card">
+          <CardHeader className="pb-3 bg-gradient-to-r from-indigo-50 to-indigo-50/30 border-b border-indigo-100 rounded-t-lg">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2 text-indigo-900">
+                <div className="bg-indigo-500 rounded-md p-1.5"><Building2 size={14} className="text-white" /></div>
+                Distribución Multi-RIF
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="shared-matrix-toggle" className="text-xs text-indigo-800">
+                  {form.shared_matrix ? 'Todas las tiendas comparten Bancos/Productos' : 'Matriz por RIF'}
+                </Label>
+                <Switch id="shared-matrix-toggle" checked={form.shared_matrix} onCheckedChange={(v) => set({ shared_matrix: v })} data-testid="dp-shared-matrix-toggle" />
+              </div>
+            </div>
+            <CardDescription className="text-xs text-indigo-700/70">
+              Distribuye las {form.cantidad_cajas || 0} caja(s) globales entre Clientes (RIF) y sus Sucursales. El cuadre debe ser exacto.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DirectMultiRifSection
+              clients={clients}
+              banks={banks}
+              quoteType={form.quote_type}
+              sharedMatrix={form.shared_matrix}
+              distribution={form.multirif_distribution}
+              onChange={(next) => setForm((f) => ({ ...f, multirif_distribution: typeof next === 'function' ? next(f.multirif_distribution) : next }))}
+              cantidadCajas={Number(form.cantidad_cajas) || 0}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Card 4: Multitienda (solo Proyecto Directo Simple) */}
+      {!isMultirif && (
       <Card className="border-violet-100 shadow-sm">
         <CardHeader className="pb-3 bg-gradient-to-r from-violet-50 to-violet-50/30 border-b border-violet-100 rounded-t-lg">
           <div className="flex items-center justify-between">
@@ -993,8 +1151,11 @@ export default function DirectProjectCreation() {
           </CardContent>
         )}
       </Card>
+      )}
 
-      {/* Card 5: Reel de distribución de cajas */}
+      {/* Card 5: Reel de distribución de cajas
+          (oculto en Multi-RIF con matriz POR RIF: cada RIF tiene su propia matriz) */}
+      {(!isMultirif || form.shared_matrix) && (
       <Card className="border-amber-100 shadow-sm">
         <CardHeader className="pb-3 bg-gradient-to-r from-amber-50 to-amber-50/30 border-b border-amber-100 rounded-t-lg">
           <div className="flex items-center justify-between">
@@ -1158,6 +1319,7 @@ export default function DirectProjectCreation() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Card 6: Instrucciones */}
       <Card className="border-slate-200 shadow-sm">

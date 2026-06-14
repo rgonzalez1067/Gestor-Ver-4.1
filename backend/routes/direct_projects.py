@@ -68,6 +68,26 @@ class DirectProjectStore(BaseModel):
     box_count: int
 
 
+class DirectMultiRifStore(BaseModel):
+    """Sucursal dentro de un RIF (nivel 3 de la distribución Multi-RIF)."""
+    name: str
+    boxes: int = Field(ge=0)
+
+
+class DirectMultiRifNode(BaseModel):
+    """Un RIF (cliente jurídico) dentro de la distribución Multi-RIF.
+
+    Cuando `shared_matrix=False`, cada RIF trae su propia `boxes_grid` para
+    construir una matriz de implementación independiente por RIF.
+    """
+    client_id: Optional[str] = None
+    rif: Optional[str] = None
+    client_name: Optional[str] = None
+    boxes: int = Field(ge=0)
+    stores: list[DirectMultiRifStore] = Field(default_factory=list)
+    boxes_grid: list[DirectProjectBox] = Field(default_factory=list)
+
+
 class DirectProjectSerial(BaseModel):
     """Serial de Pinpad. El `modelo` es opcional (Iter38, feb 2026): el operador
     solo está obligado a capturar el número de serial; la asociación con un
@@ -119,11 +139,64 @@ class DirectProjectCreate(BaseModel):
     is_multistore: bool = False
     stores: list[DirectProjectStore] = Field(default_factory=list)
 
+    # Multi-RIF (distribución jerárquica Global → RIF → Tienda)
+    # project_type: "simple" (Proyecto Directo estándar) | "multirif".
+    project_type: Optional[str] = "simple"
+    # Bifurcación de patrocinio (solo informativa para multirif): "bank" | "client".
+    multirif_sponsorship: Optional[str] = None
+    # ¿Todas las tiendas comparten la misma configuración de Bancos/Productos?
+    # True  → matriz compartida (se usa boxes_grid global para todos los RIF).
+    # False → matriz por RIF (cada RIF trae su propia boxes_grid).
+    shared_matrix: bool = True
+    multirif_distribution: list[DirectMultiRifNode] = Field(default_factory=list)
+
     # Grilla (Caja -> Banco + Producto)
     boxes_grid: list[DirectProjectBox] = Field(default_factory=list)
 
     # Instrucciones para el implementador
     implementation_instructions: Optional[str] = None
+
+
+def _grid_to_services(boxes_grid) -> list[dict]:
+    """Agrupa una grilla [(bank, product, qty)] en items 'additional' (services).
+
+    Acepta tanto objetos pydantic (con .bank_name/.product_name/.quantity) como
+    dicts con esas mismas claves.
+    """
+    grid_pairs: dict[tuple[str, str], int] = {}
+    for box in boxes_grid or []:
+        bn = (getattr(box, "bank_name", None) or (box.get("bank_name") if isinstance(box, dict) else "") or "").strip()
+        pn = (getattr(box, "product_name", None) or (box.get("product_name") if isinstance(box, dict) else "") or "").strip()
+        qty = int(getattr(box, "quantity", None) or (box.get("quantity") if isinstance(box, dict) else 0) or 0)
+        if not bn or not pn:
+            continue
+        grid_pairs[(bn, pn)] = grid_pairs.get((bn, pn), 0) + qty
+    out = []
+    for (bank, product), qty in grid_pairs.items():
+        out.append({
+            "item_id": f"svc_{uuid.uuid4().hex[:8]}",
+            "item_type": "additional",
+            "item_name": product,
+            "bank_name": bank,
+            "quantity": qty,
+            "price_usd": 0,
+            "total_usd": 0,
+        })
+    return out
+
+
+def _grid_to_matrix(boxes_grid) -> dict:
+    """Construye una implementation_matrix {banco: {producto: {}}} desde una grilla."""
+    matrix: dict[str, dict] = {}
+    for box in boxes_grid or []:
+        bn = (getattr(box, "bank_name", None) or "").strip()
+        pn = (getattr(box, "product_name", None) or "").strip()
+        if not bn or not pn:
+            continue
+        matrix.setdefault(bn, {})
+        matrix[bn].setdefault(pn, {})
+    return matrix
+
 
 
 # =================== Endpoint principal ===================
@@ -177,7 +250,15 @@ async def create_direct_project(
                 detail=f"La cantidad de seriales Pinpad cargados ({n_serials}) debe coincidir con Cantidad de Cajas ({payload.cantidad_cajas}).",
             )
 
-    if len(payload.boxes_grid) == 0:
+    # ¿Proyecto Directo Multi-RIF? Distribución jerárquica Global → RIF → Tienda.
+    is_multirif = (payload.project_type or "simple").strip().lower() == "multirif"
+
+    # Validación de la grilla global:
+    #  - Simple / Multi-RIF con matriz COMPARTIDA → boxes_grid global obligatoria.
+    #  - Multi-RIF con matriz POR RIF → la grilla global es opcional (cada RIF trae
+    #    su propia grilla); se valida más abajo.
+    grid_required = not (is_multirif and not payload.shared_matrix)
+    if grid_required and len(payload.boxes_grid) == 0:
         raise HTTPException(
             status_code=400,
             detail="La grilla debe contener al menos una fila (cantidad + banco + producto).",
@@ -190,6 +271,48 @@ async def create_direct_project(
         if not (box.product_name or "").strip():
             raise HTTPException(status_code=400, detail=f"Fila #{i+1}: producto requerido")
 
+    # ---- Validación de la distribución Multi-RIF (cuadre estricto) ----
+    multirif_distribution = None
+    if is_multirif:
+        dist = payload.multirif_distribution or []
+        if not dist:
+            raise HTTPException(status_code=400, detail="Multi-RIF: agrega al menos un Cliente/RIF.")
+        sum_rifs = 0
+        for ri, rif in enumerate(dist):
+            if not (rif.client_id or "").strip():
+                raise HTTPException(status_code=400, detail=f"RIF #{ri+1}: selecciona un cliente.")
+            rb = int(rif.boxes or 0)
+            if rb < 1:
+                raise HTTPException(status_code=400, detail=f"RIF #{ri+1}: las cajas del RIF deben ser >= 1.")
+            sum_rifs += rb
+            # Cuadre estricto de sucursales: Σ cajas de sucursales == cajas del RIF.
+            if not rif.stores:
+                raise HTTPException(status_code=400, detail=f"{rif.client_name or ('RIF #'+str(ri+1))}: agrega al menos una sucursal.")
+            sum_stores = sum(int(s.boxes or 0) for s in rif.stores)
+            for s in rif.stores:
+                if not (s.name or "").strip():
+                    raise HTTPException(status_code=400, detail=f"{rif.client_name or ('RIF #'+str(ri+1))}: hay una sucursal sin nombre.")
+                if int(s.boxes or 0) < 1:
+                    raise HTTPException(status_code=400, detail=f"{rif.client_name or ('RIF #'+str(ri+1))}: cada sucursal debe tener >= 1 caja.")
+            if sum_stores != rb:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{rif.client_name or ('RIF #'+str(ri+1))}: la suma de cajas de sus sucursales ({sum_stores}) debe ser igual a las cajas del RIF ({rb}).",
+                )
+            # Matriz POR RIF: cada RIF requiere su propia grilla.
+            if not payload.shared_matrix:
+                if not rif.boxes_grid:
+                    raise HTTPException(status_code=400, detail=f"{rif.client_name or ('RIF #'+str(ri+1))}: define al menos un banco/producto para este RIF.")
+                for bi, box in enumerate(rif.boxes_grid):
+                    if not (box.bank_name or "").strip() or not (box.product_name or "").strip():
+                        raise HTTPException(status_code=400, detail=f"{rif.client_name or ('RIF #'+str(ri+1))}: fila #{bi+1} requiere banco y producto.")
+        # Cuadre estricto global: Σ cajas de RIFs == Cantidad de Cajas global.
+        if sum_rifs != payload.cantidad_cajas:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La suma de cajas de los RIFs ({sum_rifs}) debe ser igual a la Cantidad de Cajas global ({payload.cantidad_cajas}).",
+            )
+
     # Segmento del cliente: se conserva desde la ficha del cliente (PYME/CORP).
     client_segment = (client.get("client_segment") or "PYME").upper()
     if client_segment not in {"PYME", "CORP"}:
@@ -200,26 +323,36 @@ async def create_direct_project(
     sede = (user.get("sede") or "").strip()
 
     # ---- Construir "cotización fantasma" en memoria ----
-    # Agrupar la grilla por (bank, product) → cantidad. Esto alimenta
-    # `services` para que `_create_project_from_quote` arme la implementation_matrix.
-    grid_pairs: dict[tuple[str, str], int] = {}
-    for box in payload.boxes_grid:
-        key = (box.bank_name.strip(), box.product_name.strip())
-        grid_pairs[key] = grid_pairs.get(key, 0) + int(box.quantity)
+    # `services` alimenta la implementation_matrix global (banco/producto).
+    #  - Matriz compartida → desde la grilla global.
+    #  - Matriz por RIF    → agregando las grillas de todos los RIF para que el
+    #    proyecto liste todos los bancos involucrados.
+    if is_multirif and not payload.shared_matrix:
+        combined_grid = []
+        for rif in payload.multirif_distribution:
+            combined_grid.extend(rif.boxes_grid)
+        services = _grid_to_services(combined_grid)
+    else:
+        services = _grid_to_services(payload.boxes_grid)
 
-    services = []
-    for (bank, product), qty in grid_pairs.items():
-        services.append({
-            "item_id": f"svc_{uuid.uuid4().hex[:8]}",
-            "item_type": "additional",
-            "item_name": product,
-            "bank_name": bank,
-            "quantity": qty,
-            "price_usd": 0,
-            "total_usd": 0,
-        })
+    grid_pairs = {(s["bank_name"], s["item_name"]): s["quantity"] for s in services}
 
-    # Para GATEWAY: armar pg_setup_items (banco + concepto).
+    # Construir la distribución Multi-RIF para el builder de proyecto.
+    if is_multirif:
+        shared_matrix = _grid_to_matrix(payload.boxes_grid) if payload.shared_matrix else None
+        multirif_distribution = []
+        for rif in payload.multirif_distribution:
+            node = {
+                "client_id": rif.client_id,
+                "rif": rif.rif,
+                "client_name": rif.client_name,
+                "boxes": int(rif.boxes or 0),
+                "stores": [{"name": s.name, "boxes": int(s.boxes or 0)} for s in rif.stores],
+            }
+            if not payload.shared_matrix:
+                node["implementation_matrix"] = _grid_to_matrix(rif.boxes_grid)
+            multirif_distribution.append(node)
+
     pg_setup_items = []
     if qtype == "GATEWAY":
         for (bank, product), _qty in grid_pairs.items():
@@ -270,6 +403,11 @@ async def create_direct_project(
         "hardware": [],
         "equipment_items": [],
         "branch_details": branch_details,
+        # Multi-RIF: distribución jerárquica (Global → RIF → Tienda). El builder
+        # `_create_project_from_quote` produce project_type="multirif", `rifs` y
+        # `stores` planas (con su rif_id) a partir de esta estructura.
+        "is_multirif": is_multirif,
+        "multirif_distribution": multirif_distribution or [],
         # Patrocinador de Pinpads (homologado con Cotizaciones = sponsor_bank): en
         # Proyectos Directos proviene del campo "Banco del Pinpad" (pinpad_bank).
         # Es independiente del Patrocinador de la Implementación.
@@ -312,8 +450,10 @@ async def create_direct_project(
     }
 
     # Llamar al builder existente (deja proyecto creado con número PRY-).
+    # Multi-RIF y Multitienda son excluyentes: en Multi-RIF la distribución de
+    # tiendas viaja en synthetic_quote["multirif_distribution"], no en multistore.
     multistore_data = None
-    if payload.is_multistore:
+    if payload.is_multistore and not is_multirif:
         multistore_data = {
             "is_multistore": True,
             "stores": [{"name": s.name, "box_count": int(s.box_count)} for s in payload.stores],
@@ -363,6 +503,9 @@ async def create_direct_project(
             "pinpad_bank": payload.pinpad_bank,
             # Persistir la grilla original para auditoría / re-emisión
             "boxes_grid": [b.model_dump() for b in payload.boxes_grid],
+            # Metadata Multi-RIF (auditoría)
+            "multirif_sponsorship": (payload.multirif_sponsorship or None) if is_multirif else None,
+            "shared_matrix": payload.shared_matrix if is_multirif else None,
             # quote_number cosmético (el quote_id es pseudo, no apunta a quote real)
             "quote_number": prd_number,
         }},
