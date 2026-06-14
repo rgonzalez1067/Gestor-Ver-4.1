@@ -857,3 +857,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Export Excel (.xlsx, openpyxl) de 2 pestañas: Resumen (filtros + 5 totales del funnel + monto + CRM) y Detalle (grilla plana + Generador + Último Paso).
 - Backend: endpoints GET /api/reports/sales/advanced, /advanced/filters, /advanced/export en sales_reports.py.
 - Verificado: backend e2e curl (219 filas Q2-2026, funnel excluyente enviada129/aprobada19/facturada15/pagada42/entregada2; export 200 2-hojas; 209/219 con generador), pytest test_advanced_sales_report.py 3/3, testing_agent iter88 frontend 100% (filtros, funnel, CRM, grilla con generador, export Excel 18KB, filtro VPOS→73 filas, limpiar chips).
+
+## 2026-06-13 · Consulta Avanzada: cantidades por tipo (cajas/equipos)
+- Agregadas 3 columnas a la grilla y al Excel del detalle: 'Cajas' (cantidad_cajas en cotizaciones de Implementación y Fast Track), 'Equipos Rep.' (suma de quantity de equipment_items en Reparación) y 'Equipos Vend.' (equipos vendidos: equipment_items en Equipos, ft_equipment_items en Fast Track). None/— cuando no aplica a la categoría.
+- Backend: helper _adv_counts en sales_reports.py; columnas añadidas al export Excel (12 columnas). Frontend: 3 columnas en AdvancedSalesTab.jsx (boxes azul, repair ámbar, sold verde).
+- Verificado: curl (VPOS_MULTIRIF→20 cajas, Verifone→30 vendidos, Reparación→13 equipos, FAST_TRACK→1+1; 100 con cajas/49 reparación/81 vendidos), Excel 12 cols, pytest 4/4.

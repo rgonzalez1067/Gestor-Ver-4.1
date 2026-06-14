@@ -1701,6 +1701,34 @@ def _adv_origin(q: dict) -> str:
     return "Renovación" if q.get("parent_quote_id") else "Generado por Ejecutivo"
 
 
+def _adv_sum_qty(items) -> int:
+    total = 0
+    for it in (items or []):
+        try:
+            total += int(it.get("quantity") or 0)
+        except (TypeError, ValueError):
+            continue
+    return total
+
+
+def _adv_counts(q: dict) -> dict:
+    """Cantidades por tipo de cotización:
+      - boxes:        cajas en Implementaciones (y Fast Track)
+      - repair_units: equipos en cotizaciones de Reparación
+      - sold_units:   equipos vendidos (Equipos / Fast Track)
+    None cuando no aplica a la categoría."""
+    cat = q.get("quote_category")
+    boxes = int(q.get("cantidad_cajas") or 0) if cat in ("implementation", "fast_track") else None
+    repair_units = _adv_sum_qty(q.get("equipment_items")) if cat == "repair" else None
+    if cat == "equipment":
+        sold_units = _adv_sum_qty(q.get("equipment_items"))
+    elif cat == "fast_track":
+        sold_units = _adv_sum_qty(q.get("ft_equipment_items"))
+    else:
+        sold_units = None
+    return {"boxes": boxes, "repair_units": repair_units, "sold_units": sold_units}
+
+
 async def _adv_creator_map() -> dict:
     """uid -> nombre completo del generador."""
     out = {}
@@ -1776,6 +1804,7 @@ async def _adv_build_dataset(date_from, date_to, quote_types, origins):
             funnel[stage]["total_usd"] += amount
         stations = _adv_progress_stations(q)
         creator = q.get("creator_name") or creators.get(q.get("created_by_user_id")) or q.get("updated_by") or "—"
+        counts = _adv_counts(q)
         rows.append({
             "quote_id": q.get("quote_id"),
             "quote_number": q.get("quote_number", ""),
@@ -1786,6 +1815,9 @@ async def _adv_build_dataset(date_from, date_to, quote_types, origins):
             "quote_type": q.get("quote_type", "") or "—",
             "origin": origin,
             "stage": stage,
+            "boxes": counts["boxes"],
+            "repair_units": counts["repair_units"],
+            "sold_units": counts["sold_units"],
             "progress": stations,
             "last_step": stations[-1] if stations else (q.get("quote_status") or "Borrador"),
         })
@@ -1888,7 +1920,8 @@ async def advanced_sales_export(
     # --- Pestaña 2: Detalle ---
     ws2 = wb.create_sheet("Detalle")
     headers = ["ID Cotización", "Cliente / Empresa", "Fecha de Emisión", "Monto Total USD",
-               "Generador", "Tipo", "Origen", "Progreso Administrativo", "Último Paso Ejecutado"]
+               "Generador", "Tipo", "Origen", "Cajas (Implementación)", "Equipos (Reparación)",
+               "Equipos Vendidos", "Progreso Administrativo", "Último Paso Ejecutado"]
     ws2.append(headers)
     for i, _ in enumerate(headers, start=1):
         cell = ws2.cell(row=1, column=i)
@@ -1899,10 +1932,13 @@ async def advanced_sales_export(
         ws2.append([
             row["quote_number"], row["client_name"], row["created_at"], row["total_usd"],
             row["creator"], row["quote_type"], row["origin"],
+            row["boxes"] if row["boxes"] is not None else "",
+            row["repair_units"] if row["repair_units"] is not None else "",
+            row["sold_units"] if row["sold_units"] is not None else "",
             " → ".join(row["progress"]) if row["progress"] else "Borrador",
             row["last_step"],
         ])
-    widths = [22, 34, 16, 16, 26, 16, 22, 52, 24]
+    widths = [22, 34, 16, 16, 26, 16, 22, 18, 18, 16, 52, 24]
     for i, w in enumerate(widths, start=1):
         ws2.column_dimensions[ws2.cell(row=1, column=i).column_letter].width = w
 

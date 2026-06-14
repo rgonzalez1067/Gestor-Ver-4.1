@@ -1,5 +1,20 @@
 """Regresión del Módulo de Consulta de Ventas Avanzada (embudo excluyente + origen)."""
-from routes.sales_reports import _adv_stage_of, _adv_origin
+from routes.sales_reports import _adv_stage_of, _adv_origin, _adv_counts
+
+
+def test_adv_counts_by_category():
+    # Implementación → cajas
+    c = _adv_counts({"quote_category": "implementation", "cantidad_cajas": 8})
+    assert c == {"boxes": 8, "repair_units": None, "sold_units": None}
+    # Reparación → suma de quantity de equipment_items
+    c = _adv_counts({"quote_category": "repair", "equipment_items": [{"quantity": 5}, {"quantity": 1}, {"quantity": 1}]})
+    assert c == {"boxes": None, "repair_units": 7, "sold_units": None}
+    # Equipos → equipos vendidos
+    c = _adv_counts({"quote_category": "equipment", "equipment_items": [{"quantity": 30}]})
+    assert c == {"boxes": None, "repair_units": None, "sold_units": 30}
+    # Fast Track híbrido → cajas + vendidos (de ft_equipment_items)
+    c = _adv_counts({"quote_category": "fast_track", "cantidad_cajas": 1, "ft_equipment_items": [{"quantity": 1}]})
+    assert c == {"boxes": 1, "repair_units": None, "sold_units": 1}
 
 
 def test_funnel_exclusive_stages():

@@ -195,14 +195,17 @@ export const AdvancedSalesTab = () => {
                 <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">Monto USD</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Tipo</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Origen</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase" title="Cajas en cotizaciones de Implementación">Cajas</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase" title="Equipos en cotizaciones de Reparación">Equipos Rep.</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase" title="Equipos vendidos">Equipos Vend.</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Progreso Administrativo</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-slate-400"><Loader2 size={20} className="animate-spin inline" /></td></tr>
+                <tr><td colSpan={11} className="px-3 py-8 text-center text-slate-400"><Loader2 size={20} className="animate-spin inline" /></td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-slate-400 italic">Sin cotizaciones para los filtros aplicados.</td></tr>
+                <tr><td colSpan={11} className="px-3 py-8 text-center text-slate-400 italic">Sin cotizaciones para los filtros aplicados.</td></tr>
               ) : (
                 rows.map((r) => (
                   <tr key={r.quote_id} className="border-b border-slate-100 hover:bg-slate-50" data-testid={`adv-row-${r.quote_id}`}>
@@ -213,6 +216,9 @@ export const AdvancedSalesTab = () => {
                     <td className="px-3 py-2 text-right font-semibold text-slate-700 whitespace-nowrap">{fmtUSD(r.total_usd)}</td>
                     <td className="px-3 py-2"><Badge variant="secondary" className="bg-slate-100 text-slate-700 text-xs">{r.quote_type}</Badge></td>
                     <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{r.origin}</td>
+                    <td className="px-3 py-2 text-center text-slate-700" data-testid={`adv-row-boxes-${r.quote_id}`}>{r.boxes != null ? <span className="font-semibold text-blue-700">{r.boxes}</span> : <span className="text-slate-300">—</span>}</td>
+                    <td className="px-3 py-2 text-center text-slate-700" data-testid={`adv-row-repair-${r.quote_id}`}>{r.repair_units != null ? <span className="font-semibold text-amber-700">{r.repair_units}</span> : <span className="text-slate-300">—</span>}</td>
+                    <td className="px-3 py-2 text-center text-slate-700" data-testid={`adv-row-sold-${r.quote_id}`}>{r.sold_units != null ? <span className="font-semibold text-emerald-700">{r.sold_units}</span> : <span className="text-slate-300">—</span>}</td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap items-center gap-1">
                         {(r.progress || []).length === 0 ? (
