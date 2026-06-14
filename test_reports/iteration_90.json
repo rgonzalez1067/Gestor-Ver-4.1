@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend-only test of the red ticket-reminder toast feature for project status change (Culminado/Suspendido/Anulado). Login as admin, navigated to /projects, opened status dialog for prj_159c29398260, verified in-dialog reminder for both Suspendido and Culminado, confirmed status change to Culminado, and verified the prominent red toast (data-testid='ticket-reminder-toast') appears in the top-right corner with correct content, color and close button.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (pre-existing, unrelated)", "issues": ["React hydration warnings: <span data-ve-dynamic> wrapping <tr> inside <tbody> in Dashboard.jsx (lines ~374/389). Not related to this change but visible in console."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/toast_red.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "showTicketReminderToast uses sonner toast.custom with explicit data-testid='ticket-reminder-toast', red bg-red-600, AlertTriangle/Ticket icons and a working dismiss button (data-testid='ticket-reminder-close-btn'). Implementation matches spec.",
+    "TICKET_REMINDER_STATES correctly includes ['Culminado','Suspendido','Anulado'] and triggers both the in-dialog reminder and the post-confirm toast.",
+    "Minor: Dashboard.jsx has unrelated React hydration warnings about <span> inside <tbody>; should be cleaned up by main agent in a future pass."
+  ],
+  "updated_files": [],
+  "success_rate": {"frontend": "100%"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login OK).",
+  "seed_data_creation": "None. Used dedicated disposable project prj_159c29398260 (PRY-2026-06-045-PRI / ASTROCEL) and changed its state to Culminado as instructed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature verified end-to-end. Toast renders at viewport coords (x=1516, y=96, w=380, h=87) with bg rgb(220,38,38). data-status='Culminado'. Project prj_159c29398260 is now in Culminado state - main agent should reset or delete it if further runs are needed.",
+  "rca of the issue": "N/A - feature works as designed."
+}

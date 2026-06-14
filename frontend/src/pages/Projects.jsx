@@ -36,8 +36,43 @@ const STATUS_CONFIG = {
 
 // Estados que se ocultan por defecto en la bandeja (cerrados / pausados).
 const HIDDEN_DEFAULT_STATES = ['Suspendido', 'Implementado parcial', 'Culminado', 'Anulado'];
-// Estados que disparan recordatorio de cierre de ticket en el portal.
-const TICKET_REMINDER_STATES = ['Culminado', 'Anulado'];
+// Estados que disparan recordatorio de cierre de ticket en el portal
+// (proyecto cerrado / suspendido / anulado).
+const TICKET_REMINDER_STATES = ['Culminado', 'Suspendido', 'Anulado'];
+
+// Toast ROJO prominente (esquina superior derecha) para recordar el cierre del
+// Ticket cuando un proyecto pasa a un estado terminal/pausado.
+const showTicketReminderToast = (status) => {
+  toast.custom((t) => (
+    <div
+      className="w-[380px] bg-red-600 text-white rounded-xl shadow-2xl ring-2 ring-red-300/70 overflow-hidden"
+      data-testid="ticket-reminder-toast"
+      data-status={status}
+    >
+      <div className="flex items-start gap-3 p-4">
+        <div className="shrink-0 mt-0.5 bg-white/20 rounded-lg p-2">
+          <AlertTriangle size={22} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm leading-snug flex items-center gap-1.5">
+            <Ticket size={15} /> Recuerde cerrar el Ticket
+          </p>
+          <p className="text-xs text-white/90 mt-1 break-words">
+            El proyecto pasó a <strong>{status}</strong>. Cierre el Ticket en el portal al confirmar este estado.
+          </p>
+        </div>
+        <button
+          onClick={() => toast.dismiss(t)}
+          className="shrink-0 p-1 rounded-lg hover:bg-white/15 transition-colors"
+          aria-label="Cerrar"
+          data-testid="ticket-reminder-close-btn"
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  ), { duration: 10000 });
+};
 
 // Estados asignables MANUALMENTE por el usuario vía "Cambiar estado".
 // Los estados automáticos (Por asignar, Asignado, En Gestión) responden a triggers.
@@ -265,7 +300,7 @@ const Projects = () => {
       await api.put(`/projects/${statusProject.project_id}/status`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(`Estado: ${statusForm.new_status}`);
       if (TICKET_REMINDER_STATES.includes(statusForm.new_status)) {
-        toast.warning('Recuerde cerrar el Ticket en el portal.', { duration: 7000 });
+        showTicketReminderToast(statusForm.new_status);
       }
       setStatusDialogOpen(false);
       fetchProjects();
