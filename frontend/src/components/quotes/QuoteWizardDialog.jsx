@@ -1755,12 +1755,22 @@ export const QuoteWizardDialog = ({ ctx }) => {
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               {item.autoTariff ? (
-                                <div
-                                  className="w-20 h-7 flex items-center justify-end pr-2 text-sm mx-auto font-mono font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded"
-                                  title={`Tarifa automática: $${item.autoTariff.ceiling} si hay TDC/TDD; sino $${item.autoTariff.perUnit} por cada combinación digital/banco (techo $${item.autoTariff.ceiling})`}
-                                  data-testid={`recurring-basic-tariff-auto-${index}`}
-                                >
-                                  ${Number(item.tarifa || 0).toFixed(2)}
+                                <div className="flex items-center justify-center gap-1">
+                                  {item.tarifaManual && (
+                                    <Unlock size={12} className="text-amber-500" title="Tarifa editada manualmente (ya no usa el cálculo automático). Vacía el campo para revertir." />
+                                  )}
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.tarifa}
+                                    onChange={(e) => updateRecurringBasicItem(index, 'tarifa', e.target.value)}
+                                    className={`w-20 h-7 text-right text-sm mx-auto font-mono ${item.tarifaManual ? 'border-amber-400 bg-amber-50' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}
+                                    title={item.tarifaManual
+                                      ? 'Tarifa manual. Vacía el campo para volver al cálculo automático.'
+                                      : `Tarifa automática (editable): $${item.autoTariff.ceiling} si hay TDC/TDD; sino $${item.autoTariff.perUnit} por combinación digital/banco (techo $${item.autoTariff.ceiling}).`}
+                                    data-testid={`recurring-basic-tariff-input-${index}`}
+                                  />
                                 </div>
                               ) : (
                                 <Input

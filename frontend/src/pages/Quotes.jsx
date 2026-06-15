@@ -516,7 +516,7 @@ export const Quotes = () => {
     let changed = false;
 
     const updatedBasic = (quoteData.recurring_basic_items || []).map(item => {
-      if (!item.autoTariff) return item;
+      if (!item.autoTariff || item.tarifaManual) return item;
       const newT = calculateAutoTariff(additionals, item.autoTariff.ceiling, item.autoTariff.perUnit);
       if (Number(item.tarifa) !== newT) {
         changed = true;
@@ -560,7 +560,7 @@ export const Quotes = () => {
       setQuoteData(prev => ({
         ...prev,
         recurring_basic_items: (prev.recurring_basic_items || []).map(it =>
-          it.autoTariff ? { ...it, tarifa: it.autoTariff.ceiling } : it
+          it.autoTariff && !it.tarifaManual ? { ...it, tarifa: it.autoTariff.ceiling } : it
         ),
         recurring_other_items: (prev.recurring_other_items || []).map(it =>
           it.autoTariff ? { ...it, tarifa: it.autoTariff.ceiling } : it
@@ -572,7 +572,7 @@ export const Quotes = () => {
       setQuoteData(prev => ({
         ...prev,
         recurring_basic_items: (prev.recurring_basic_items || []).map(it =>
-          it.autoTariff ? { ...it, tarifa: calculateAutoTariff(additionals, it.autoTariff.ceiling, it.autoTariff.perUnit) } : it
+          it.autoTariff && !it.tarifaManual ? { ...it, tarifa: calculateAutoTariff(additionals, it.autoTariff.ceiling, it.autoTariff.perUnit) } : it
         ),
         recurring_other_items: (prev.recurring_other_items || []).map(it =>
           it.autoTariff ? { ...it, tarifa: calculateAutoTariff(additionals, it.autoTariff.ceiling, it.autoTariff.perUnit) } : it
@@ -1369,12 +1369,20 @@ export const Quotes = () => {
   // Actualizar campo en recurring_basic_items
   const updateRecurringBasicItem = (index, field, value) => {
     const updatedItems = [...quoteData.recurring_basic_items];
-    updatedItems[index] = {
+    const next = {
       ...updatedItems[index],
-      [field]: field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa' 
-        ? (value === '' ? '' : parseFloat(value)) 
+      [field]: field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa'
+        ? (value === '' ? '' : parseFloat(value))
         : value
     };
+    // Edición manual de la tarifa en items con cálculo automático (autoTariff,
+    // p.ej. "Derecho de uso de plataforma MServer por PDV"): al escribir un
+    // valor se marca `tarifaManual` para que el motor automático NO lo
+    // sobrescriba. Si el campo se vacía, se revierte al cálculo automático.
+    if (field === 'tarifa' && updatedItems[index]?.autoTariff) {
+      next.tarifaManual = value !== '';
+    }
+    updatedItems[index] = next;
     setQuoteData({ ...quoteData, recurring_basic_items: updatedItems });
   };
 
