@@ -5,6 +5,19 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 97: Backfill de fecha 'Envío a Implementación' para producción — Jun 2026
+
+**Problema:** En el ambiente de deploy, los Proyectos creados antes de la corrección (registro automático de `sent_to_implementation_at` al crear) muestran la fecha "Envío a Implementación" vacía. El backfill previo solo corrió sobre la BD de Preview; producción usa otra BD.
+
+**Solución (`routes/projects.py`):** Nuevo endpoint admin-only `POST /api/projects/backfill-impl-date`. Rellena `sent_to_implementation_at = created_at` para los proyectos que la tengan vacía (un proyecto se crea exactamente en el momento del envío a implementación → created_at es el valor correcto, validado en Preview: created==sent en todos los backfilled). Idempotente y no destructivo (solo toca los vacíos). Devuelve `{total_missing_before, updated, skipped_no_created_at, remaining_missing}`.
+
+**Uso en producción (una sola vez tras redeploy):**
+- `POST /api/projects/backfill-impl-date` con token de Administrador, o desde la consola del navegador (logueado como admin): `fetch('/api/projects/backfill-impl-date',{method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('session_token')}}).then(r=>r.json()).then(console.log)`.
+
+**QA:** pytest `tests/test_backfill_impl_date.py` 2/2 PASS (admin 200 + idempotente; no-admin 403). curl en Preview → `updated:0, remaining_missing:0` (ya completo).
+**⚠️ Requiere redeploy para que el endpoint exista en producción; luego ejecutarlo una vez.**
+
+
 ### Iteration 96: Tarifa editable del recurrente básico #1 (MServer por PDV) — Jun 2026
 
 **Requerimiento:** Hacer EDITABLE la tarifa del item #1 "Derecho de uso de plataforma MServer por PDV" (sección Costos Recurrentes Básicos del wizard), manteniendo el cálculo automático como valor por defecto. Aplica a VPOS y MPOS.

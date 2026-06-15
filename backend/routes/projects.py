@@ -535,6 +535,57 @@ def _master_diff(old_project, update, is_multistore):
     return changes
 
 
+@router.post("/projects/backfill-impl-date")
+async def backfill_impl_date(authorization: Optional[str] = Header(None)):
+    """Backfill de la fecha 'Envío a Implementación' (campo `sent_to_implementation_at`)
+    para Proyectos existentes que la tengan vacía.
+
+    Contexto: el registro automático de esta fecha al crear el proyecto se agregó
+    en una corrección posterior; los proyectos creados antes quedaron sin valor.
+    Como un proyecto se crea EXACTAMENTE en el momento del envío a implementación,
+    el valor correcto es su `created_at`. Operación idempotente y NO destructiva:
+    solo rellena los que están vacíos. EXCLUSIVO para rol Administrador.
+
+    Ejecutar UNA vez en el ambiente de deploy tras redesplegar:
+        POST /api/projects/backfill-impl-date  (con token de Administrador)
+    """
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado: operación exclusiva para Administradores.")
+
+    missing_filter = {
+        "$or": [
+            {"sent_to_implementation_at": {"$exists": False}},
+            {"sent_to_implementation_at": None},
+            {"sent_to_implementation_at": ""},
+        ]
+    }
+    total_missing = await db.projects.count_documents(missing_filter)
+    updated = 0
+    skipped_no_created = 0
+    cursor = db.projects.find(missing_filter, {"_id": 0, "project_id": 1, "created_at": 1})
+    async for p in cursor:
+        created = p.get("created_at")
+        if not created:
+            skipped_no_created += 1
+            continue
+        await db.projects.update_one(
+            {"project_id": p["project_id"]},
+            {"$set": {"sent_to_implementation_at": created}},
+        )
+        updated += 1
+
+    remaining = await db.projects.count_documents(missing_filter)
+    return {
+        "message": "Backfill de fecha 'Envío a Implementación' completado",
+        "total_missing_before": total_missing,
+        "updated": updated,
+        "skipped_no_created_at": skipped_no_created,
+        "remaining_missing": remaining,
+    }
+
+
+
 @router.put("/projects/{project_id}/master-override")
 async def master_override_project(project_id: str, payload: MasterOverridePayload, authorization: Optional[str] = Header(None)):
     """Edición Maestra (Super-Admin Override). Sobrescribe de forma directa y sin
