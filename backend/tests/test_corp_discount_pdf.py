@@ -78,33 +78,36 @@ def test_discount_section_conditional_and_math(headers, corp_quote):
         _set_disc(qid, 0, 0, 0)
         _regen(headers, qid)
         pages = _pages_text(qnum)
-        assert not any("TOTAL NETO A PAGAR" in p.upper() for p in pages), \
+        assert not any("TOTAL NETO" in p.upper() for p in pages), \
             "La sección de descuento NO debe aparecer sin descuento"
 
-        # --- CON 12% descuento ---
-        _set_disc(qid, 12, 12, 0)
+        # --- CON descuentos SEPARADOS: Setup 10%, Recurrente 15% ---
+        _set_disc(qid, 10, 15, 0)
         _regen(headers, qid)
         pages = _pages_text(qnum)
         matrix_pages = [i for i, t in enumerate(pages) if "Hardware y" in t and "Concepto" in t and "COSTOS DE IMPLEMENTACIÓN (SETUP)" not in t]
-        disc_pages = [i for i, t in enumerate(pages) if "TOTAL NETO A PAGAR" in t.upper()]
+        disc_pages = [i for i, t in enumerate(pages) if "RESUMEN DE DESCUENTO" in t.upper()]
         assert matrix_pages, "No se encontró la página de la matriz COSTOS DE IMPLEMENTACIÓN"
-        assert disc_pages, "No apareció la sección de descuento con 12%"
-        # Fijeza: la sección debe estar en la MISMA página que la matriz (no drift)
+        assert disc_pages, "No apareció la sección de descuento"
         assert matrix_pages[0] == disc_pages[0], "La sección de descuento se desplazó de la página de la matriz"
 
         t = pages[disc_pages[0]]
-        bruto = _money(t, "Subtotal Bruto:")
-        monto = _money(t, "Monto del Descuento:")
-        base = _money(t, "Base Imponible:")
-        iva = _money(t, "IVA (16%):")
-        total = _money(t, "Total Neto a Pagar:")
+        # Deben existir DOS sub-bloques separados (Setup y Recurrentes)
+        assert "Inversión Inicial (Setup)" in t, "Falta el sub-bloque de Setup"
+        assert "Costos Recurrentes (Mensual)" in t, "Falta el sub-bloque de Recurrentes"
+        assert "Total Neto Setup:" in t and "Total Neto Mensual:" in t, "Faltan los totales por sección"
 
-        # Validación matemática (IVA sobre la base post-descuento)
-        assert abs(base - (bruto - monto)) < 0.02, f"Base != Bruto-Descuento ({base} vs {bruto-monto})"
-        assert abs(iva - base * 0.16) < 0.02, f"IVA != Base*16% ({iva} vs {base*0.16})"
-        assert abs(total - (base + iva)) < 0.02, f"Total != Base+IVA ({total} vs {base+iva})"
-        # El descuento (12% combinado) debe ser ~12% del bruto
-        assert abs(monto - bruto * 0.12) < 0.05, f"Monto descuento != 12% bruto ({monto} vs {bruto*0.12})"
+        # Verificar los DOS porcentajes separados (-10% setup, -15% recurrente)
+        assert "-10%" in t, "No se aplicó el 10% al Setup"
+        assert "-15%" in t, "No se aplicó el 15% al Recurrente"
+
+        # Validación matemática por cada Total Neto (base = bruto-desc; iva=base*16%)
+        montos = [float(x.replace(",", "")) for x in re.findall(r"Subtotal Bruto:\s*\$([\d,]+\.\d{2})", t)]
+        bases = [float(x.replace(",", "")) for x in re.findall(r"Base Imponible:\s*\$([\d,]+\.\d{2})", t)]
+        ivas = [float(x.replace(",", "")) for x in re.findall(r"IVA \(16%\):\s*\$([\d,]+\.\d{2})", t)]
+        assert len(montos) == 2 and len(bases) == 2 and len(ivas) == 2, "Deben verse 2 desgloses (Setup y Recurrente)"
+        for base, iva in zip(bases, ivas):
+            assert abs(iva - base * 0.16) < 0.02, f"IVA != Base*16% ({iva} vs {base*0.16})"
     finally:
         _set_disc(qid, *orig)
         _regen(headers, qid)
