@@ -1,0 +1,28 @@
+{
+  "summary": "Validated the Anexos permission matrix (AnexosModal.jsx) governed by quote_history. Admin level fully validated end-to-end via UI. Consulta (read) level NOT directly testable via /quotes UI because srubio@megasoft.com.ve has cotizaciones='none' and therefore cannot access the /quotes grid where the Anexos button lives — verified by API (GET /api/auth/login → cotizaciones: 'none', quote_history: 'read'). Code review of usePermission + AnexosModal confirms the gating logic is correct: a hypothetical user with cotizaciones>=read AND quote_history=read would see only downloads (no Subir, no papelera). Backend RBAC already validated by pytest (6/6 PASS) per main agent context.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_attachments_rbac.py"
+  ],
+  "action_items": [
+    "OPTIONAL: To complete UI-level validation of the Consulta tier on the /quotes-driven AnexosModal, provide a test user with cotizaciones:read AND quote_history:read (e.g., grant srubio cotizaciones:read temporarily, or seed a new fixture user). Currently srubio has cotizaciones:'none', so /quotes redirects them to /dashboard and the AnexosModal cannot be reached from there. Note: srubio CAN access /historical-quotes, but that page uses a different component (HistoricalAnexosModal.jsx), not the AnexosModal.jsx targeted by this matrix."
+  ],
+  "critical_code_review_comments": [
+    "AnexosModal.jsx (lines 44-46): canUpload=canEdit, canDelete=isAdmin — correctly derived from usePermission('quote_history'). For role==='user' the hook returns canEdit only when permissions.quote_history==='edit' and isAdmin=false; therefore a quote_history='read' user would correctly see neither Subir (anexo-upload-btn-*) nor papelera (anexo-delete-*). Logic is sound.",
+    "usePermission.js (lines 20-26): admin short-circuit returns canEdit=true,isAdmin=true → AnexosModal shows Subir + papelera, matching Admin expectation (visually confirmed).",
+    "HistoricalQuotes.jsx imports HistoricalAnexosModal — a separate component from AnexosModal.jsx. The two modals are independent; this iteration's matrix applies only to AnexosModal.jsx opened from /quotes via quote-anexos-btn-*."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (per prior pytest)", "frontend": "Admin 100% / Consulta-via-UI not executable (credential gap)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login OK, full flow OK). Consulta candidate: srubio@megasoft.com.ve / Test1234! (login OK but cotizaciones=none → cannot reach /quotes).",
+  "seed_data_creation": "During Admin validation, uploaded /tmp/qa_anexo_test.txt to COT-2026-06-070-PYME (category 'Otros'). File was stored as 'COT-2026-06-070-PYME_Otros_1.txt' (att_2527535db978) and then DELETED via papelera in the same session. Final state: only the original system-generated PDF remains in that quote (att_e86b9b3336fb). Environment is clean.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "FRONTEND ADMIN TEST EXECUTED — PASS. Steps: login rgonzalez/admin123 → /quotes → click [data-testid^=quote-anexos-btn-] (first row, COT-2026-06-070-PYME) → modal [data-testid=anexos-modal] opened. Observed exactly: 1× download (att_e86b9b3336fb), 5× upload buttons (Orden de Compra, Factura, Pagos, Nota de Entrega, Otros — data-testids anexo-upload-btn-orden-de-compra, anexo-upload-btn-factura, anexo-upload-btn-pagos, anexo-upload-btn-nota-de-entrega, anexo-upload-btn-otros), 1× delete (papelera). Uploaded a 25-byte txt via anexo-upload-input-otros → toast 'Anexo subido' (implicit, attachment appeared) → file count went 1→2. Clicked anexo-delete-att_2527535db978 → window.confirm dialog '¿Eliminar el anexo \"COT-2026-06-070-PYME_Otros_1.txt\"?' → Accept → toast 'Anexo eliminado' (visible) → file count returned to 1. Reopen modal: only original PDF remains (persistence in DB confirmed). 0 console errors throughout (only pre-existing hydration warnings about <span data-ve-dynamic> wrappers, unrelated). Modal opens/closes cleanly. CONSULTA UI TEST BLOCKED: srubio has cotizaciones:'none' so /quotes redirects to /dashboard. Frontend code (AnexosModal.jsx + usePermission.js) reviewed and verified to correctly gate Subir behind canEdit (quote_history==='edit') and papelera behind isAdmin (role==='admin'). To unblock UI validation of Consulta tier on AnexosModal: grant the test user cotizaciones:read so they can reach the /quotes grid. Backend layer for Consulta was already covered by pytest 6/6 PASS in tests/test_attachments_rbac.py.",
+  "rca of the issue": "N/A — feature works as designed for Admin; Consulta UI validation is blocked by a credential/permission setup gap (srubio lacks cotizaciones:read to reach /quotes UI). Code logic is verified to honor the matrix."
+}

@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { FileText, Upload, Trash2, Download, FolderOpen, File, Image, FileSpreadsheet, Loader2, CreditCard, DollarSign } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -36,6 +37,13 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(null);
   const fileInputRefs = useRef({});
+
+  // Matriz estricta de permisos de Anexos (módulo "Histórico de Cotizaciones"):
+  //  - canUpload (Edición Total / Admin) → puede ver el botón "Subir".
+  //  - canDelete (solo Administrador)    → único que ve la papelera.
+  const { canEdit, isAdmin } = usePermission('quote_history');
+  const canUpload = canEdit;   // canEdit ya incluye admin
+  const canDelete = isAdmin;
 
   useEffect(() => {
     if (open && quoteId) fetchAttachments();
@@ -162,7 +170,7 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
                       }`}>
                         {obligatorio === 'Opcional' ? 'Opcional' : `Req. ${obligatorio}`}
                       </span>
-                      {!isMaxReached && (
+                      {!isMaxReached && canUpload && (
                         <>
                           <input
                             type="file"
@@ -220,15 +228,17 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
                             >
                               <Download size={14} />
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                              onClick={() => handleDelete(att.attachment_id, att.filename)}
-                              data-testid={`anexo-delete-${att.attachment_id}`}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
+                            {canDelete && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                onClick={() => handleDelete(att.attachment_id, att.filename)}
+                                data-testid={`anexo-delete-${att.attachment_id}`}
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}

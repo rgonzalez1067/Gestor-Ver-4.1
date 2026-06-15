@@ -191,6 +191,13 @@ async def rbac_middleware(request: Request, call_next):
         if path.startswith(exempt):
             return await call_next(request)
 
+    # Anexos de cotizaciones: RBAC propio por módulo `quote_history` (Matriz
+    # estricta de Anexos), validado en los handlers de routes/attachments.py.
+    # Se exime aquí del gate genérico de `cotizaciones` para que el nivel de
+    # "Histórico de Cotizaciones" gobierne ver/cargar y el rol Admin el eliminar.
+    if path.startswith("/api/quotes/") and "/attachments" in path:
+        return await call_next(request)
+
     # Buscar módulo correspondiente
     target_module = None
     for prefix, module in ROUTE_MODULE_MAP.items():

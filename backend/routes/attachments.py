@@ -10,7 +10,7 @@ import logging
 import io
 import os
 
-from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
+from config import db, get_current_user, require_permission, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
 from services.pdf_storage import save_pdf_dual, get_pdf_from_storage
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
@@ -21,8 +21,11 @@ router = APIRouter()
 
 @router.get("/quotes/{quote_id}/attachments")
 async def get_quote_attachments(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Obtiene todos los anexos de una cotización"""
-    await get_current_user(authorization)
+    """Obtiene todos los anexos de una cotización.
+
+    RBAC (Matriz estricta de Anexos): exige al menos nivel 'Consulta' (read) en
+    el módulo `quote_history` (o ser Administrador) para listar/visualizar."""
+    await require_permission(authorization, "quote_history", "read")
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "attachments": 1, "quote_number": 1})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
@@ -37,11 +40,23 @@ async def upload_quote_attachment(
     quote_id: str,
     file: UploadFile = File(...),
     category: str = Form(...),
+    context: Optional[str] = Form(None),
     authorization: Optional[str] = Header(None)
 ):
-    """Sube un anexo a una cotización"""
-    current_user = await get_current_user(authorization)
-    
+    """Sube un anexo a una cotización.
+
+    RBAC (Matriz estricta de Anexos — Histórico de Cotizaciones):
+      - La carga (POST) exige nivel 'Edición Total' (edit) en el módulo
+        `quote_history`, o ser Administrador. Se valida en backend (no solo UI).
+      - Excepción: el flujo de Taller → "Reparación completada" envía
+        context='taller_repair'; ese caso mantiene su comportamiento previo
+        (cualquier usuario autenticado) para no bloquear la operación de taller.
+    """
+    if context == "taller_repair":
+        current_user = await get_current_user(authorization)
+    else:
+        current_user = await require_permission(authorization, "quote_history", "edit")
+
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
@@ -99,9 +114,16 @@ async def upload_quote_attachment(
 
 @router.delete("/quotes/{quote_id}/attachments/{attachment_id}")
 async def delete_quote_attachment(quote_id: str, attachment_id: str, authorization: Optional[str] = Header(None)):
-    """Elimina un anexo de una cotización"""
-    await get_current_user(authorization)
-    
+    """Elimina un anexo de una cotización.
+
+    RBAC (Matriz estricta de Anexos): la eliminación queda restringida
+    EXCLUSIVAMENTE al rol Administrador (control crítico, no asignable por
+    perfil). Se valida en backend además de ocultar el ícono en la UI.
+    """
+    user = await get_current_user(authorization)
+    if (user or {}).get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo el Administrador puede eliminar anexos")
+
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
@@ -134,8 +156,11 @@ async def download_quote_attachment(quote_id: str, attachment_id: str, authoriza
          Preview y los recientes en Producción).
       2) Object Storage solo como fallback (~500-2000ms de red) para los
          anexos viejos que ya no están en el FS efímero del pod tras un deploy.
+
+    RBAC (Matriz estricta de Anexos): exige al menos nivel 'Consulta' (read) en
+    el módulo `quote_history` (o ser Administrador) para descargar.
     """
-    await get_current_user(authorization)
+    await require_permission(authorization, "quote_history", "read")
 
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
