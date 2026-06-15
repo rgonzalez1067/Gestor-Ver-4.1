@@ -28,6 +28,21 @@ router = APIRouter(tags=["other-actions"])
 logger = logging.getLogger("other-actions")
 
 
+# Variables disponibles para las 3 acciones de cambio de estado de Proyecto.
+# Incluyen el comentario del modal de justificación ({Comentario_Estado} y su
+# alias {Comentario_Cierre}) más el universo de variables de Proyecto
+# (resueltas por services.project_template_vars.resolve_project_template_vars).
+_PROJECT_STATUS_VARS = [
+    "Comentario_Estado", "Comentario_Cierre", "Estado_Proyecto",
+    "Nombre_Cliente", "Nombre_Fantasia", "Rif_Cliente", "Contacto_Principal",
+    "Nro_Proyecto", "Nro_Ticket", "Tipo_Proyecto", "Patrocinador",
+    "Nombre_Implementador", "Correo_Implementador",
+    "Matriz_Bancos_Productos", "Matriz_Sucursales",
+    "Matriz_Avance_Proyecto", "Matriz_Avance_Proyecto_Con_Fecha",
+    "usuario_ejecutor", "fecha_sistema",
+]
+
+
 # Catálogo de "otras acciones" desacopladas del hardcode. Cada acción documenta
 # las variables disponibles para usar en la plantilla seleccionada.
 OTHER_ACTIONS = [
@@ -81,6 +96,24 @@ OTHER_ACTIONS = [
             "client_name", "Nombre_Cliente", "Nombre_Implementador", "Correo_Implementador",
             "assigned_to", "quote_number", "usuario_ejecutor", "fecha_sistema",
         ],
+    },
+    {
+        "id": "project_status_suspendido",
+        "label": "Notificación de Proyecto Suspendido",
+        "description": "Se dispara (en background) en el momento exacto en que el estado de un Proyecto se actualiza a 'Suspendido', justo después de que el operador confirma el modal de justificación (comentario + anexo). El comentario viaja en {Comentario_Estado}.",
+        "variables": _PROJECT_STATUS_VARS,
+    },
+    {
+        "id": "project_status_implementado_parcial",
+        "label": "Notificación de Proyecto Implementado Parcial",
+        "description": "Se dispara (en background) cuando un Proyecto se guarda con el estado 'Implementado parcial', tras confirmar el modal de justificación. El comentario viaja en {Comentario_Estado}.",
+        "variables": _PROJECT_STATUS_VARS,
+    },
+    {
+        "id": "project_status_culminado",
+        "label": "Notificación de Proyecto Culminado",
+        "description": "Se dispara (en background) cuando el operador consolida el cierre del caso y el estado se actualiza a 'Culminado', tras confirmar el modal de justificación. El comentario de cierre viaja en {Comentario_Estado}.",
+        "variables": _PROJECT_STATUS_VARS,
     },
 ]
 OTHER_ACTION_IDS = {a["id"] for a in OTHER_ACTIONS}

@@ -398,6 +398,12 @@ async def update_project_status(
         {"project_id": project_id},
         {"$set": update_data, "$push": {"notes": pnote, "bitacora": bitacora_entry}},
     )
+
+    # Disparo asíncrono (no bloqueante) de la notificación de cambio de estado.
+    if new_status in _PROJECT_STATUS_ACTION_MAP:
+        import asyncio
+        asyncio.create_task(_dispatch_project_status_action(project_id, new_status, note, current_user))
+
     return {"message": f"Estado actualizado a '{new_status}'", "new_status": new_status, "bitacora_entry_id": bitacora_entry["entry_id"]}
 
 
@@ -651,6 +657,14 @@ async def master_override_project(project_id: str, payload: MasterOverridePayloa
         {"project_id": project_id},
         {"$set": update, "$push": {"notes": note, "bitacora": bitacora_entry}},
     )
+
+    # Disparo asíncrono de la notificación de cambio de estado (Edición Maestra),
+    # solo cuando el estado cambió efectivamente a un estado con trigger.
+    new_status_mo = update.get("status")
+    if new_status_mo in _PROJECT_STATUS_ACTION_MAP and new_status_mo != project.get("status"):
+        import asyncio
+        asyncio.create_task(_dispatch_project_status_action(project_id, new_status_mo, None, current_user))
+
     return {"message": "Proyecto actualizado (Edición Maestra)", "project_id": project_id, "changes_count": len(changes)}
 
 
@@ -2523,6 +2537,51 @@ async def _dispatch_implementer_response(project_id: str, ticket: str, current_u
         )
     except Exception as e:
         logger.warning(f"[ticket] dispatch implementer_response failed: {e}")
+
+
+# Estado del proyecto → action_id de "Otras Acciones" (notificaciones de estado).
+_PROJECT_STATUS_ACTION_MAP = {
+    "Suspendido": "project_status_suspendido",
+    "Implementado parcial": "project_status_implementado_parcial",
+    "Culminado": "project_status_culminado",
+}
+
+
+async def _dispatch_project_status_action(project_id: str, new_status: str, note: Optional[str], current_user: dict):
+    """Background: despacha la acción dinámica de cambio de estado del Proyecto
+    (Suspendido / Implementado parcial / Culminado) configurada en "Otras
+    Acciones". Se llama DESPUÉS de persistir el cambio (y el comentario/anexo del
+    modal de justificación). Si el admin no configuró la acción o está
+    desactivada, `dispatch_other_action` no envía nada (cero regresión)."""
+    action_id = _PROJECT_STATUS_ACTION_MAP.get(new_status)
+    if not action_id:
+        return
+    try:
+        from services.other_actions_engine import dispatch_other_action
+        project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+        if not project:
+            return
+        tvars = await resolve_project_template_vars(project)
+        comentario = (note or "").strip()
+        tvars["Comentario_Estado"] = comentario
+        tvars["Comentario_Cierre"] = comentario
+        tvars["Estado_Proyecto"] = new_status
+        tvars["usuario_ejecutor"] = (
+            f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+            or current_user.get("email", "")
+        )
+        tvars["fecha_sistema"] = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+        await dispatch_other_action(
+            action_id=action_id,
+            template_vars=tvars,
+            current_user=current_user,
+            fallback_subject=f"Proyecto {project.get('project_number', '')} — {new_status}",
+            executive_user_id=project.get("created_by_user_id"),
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[project-status] dispatch '{new_status}' failed: {e}")
+
+
 
 
 @router.put("/projects/{project_id}/ticket")
