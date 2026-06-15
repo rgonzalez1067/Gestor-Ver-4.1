@@ -5,6 +5,18 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 91: 3 nuevas Alertas Automatizadas de Estado de Proyecto — Jun 2026
+
+**Requerimiento:** Crear 3 acciones en "Configuración de Otras Acciones": Notificación de Proyecto **Suspendido**, **Implementado Parcial** y **Culminado**. Disparo en background tras guardar el modal de justificación al cambiar estado; la plantilla puede consumir el comentario vía `{Comentario_Estado}`/`{Comentario_Cierre}`. Destinatarios (confirmado por usuario): solo internos — Usuario interno, Usuario generador, Ejecutivo generador. Canal Correo/Centro de Mensajes. Disparo desde el modal del implementador (`PUT /projects/{id}/status`) **y** desde la Edición Maestra (`PUT /projects/{id}/master-override`).
+
+**Backend:** `routes/other_actions_config.py` → 3 entradas nuevas en `OTHER_ACTIONS` con `_PROJECT_STATUS_VARS` (incluye `Comentario_Estado`, `Comentario_Cierre`, `Estado_Proyecto` + universo de variables de proyecto). `routes/projects.py` → helper background `_dispatch_project_status_action()` + mapa `_PROJECT_STATUS_ACTION_MAP`; ambos endpoints lanzan `asyncio.create_task(...)` cuando el estado ∈ {Suspendido, Implementado parcial, Culminado}. Construye vars con `resolve_project_template_vars` + comentario del modal; `executive_user_id=created_by_user_id`. Reutiliza el motor existente (`dispatch_other_action`) — sin extensión de destinatarios.
+
+**Frontend:** `OtherActionsConfig.jsx` es 100% data-driven desde el catálogo → las 3 tarjetas aparecen automáticamente con todos sus campos (tipo/destinatario/plantilla/canal). **Sin cambios de código de frontend.**
+
+**QA:** pytest `tests/test_project_status_actions.py` 5/5 PASS (catálogo, upsert de los 3 action_id, despacho en los 3 estados). curl confirmó despacho real (sent_count=1 a Centro de Mensajes). testing_agent iteration_91.json 100% backend+frontend (presencia en menú, config + guardado, tipos de destinatario correctos, cambio de estado no bloqueante ~2.8s). Datos de prueba eliminados; las acciones quedan sin config (inactivas) para que el usuario las configure.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
 ### Iteration 89: Proyectos Directos Multi-RIF — Jun 2026
 
 **Requerimiento (P0):** Clonar el flujo de Proyectos Directos añadiendo distribución jerárquica Multi-RIF (Global → RIF/Cliente → Sucursal). Selector [Directo Simple]|[Directo Multi-RIF]; bifurcación de patrocinio (Banco vs Cliente); cuadre estricto de cajas (Σ sucursales==cajas del RIF y Σ RIFs==Cantidad global); pregunta "¿todas las tiendas comparten Bancos/Productos?" (matriz compartida vs por RIF); ocultar "Control Multitienda" en modo Multi-RIF; resto del formulario intacto.
