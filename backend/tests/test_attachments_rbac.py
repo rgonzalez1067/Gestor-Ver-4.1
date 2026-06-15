@@ -55,27 +55,55 @@ def quote_id(admin):
     return items[0]["quote_id"]
 
 
+@pytest.fixture(scope="session")
+def history_id(admin):
+    r = admin.get(f"{API}/quote-history?limit=1", timeout=30)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    items = data if isinstance(data, list) else (data.get("items") or data.get("history") or data.get("records"))
+    assert items, "No hay registros de histórico para probar"
+    return items[0]["history_id"]
+
+
 def teardown_module(module):
     """Elimina (como admin) los anexos creados y asegura srubio en read."""
     s = _sess(_login(ADMIN))
     for qid, aid in _uploaded:
         s.delete(f"{API}/quotes/{qid}/attachments/{aid}", timeout=30)
+    for hid, aid in _uploaded_hist:
+        s.delete(f"{API}/quote-history/{hid}/attachments/{aid}", timeout=30)
     # asegurar revert del nivel de srubio
     try:
-        import asyncio
-        from config import db
-
-        async def _revert():
-            await db.users.update_one({"email": CONSULTA["email"]}, {"$set": {"permissions.quote_history": "read"}})
-        asyncio.get_event_loop().run_until_complete(_revert())
+        _set_quote_history_level("read")
     except Exception:
         pass
+
+
+def _set_quote_history_level(level: str):
+    """Ajusta el nivel quote_history del usuario de prueba (loop-independiente)."""
+    import os
+    import config  # noqa: F401 — asegura load_dotenv
+    from pymongo import MongoClient
+    cli = MongoClient(os.environ["MONGO_URL"])
+    cli[os.environ["DB_NAME"]].users.update_one(
+        {"email": CONSULTA["email"]}, {"$set": {"permissions.quote_history": level}}
+    )
+    cli.close()
 
 
 def _upload(sess, quote_id, **extra):
     files = {"file": ("anexo_qa.txt", b"qa test content", "text/plain")}
     data = {"category": "Otros", **extra}
     return sess.post(f"{API}/quotes/{quote_id}/attachments", files=files, data=data, timeout=60)
+
+
+def _upload_hist(sess, history_id, **extra):
+    files = {"file": ("anexo_qa.txt", b"qa test content", "text/plain")}
+    data = {"category": "Otros", **extra}
+    return sess.post(f"{API}/quote-history/{history_id}/attachments", files=files, data=data, timeout=60)
+
+
+_uploaded_hist = []  # (history_id, attachment_id)
 
 
 # ---------------- Consulta (read) ----------------
@@ -112,15 +140,8 @@ def test_admin_upload_and_delete(admin, quote_id):
 
 # ---------------- Edición Total (edit) ----------------
 def test_edicion_total_can_upload_but_not_delete(quote_id):
-    import asyncio
-    from config import db
-
-    async def _set(level):
-        await db.users.update_one({"email": CONSULTA["email"]}, {"$set": {"permissions.quote_history": level}})
-
-    loop = asyncio.new_event_loop()
     try:
-        loop.run_until_complete(_set("edit"))
+        _set_quote_history_level("edit")
         sess = _sess(_login(CONSULTA))
         r = _upload(sess, quote_id)
         assert r.status_code == 200, r.text
@@ -130,5 +151,44 @@ def test_edicion_total_can_upload_but_not_delete(quote_id):
         assert rd.status_code == 403, rd.text
         _uploaded.append((quote_id, aid))
     finally:
-        loop.run_until_complete(_set("read"))
-        loop.close()
+        _set_quote_history_level("read")
+
+
+# ============================================================
+# Histórico de Cotizaciones (/quote-history/{id}/attachments)
+# ============================================================
+def test_hist_consulta_can_list(consulta, history_id):
+    r = consulta.get(f"{API}/quote-history/{history_id}/attachments", timeout=30)
+    assert r.status_code == 200, r.text
+
+
+def test_hist_consulta_cannot_upload(consulta, history_id):
+    r = _upload_hist(consulta, history_id)
+    assert r.status_code == 403, r.text
+
+
+def test_hist_consulta_cannot_delete(consulta, history_id):
+    r = consulta.delete(f"{API}/quote-history/{history_id}/attachments/att_inexistente", timeout=30)
+    assert r.status_code == 403, r.text
+
+
+def test_hist_admin_upload_and_delete(admin, history_id):
+    r = _upload_hist(admin, history_id)
+    assert r.status_code == 200, r.text
+    aid = r.json()["attachment"]["attachment_id"]
+    rd = admin.delete(f"{API}/quote-history/{history_id}/attachments/{aid}", timeout=30)
+    assert rd.status_code == 200, rd.text
+
+
+def test_hist_edicion_total_can_upload_but_not_delete(history_id):
+    try:
+        _set_quote_history_level("edit")
+        sess = _sess(_login(CONSULTA))
+        r = _upload_hist(sess, history_id)
+        assert r.status_code == 200, r.text
+        aid = r.json()["attachment"]["attachment_id"]
+        rd = sess.delete(f"{API}/quote-history/{history_id}/attachments/{aid}", timeout=30)
+        assert rd.status_code == 403, rd.text
+        _uploaded_hist.append((history_id, aid))
+    finally:
+        _set_quote_history_level("read")

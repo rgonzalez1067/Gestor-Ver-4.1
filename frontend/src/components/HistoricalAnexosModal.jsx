@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -44,6 +45,13 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(null);
   const fileInputRefs = useRef({});
+
+  // Matriz estricta de permisos de Anexos (módulo "Histórico de Cotizaciones"):
+  //  - canUpload (Edición Total / Admin) → ve el botón "Subir".
+  //  - canDelete (solo Administrador)     → único que ve la papelera.
+  const { canEdit, isAdmin } = usePermission('quote_history');
+  const canUpload = canEdit;   // canEdit ya incluye admin
+  const canDelete = isAdmin;
 
   useEffect(() => {
     if (open && historyId) fetchAttachments();
@@ -165,6 +173,8 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
                     <span className="text-xs text-slate-500 bg-white/80 px-1.5 py-0.5 rounded-full">{files.length}</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    {canUpload && (
+                    <>
                     <input
                       type="file"
                       className="hidden"
@@ -184,6 +194,8 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
                       {uploading === id ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
                       Subir
                     </Button>
+                    </>
+                    )}
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-500 mb-2 pl-6">{desc}</p>
@@ -215,6 +227,7 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
                           >
                             <Download size={14} />
                           </Button>
+                          {canDelete && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -224,6 +237,7 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
                           >
                             <Trash2 size={14} />
                           </Button>
+                          )}
                         </div>
                       </div>
                     ))}

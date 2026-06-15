@@ -1,0 +1,41 @@
+{
+  "summary": "Validated the Anexos permission matrix on /historical-quotes (HistoricalAnexosModal) and ran a regression on /quotes (AnexosModal). ADMIN flow fully PASS end-to-end (open modal, see 6 uploads + downloads + papelera, upload .txt to 'Otros', delete via papelera, counts return to original). REGRESSION /quotes admin PASS (177 anexos buttons, modal opens with 5 uploads + 1 delete + 1 download, closes cleanly, no real console errors). CONSULTA flow FAIL at entry-point level: srubio CAN access /historical-quotes (99 rows visible) but the row-level 'Anexos' button (data-testid qh-anexos-*) is gated by isAdmin in HistoricalQuotes.jsx line 237, so srubio cannot open HistoricalAnexosModal AT ALL → cannot 'ver el listado de anexos y botones de descarga' as required by the matrix. The HistoricalAnexosModal component itself correctly gates Subir behind canEdit and Papelera behind isAdmin (lines 52-54), but the modal is unreachable for Consulta.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "HistoricalQuotes.jsx (row action button)",
+        "issue": "Row-level Anexos button is gated by isAdmin (only admins see it). The strict permission matrix requires Consulta (quote_history=read) users to OPEN the modal so they can view the attachment list and download files. Today, srubio (quote_history=read) sees 0 qh-anexos-* buttons → modal unreachable → cannot download attachments from the UI.",
+        "selector": "[data-testid^=\"qh-anexos-\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_92.json",
+    "/app/backend/tests/test_attachments_rbac.py"
+  ],
+  "action_items": [
+    "FIX HistoricalQuotes.jsx line 237: change `{isAdmin && (...)}` to show the qh-anexos-* button for any user with quote_history>=read (i.e., always show it when permission is at least read). The strict gating already lives inside HistoricalAnexosModal (canUpload via canEdit, canDelete via isAdmin). Recommended: `{(canRead || isAdmin) && (...)}` using usePermission('quote_history'). The title hint 'Anexos del histórico (solo administradores)' should also be updated to a neutral 'Anexos del histórico'.",
+    "After fix: re-test with srubio that (i) qh-anexos-* button appears in each row, (ii) modal opens, (iii) downloads visible, (iv) NO hist-anexo-upload-btn-*, (v) NO hist-anexo-delete-*."
+  ],
+  "critical_code_review_comments": [
+    "HistoricalAnexosModal.jsx (lines 52-54): permission derivation is correct — canUpload=canEdit, canDelete=isAdmin via usePermission('quote_history'). Internal modal gating is sound.",
+    "HistoricalQuotes.jsx (lines 237-247): The entry point to HistoricalAnexosModal is hardcoded `{isAdmin && (...)}`. This contradicts the matrix (Consulta should at least see download view). Mismatch between page-level gate (admin-only) and component-level gate (3 tiers).",
+    "HistoricalQuotes.jsx (lines 248-259): qh-delete-* (depurar registro) IS correctly admin-only — that one should remain. Only qh-anexos-* gating needs relaxation.",
+    "Hydration warnings ('<span> cannot be a child of <tbody>', '<tr> cannot be a child of <span>') are produced by injected data-ve-dynamic wrappers (instrumentation/preview tooling) — NOT business code. Pre-existing, unrelated, non-blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (per prior pytest 11/11)",
+    "frontend": "Admin /historical-quotes 100%, /quotes regression 100%, Consulta /historical-quotes 0% (blocked by admin-only row button)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login + full anexos cycle OK). Consulta: srubio@megasoft.com.ve / Test1234! (login OK, can access /historical-quotes, but qh-anexos-* button hidden by isAdmin gate).",
+  "seed_data_creation": "During ADMIN validation on /historical-quotes (COT-2026-06-071-PYME, history_id from first row): uploaded /tmp/qa_hist_anexo.txt to category 'Otros' (download count went 1→2), then deleted the newly uploaded file via papelera (count returned to 1; toast 'Anexo eliminado' visible). Final state: only the original system PDF (COT-2026-06-071-PYME_Cotizacion.pdf) remains. Environment is clean.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "STATE AS OF ITERATION 93: (1) Admin full cycle on /historical-quotes anexos VERIFIED — works perfectly. (2) Regression /quotes admin anexos VERIFIED — works. (3) BUG FOUND: HistoricalQuotes.jsx line 237 wraps the qh-anexos-* button in `{isAdmin && (...)}`, preventing Consulta users from opening HistoricalAnexosModal. Main agent should relax that gate to canRead||isAdmin (using usePermission('quote_history')). After the fix, retest with srubio: (a) /historical-quotes loads, (b) qh-anexos-* visible on rows, (c) clicking opens [data-testid=historical-anexos-modal], (d) inside modal: hist-anexo-download-* visible, hist-anexo-upload-btn-* COUNT must be 0, hist-anexo-delete-* COUNT must be 0. Also verify the modal title hint is neutral (currently says 'solo administradores'). Backend layer is already correct per pytest 11/11.",
+  "rca of the issue": "Root cause: A previous iteration restricted the anexos row-button to admins only (presumably when only admins could upload to historical). When the new strict 3-tier matrix was introduced (Consulta=download, Edición=upload, Admin=delete), the modal's internal gates were updated correctly but the page-level entry point was not relaxed. Reproduction: login as srubio/Test1234! → /historical-quotes → inspect rows → no qh-anexos-* present (0/99). Mitigation: in HistoricalQuotes.jsx, replace the `{isAdmin && (...)}` wrapper around the FolderOpen button with a permission-aware gate using usePermission('quote_history').canRead (and update the tooltip text). The HistoricalAnexosModal already enforces the matrix internally so no further changes needed inside the modal."
+}

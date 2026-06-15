@@ -318,6 +318,14 @@ def _is_system_admin(user: dict) -> bool:
     return (user.get("role") or "").lower() == "admin"
 
 
+def _can_edit_history(user: dict) -> bool:
+    """Carga de anexos (Edición Total): nivel 'edit' en el módulo `quote_history`
+    o Administrador del Sistema. (La eliminación sigue siendo solo Admin.)"""
+    if (user.get("role") or "").lower() == "admin":
+        return True
+    return (user.get("permissions", {}) or {}).get("quote_history", "none") == "edit"
+
+
 @router.get("/quote-history/{history_id}/attachments")
 async def list_history_attachments(history_id: str, authorization: Optional[str] = Header(None)):
     """Lista anexos del registro histórico. Lectura: Director o Admin."""
@@ -345,10 +353,11 @@ async def upload_history_attachment(
     category: str = Form(...),
     authorization: Optional[str] = Header(None),
 ):
-    """Sube un anexo al registro del histórico. Solo administrador del sistema."""
+    """Sube un anexo al registro del histórico. Requiere nivel Edición Total
+    (edit) en el módulo `quote_history`, o ser Administrador."""
     current_user = await get_current_user(authorization)
-    if not _is_system_admin(current_user):
-        raise HTTPException(status_code=403, detail="Solo administradores pueden subir anexos al histórico")
+    if not _can_edit_history(current_user):
+        raise HTTPException(status_code=403, detail="Requiere nivel 'Edición Total' en Histórico de Cotizaciones para subir anexos")
 
     if category not in ATTACHMENT_CATEGORIES:
         raise HTTPException(status_code=400, detail=f"Categoría inválida. Opciones: {', '.join(ATTACHMENT_CATEGORIES)}")
