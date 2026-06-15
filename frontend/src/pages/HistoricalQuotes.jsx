@@ -12,6 +12,7 @@ import { Archive, Download, Search, FileText, Eye, Lock, ShieldAlert, Trash2, Fo
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { HistoricalAnexosModal } from '../components/HistoricalAnexosModal';
+import { usePermission } from '../hooks/usePermission';
 import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
 import { MigrationButtons } from '../components/MigrationButtons';
 
@@ -47,6 +48,10 @@ export const HistoricalQuotes = () => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   })();
   const isAdmin = (currentUser?.role || '').toLowerCase() === 'admin';
+  // Matriz de Anexos del Histórico: el botón para abrir los anexos se muestra a
+  // cualquier usuario con al menos Consulta (read) en `quote_history`. El control
+  // fino (Subir / Eliminar) lo aplica HistoricalAnexosModal internamente.
+  const { canView: canViewAnexos } = usePermission('quote_history');
 
   const fetchHistory = async () => {
     setLoading(true);
@@ -234,13 +239,13 @@ export const HistoricalQuotes = () => {
                         <Button size="sm" variant="ghost" onClick={() => openDetail(r)} data-testid={`qh-view-${r.history_id}`} title="Ver">
                           <Eye className="w-4 h-4 text-slate-500" />
                         </Button>
-                        {isAdmin && (
+                        {(canViewAnexos || isAdmin) && (
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => { setAnexosTarget(r); setAnexosOpen(true); }}
                             data-testid={`qh-anexos-${r.history_id}`}
-                            title="Anexos del histórico (solo administradores)"
+                            title="Anexos del histórico"
                           >
                             <FolderOpen className="w-4 h-4 text-amber-500 hover:text-amber-700" />
                           </Button>
