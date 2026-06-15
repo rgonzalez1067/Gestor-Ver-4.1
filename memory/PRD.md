@@ -5,6 +5,16 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 95: Sección condicional de Descuentos en PDF Corporativo — Jun 2026
+
+**Requerimiento:** En la Página 3 ("COSTOS DE IMPLEMENTACIÓN") del PDF de Cotizaciones Corporativas, agregar una sección de desglose de descuento + totales, que se muestra SOLO si hay rebaja (% > 0 o monto > 0) y se oculta totalmente si no. Filas: Subtotal Bruto, % Descuento, Monto del Descuento, Base Imponible, IVA, Total Neto a Pagar. IVA calculado SIEMPRE sobre la base post-descuento (no sobre dinero descontado). Fijeza de página (no drift).
+
+**Backend (`services/pdf_generator.py` → `_create_corp_financial_summary`):** Tras las notas, se computa `monto_desc = total_setup*(desc_setup%/100) + total_recurring*(desc_recurrente%/100)`; si `subtotal_bruto>0` y `(desc_setup%>0 o desc_recurrente%>0)` y `monto_desc>0`, se pinta una tabla alineada a la derecha (estilo de marca: línea azul superior, fila Total Neto en oscuro). `base = bruto - monto_desc`; `iva = base*0.16` (0 si `iva_exempt`); `total_neto = base + iva`; `% efectivo = monto_desc/bruto`. Envuelta en `KeepTogether` para fijarla en la misma página que la matriz (no se desplaza). Respeta `descuento_setup`/`descuento_recurrente`/`descuento` y `iva_exempt`.
+
+**QA:** pytest `tests/test_corp_discount_pdf.py` PASS — extrae texto del PDF con pdfplumber: (a) sin descuento → la sección no aparece; (b) 12% → aparece en la MISMA página que la matriz con math verificada (base=bruto-desc, IVA=base*16%, total=base+IVA, desc≈12% del bruto). La cotización de prueba se restaura a su descuento original. Sin frontend.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
 ### Iteration 92-94: Matriz estricta de permisos de Anexos — Jun 2026
 
 **Requerimiento:** Control RBAC en 2 capas (UI + backend) para los anexos del **Histórico de Cotizaciones**, gobernado por el nivel del módulo `quote_history`: **Consulta (read)** = ver + descargar; **Edición Total (edit)** = + cargar; **Administrador (rol)** = + eliminar (de BD y storage). Eliminar queda fijo solo para Admin (no asignable).

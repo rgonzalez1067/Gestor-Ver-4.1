@@ -6,7 +6,7 @@ from typing import List, Optional
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Frame, PageTemplate, BaseDocTemplate, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Frame, PageTemplate, BaseDocTemplate, PageBreak, KeepTogether
 from reportlab.lib.units import inch, cm, mm
 from reportlab.pdfgen import canvas as canvas_module
 import io
@@ -1433,7 +1433,61 @@ class DynamicQuotePDFGenerator:
             "*El recurrente mes aplicará desde el momento que sean activadas las cajas registradoras",
             nota_recurrente_style
         ))
-        
+
+        # ==================== Sección CONDICIONAL: DESCUENTO Y TOTAL NETO A PAGAR ====================
+        # Renderizado condicional: solo se pinta si la cotización tiene rebaja
+        # comercial (Porcentaje_Descuento > 0 O Monto_Descuento > 0). El IVA se
+        # calcula SIEMPRE sobre la Base Imponible (subtotal - descuento), nunca
+        # sobre el dinero descontado. Se envuelve en KeepTogether para fijar el
+        # bloque en la misma página (Página 3) y no desplazarlo a la 4.
+        desc_setup_pct = (getattr(self.data, 'descuento_setup', 0) or 0) or (getattr(self.data, 'descuento', 0) or 0)
+        desc_rec_pct = (getattr(self.data, 'descuento_recurrente', 0) or 0) or (getattr(self.data, 'descuento', 0) or 0)
+        subtotal_bruto = grand_total
+        monto_desc = total_setup * (desc_setup_pct / 100.0) + total_recurring * (desc_rec_pct / 100.0)
+
+        if subtotal_bruto > 0 and (desc_setup_pct > 0 or desc_rec_pct > 0) and monto_desc > 0:
+            iva_exempt = bool(getattr(self.data, 'iva_exempt', False))
+            iva_rate = 0.0 if iva_exempt else 0.16
+            base_imponible = subtotal_bruto - monto_desc
+            iva = base_imponible * iva_rate
+            total_neto = base_imponible + iva
+            eff_pct = (monto_desc / subtotal_bruto) * 100.0
+            iva_label = "IVA (Exento):" if iva_exempt else "IVA (16%):"
+
+            lbl = ParagraphStyle('CorpDiscLbl', fontName='Helvetica-Bold', fontSize=9, alignment=2, textColor=self.COLOR_TEXTO)
+            val = ParagraphStyle('CorpDiscVal', fontName='Helvetica', fontSize=9, alignment=2, textColor=self.COLOR_TEXTO)
+            val_desc = ParagraphStyle('CorpDiscValDesc', fontName='Helvetica-Bold', fontSize=9, alignment=2, textColor=colors.HexColor('#16A34A'))
+            lbl_total = ParagraphStyle('CorpDiscLblTot', fontName='Helvetica-Bold', fontSize=10, alignment=2, textColor=colors.white)
+            val_total = ParagraphStyle('CorpDiscValTot', fontName='Helvetica-Bold', fontSize=10, alignment=2, textColor=colors.white)
+            disc_title_style = ParagraphStyle('CorpDiscTitle', fontName='Helvetica-Bold', fontSize=11, textColor=self.COLOR_AZUL, spaceAfter=4)
+
+            disc_rows = [
+                [Paragraph("Subtotal Bruto:", lbl), Paragraph(f"${subtotal_bruto:,.2f}", val)],
+                [Paragraph("Descuento Aplicado:", lbl), Paragraph(f"-{eff_pct:g}%", val_desc)],
+                [Paragraph("Monto del Descuento:", lbl), Paragraph(f"-${monto_desc:,.2f}", val_desc)],
+                [Paragraph("Base Imponible:", lbl), Paragraph(f"${base_imponible:,.2f}", val)],
+                [Paragraph(iva_label, lbl), Paragraph(f"${iva:,.2f}", val)],
+                [Paragraph("Total Neto a Pagar:", lbl_total), Paragraph(f"${total_neto:,.2f}", val_total)],
+            ]
+            disc_table = Table(disc_rows, colWidths=[210, 110], hAlign='RIGHT')
+            disc_table.setStyle(TableStyle([
+                ('LINEABOVE', (0, 0), (-1, 0), 1, self.COLOR_AZUL),
+                ('LINEBELOW', (0, 0), (-1, -2), 0.5, colors.HexColor('#E2E8F0')),
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#1E293B')),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+
+            disc_block = [
+                Spacer(1, 22),
+                Paragraph("RESUMEN DE DESCUENTO Y TOTAL NETO A PAGAR", disc_title_style),
+                disc_table,
+            ]
+            elements.append(KeepTogether(disc_block))
+
         return elements, total_setup, total_recurring
     
     def generate_vpos_corp(self):
