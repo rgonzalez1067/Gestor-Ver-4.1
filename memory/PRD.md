@@ -5,6 +5,22 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 92-94: Matriz estricta de permisos de Anexos — Jun 2026
+
+**Requerimiento:** Control RBAC en 2 capas (UI + backend) para los anexos del **Histórico de Cotizaciones**, gobernado por el nivel del módulo `quote_history`: **Consulta (read)** = ver + descargar; **Edición Total (edit)** = + cargar; **Administrador (rol)** = + eliminar (de BD y storage). Eliminar queda fijo solo para Admin (no asignable).
+
+**Backend:**
+- `routes/quote_history.py` (Histórico — endpoints `/quote-history/{id}/attachments`): GET list/download → `quote_history>=read` (via `_can_access_history`); POST upload → nuevo `_can_edit_history` (`edit` o admin, antes era admin-only); DELETE → `_is_system_admin` (admin only, sin cambios).
+- `routes/attachments.py` (Cotizaciones — `/quotes/{id}/attachments`): GET → `require_permission('quote_history','read')`; POST → `require_permission('quote_history','edit')` salvo `context='taller_repair'` (flujo Taller exento, cualquier auth); DELETE → admin only.
+- `server.py`: el middleware RBAC exime `/api/quotes/{id}/attachments` del gate genérico de `cotizaciones` para que `quote_history` gobierne; los handlers aplican el control fino.
+- `RepairCompleteModal.jsx` envía `context='taller_repair'` para no bloquear la subida de comprobantes de Taller.
+
+**Frontend:** `AnexosModal.jsx` y `HistoricalAnexosModal.jsx` usan `usePermission('quote_history')` → botón **Subir** solo si `canEdit`; **papelera** solo si `isAdmin`. `HistoricalQuotes.jsx`: el botón de abrir anexos de la fila (`qh-anexos-*`) ahora se muestra a `canView||isAdmin` (antes admin-only — bug corregido); `qh-delete-*` (depurar registro) sigue admin-only.
+
+**QA:** pytest `tests/test_attachments_rbac.py` 11/11 PASS (3 niveles × 2 módulos + excepción Taller). testing_agent iteration_92/93/94 → matriz validada en UI para /quotes y /historical-quotes (Consulta sin Subir/papelera; Edición Total con Subir; Admin con eliminar funcional).
+**⚠️ Nota de configuración:** como el módulo gobernante es `quote_history`, los usuarios que gestionen anexos deben tener el nivel adecuado en "Histórico de Cotizaciones" en su perfil (read=ver, edit=cargar). **En PREVIEW; requiere redeploy para producción.**
+
+
 ### Iteration 91: 3 nuevas Alertas Automatizadas de Estado de Proyecto — Jun 2026
 
 **Requerimiento:** Crear 3 acciones en "Configuración de Otras Acciones": Notificación de Proyecto **Suspendido**, **Implementado Parcial** y **Culminado**. Disparo en background tras guardar el modal de justificación al cambiar estado; la plantilla puede consumir el comentario vía `{Comentario_Estado}`/`{Comentario_Cierre}`. Destinatarios (confirmado por usuario): solo internos — Usuario interno, Usuario generador, Ejecutivo generador. Canal Correo/Centro de Mensajes. Disparo desde el modal del implementador (`PUT /projects/{id}/status`) **y** desde la Edición Maestra (`PUT /projects/{id}/master-override`).
