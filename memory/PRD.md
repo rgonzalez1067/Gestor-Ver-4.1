@@ -5,6 +5,20 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 96: Tarifa editable del recurrente básico #1 (MServer por PDV) — Jun 2026
+
+**Requerimiento:** Hacer EDITABLE la tarifa del item #1 "Derecho de uso de plataforma MServer por PDV" (sección Costos Recurrentes Básicos del wizard), manteniendo el cálculo automático como valor por defecto. Aplica a VPOS y MPOS.
+
+**Frontend:**
+- `QuoteWizardDialog.jsx` (~L1757): la columna de tarifa de items recurrentes básicos con `autoTariff` ahora renderiza un `<Input data-testid="recurring-basic-tariff-input-{index}">` editable (antes era texto de solo lectura). Estilo verde en modo automático; ámbar + ícono `Unlock` cuando `tarifaManual=true`.
+- `Quotes.jsx` `updateRecurringBasicItem` (~L1370): al editar `tarifa` en un item `autoTariff` marca `tarifaManual = value !== ''` (override manual; al vaciar revierte a automático).
+- `Quotes.jsx` recálculo automático (useEffect ~L518 y regla techo TDD/TDC ~L562/L574): se omite (`!item.tarifaManual`) para no sobrescribir el valor manual cuando cambian los adicionales/cajas.
+- El total de fila y `Subtotal Básicos` usan `item.tarifa` (recalcula con el valor manual). El flag persiste vía `pdf_data` (round-trip en edición). Patrón análogo a `bancosManual`. El recurrente "Procesamiento (HSM…)" de Otros Recurrentes queda intacto (automático), según alcance.
+
+**QA:** testing_agent iteration_95.json → revisión de código exhaustiva PASS en los 7 puntos (input editable, flag manual + reversión, guardas anti-sobrescritura, recálculo de totales, consistencia de patrón). El E2E de Playwright no abrió el wizard por el dropdown "Implementaciones" (detalle del harness, no defecto). Sin datos basura.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
 ### Iteration 95: Sección condicional de Descuentos en PDF Corporativo — Jun 2026
 
 **Requerimiento:** En la Página 3 ("COSTOS DE IMPLEMENTACIÓN") del PDF de Cotizaciones Corporativas, agregar una sección de desglose de descuento + totales, que se muestra SOLO si hay rebaja (% > 0 o monto > 0) y se oculta totalmente si no. Filas: Subtotal Bruto, % Descuento, Monto del Descuento, Base Imponible, IVA, Total Neto a Pagar. IVA calculado SIEMPRE sobre la base post-descuento (no sobre dinero descontado). Fijeza de página (no drift).
