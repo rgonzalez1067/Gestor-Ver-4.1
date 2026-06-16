@@ -1,0 +1,40 @@
+{
+  "summary": "Tested the new reactive POS↔Gateway/Link de Pago behaviour in /direct-projects (DirectProjectCreation.jsx). All 5 acceptance criteria PASS end-to-end (UI reactivity, integrator filter, persistence of digital matrix). Created a real Gateway project, validated implementation_matrix/services/banks via API GET, then deleted it. No backend regression detected; no VPOS/MPOS regression.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "DirectProjectCreation.jsx (table dp-boxes-grid)",
+        "issues": [
+          "Console hydration warnings: '<span> cannot be a child of <tbody>/<tr>' triggered by external instrumentation wrappers (data-ve-dynamic=true display:contents) injected by the preview tooling around <tr>/<th>/<tbody>. Pre-existing, NOT caused by this iteration's change. Not user-visible, but adds noise to console."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Implementation is clean: PG_LIKE/INTEGRATOR_MODALITY_MATCH helpers are centralised at the top of the file (lines 30-38); certifiedIntegrators memo (l.429) correctly intersects status==='Certificado' with the modality predicate; quote_type onValueChange (l.798) resets boxes_grid + integrator + forces project_type='simple'/cantidad_cajas=1 in PG mode. No dead code.",
+    "File DirectProjectCreation.jsx is 1529 lines (>700). Consider splitting the Reel/Matrix card and the Multi-RIF/Multistore cards into sub-components for maintainability — non-blocking.",
+    "cantidad_cajas is forced to 1 for Gateway/Link in the FE and the backend Pydantic Field(ge=1) accepts it. OK. The persisted document still has boxes_grid with quantity=1 entries (additional services); harmless but worth documenting that for PG the 'quantity' field is semantically meaningless."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (per /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created project PRY-2026-06-045-PRI (Cliente ABASTISIMO C.A, quote_type=GATEWAY, bank=100% Banco, product=Tarjeta de Crédito/Débito (PG)) and DELETED it at the end (HTTP 200).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Auth token in this app is stored at localStorage.session_token (NOT 'token'). Use it for direct API smoke tests. project list/detail/delete live under /api/projects/{project_id} — /api/direct-projects only exposes POST. Login flow: /login → input[type=email], input[type=password], button 'Ingresar' → redirected to /dashboard. A red toast 'Atención! pulse ENTER' may appear; press Enter to dismiss before interacting with header chips.",
+  "rca of the issue": "N/A — feature works as specified.",
+  "evidence": {
+    "vpos_default_state": { "dp-cantidad-cajas": true, "dp-project-type-card": true, "dp-multistore-toggle": true, "dp-reel-quantity": true, "dp-reel-selector": true },
+    "gateway_state":   { "dp-cantidad-cajas_count": 0, "dp-project-type-card_count": 0, "dp-multistore-toggle_count": 0, "dp-reel-quantity_count": 0, "dp-reel-selector_count": 1, "matrix_title_present": true },
+    "link_pago_state": { "dp-cantidad-cajas_count": 0, "dp-project-type-card_count": 0, "dp-multistore-toggle_count": 0, "dp-reel-quantity_count": 0 },
+    "back_to_vpos":    { "dp-cantidad-cajas": 1, "dp-project-type-card": 1, "dp-multistore-toggle": 1, "dp-reel-quantity": 1 },
+    "integrator_counts_in_dropdown": { "VPOS_REST": 116, "MPOS": 10, "PG_Universal+NoUniversal": 99, "lists_differ_between_modes": true },
+    "boxes_grid_in_gateway_mode": { "rows_after_add": 1, "has_cantidad_column": false },
+    "created_project": { "project_number": "PRY-2026-06-045-PRI", "project_id": "prj_13eb16a80b54", "quote_type": "GATEWAY", "services_len": 1, "banks_len": 1, "boxes_grid_len": 1, "services_sample": { "item_name": "Tarjeta de Crédito/Débito (PG)", "bank_name": "100% Banco", "quantity": 1, "item_type": "additional" }, "deleted_status": 200 }
+  }
+}

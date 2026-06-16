@@ -25,6 +25,17 @@ const QUOTE_TYPES = [
 ];
 const REQUIRES_HW = (qt) => qt === 'VPOS' || qt === 'MPOS';
 const AVAIL_FIELD = (qt) => (QUOTE_TYPES.find((x) => x.id === qt) || {}).avail || 'vpos_available';
+// Payment Gateway / Link de Pago: productos virtuales (sin cajas físicas, sin
+// multitienda/multi-rif; integradores filtrados por certificación PG).
+const PG_LIKE = (qt) => qt === 'GATEWAY' || qt === 'LINK_PAGO';
+// Modalidad de certificación del integrador requerida por tipo de proyecto,
+// homologada con el Cotizador (solo se listan integradores "Certificado").
+const INTEGRATOR_MODALITY_MATCH = (qt) => {
+  if (qt === 'VPOS') return (m) => m === 'REST';
+  if (qt === 'MPOS') return (m) => m === 'MPOS';
+  if (qt === 'GATEWAY' || qt === 'LINK_PAGO') return (m) => m === 'PG Universal' || m === 'PG No universal';
+  return () => true;
+};
 
 /* ------------------------------------------------------------------ */
 /* Combobox de clientes con búsqueda — forwardRef para foco externo   */
@@ -237,6 +248,7 @@ export default function DirectProjectCreation() {
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   const isMultirif = form.project_type === 'multirif';
+  const isPaymentGateway = PG_LIKE(form.quote_type);
 
   /* Carga inicial */
   useEffect(() => {
@@ -349,7 +361,7 @@ export default function DirectProjectCreation() {
   // continuar cargando el siguiente lote (manteniendo banco y cantidad).
   const addSelectedProductsToReel = () => {
     const chosen = reelBankProducts.filter((p) => reelChecked[p.product_name]);
-    const qty = Math.max(1, parseInt(reelQuantity) || 1);
+    const qty = isPaymentGateway ? 1 : Math.max(1, parseInt(reelQuantity) || 1);
     if (!reelBank) { toast.error('Selecciona un banco primero'); return; }
     if (chosen.length === 0) { toast.error('Marca al menos un producto'); return; }
     setForm((f) => ({
@@ -359,7 +371,11 @@ export default function DirectProjectCreation() {
         ...chosen.map((p) => ({ quantity: qty, bank_name: reelBank, product_name: p.product_name, store_name: '' })),
       ],
     }));
-    toast.success(`${chosen.length} línea(s) agregada(s) al Reel (${reelBank}, ${qty} caja(s) c/u)`);
+    toast.success(
+      isPaymentGateway
+        ? `${chosen.length} producto(s) agregado(s) a la matriz (${reelBank})`
+        : `${chosen.length} línea(s) agregada(s) al Reel (${reelBank}, ${qty} caja(s) c/u)`
+    );
     setReelChecked({});
   };
 
@@ -406,16 +422,26 @@ export default function DirectProjectCreation() {
     toast.success(`${added.length} serial(es) agregado(s)`);
   };
 
-  /* Cascada Integrador → Apps */
+  /* Cascada Integrador → Apps.
+     Solo integradores "Certificado" cuya modalidad de certificación corresponda
+     al tipo de proyecto seleccionado (REST=VPOS, MPOS=MPOS, PG=Gateway/Link).
+     Homologado con el filtro del Cotizador. */
+  const certifiedIntegrators = useMemo(() => {
+    const matches = INTEGRATOR_MODALITY_MATCH(form.quote_type);
+    return integrators.filter(
+      (i) => i.integrator_status === 'Certificado' && matches(i.integration_modality)
+    );
+  }, [integrators, form.quote_type]);
+
   const integratorNames = useMemo(() => {
-    const names = Array.from(new Set(integrators.map((i) => i.name).filter(Boolean)));
+    const names = Array.from(new Set(certifiedIntegrators.map((i) => i.name).filter(Boolean)));
     return names.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
-  }, [integrators]);
+  }, [certifiedIntegrators]);
 
   const appsForIntegrator = useMemo(() => {
     if (!form.integrator_name) return [];
-    return integrators.filter((i) => i.name === form.integrator_name && (i.app_name || '').trim());
-  }, [integrators, form.integrator_name]);
+    return certifiedIntegrators.filter((i) => i.name === form.integrator_name && (i.app_name || '').trim());
+  }, [certifiedIntegrators, form.integrator_name]);
 
   /* Pinpad models — solo Bien + Pinpad/POS */
   const pinpadModels = useMemo(() => {
@@ -622,9 +648,11 @@ export default function DirectProjectCreation() {
         </div>
         {/* Chips informativos */}
         <div className="flex items-center gap-2">
+          {!isPaymentGateway && (
           <span className="bg-white/15 text-xs px-3 py-1 rounded-full backdrop-blur-sm flex items-center gap-1.5">
             <Boxes size={12} /> {form.cantidad_cajas || 0} cajas
           </span>
+          )}
           {REQUIRES_HW(form.quote_type) && (
             <span className={`text-xs px-3 py-1 rounded-full backdrop-blur-sm flex items-center gap-1.5 ${form.pinpad_serials.length === Number(form.cantidad_cajas) ? 'bg-emerald-400/30 text-white' : 'bg-rose-400/30 text-white'}`}>
               <FileSpreadsheet size={12} /> {form.pinpad_serials.length} seriales
@@ -661,7 +689,10 @@ export default function DirectProjectCreation() {
         </div>
       )}
 
-      {/* Selector de Tipo de Proyecto Directo: Simple vs Multi-RIF */}
+      {/* Selector de Tipo de Proyecto Directo: Simple vs Multi-RIF
+          (oculto para Payment Gateway / Link de Pago: productos virtuales sin
+          distribución física por RIF/sucursal). */}
+      {!isPaymentGateway && (
       <Card className="border-indigo-200 shadow-sm" data-testid="dp-project-type-card">
         <CardContent className="py-4">
           <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-5">
@@ -694,6 +725,7 @@ export default function DirectProjectCreation() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Card 1: Cliente */}
       <Card className="border-blue-100 shadow-sm">
@@ -763,19 +795,32 @@ export default function DirectProjectCreation() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs">Tipo de Proyecto *</Label>
-              <Select value={form.quote_type} onValueChange={(v) => { set({ quote_type: v, boxes_grid: [] }); setReelBank(''); setReelChecked({}); }}>
+              <Select value={form.quote_type} onValueChange={(v) => {
+                const pg = PG_LIKE(v);
+                set({
+                  quote_type: v,
+                  boxes_grid: [],
+                  // Cambia el filtro de integradores → la selección previa puede no ser compatible.
+                  integrator_name: '', integrator_id: '', integrator_app_name: '',
+                  // Gateway/Link: productos virtuales → sin cajas, multitienda ni Multi-RIF.
+                  ...(pg ? { project_type: 'simple', is_multistore: false, stores: [], multirif_distribution: [], cantidad_cajas: 1 } : {}),
+                });
+                setReelBank(''); setReelChecked({});
+              }}>
                 <SelectTrigger className="h-10" data-testid="dp-quote-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {QUOTE_TYPES.map((qt) => <SelectItem key={qt.id} value={qt.id}>{qt.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            {!isPaymentGateway && (
             <div>
               <Label className="text-xs">Cantidad de Cajas *</Label>
               <Input type="number" min="1" value={form.cantidad_cajas}
                      onChange={(e) => set({ cantidad_cajas: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
                      data-testid="dp-cantidad-cajas" />
             </div>
+            )}
             {(!isMultirif || form.multirif_sponsorship === 'bank') && (
             <div>
               <Label className="text-xs">Banco Patrocinante{isMultirif && form.multirif_sponsorship === 'bank' ? ' *' : ''}</Label>
@@ -805,8 +850,9 @@ export default function DirectProjectCreation() {
               <Label className="text-xs">Integrador</Label>
               <Select value={form.integrator_name || ''} onValueChange={(v) => {
                 // Evaluar apps del integrador para auto-seleccionar (Escenario A) o
-                // dejar pendiente la elección manual (Escenario B).
-                const apps = integrators.filter((i) => i.name === v && (i.app_name || '').trim());
+                // dejar pendiente la elección manual (Escenario B). Solo entre los
+                // integradores certificados compatibles con el tipo de proyecto.
+                const apps = certifiedIntegrators.filter((i) => i.name === v && (i.app_name || '').trim());
                 if (apps.length === 1) {
                   set({ integrator_name: v, integrator_id: apps[0].integrator_id, integrator_app_name: apps[0].app_name || '' });
                 } else {
@@ -815,7 +861,9 @@ export default function DirectProjectCreation() {
               }}>
                 <SelectTrigger className="h-10" data-testid="dp-integrator"><SelectValue placeholder="Sin integrador" /></SelectTrigger>
                 <SelectContent>
-                  {integratorNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  {integratorNames.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-slate-400 italic">No hay integradores certificados para este tipo de proyecto</div>
+                  ) : integratorNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -1088,8 +1136,8 @@ export default function DirectProjectCreation() {
         </Card>
       )}
 
-      {/* Card 4: Multitienda (solo Proyecto Directo Simple) */}
-      {!isMultirif && (
+      {/* Card 4: Multitienda (solo Proyecto Directo Simple; no aplica a Gateway/Link) */}
+      {!isMultirif && !isPaymentGateway && (
       <Card className="border-violet-100 shadow-sm">
         <CardHeader className="pb-3 bg-gradient-to-r from-violet-50 to-violet-50/30 border-b border-violet-100 rounded-t-lg">
           <div className="flex items-center justify-between">
@@ -1162,16 +1210,28 @@ export default function DirectProjectCreation() {
             <div>
               <CardTitle className="text-base flex items-center gap-2 text-amber-900">
                 <div className="bg-amber-500 rounded-md p-1.5"><Layers size={14} className="text-white" /></div>
-                Reel de Distribución de Cajas
+                {isPaymentGateway ? 'Matriz de Bancos y Productos Digitales' : 'Reel de Distribución de Cajas'}
               </CardTitle>
               <CardDescription className="text-xs text-amber-800/70 mt-1">
-                Cada fila: <strong>Cantidad</strong> + <strong>Banco</strong> + <strong>Producto</strong>.
-                El catálogo de productos se filtra por banco + tipo de proyecto (<strong>{(QUOTE_TYPES.find((q) => q.id === form.quote_type) || {}).label}</strong>).
-                <span className="block mt-1 text-amber-700/70">Esta distribución es <strong>independiente</strong> de la Cantidad de Cajas — captura la realidad comercial (un banco puede tener más productos que cajas físicas).</span>
+                {isPaymentGateway ? (
+                  <>
+                    Selecciona los <strong>Bancos / Procesadores</strong> y los <strong>productos digitales</strong> de adquirencia que aplican.
+                    El catálogo se filtra por banco + tipo de proyecto (<strong>{(QUOTE_TYPES.find((q) => q.id === form.quote_type) || {}).label}</strong>).
+                    <span className="block mt-1 text-amber-700/70">Cada combinación <strong>Banco × Producto</strong> es una asociación de adquirencia digital (sin conteo de cajas físicas).</span>
+                  </>
+                ) : (
+                  <>
+                    Cada fila: <strong>Cantidad</strong> + <strong>Banco</strong> + <strong>Producto</strong>.
+                    El catálogo de productos se filtra por banco + tipo de proyecto (<strong>{(QUOTE_TYPES.find((q) => q.id === form.quote_type) || {}).label}</strong>).
+                    <span className="block mt-1 text-amber-700/70">Esta distribución es <strong>independiente</strong> de la Cantidad de Cajas — captura la realidad comercial (un banco puede tener más productos que cajas físicas).</span>
+                  </>
+                )}
               </CardDescription>
             </div>
             <p className="text-xs text-amber-900 flex items-center gap-2 bg-white/60 px-3 py-1 rounded-full border border-amber-200" data-testid="dp-reel-counter">
-              Total grilla: <strong className="text-amber-700 text-base">{totalBoxesInGrid}</strong>
+              {isPaymentGateway
+                ? <>Combinaciones: <strong className="text-amber-700 text-base">{form.boxes_grid.length}</strong></>
+                : <>Total grilla: <strong className="text-amber-700 text-base">{totalBoxesInGrid}</strong></>}
             </p>
           </div>
         </CardHeader>
@@ -1180,6 +1240,7 @@ export default function DirectProjectCreation() {
           <div className="border border-amber-200 rounded-md p-3 bg-amber-50/40 space-y-3" data-testid="dp-reel-selector">
             <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-3 items-start">
               <div className="space-y-3">
+                {!isPaymentGateway && (
                 <div>
                   <Label className="text-xs text-amber-900">Número de cajas (por producto)</Label>
                   <Input
@@ -1191,6 +1252,7 @@ export default function DirectProjectCreation() {
                   />
                   <p className="text-[10px] text-amber-700/70 mt-1">Precargado con la Cantidad de Cajas ({form.cantidad_cajas}). Editable por lote.</p>
                 </div>
+                )}
                 <div>
                   <Label className="text-xs text-amber-900">Banco</Label>
                   <Select value={reelBank} onValueChange={selectReelBank}>
@@ -1245,7 +1307,9 @@ export default function DirectProjectCreation() {
             </div>
             <div className="flex items-center justify-between">
               <p className="text-xs text-amber-800/80" data-testid="dp-reel-selected-info">
-                {reelSelectedCount} producto(s) marcado(s){reelSelectedCount > 0 ? ` · ${reelSelectedCount} línea(s) de ${Math.max(1, parseInt(reelQuantity) || 1)} caja(s)` : ''}
+                {isPaymentGateway
+                  ? `${reelSelectedCount} producto(s) marcado(s)`
+                  : `${reelSelectedCount} producto(s) marcado(s)${reelSelectedCount > 0 ? ` · ${reelSelectedCount} línea(s) de ${Math.max(1, parseInt(reelQuantity) || 1)} caja(s)` : ''}`}
               </p>
               <Button
                 size="sm"
@@ -1254,7 +1318,7 @@ export default function DirectProjectCreation() {
                 className="bg-amber-600 hover:bg-amber-700 text-white"
                 data-testid="dp-reel-add-selected"
               >
-                <Plus size={14} className="mr-1" /> Agregar al Reel
+                <Plus size={14} className="mr-1" /> {isPaymentGateway ? 'Agregar a la matriz' : 'Agregar al Reel'}
               </Button>
             </div>
           </div>
@@ -1265,7 +1329,7 @@ export default function DirectProjectCreation() {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium text-slate-600 w-12">#</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600 w-24">Cantidad</th>
+                  {!isPaymentGateway && <th className="px-3 py-2 text-left font-medium text-slate-600 w-24">Cantidad</th>}
                   <th className="px-3 py-2 text-left font-medium text-slate-600">Banco</th>
                   <th className="px-3 py-2 text-left font-medium text-slate-600">Producto</th>
                   {form.is_multistore && <th className="px-3 py-2 text-left font-medium text-slate-600">Sucursal</th>}
@@ -1275,13 +1339,16 @@ export default function DirectProjectCreation() {
               <tbody>
                 {form.boxes_grid.length === 0 ? (
                   <tr>
-                    <td colSpan={form.is_multistore ? 6 : 5} className="px-3 py-6 text-center text-xs text-slate-400 italic" data-testid="dp-reel-empty">
-                      El Reel está vacío. Selecciona un banco arriba y marca sus productos para agregarlos.
+                    <td colSpan={(form.is_multistore ? 6 : 5) - (isPaymentGateway ? 1 : 0)} className="px-3 py-6 text-center text-xs text-slate-400 italic" data-testid="dp-reel-empty">
+                      {isPaymentGateway
+                        ? 'La matriz está vacía. Selecciona un banco arriba y marca sus productos digitales para agregarlos.'
+                        : 'El Reel está vacío. Selecciona un banco arriba y marca sus productos para agregarlos.'}
                     </td>
                   </tr>
                 ) : form.boxes_grid.map((b, i) => (
                   <tr key={i} className="border-b border-slate-100" data-testid={`dp-box-row-${i}`}>
                     <td className="px-3 py-1.5 text-slate-400 font-mono">{i + 1}</td>
+                    {!isPaymentGateway && (
                     <td className="px-3 py-1.5">
                       <Input
                         type="number" min="1"
@@ -1291,6 +1358,7 @@ export default function DirectProjectCreation() {
                         data-testid={`dp-box-${i}-quantity`}
                       />
                     </td>
+                    )}
                     <td className="px-3 py-1.5">
                       <span className="text-sm text-slate-700 font-medium" data-testid={`dp-box-${i}-bank`}>{b.bank_name}</span>
                     </td>
