@@ -5,6 +5,24 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 102: Garantía documental del PDF en "Enviar al Cliente" (incl. Modificar→Mantener Original) — Jun 2026
+
+**Requerimiento:** Asegurar que, sin importar la ruta (Crear Nueva / Modificar→Crear Nueva / Modificar→Mantener Original), el PDF de la cotización se genere, se indexe en anexos y se adjunte al enviar al cliente; y que si falta, el proceso se detenga y notifique.
+
+**Diagnóstico:** `POST /quotes/{id}/send-to-client` cargaba `quote_pdf_url` y, si el archivo no existía, **enviaba el correo SIN adjunto, en silencio**. Los flujos de edición (Implementaciones y Equipos/Reparaciones) ya llamaban a `regenerate-pdf` para ambos modos, pero no había garantía en el punto de envío.
+
+**Fix (`backend/routes/quote_actions.py`):** nuevo helper `_ensure_quote_pdf_bytes` invocado antes de despachar en `send-to-client`:
+1. Verifica que el PDF exista en disco.
+2. Si falta, lo **regenera automáticamente** con el motor correcto según categoría (`regenerate_quote_pdf` para VPOS/MPOS/Gateway/Link; `regenerate_equipment_pdf` para Equipos/Reparaciones), dejándolo indexado en anexos (`category:"Cotización"`).
+3. Lo adjunta (engine y legacy paths).
+4. **Control de Error:** si tras intentar regenerarlo aún no se produce → **HTTP 400** que detiene el envío y notifica al operador.
+Decisión del usuario: auto-regenerar (1a) + todas las categorías (2a). Sin cambios de frontend (los modos de modificación ya regeneraban al guardar; el envío es ahora la red de seguridad única).
+
+**QA:** pytest `tests/test_send_to_client_pdf_guarantee.py` **PASS** — al simular PDF ausente, el envío auto-regeneró el documento, repobló `quote_pdf_url`, creó el anexo "Cotización" en disco y completó (200); estado de la cotización restaurado tras la prueba.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 101: Filtros PyME en Acciones/Override, orden A-Z y fix de visibilidad post-deploy — Jun 2026
 
 **Requerimiento (4 partes):** (1) Filtro PyME en la Matriz de Acciones de Cotizaciones (Implementaciones PyME→solo `sede='PYME'`; simétrico Corp→`CORP`); (2) misma restricción en el Override (Usuarios Autorizados); (3) BUGFIX: usuario autorizado en un Override no veía el botón activo en su menú de Acciones tras Deploy; (4) orden alfabético A-Z de destinatarios en Otras Acciones. Decisiones: Ubicación PyME = `sede`; filtro simétrico.

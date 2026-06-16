@@ -1215,6 +1215,57 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
     }
 
 
+async def _ensure_quote_pdf_bytes(quote_id: str, quote: dict, current_user: dict, authorization: Optional[str]) -> bytes:
+    """Garantía documental antes de "Enviar al Cliente".
+
+    Verifica que el PDF de la cotización exista en disco. Si falta (sin importar
+    si la cotización se creó nueva o se modificó en modo "Mantener Original"),
+    lo REGENERA con el motor correcto según categoría y lo deja indexado en los
+    anexos (category="Cotización"). Devuelve los bytes del PDF.
+
+    Control de Error: si tras intentar regenerarlo aún no puede producirse, lanza
+    HTTP 400 para DETENER el envío y notificar al operador.
+    """
+    def _read_existing(q: dict):
+        url = (q or {}).get("quote_pdf_url")
+        if not url:
+            return None
+        try:
+            p = UPLOADS_DIR / url.replace("/uploads/", "")
+            if p.exists():
+                return p.read_bytes()
+        except Exception as e:
+            logger.warning(f"[send-to-client] No se pudo leer el PDF: {e}")
+        return None
+
+    data = _read_existing(quote)
+    if data:
+        return data
+
+    # El PDF no está en disco → intentar regenerarlo (motor según categoría).
+    category = quote.get("quote_category")
+    try:
+        from routes.quotes import regenerate_quote_pdf, regenerate_equipment_pdf
+        if category in ("equipment", "repair"):
+            await regenerate_equipment_pdf(quote_id, {}, authorization)
+        else:
+            await regenerate_quote_pdf(quote_id, {}, authorization)
+        logger.info(f"[send-to-client] PDF regenerado automáticamente para {quote.get('quote_number','')}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[send-to-client] Falló la regeneración automática del PDF: {e}")
+
+    refreshed = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    data = _read_existing(refreshed or {})
+    if not data:
+        raise HTTPException(
+            status_code=400,
+            detail="No se pudo generar o encontrar el PDF de la cotización. Genere el documento desde Acciones e intente nuevamente antes de enviar al cliente.",
+        )
+    return data
+
+
 @router.post("/quotes/{quote_id}/send-to-client")
 async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Envía la cotización por email al cliente con el PDF adjunto"""
@@ -1228,17 +1279,12 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     if not client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    # === Notification Engine (Phase 2) ===
+    # === Garantía documental (Enviar al Cliente) ===
+    # Asegura que el PDF exista (regenerándolo si falta) o detiene el envío.
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
-    _engine_pdf_quote_bytes = None
-    pdf_url_pre = quote.get("quote_pdf_url")
-    if pdf_url_pre:
-        try:
-            _pdf_path = UPLOADS_DIR / pdf_url_pre.replace("/uploads/", "")
-            if _pdf_path.exists():
-                _engine_pdf_quote_bytes = open(_pdf_path, "rb").read()
-        except Exception as _e:
-            logger.warning(f"[send-to-client] No se pudo precargar PDF de cotización: {_e}")
+    _engine_pdf_quote_bytes = await _ensure_quote_pdf_bytes(quote_id, quote, current_user, authorization)
+    # Re-cargar la cotización por si se regeneró (quote_pdf_url/attachments actualizados).
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0}) or quote
     _manual_attachments = await _resolve_manual_attachments(manual_attachment_ids)
     _engine_result = await _engine_or_legacy(
         "send_to_client", quote, current_user,
