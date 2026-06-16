@@ -247,22 +247,22 @@ const Projects = () => {
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
-  // Mantenimiento (Admin): backfill de la fecha "Envío a Implementación" para
-  // proyectos antiguos que la tengan vacía (idempotente / no destructivo).
+  // Mantenimiento (Admin): backfill del "Generador" (created_by_name) para
+  // proyectos antiguos que lo tengan vacío (idempotente / no destructivo).
   const [backfillLoading, setBackfillLoading] = useState(false);
-  const handleBackfillImplDate = async () => {
-    if (!window.confirm('¿Actualizar la fecha de "Envío a Implementación" en los proyectos que la tengan vacía?\n\nEsto rellena la fecha usando la de creación del proyecto. Es seguro y solo afecta a los que están sin fecha.')) return;
+  const handleBackfillGenerator = async () => {
+    if (!window.confirm('¿Cargar el nombre del "Generador" en los proyectos que lo tengan vacío?\n\nToma el dato de la cotización origen (o del usuario que la creó). Es seguro y solo afecta a los proyectos sin Generador.')) return;
     setBackfillLoading(true);
     try {
-      const { data } = await api.post('/projects/backfill-impl-date');
+      const { data } = await api.post('/projects/backfill-generator');
       if (data.updated > 0) {
-        toast.success(`Fechas actualizadas: ${data.updated} proyecto(s). Sin fecha restantes: ${data.remaining_missing}.`);
+        toast.success(`Generador cargado: ${data.updated} proyecto(s). Sin Generador restantes: ${data.remaining_missing}.`);
       } else {
-        toast.info('Todos los proyectos ya tienen la fecha de Envío a Implementación. No hubo cambios.');
+        toast.info('Todos los proyectos ya tienen Generador asignado. No hubo cambios.');
       }
       fetchProjects();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'No se pudo ejecutar la actualización de fechas.');
+      toast.error(err?.response?.data?.detail || 'No se pudo ejecutar la carga del Generador.');
     } finally {
       setBackfillLoading(false);
     }
@@ -431,14 +431,14 @@ const Projects = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleBackfillImplDate}
+                  onClick={handleBackfillGenerator}
                   disabled={backfillLoading}
-                  data-testid="backfill-impl-date-btn"
+                  data-testid="backfill-generator-btn"
                   className="border-amber-300 text-amber-700 hover:bg-amber-50"
-                  title="Rellenar la fecha de 'Envío a Implementación' en proyectos antiguos que la tengan vacía (idempotente, solo Admin)"
+                  title="Cargar el nombre del 'Generador' en proyectos antiguos que lo tengan vacío (idempotente, solo Admin)"
                 >
                   <RefreshCw size={14} className={`mr-1.5 ${backfillLoading ? 'animate-spin' : ''}`} />
-                  {backfillLoading ? 'Actualizando…' : 'Actualizar fechas Envío a Imple'}
+                  {backfillLoading ? 'Cargando…' : 'Cargar Generador'}
                 </Button>
               )}
               <Button

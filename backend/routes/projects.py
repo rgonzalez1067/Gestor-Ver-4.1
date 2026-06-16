@@ -535,52 +535,120 @@ def _master_diff(old_project, update, is_multistore):
     return changes
 
 
-@router.post("/projects/backfill-impl-date")
-async def backfill_impl_date(authorization: Optional[str] = Header(None)):
-    """Backfill de la fecha 'Envío a Implementación' (campo `sent_to_implementation_at`)
-    para Proyectos existentes que la tengan vacía.
+@router.post("/projects/backfill-generator")
+async def backfill_generator(authorization: Optional[str] = Header(None)):
+    """Backfill del 'Generador' del Proyecto (campos `created_by_name` /
+    `created_by_user_id`) para Proyectos existentes que lo tengan vacío.
 
-    Contexto: el registro automático de esta fecha al crear el proyecto se agregó
-    en una corrección posterior; los proyectos creados antes quedaron sin valor.
-    Como un proyecto se crea EXACTAMENTE en el momento del envío a implementación,
-    el valor correcto es su `created_at`. Operación idempotente y NO destructiva:
-    solo rellena los que están vacíos. EXCLUSIVO para rol Administrador.
+    Contexto: el Generador (usuario que originó la cotización) se empezó a
+    persistir en el proyecto en una corrección posterior; los proyectos creados
+    antes quedaron sin este dato (vacío o "—").
+
+    Fuente del valor (en orden de prioridad):
+      1) La cotización origen por `quote_id` o `quote_number`, buscada primero en
+         `quotes` y, si ya no existe (se elimina al transicionar) o fue archivada,
+         en `quote_history` → `created_by_name` / `created_by_user_id`.
+      2) El usuario referenciado por `created_by_user_id` del propio proyecto/cotización
+         (se compone el nombre con first_name + last_name o email).
+
+    Operación idempotente y NO destructiva: solo rellena los que están vacíos.
+    EXCLUSIVO para rol Administrador.
 
     Ejecutar UNA vez en el ambiente de deploy tras redesplegar:
-        POST /api/projects/backfill-impl-date  (con token de Administrador)
+        POST /api/projects/backfill-generator  (con token de Administrador)
     """
     current_user = await get_current_user(authorization)
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Acceso denegado: operación exclusiva para Administradores.")
 
+    def _is_empty(v):
+        return v is None or (isinstance(v, str) and v.strip() in ("", "—"))
+
     missing_filter = {
         "$or": [
-            {"sent_to_implementation_at": {"$exists": False}},
-            {"sent_to_implementation_at": None},
-            {"sent_to_implementation_at": ""},
+            {"created_by_name": {"$exists": False}},
+            {"created_by_name": None},
+            {"created_by_name": ""},
+            {"created_by_name": "—"},
         ]
     }
     total_missing = await db.projects.count_documents(missing_filter)
     updated = 0
-    skipped_no_created = 0
-    cursor = db.projects.find(missing_filter, {"_id": 0, "project_id": 1, "created_at": 1})
+    skipped_unresolved = 0
+
+    # Cache de usuarios para evitar consultas repetidas.
+    user_cache = {}
+
+    async def _resolve_user_name(uid):
+        if not uid:
+            return ""
+        if uid in user_cache:
+            return user_cache[uid]
+        u = await db.users.find_one(
+            {"user_id": uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1}
+        )
+        name = ""
+        if u:
+            name = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or u.get("email", "")
+        user_cache[uid] = name
+        return name
+
+    proj_fields = {"_id": 0, "created_by_name": 1, "created_by_user_id": 1, "created_by": 1}
+
+    async def _lookup_source_quote(qid, qnum):
+        """Busca la cotización origen en `quotes` y, si no existe (fue eliminada
+        al transicionar o archivada), en `quote_history`. Match por quote_id y,
+        como respaldo, por quote_number."""
+        for coll in (db.quotes, db.quote_history):
+            if qid:
+                d = await coll.find_one({"quote_id": qid}, proj_fields)
+                if d:
+                    return d
+            if qnum:
+                d = await coll.find_one({"quote_number": qnum}, proj_fields)
+                if d:
+                    return d
+        return None
+
+    cursor = db.projects.find(
+        missing_filter,
+        {"_id": 0, "project_id": 1, "quote_id": 1, "quote_number": 1, "created_by_user_id": 1},
+    )
     async for p in cursor:
-        created = p.get("created_at")
-        if not created:
-            skipped_no_created += 1
+        creator_name = ""
+        creator_uid = p.get("created_by_user_id") or None
+
+        # 1) Buscar en la cotización origen (quotes → quote_history).
+        q = await _lookup_source_quote(p.get("quote_id"), p.get("quote_number"))
+        if q:
+            if not _is_empty(q.get("created_by_name")):
+                creator_name = q["created_by_name"].strip()
+            if not creator_uid:
+                creator_uid = q.get("created_by_user_id") or q.get("created_by")
+
+        # 2) Resolver vía usuario si aún no tenemos nombre.
+        if _is_empty(creator_name):
+            creator_name = await _resolve_user_name(creator_uid)
+
+        if _is_empty(creator_name):
+            skipped_unresolved += 1
             continue
+
+        set_data = {"created_by_name": creator_name}
+        if creator_uid:
+            set_data["created_by_user_id"] = creator_uid
         await db.projects.update_one(
             {"project_id": p["project_id"]},
-            {"$set": {"sent_to_implementation_at": created}},
+            {"$set": set_data},
         )
         updated += 1
 
     remaining = await db.projects.count_documents(missing_filter)
     return {
-        "message": "Backfill de fecha 'Envío a Implementación' completado",
+        "message": "Backfill de 'Generador' completado",
         "total_missing_before": total_missing,
         "updated": updated,
-        "skipped_no_created_at": skipped_no_created,
+        "skipped_unresolved": skipped_unresolved,
         "remaining_missing": remaining,
     }
 
