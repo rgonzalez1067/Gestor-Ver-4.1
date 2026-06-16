@@ -5,6 +5,24 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 100: Proyectos de Integración — Wizard (búsqueda predictiva + alcance), indicador de Ampliación y filtro de Alcance — Jun 2026
+
+**Requerimiento:** Optimizar el alta de Proyectos de Integración (`/integrators`): (1) búsqueda predictiva del integrador (anti-duplicidad); (2) bifurcación Nuevo Tipo vs Ampliación; (3) indicador visual de ampliación en la grilla; (4) filtro "Alcance del Proyecto". Decisiones del usuario: Tipo de Integración=`integration_type` (CR/LP/PG/MP/TK); Ampliación **actualiza la fila del tipo existente** (no crea fila nueva); Proyecto Nuevo = integrador nuevo o existente+Nuevo Tipo; Proyecto Ampliado = existente+Ampliación; resaltar filas `project_scope='expansion'` con estatus ≠ 'Certificado'; filas heredadas = 'new'.
+
+**Backend (`routes/integrators.py`, `models.py`):**
+- `Integrator`/`IntegratorCreate` + campo `project_scope` ('new'|'expansion', default 'new'). POST /integrators lo persiste.
+- Nuevo `POST /integrators/{id}/expand`: marca la fila como `project_scope='expansion'`, `integrator_status='En proceso'` y `expanded_at` (no crea fila nueva). RBAC heredado del middleware `integradores` (igual que create/update).
+
+**Frontend (`pages/Integrators.jsx`):**
+- Diálogo de creación reconvertido en **wizard 2 pasos** (estados `wizardStep`/`integratorMode`/`nameQuery`/`existingName`/`scopeChoice`/`expandTargetId`): Paso 1 buscador predictivo (`existingNames`/`nameSuggestions`) → existente (panel solo-lectura de tipos vigentes + aplicativos certificados) o "Registrar como Nuevo Integrador"; Paso 2 (solo existente) bifurcación Ampliación (radio por fila, preselección si única, exige selección si varias) / Nuevo Tipo (campos núcleo, integrator_type heredado bloqueado). Edición conserva el formulario clásico intacto.
+- Filtro `filter-scope` (Todos/Proyectos Nuevos/Proyectos Ampliados) en `filteredIntegrators` (legacy=new). Indicador visual: filas en ampliación con fondo fucsia + etiqueta **AMPLIACIÓN** (`expansion-badge-{id}`).
+
+**QA:** testing_agent iteration_100.json → **backend 4/4 pytest + UI 7/7 PASS** (búsqueda predictiva sin duplicar, alta nuevo con scope='new', flujo ampliación exige selección con múltiples tipos, badge fucsia, filtro Nuevos/Ampliados, regresión edición). Datos de prueba creados y eliminados; sin tocar datos reales. Tests: `tests/test_integrators_wizard.py`.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+**Backlog (no bloqueante):** `Integrators.jsx` ~1977 líneas (candidato a refactor); warning de hidratación recurrente.
+
+
+
 ### Iteration 99: Proyectos Directos — Condicionalidad Payment Gateway / Link de Pago — Jun 2026
 
 **Requerimiento:** Adaptar dinámicamente el formulario de Proyectos Directos (`/direct-projects`) cuando el Tipo de Proyecto sea **Payment Gateway** (GATEWAY) o **Link de Pago** (LINK_PAGO): productos virtuales sin hardware/distribución física.
