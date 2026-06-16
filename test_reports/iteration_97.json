@@ -1,0 +1,43 @@
+{
+  "summary": "Frontend E2E validation of the Snooze (3 intentos máx) flow on the GlobalUnreadBanner. All five required scenarios verified end-to-end on Preview using admin user rgonzalez (1 mensaje sin leer sembrado). Core flow PASSES: ENTER outside inputs snoozes (hides + ss++), ENTER inside input is correctly ignored, SPA navigation re-displays the banner with the next counter (1/3 → 2/3 → 3/3), and the 4th appearance is anchored (locked-hint visible, snooze-hint absent, ENTER ignored). Two anomalies observed and reported below: (1) ATTEMPT-3 transitions to LOCKED on the same view instead of hiding-then-locking on the next nav (minor UX/spec deviation), and (2) on a full BROWSER RELOAD the snooze counter is wiped due to a useEffect race with the unread context — this breaks the spec clause 'reaparece en la siguiente navegación de módulo o recarga'.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "GlobalUnreadBanner.jsx",
+        "issue": "ATTEMPT-3 (snoozeCount: 2→3) locks the banner immediately on the current view; it does NOT hide first. The spec implies all 3 ENTER presses should hide the banner and only the 4th appearance should be locked. Effectively the user only gets 2 hide actions instead of 3. Root cause: `visible = hasUnread && (locked || !snoozedHere)` — once snoozeCount hits MAX_SNOOZE (3), `locked` becomes true synchronously and forces `visible=true` even though `snoozedHere=true` was just set. Fix idea: on snooze, if next count === MAX_SNOOZE, still allow hiding on the current view by gating locked-visibility on a separate flag (e.g. only show locked state when the banner re-mounts via location change).",
+        "selector": "[data-testid=\"global-unread-banner\"]",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "GlobalUnreadBanner.jsx (sessionStorage persistence on full reload)",
+        "issue": "On full browser reload (F5 / hard navigation), the snooze counter in sessionStorage is reset to 0 even though it was saved. The useEffect `if (!hasUnread) { sessionStorage.removeItem(SNOOZE_KEY); setSnoozeCount(0); }` runs on the first render before the /inbox/me/summary fetch resolves (unread starts as 0 in UnreadMessagesContext default), so it wipes the previously stored count. Spec says 'reaparece en la siguiente navegación de módulo O RECARGA' — recarga is broken. Fix: only reset when `unread === 0` AND the context has completed at least one fetch (e.g. add a `loaded` flag to UnreadMessagesContext and gate the reset on it).",
+        "selector": "sessionStorage.unread_banner_snooze_count",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix the locked-on-3rd-press deviation: make 3rd ENTER hide the banner on the current view; switch to locked only when the banner re-appears after navigation/reload.",
+    "Fix the reload-resets-counter bug: gate the reset useEffect on a `loaded`/`initialized` flag from UnreadMessagesContext so it does not wipe sessionStorage during the initial render when unread is still defaulting to 0."
+  ],
+  "critical_code_review_comments": [
+    "GlobalUnreadBanner.jsx — `useEffect(() => { if (!hasUnread) { sessionStorage.removeItem(SNOOZE_KEY); setSnoozeCount(0); ... } }, [hasUnread])` fires unconditionally on mount because the UnreadMessagesContext default is 0. This couples 'no unread yet (loading)' with 'unread confirmed 0 by backend' and corrupts persisted snooze state on every full reload. Recommend adding an `initialized`/`loaded` boolean to the context.",
+    "GlobalUnreadBanner.jsx — `visible = hasUnread && (locked || !snoozedHere)` causes the locked state to override the snooze-hide on the same render. Consider deriving `visible` based on the previous-render-locked state to allow the 3rd ENTER to still hide on the current view.",
+    "Pre-existing (out of scope): React hydration warning in Projects.jsx and Dashboard.jsx tables — <span data-ve-dynamic> rendered inside <tbody> wrapping <tr> rows. Generates 2-3 console errors on every page render. Reported in previous iterations."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (skipped per request)",
+    "frontend": "100% on the 5 required spec items; 2 secondary anomalies found"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (user_admin_main) — matches /app/memory/test_credentials.md",
+  "seed_data_creation": "None — used the already-seeded unread message for user_admin_main (1 sin leer).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Validated via SPA navigation (window.history.pushState + popstate) because the sidebar text 'Gestión de Implemen…' is truncated and difficult to click reliably with text selectors. All five required behaviors pass: (1) initial banner visible with hint 'Quedan 3 de 3 intentos (1/3)'; (2) ENTER outside input hides banner and sets sessionStorage.unread_banner_snooze_count='1'; (3) SPA nav (/projects, /dashboard, /projects) re-renders banner with hints 2/3, 3/3, then locked; (4) 4th appearance shows global-unread-banner-locked-hint and no snooze-hint; ENTER is ignored; (5) ENTER while focus is in input[placeholder*='Buscar'] does NOT snooze. TWO ISSUES TO HANDOFF TO MAIN AGENT: (a) 3rd ENTER locks-in-place instead of hiding-then-locking on next nav; (b) full browser reload wipes sessionStorage because the reset useEffect races with the initial unread=0 default.",
+  "rca of the issue": "Issue (b) — reload wipes counter: UnreadMessagesContext defaults `unread` to 0 on mount and only updates after the /inbox/me/summary call resolves (~ ms to seconds later). GlobalUnreadBanner's useEffect `[hasUnread]` runs once at mount with hasUnread=false → removes sessionStorage key and resets state. By the time hasUnread flips to true, the persisted count is already gone. Repro: snooze once on Dashboard (sessionStorage='1'), press F5 in the browser → banner reappears showing '1/3' (count reset) instead of '2/3'. Mitigation: introduce `loaded`/`initialized` boolean in UnreadMessagesContext and only run the reset effect when loaded === true AND unread === 0. Issue (a) — 3rd snooze locks immediately: derivation `locked = snoozeCount >= MAX_SNOOZE` is recomputed synchronously after setSnoozeCount(3), forcing `visible=true` via the locked branch and overriding the just-set `snoozedHere=true`. Mitigation: store a `lockedSticky` boolean that latches true only on a new location.pathname after snoozeCount reaches MAX_SNOOZE, so the 3rd ENTER still hides the banner on the current view."
+}
