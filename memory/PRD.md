@@ -5,6 +5,25 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 101: Filtros PyME en Acciones/Override, orden A-Z y fix de visibilidad post-deploy — Jun 2026
+
+**Requerimiento (4 partes):** (1) Filtro PyME en la Matriz de Acciones de Cotizaciones (Implementaciones PyME→solo `sede='PYME'`; simétrico Corp→`CORP`); (2) misma restricción en el Override (Usuarios Autorizados); (3) BUGFIX: usuario autorizado en un Override no veía el botón activo en su menú de Acciones tras Deploy; (4) orden alfabético A-Z de destinatarios en Otras Acciones. Decisiones: Ubicación PyME = `sede`; filtro simétrico.
+
+**Causa raíz del bug (3):** Dashboard hacía `/auth/me` pero NO actualizaba `localStorage.user`; `usePermission` (que lee de localStorage) quedaba con `user_id` desactualizado tras deploy → el match `allowed_user_ids.includes(user_id)` fallaba.
+
+**Fix:**
+- Backend (`quote_action_customization.py`): `_attach_allowed_emails` resuelve `allowed_user_ids`→`allowed_user_emails` contra la tabla de usuarios ACTUAL (1 sola query `$in`) en `GET /quote-action-overrides` y `/quote-custom-actions` (deploy-proof, incluso para data existente).
+- Frontend (`QuotesTable.jsx`): autoriza por `user_id` **O** `email` (nueva prop `currentUserEmail`). Email es estable ante re-seeds/caché vieja.
+- Frontend (`ProtectedRoute.jsx`): refresca `localStorage.user` vía `/auth/me` una vez por carga (elimina datos viejos sin limpiar caché ni reiniciar server).
+- Frontend (`ActionNotificationsConfig.jsx`): helper `usersForBiz(users, bizId)` (filtro PyME/Corp por `sede` + orden A-Z) aplicado en `BusinessTypeAccordion` (matriz) y `BusinessOverridesBlock` (override).
+- Backend (`action_notifications.py`, `other_actions_config.py`): catalog ordena `users` por label A-Z.
+
+**QA:** testing_agent iteration_101.json → **backend 4/4 pytest PASS**; filtro PyME en Matriz verificado en UI (18 usuarios, A-Z, admin sede=TBP excluido); emails resueltos confirmados. Sin defectos. Tests: `tests/test_iter195_pyme_corp_filters.py`.
+**⚠️ En PREVIEW; requiere redeploy para producción (el fix de visibilidad aplica al desplegar).**
+**Backlog:** warning de hidratación recurrente en `BusinessTypeAccordion` (span/tbody/tr) — pre-existente.
+
+
+
 ### Mejora: Trazabilidad en la Matriz de Anexos de Cotizaciones + alineación de permiso de carga — Jun 2026
 
 **Mejora (`frontend/src/components/AnexosModal.jsx`):**
