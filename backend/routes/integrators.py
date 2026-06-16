@@ -41,6 +41,7 @@ INTEGRATOR_PRODUCTS = [
     {"id": "prod_cashea",                       "name": "CASHEA"},
     {"id": "prod_xcapit",                       "name": "Xcapit"},
     {"id": "prod_crixto",                       "name": "Crixto"},
+    {"id": "prod_lysto",                        "name": "Lysto"},
 ]
 INTEGRATOR_PRODUCT_IDS = [p["id"] for p in INTEGRATOR_PRODUCTS]
 INTEGRATOR_PRODUCT_NAME_TO_ID = {p["name"].lower().strip(): p["id"] for p in INTEGRATOR_PRODUCTS}
