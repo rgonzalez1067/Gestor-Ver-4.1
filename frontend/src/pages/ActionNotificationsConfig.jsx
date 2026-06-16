@@ -36,6 +36,18 @@ function configKey(business_type, sub_category, action_id) {
   return `${business_type}|${sub_category || '_'}|${action_id}`;
 }
 
+// Filtra y ordena los destinatarios según la unidad de negocio:
+//  - implementacion_pyme → solo usuarios con sede 'PYME'
+//  - implementacion_corp → solo usuarios con sede 'CORP'
+//  - resto → sin filtro de sede
+// Siempre devuelve la lista en orden alfabético estricto (A-Z) por nombre.
+function usersForBiz(users, bizId) {
+  let list = users || [];
+  if (bizId === 'implementacion_pyme') list = list.filter((u) => (u.sede || '').toUpperCase() === 'PYME');
+  else if (bizId === 'implementacion_corp') list = list.filter((u) => (u.sede || '').toUpperCase() === 'CORP');
+  return [...list].sort((a, b) => (a.label || '').localeCompare(b.label || '', 'es', { sensitivity: 'base' }));
+}
+
 function MatrixRow({ row, users, templates, onChange, onRemove }) {
   // Plantillas filtradas por categoría coherente con el tipo de negocio
   // (la categoría se determina afuera; aquí solo se muestra el dropdown completo).
@@ -308,6 +320,8 @@ function SubCategoryAccordion({ subCategory, businessType, actions, allowedMap, 
 
 function BusinessTypeAccordion({ business, subCategories, actions, allowedMap, configs, users, templates, onSaved }) {
   const [expanded, setExpanded] = useState(false);
+  // Filtro PyME/Corp + orden alfabético de destinatarios según la unidad de negocio.
+  const bizUsers = useMemo(() => usersForBiz(users, business.id), [users, business.id]);
   // Iter50: filtrar subcategorías por las que tengan acciones permitidas para
   // ESTE negocio. Antes se renderizaban todas, mostrando subcategorías
   // ajenas (ej. VPOS bajo "Equipos y Accesorios"). Igual lógica que el bloque
@@ -342,7 +356,7 @@ function BusinessTypeAccordion({ business, subCategories, actions, allowedMap, c
               actions={actions}
               allowedMap={allowedMap}
               configs={configs}
-              users={users}
+              users={bizUsers}
               templates={templates}
               onSaved={onSaved}
             />
@@ -872,6 +886,9 @@ function OverridesTab({ actions, businessTypes, subCategories, allowedMap, users
 
 function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overrides, users = [], onChanged }) {
   const [expanded, setExpanded] = useState(false);
+  // Filtro PyME/Corp + orden alfabético de Usuarios Autorizados según la unidad
+  // de negocio (impide asignación cruzada: PyME→PYME, Corp→CORP).
+  const bizUsers = useMemo(() => usersForBiz(users, biz.id), [users, biz.id]);
   // Iter50: drill-down. Cuando el negocio se expande sólo se ven los nombres
   // de subcategorías; al hacer click sobre una subcategoría se cargan sus
   // acciones para edición. Evita renderizar masivamente toda la matriz.
@@ -905,7 +922,7 @@ function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overr
                     bizId={biz.id}
                     subId={null}
                     override={overrides[key]}
-                    users={users}
+                    users={bizUsers}
                     onChanged={onChanged}
                   />
                 );
@@ -953,7 +970,7 @@ function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overr
                         bizId={biz.id}
                         subId={activeSubId}
                         override={overrides[key]}
-                        users={users}
+                        users={bizUsers}
                         onChanged={onChanged}
                       />
                     );

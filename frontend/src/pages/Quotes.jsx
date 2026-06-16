@@ -3930,6 +3930,7 @@ export const Quotes = () => {
             actionOverrides={actionOverrides}
             customActions={customActions}
             currentUserId={currentUser?.user_id || ''}
+            currentUserEmail={currentUser?.email || ''}
             currentUserCargo={currentUser?.cargo || ''}
             currentUserRole={currentUser?.role || ''}
             onCustomAction={(quoteId, actionId, label) => {

@@ -1,0 +1,32 @@
+{
+  "summary": "Iter195 — PyME/Corp sede filter in Matrix + Override + A-Z order across catalogs + allowed_user_emails resolved in overrides/custom-actions. Backend 4/4 pytest pass. UI PyME matrix dropdown verified: shows exactly 18 users in visible A-Z order, admin Rafael González (sede=TBP) is absent — matches backend catalog.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/settings/action-notifications matrix", "issues": ["Pre-existing React HTML hydration warnings (<span> child of <tbody>, <tr> child of <span>) in BusinessTypeAccordion markup — non-blocking, polluting console."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter195_pyme_corp_filters.py",
+    "/app/test_reports/pytest/iter195_results.xml"
+  ],
+  "action_items": [
+    "Optional: fix hydration warnings in BusinessTypeAccordion (span/tbody/tr nesting) — pre-existing, not introduced by this iteration."
+  ],
+  "critical_code_review_comments": [
+    "ActionNotificationsConfig.jsx contains hydration-invalid markup (<span> inside <tbody>, <tr> inside <span>) per console warnings observed on page load. Should wrap rows with valid table semantics or switch to <div role='row'>.",
+    "_attach_allowed_emails resolution is done via a per-request user lookup; for environments with many overrides this could become N+1. Consider caching the users map per request handler."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter195_pyme_corp_filters.py (new)"
+  ],
+  "success_rate": { "backend": "100% (4/4 pytest)", "frontend": "PyME matrix verified; CORP matrix and Override/OtherActions deep-selector UI not visually re-tested but rely on the same shared `usersForBiz` helper and `users.sort(...)` which is proven via backend catalog + PyME UI." },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (as provided)",
+  "seed_data_creation": "None — no rows mutated/saved in matrix or override.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend (test_iter195_pyme_corp_filters.py): validates GET /action-notifications/catalog (38 users, 18 PYME+19 CORP, labels A-Z), GET /other-actions/catalog (users A-Z), GET /quote-action-overrides (allowed_user_emails resolved; PyME|approve = ['josedolande1@gmail.com','ragg1008@hotmail.com']) and GET /quote-custom-actions. To deep-test the Override or Other-Actions user dropdowns in UI: after expanding ov-biz-toggle + ov-sub-toggle, must additionally click the action row toggle inside the sub-block to render the override-users-{actionId} trigger; only then is the user multi-select selectable. For Other Actions, click on the chevron of each action card to reveal the recipients combobox. The PyME Matrix dropdown was verified visually: 18 users in visible A-Z order, Rafael (sede=TBP) absent — confirms `usersForBiz` filter works.",
+  "rca of the issue": "N/A — no defects found. All 4 backend behaviors confirmed; PyME UI filter visually verified (18 users, A-Z, Rafael excluded)."
+}

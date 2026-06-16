@@ -95,12 +95,34 @@ class CustomAction(BaseModel):
 # OVERRIDES — Fase B
 # ============================================================================
 
+async def _attach_allowed_emails(items: list[dict]) -> list[dict]:
+    """Adjunta `allowed_user_emails` resolviendo `allowed_user_ids` contra la
+    tabla de usuarios ACTUAL. Hace el match de autorización robusto a deploys:
+    si tras un re-seed cambian los user_id o el `localStorage` del navegador
+    quedó con un id viejo, el frontend puede validar también por email (estable).
+    """
+    all_ids = {uid for it in items for uid in (it.get("allowed_user_ids") or [])}
+    if not all_ids:
+        for it in items:
+            it.setdefault("allowed_user_emails", [])
+        return items
+    cur = db.users.find({"user_id": {"$in": list(all_ids)}}, {"_id": 0, "user_id": 1, "email": 1})
+    id_to_email = {u["user_id"]: u.get("email") async for u in cur}
+    for it in items:
+        it["allowed_user_emails"] = [
+            id_to_email[uid] for uid in (it.get("allowed_user_ids") or [])
+            if id_to_email.get(uid)
+        ]
+    return items
+
+
 @router.get("/quote-action-overrides")
 async def list_overrides(authorization: Optional[str] = Header(None)):
     """Lista todos los overrides. Disponible para todos los usuarios (necesario
     para construir el menú en frontend)."""
     await _require_user(authorization)
     items = await db.quote_action_overrides.find({}, {"_id": 0}).to_list(500)
+    items = await _attach_allowed_emails(items)
     return {"items": items, "legacy_action_ids": LEGACY_ACTION_IDS}
 
 
@@ -139,6 +161,7 @@ async def delete_override(config_key: str, authorization: Optional[str] = Header
 async def list_custom_actions(authorization: Optional[str] = Header(None)):
     await _require_user(authorization)
     items = await db.quote_custom_actions.find({}, {"_id": 0}).to_list(500)
+    items = await _attach_allowed_emails(items)
     return {"items": items, "legacy_action_ids": LEGACY_ACTION_IDS}
 
 

@@ -160,6 +160,8 @@ async def get_catalog(authorization: Optional[str] = Header(None)):
         "cargo": u.get("cargo", ""),
         "sede": u.get("sede", ""),
     } async for u in users_cur]
+    # Orden alfabético estricto (A-Z) por nombre para agilizar la búsqueda.
+    users.sort(key=lambda u: (u.get("label") or "").lower())
 
     templates = await db.email_templates.find({}, {
         "_id": 0, "template_id": 1, "name": 1, "subject": 1,

@@ -44,7 +44,7 @@ export const QuotesTable = ({
   onOpenAnexos, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
   onOpenBitacoraFlujo, onOpenFtConfig, onPreassignSerials,
-  actionOverrides = {}, customActions = [], currentUserId = '', currentUserCargo = '', currentUserRole = '', onCustomAction,
+  actionOverrides = {}, customActions = [], currentUserId = '', currentUserEmail = '', currentUserCargo = '', currentUserRole = '', onCustomAction,
   opsReadonly = false,
   clearFilters,
 }) => {
@@ -76,7 +76,11 @@ export const QuotesTable = ({
     if (!ov.enabled) return { label: ov.custom_label || defaultLabel, hidden: true, disabled: true, tooltip: 'Acción desactivada' };
     const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
     const allowedUserIds = ov.allowed_user_ids || [];
-    if (allowedUserIds.length && !isAdmin && !allowedUserIds.includes(currentUserId)) {
+    const allowedUserEmails = ov.allowed_user_emails || [];
+    // Autorización robusta a deploys: valida por user_id O por email (estable
+    // ante re-seeds / localStorage desactualizado).
+    const isAuthorized = allowedUserIds.includes(currentUserId) || (!!currentUserEmail && allowedUserEmails.includes(currentUserEmail));
+    if (allowedUserIds.length && !isAdmin && !isAuthorized) {
       return { label: ov.custom_label || defaultLabel, hidden: false, disabled: true, tooltip: 'No autorizado para esta acción' };
     }
     // Fallback legacy: algunos overrides viejos pueden tener required_cargos
@@ -98,8 +102,10 @@ export const QuotesTable = ({
       if (ca.business_type !== biz) return false;
       if (ca.product_subcategory && ca.product_subcategory !== sub) return false;
       const allowedUserIds = ca.allowed_user_ids || [];
+      const allowedUserEmails = ca.allowed_user_emails || [];
       if (allowedUserIds.length) {
-        if (!isAdmin && !allowedUserIds.includes(currentUserId)) return false;
+        const isAuthorized = allowedUserIds.includes(currentUserId) || (!!currentUserEmail && allowedUserEmails.includes(currentUserEmail));
+        if (!isAdmin && !isAuthorized) return false;
         return true;
       }
       // Fallback legacy
