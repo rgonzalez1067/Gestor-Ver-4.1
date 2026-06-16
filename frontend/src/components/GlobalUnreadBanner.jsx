@@ -31,31 +31,46 @@ const readSnoozeCount = () => {
 };
 
 export const GlobalUnreadBanner = () => {
-  const { unread } = useUnreadMessages();
+  const { unread, loaded } = useUnreadMessages();
   const location = useLocation();
   const [snoozeCount, setSnoozeCount] = useState(readSnoozeCount);
   const [snoozedHere, setSnoozedHere] = useState(false);
+  // `lockedSticky` se engancha (latch) al alcanzar el máximo, pero SOLO en la
+  // siguiente aparición (cambio de ruta/recarga), no en el mismo render del 3er
+  // ENTER. Así el usuario obtiene las 3 posposiciones completas y el anclaje
+  // ocurre en la 4ª aparición. Si la recarga preserva un conteo ya en el tope,
+  // arranca bloqueado de inmediato (esa recarga ES la 4ª aparición).
+  const [lockedSticky, setLockedSticky] = useState(() => readSnoozeCount() >= MAX_SNOOZE);
   const lockRef = useRef(false); // evita doble incremento por Enter repetido
+  const snoozeCountRef = useRef(snoozeCount);
+  useEffect(() => { snoozeCountRef.current = snoozeCount; }, [snoozeCount]);
 
   const hasUnread = unread > 0;
-  const locked = snoozeCount >= MAX_SNOOZE;
+  const locked = lockedSticky;
   const visible = hasUnread && (locked || !snoozedHere);
 
   // Reset total: sin mensajes sin leer (lectura validada por backend) o al
   // cerrar sesión (token fuera → unread 0). Reinicia el ciclo de posposición.
+  // Se gatea con `loaded` para NO confundir el valor por defecto 0 (cargando)
+  // con un 0 confirmado por el backend, lo que borraría el contador en cada
+  // recarga completa del navegador.
   useEffect(() => {
-    if (!hasUnread) {
+    if (loaded && !hasUnread) {
       try { sessionStorage.removeItem(SNOOZE_KEY); } catch { /* noop */ }
       setSnoozeCount(0);
       setSnoozedHere(false);
+      setLockedSticky(false);
       lockRef.current = false;
     }
-  }, [hasUnread]);
+  }, [loaded, hasUnread]);
 
-  // Reaparece en cada cambio de módulo/navegación.
+  // Reaparece en cada cambio de módulo/navegación. Si ya se agotaron las
+  // posposiciones, esta nueva aparición queda anclada (4ª aparición). Se lee el
+  // conteo por ref para disparar SOLO ante cambios de ruta (no al posponer).
   useEffect(() => {
     setSnoozedHere(false);
     lockRef.current = false;
+    if (snoozeCountRef.current >= MAX_SNOOZE) setLockedSticky(true);
   }, [location.pathname]);
 
   const snooze = useCallback(() => {

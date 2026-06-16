@@ -1,0 +1,27 @@
+{
+  "summary": "Re-run of the Snooze (max 3 intentos) flow on GlobalUnreadBanner after E1's two fixes. All 6 required scenarios PASS end-to-end on Preview using admin rgonzalez (1 sin leer sembrado): (1) initial banner 1/3 visible; (2) ENTER hides banner and sets ss='1'; (3) SPA nav re-displays 2/3, ENTER hides ss='2'; (4) SPA nav re-displays 3/3 (snooze-hint, NOT locked) — confirming FIX A pre-condition; (5) FIX A: 3rd ENTER HIDES the banner on the current view and writes ss='3'; (6) FIX A anchoring: next SPA nav shows the banner with global-unread-banner-locked-hint, NO snooze-hint, and ENTER is ignored; (7) FIX B: setting ss='1' then page.reload() (full browser reload) preserves ss='1' and the banner re-renders with 'Quedan 2 de 3 (2/3)' — no longer reset to 1/3; (8) ENTER while focus is in input[placeholder*='Buscar'] does NOT snooze and the banner stays visible. Both anomalies from iteration_97.json are now resolved.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GlobalUnreadBanner.jsx — `lockedSticky` latched via location.pathname effect combined with `snoozeCountRef` is the correct fix: the 3rd ENTER updates state without retriggering the latch (read-by-ref), so the current view still hides. Clean and minimal change. OK.",
+    "UnreadMessagesContext.jsx — exposing `loaded` and gating the reset effect on `loaded && !hasUnread` correctly disambiguates 'still loading' from 'backend-confirmed 0'. Reload now preserves sessionStorage. OK.",
+    "Pre-existing (out of scope, NOT part of this fix) — React hydration warnings 'In HTML, <span> cannot be a child of <tbody>' and '<tr> span' fire on every render of Projects/Dashboard tables (visible in console on every navigation). Already flagged in earlier iterations; should be cleaned up by main agent in a separate pass."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (skipped per request)",
+    "frontend": "100% — 6/6 spec scenarios pass, 0 anomalies"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (user_admin_main) — matches /app/memory/test_credentials.md",
+  "seed_data_creation": "None — used the pre-seeded unread message for user_admin_main.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both fixes are validated. Verified events sequence: ss starts None → ENTER #1 → ss='1' (banner hidden) → SPA nav → 2/3 snooze-hint → ENTER #2 → ss='2' hidden → SPA nav → 3/3 snooze-hint (NOT locked) → ENTER #3 → ss='3' HIDDEN (current view) → SPA nav → LOCKED (locked-hint shown, snooze-hint absent), ENTER ignored. Reload test: ss='1' then page.reload() → banner shows '2/3' and ss remains '1'. ENTER inside input[placeholder*='Buscar'] does NOT advance ss nor hide. All assertions in the playwright run passed.",
+  "rca of the issue": "Previous defects (iteration_97) and their resolution: (a) 3rd ENTER locked immediately — fixed by adding a separate `lockedSticky` state that latches ONLY when location.pathname changes and snoozeCountRef.current >= MAX_SNOOZE, so the 3rd ENTER mutates state without retriggering the latch on the same render; visible derivation no longer hinges on the synchronous snoozeCount>=3 condition. (b) Reload wiped sessionStorage — fixed by introducing `loaded` flag in UnreadMessagesContext (true after first /inbox/me/summary completes) and gating the reset useEffect with `if (loaded && !hasUnread)`. The default unread=0 during initial load no longer triggers the cleanup. Both behaviors verified live on Preview."
+}

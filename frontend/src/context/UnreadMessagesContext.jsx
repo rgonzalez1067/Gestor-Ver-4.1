@@ -9,18 +9,22 @@ import { INBOX_CHANGED } from '../utils/inboxEvents';
  *   polling corto (20s) y al recuperar foco de la pestaña.
  * - Alimenta el banner rojo global persistente.
  */
-const UnreadMessagesContext = createContext({ unread: 0, refresh: () => {} });
+const UnreadMessagesContext = createContext({ unread: 0, loaded: false, refresh: () => {} });
 
 export const useUnreadMessages = () => useContext(UnreadMessagesContext);
 
 export const UnreadMessagesProvider = ({ children }) => {
   const [unread, setUnread] = useState(0);
+  // `loaded` = ya se completó al menos una consulta al backend. Evita que el
+  // banner trate el valor por defecto (0) como "sin mensajes confirmado".
+  const [loaded, setLoaded] = useState(false);
   const timerRef = useRef(null);
 
   const refresh = useCallback(async () => {
     const token = localStorage.getItem('session_token');
     if (!token) {
       setUnread(0);
+      setLoaded(true);
       return;
     }
     try {
@@ -28,6 +32,8 @@ export const UnreadMessagesProvider = ({ children }) => {
       setUnread(Number(data?.unread) || 0);
     } catch {
       /* silencioso: no bloquea la UI */
+    } finally {
+      setLoaded(true);
     }
   }, []);
 
@@ -45,7 +51,7 @@ export const UnreadMessagesProvider = ({ children }) => {
   }, [refresh]);
 
   return (
-    <UnreadMessagesContext.Provider value={{ unread, refresh }}>
+    <UnreadMessagesContext.Provider value={{ unread, loaded, refresh }}>
       {children}
     </UnreadMessagesContext.Provider>
   );
