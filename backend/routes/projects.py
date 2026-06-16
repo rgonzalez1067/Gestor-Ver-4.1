@@ -97,6 +97,9 @@ class MasterOverridePayload(BaseModel):
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
     sponsoring_processor_name: Optional[str] = None
+    # Generador del Proyecto (usuario que originó la cotización). Se setea
+    # manualmente por Admin para corregir/cargar proyectos antiguos o importados.
+    generador_user_id: Optional[str] = None
     # Estructura relacional
     banks_products: Optional[List[BankProductsOverride]] = None  # proyectos single
     stores_products: Optional[List[StoreProductsOverride]] = None  # multitienda
@@ -498,6 +501,7 @@ def _master_diff(old_project, update, is_multistore):
         "integrator_name": "Integrador", "integrator_app_name": "App Integrador",
         "pinpad_model": "Modelo Pinpad", "server_name": "Servidor", "ticket_number": "Nro de Ticket",
         "status": "Estado", "quote_type": "Tipo de Proyecto", "sponsoring_bank_name": "Banco Patrocinador",
+        "created_by_name": "Generador",
     }
     changes = []
     for field, label in labels.items():
@@ -533,125 +537,6 @@ def _master_diff(old_project, update, is_multistore):
                     "old": o_sum, "new": n_sum,
                 })
     return changes
-
-
-@router.post("/projects/backfill-generator")
-async def backfill_generator(authorization: Optional[str] = Header(None)):
-    """Backfill del 'Generador' del Proyecto (campos `created_by_name` /
-    `created_by_user_id`) para Proyectos existentes que lo tengan vacío.
-
-    Contexto: el Generador (usuario que originó la cotización) se empezó a
-    persistir en el proyecto en una corrección posterior; los proyectos creados
-    antes quedaron sin este dato (vacío o "—").
-
-    Fuente del valor (en orden de prioridad):
-      1) La cotización origen por `quote_id` o `quote_number`, buscada primero en
-         `quotes` y, si ya no existe (se elimina al transicionar) o fue archivada,
-         en `quote_history` → `created_by_name` / `created_by_user_id`.
-      2) El usuario referenciado por `created_by_user_id` del propio proyecto/cotización
-         (se compone el nombre con first_name + last_name o email).
-
-    Operación idempotente y NO destructiva: solo rellena los que están vacíos.
-    EXCLUSIVO para rol Administrador.
-
-    Ejecutar UNA vez en el ambiente de deploy tras redesplegar:
-        POST /api/projects/backfill-generator  (con token de Administrador)
-    """
-    current_user = await get_current_user(authorization)
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Acceso denegado: operación exclusiva para Administradores.")
-
-    def _is_empty(v):
-        return v is None or (isinstance(v, str) and v.strip() in ("", "—"))
-
-    missing_filter = {
-        "$or": [
-            {"created_by_name": {"$exists": False}},
-            {"created_by_name": None},
-            {"created_by_name": ""},
-            {"created_by_name": "—"},
-        ]
-    }
-    total_missing = await db.projects.count_documents(missing_filter)
-    updated = 0
-    skipped_unresolved = 0
-
-    # Cache de usuarios para evitar consultas repetidas.
-    user_cache = {}
-
-    async def _resolve_user_name(uid):
-        if not uid:
-            return ""
-        if uid in user_cache:
-            return user_cache[uid]
-        u = await db.users.find_one(
-            {"user_id": uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1}
-        )
-        name = ""
-        if u:
-            name = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or u.get("email", "")
-        user_cache[uid] = name
-        return name
-
-    proj_fields = {"_id": 0, "created_by_name": 1, "created_by_user_id": 1, "created_by": 1}
-
-    async def _lookup_source_quote(qid, qnum):
-        """Busca la cotización origen en `quotes` y, si no existe (fue eliminada
-        al transicionar o archivada), en `quote_history`. Match por quote_id y,
-        como respaldo, por quote_number."""
-        for coll in (db.quotes, db.quote_history):
-            if qid:
-                d = await coll.find_one({"quote_id": qid}, proj_fields)
-                if d:
-                    return d
-            if qnum:
-                d = await coll.find_one({"quote_number": qnum}, proj_fields)
-                if d:
-                    return d
-        return None
-
-    cursor = db.projects.find(
-        missing_filter,
-        {"_id": 0, "project_id": 1, "quote_id": 1, "quote_number": 1, "created_by_user_id": 1},
-    )
-    async for p in cursor:
-        creator_name = ""
-        creator_uid = p.get("created_by_user_id") or None
-
-        # 1) Buscar en la cotización origen (quotes → quote_history).
-        q = await _lookup_source_quote(p.get("quote_id"), p.get("quote_number"))
-        if q:
-            if not _is_empty(q.get("created_by_name")):
-                creator_name = q["created_by_name"].strip()
-            if not creator_uid:
-                creator_uid = q.get("created_by_user_id") or q.get("created_by")
-
-        # 2) Resolver vía usuario si aún no tenemos nombre.
-        if _is_empty(creator_name):
-            creator_name = await _resolve_user_name(creator_uid)
-
-        if _is_empty(creator_name):
-            skipped_unresolved += 1
-            continue
-
-        set_data = {"created_by_name": creator_name}
-        if creator_uid:
-            set_data["created_by_user_id"] = creator_uid
-        await db.projects.update_one(
-            {"project_id": p["project_id"]},
-            {"$set": set_data},
-        )
-        updated += 1
-
-    remaining = await db.projects.count_documents(missing_filter)
-    return {
-        "message": "Backfill de 'Generador' completado",
-        "total_missing_before": total_missing,
-        "updated": updated,
-        "skipped_unresolved": skipped_unresolved,
-        "remaining_missing": remaining,
-    }
-
 
 
 @router.put("/projects/{project_id}/master-override")
@@ -695,6 +580,22 @@ async def master_override_project(project_id: str, payload: MasterOverridePayloa
             update["completed_at"] = now
     if payload.quote_type is not None:
         update["quote_type"] = (payload.quote_type or "").upper()
+
+    # --- Generador del Proyecto (created_by) ---
+    if payload.generador_user_id is not None:
+        gid = (payload.generador_user_id or "").strip()
+        if gid and gid != "__none__":
+            gu = await db.users.find_one(
+                {"user_id": gid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1}
+            )
+            if not gu:
+                raise HTTPException(status_code=400, detail="Usuario Generador no encontrado.")
+            gname = f"{gu.get('first_name', '')} {gu.get('last_name', '')}".strip() or gu.get("email", "")
+            update["created_by_user_id"] = gid
+            update["created_by_name"] = gname
+        else:
+            update["created_by_user_id"] = None
+            update["created_by_name"] = "—"
 
     # --- Banco Patrocinador ---
     if payload.sponsoring_bank_name is not None:

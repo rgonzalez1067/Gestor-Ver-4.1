@@ -862,3 +862,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Agregadas 3 columnas a la grilla y al Excel del detalle: 'Cajas' (cantidad_cajas en cotizaciones de Implementación y Fast Track), 'Equipos Rep.' (suma de quantity de equipment_items en Reparación) y 'Equipos Vend.' (equipos vendidos: equipment_items en Equipos, ft_equipment_items en Fast Track). None/— cuando no aplica a la categoría.
 - Backend: helper _adv_counts en sales_reports.py; columnas añadidas al export Excel (12 columnas). Frontend: 3 columnas en AdvancedSalesTab.jsx (boxes azul, repair ámbar, sold verde).
 - Verificado: curl (VPOS_MULTIRIF→20 cajas, Verifone→30 vendidos, Reparación→13 equipos, FAST_TRACK→1+1; 100 con cajas/49 reparación/81 vendidos), Excel 12 cols, pytest 4/4.
+
+**Campo "Generador" editable en Edición Maestra de Proyectos · 2026-06-16:**
+- Reemplazó el enfoque de backfill automático del Generador (descartado: la data migrada/Preview no conserva el origen) por edición MANUAL.
+- Backend (routes/projects.py · master-override): `MasterOverridePayload` ahora acepta `generador_user_id`; resuelve el usuario y setea `created_by_user_id` + `created_by_name` (o "—" si "__none__"). Diff de auditoría incluye etiqueta "Generador".
+- Frontend (MasterEditDialog.jsx): nuevo Select "Generador (Vendedor)" en sección Clasificación, poblado con `/auth/users` (todos los usuarios activos, orden A-Z). testid `master-generador-select`. Preselecciona por `created_by_user_id`.
+- Removidos: botón "Cargar Generador" (Projects.jsx) + endpoint `POST /projects/backfill-generator` + endpoint previo `backfill-impl-date` (este último ya ejecutado en Prod, one-time).
+- Validado vía curl: PUT master-override con generador_user_id → created_by_name/created_by_user_id actualizados, changes_count=1. Frontend compila OK. Smoke test visual no corrió (preview env dormido - gate de plataforma).

@@ -100,6 +100,7 @@ const BankProductsEditor = ({ value, onChange, banksCatalog, quoteType, testidPr
 export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
   const [banksCatalog, setBanksCatalog] = useState([]);
   const [hardwareCatalog, setHardwareCatalog] = useState([]);
+  const [usersList, setUsersList] = useState([]);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(null);
 
@@ -124,6 +125,7 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
     quote_type: (p.quote_type || 'VPOS').toUpperCase(),
     sponsoring_bank_name: p.sponsoring_bank_name || '',
     sponsoring_bank_id: p.sponsoring_bank_id || '',
+    generador_user_id: p.created_by_user_id || '',
     banks_products: matrixToRows(p.implementation_matrix),
     stores_products: (p.stores || []).map(s => ({
       store_id: s.store_id,
@@ -144,6 +146,11 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
         ]);
         setBanksCatalog(b.data || []);
         setHardwareCatalog(h.data || []);
+        const u = await api.get('/auth/users').catch(() => ({ data: [] }));
+        const sorted = (u.data || []).slice().sort((a, c) =>
+          (a.full_name || a.email || '').localeCompare(c.full_name || c.email || '', 'es', { sensitivity: 'base' })
+        );
+        setUsersList(sorted);
       } catch { /* noop */ }
     })();
   }, [open, project, initForm]);
@@ -189,6 +196,7 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
         quote_type: form.quote_type,
         sponsoring_bank_name: form.sponsoring_bank_name,
         sponsoring_bank_id: form.sponsoring_bank_id,
+        generador_user_id: form.generador_user_id || '__none__',
         hardware: form.hardware,
       };
       if (isMultistore) {
@@ -287,6 +295,21 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
                   <SelectContent>
                     <SelectItem value="__none__">— Ninguno —</SelectItem>
                     {banksCatalog.map(b => <SelectItem key={b.bank_id} value={b.name}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Generador (Vendedor)</Label>
+                <Select value={form.generador_user_id || '__none__'}
+                  onValueChange={v => set({ generador_user_id: v === '__none__' ? '' : v })}>
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="master-generador-select"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Sin asignar —</SelectItem>
+                    {usersList.map(u => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {u.full_name || u.email}{u.cargo ? ` · ${u.cargo}` : ''}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -247,27 +247,6 @@ const Projects = () => {
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
-  // Mantenimiento (Admin): backfill del "Generador" (created_by_name) para
-  // proyectos antiguos que lo tengan vacío (idempotente / no destructivo).
-  const [backfillLoading, setBackfillLoading] = useState(false);
-  const handleBackfillGenerator = async () => {
-    if (!window.confirm('¿Cargar el nombre del "Generador" en los proyectos que lo tengan vacío?\n\nToma el dato de la cotización origen (o del usuario que la creó). Es seguro y solo afecta a los proyectos sin Generador.')) return;
-    setBackfillLoading(true);
-    try {
-      const { data } = await api.post('/projects/backfill-generator');
-      if (data.updated > 0) {
-        toast.success(`Generador cargado: ${data.updated} proyecto(s). Sin Generador restantes: ${data.remaining_missing}.`);
-      } else {
-        toast.info('Todos los proyectos ya tienen Generador asignado. No hubo cambios.');
-      }
-      fetchProjects();
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || 'No se pudo ejecutar la carga del Generador.');
-    } finally {
-      setBackfillLoading(false);
-    }
-  };
-
   useEffect(() => {
     api.get('/project-sla/config')
       .then((r) => setSlaConfig(r.data.config?.stages || null))
@@ -425,20 +404,6 @@ const Projects = () => {
                 >
                   <UserCog size={14} className="mr-1.5" />
                   Reasignación Masiva
-                </Button>
-              )}
-              {isAdmin && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBackfillGenerator}
-                  disabled={backfillLoading}
-                  data-testid="backfill-generator-btn"
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
-                  title="Cargar el nombre del 'Generador' en proyectos antiguos que lo tengan vacío (idempotente, solo Admin)"
-                >
-                  <RefreshCw size={14} className={`mr-1.5 ${backfillLoading ? 'animate-spin' : ''}`} />
-                  {backfillLoading ? 'Cargando…' : 'Cargar Generador'}
                 </Button>
               )}
               <Button
