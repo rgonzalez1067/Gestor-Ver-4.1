@@ -246,6 +246,28 @@ const Projects = () => {
   }, []);
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
+
+  // Mantenimiento (Admin): backfill de la fecha "Envío a Implementación" para
+  // proyectos antiguos que la tengan vacía (idempotente / no destructivo).
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const handleBackfillImplDate = async () => {
+    if (!window.confirm('¿Actualizar la fecha de "Envío a Implementación" en los proyectos que la tengan vacía?\n\nEsto rellena la fecha usando la de creación del proyecto. Es seguro y solo afecta a los que están sin fecha.')) return;
+    setBackfillLoading(true);
+    try {
+      const { data } = await api.post('/projects/backfill-impl-date');
+      if (data.updated > 0) {
+        toast.success(`Fechas actualizadas: ${data.updated} proyecto(s). Sin fecha restantes: ${data.remaining_missing}.`);
+      } else {
+        toast.info('Todos los proyectos ya tienen la fecha de Envío a Implementación. No hubo cambios.');
+      }
+      fetchProjects();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'No se pudo ejecutar la actualización de fechas.');
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
   useEffect(() => {
     api.get('/project-sla/config')
       .then((r) => setSlaConfig(r.data.config?.stages || null))
@@ -403,6 +425,20 @@ const Projects = () => {
                 >
                   <UserCog size={14} className="mr-1.5" />
                   Reasignación Masiva
+                </Button>
+              )}
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBackfillImplDate}
+                  disabled={backfillLoading}
+                  data-testid="backfill-impl-date-btn"
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  title="Rellenar la fecha de 'Envío a Implementación' en proyectos antiguos que la tengan vacía (idempotente, solo Admin)"
+                >
+                  <RefreshCw size={14} className={`mr-1.5 ${backfillLoading ? 'animate-spin' : ''}`} />
+                  {backfillLoading ? 'Actualizando…' : 'Actualizar fechas Envío a Imple'}
                 </Button>
               )}
               <Button
