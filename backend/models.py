@@ -392,6 +392,9 @@ class IntegratorCreate(BaseModel):
     last_contact_date: Optional[str] = None
     contacts: Optional[List[TechnicalContact]] = None
     integration_phase: Optional[str] = "Negociación"
+    # Alcance del proyecto: "new" (integración base/desde cero o nuevo tipo) |
+    # "expansion" (ampliación de un tipo de integración ya vigente del integrador).
+    project_scope: Optional[str] = "new"
 
 class Integrator(BaseModel):
     integrator_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:12]}")
@@ -415,6 +418,7 @@ class Integrator(BaseModel):
     has_overdue_commitments: Optional[bool] = None
     assigned_at: Optional[str] = None
     assigned_by: Optional[str] = None
+    project_scope: Optional[str] = "new"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -83,6 +83,15 @@ export const Integrators = () => {
   const [filterIntType, setFilterIntType] = useState('');
   const [filterModality, setFilterModality] = useState('');
   const [filterGestor, setFilterGestor] = useState('');
+  const [filterScope, setFilterScope] = useState(''); // '' | 'all' | 'new' | 'expansion'
+  // Wizard de creación (Nuevo Proyecto de Integración)
+  const [wizardStep, setWizardStep] = useState(1);        // 1: identificación · 2: naturaleza
+  const [integratorMode, setIntegratorMode] = useState(''); // '' | 'existing' | 'new'
+  const [nameQuery, setNameQuery] = useState('');           // texto del buscador predictivo
+  const [existingName, setExistingName] = useState('');     // integrador existente seleccionado
+  const [scopeChoice, setScopeChoice] = useState('');       // '' | 'new_type' | 'expansion'
+  const [expandTargetId, setExpandTargetId] = useState(''); // integrator_id (fila) a ampliar
+  const [wizardSaving, setWizardSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '', integrator_type: '', integration_type: '', app_name: '',
     integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '',
@@ -268,7 +277,143 @@ export const Integrators = () => {
   const resetForm = () => {
     setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', contacts: [] });
     setEditingIntegrator(null);
+    resetWizard();
   };
+
+  /* ---- Wizard de creación (Nuevo Proyecto de Integración) ---- */
+  const resetWizard = () => {
+    setWizardStep(1);
+    setIntegratorMode('');
+    setNameQuery('');
+    setExistingName('');
+    setScopeChoice('');
+    setExpandTargetId('');
+  };
+
+  // Nombres distintos de integradores ya registrados (para el buscador predictivo).
+  const existingNames = useMemo(
+    () => Array.from(new Set(integrators.map((i) => (i.name || '').trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })),
+    [integrators]
+  );
+  // Sugerencias filtradas por el texto tipeado.
+  const nameSuggestions = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    if (!q) return [];
+    return existingNames.filter((n) => n.toLowerCase().includes(q)).slice(0, 8);
+  }, [existingNames, nameQuery]);
+  const nameExactMatch = useMemo(
+    () => existingNames.some((n) => n.toLowerCase() === nameQuery.trim().toLowerCase()),
+    [existingNames, nameQuery]
+  );
+  // Filas (proyectos) del integrador existente seleccionado.
+  const existingRows = useMemo(
+    () => (existingName ? integrators.filter((i) => (i.name || '').trim() === existingName) : []),
+    [integrators, existingName]
+  );
+  // Tipos de integración vigentes del integrador (CR/LP/PG/MP/TK distintos).
+  const existingTypes = useMemo(
+    () => Array.from(new Set(existingRows.map((r) => r.integration_type).filter(Boolean))),
+    [existingRows]
+  );
+
+  // Selecciona un integrador existente desde el buscador → pasa a Paso 2.
+  const selectExistingIntegrator = (name) => {
+    const rows = integrators.filter((i) => (i.name || '').trim() === name);
+    setIntegratorMode('existing');
+    setExistingName(name);
+    setNameQuery(name);
+    const firstType = rows[0]?.integrator_type || '';
+    setFormData((prev) => ({ ...prev, name, integrator_type: firstType }));
+    // Si solo tiene una fila/tipo, preselecciona para Ampliación.
+    setExpandTargetId(rows.length === 1 ? rows[0].integrator_id : '');
+    setScopeChoice('');
+    setWizardStep(2);
+  };
+
+  // El operador decide registrar un integrador completamente nuevo.
+  const startNewIntegrator = () => {
+    setIntegratorMode('new');
+    setExistingName('');
+    setScopeChoice('');
+    setFormData((prev) => ({ ...prev, name: nameQuery.trim() }));
+  };
+
+  // Guarda el flujo del wizard según modo/alcance.
+  const handleWizardSubmit = async () => {
+    // --- Caso: Ampliación de un tipo vigente (actualiza la fila existente) ---
+    if (integratorMode === 'existing' && scopeChoice === 'expansion') {
+      if (!expandTargetId) { toast.error('Selecciona el tipo de integración a ampliar'); return; }
+      setWizardSaving(true);
+      try {
+        await api.post(`/integrators/${expandTargetId}/expand`);
+        toast.success('Proyecto marcado como Ampliación (en curso)');
+        setDialogOpen(false); resetForm(); fetchData();
+      } catch (e) { toast.error(e.response?.data?.detail || 'Error al registrar la ampliación'); }
+      finally { setWizardSaving(false); }
+      return;
+    }
+    // --- Caso: Nuevo Tipo (existente) o Integrador Nuevo → crea fila scope='new' ---
+    const isNewType = integratorMode === 'existing' && scopeChoice === 'new_type';
+    const name = isNewType ? existingName : (formData.name || '').trim();
+    if (!name) { toast.error('Indica el nombre del integrador'); return; }
+    if (!formData.integration_type) { toast.error('Selecciona el Tipo de Integración'); return; }
+    if (!formData.integrator_type) { toast.error('Selecciona el Tipo de Integrador'); return; }
+    if (!formData.app_name) { toast.error('Indica el Nombre del Aplicativo'); return; }
+    setWizardSaving(true);
+    try {
+      const initCerts = {};
+      certProducts.forEach((p) => { initCerts[p.service_id] = 'N/A'; });
+      const payload = { ...formData, name, project_scope: 'new', certifications: initCerts };
+      const res = await api.post('/integrators', payload);
+      toast.success(isNewType ? 'Nuevo tipo de integración registrado' : 'Integrador creado');
+      setDialogOpen(false); resetForm(); fetchData();
+      const newIntegrator = res.data;
+      setEmailNotifyIntegrator({ ...payload, integrator_id: newIntegrator?.integrator_id || '' });
+      setEmailCustomMessage(''); setEmailNewRecipient(''); setEmailRecipientsList([]);
+      setEmailNotifyOpen(true);
+    } catch { toast.error('Error al guardar el proyecto de integración'); }
+    finally { setWizardSaving(false); }
+  };
+
+  // Campos núcleo reutilizados por "Integrador Nuevo" y "Nuevo Tipo".
+  const renderWizardCoreFields = ({ lockIntegratorType }) => (
+    <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3">
+      <div>
+        <Label>Tipo de Integración *</Label>
+        <Select value={formData.integration_type} onValueChange={(v) => setFormData({ ...formData, integration_type: v })}>
+          <SelectTrigger data-testid="wizard-integration-type"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+          <SelectContent>{INTEGRATION_TYPE_OPTIONS.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Tipo de Integrador *</Label>
+        {lockIntegratorType ? (
+          <div className="h-10 flex items-center px-3 rounded-md border bg-slate-50 text-sm text-slate-600" data-testid="wizard-integrator-type-locked">{formData.integrator_type || '—'}</div>
+        ) : (
+          <Select value={formData.integrator_type} onValueChange={(v) => setFormData({ ...formData, integrator_type: v })}>
+            <SelectTrigger data-testid="wizard-integrator-type"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+            <SelectContent>{INTEGRATOR_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+          </Select>
+        )}
+      </div>
+      <div className="col-span-2">
+        <Label>Nombre del Aplicativo *</Label>
+        <DebouncedInput value={formData.app_name} onCommit={(v) => setFormData(prev => ({ ...prev, app_name: v }))} placeholder="Ej: PaymentHub v3" data-testid="wizard-app-name" />
+      </div>
+      <div>
+        <Label>Modalidad de Integración</Label>
+        <Select value={formData.integration_modality || ''} onValueChange={(v) => setFormData({ ...formData, integration_modality: v })}>
+          <SelectTrigger data-testid="wizard-modality"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+          <SelectContent>{INTEGRATION_MODALITIES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Correo de Contacto</Label>
+        <Input value={formData.email || ''} onChange={(e) => setFormData({ ...formData, email: e.target.value })} type="email" placeholder="correo@empresa.com" data-testid="wizard-email" />
+      </div>
+    </div>
+  );
 
   const toggleCert = async (integratorId, serviceId, currentVal) => {
     const idx = CERT_CYCLE.indexOf(currentVal || 'N/A');
@@ -584,6 +729,11 @@ export const Integrators = () => {
     if (filterIntType && filterIntType !== 'all' && intg.integration_type !== filterIntType) return false;
     if (filterModality && filterModality !== 'all' && intg.integration_modality !== filterModality) return false;
     if (filterGestor && filterGestor !== 'all' && intg.gestor !== filterGestor) return false;
+    if (filterScope && filterScope !== 'all') {
+      // Filas heredadas (sin project_scope) cuentan como 'new' (base).
+      const scope = intg.project_scope === 'expansion' ? 'expansion' : 'new';
+      if (scope !== filterScope) return false;
+    }
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return intg.name?.toLowerCase().includes(s) || intg.app_name?.toLowerCase().includes(s) || intg.integration_modality?.toLowerCase().includes(s) || intg.gestor?.toLowerCase().includes(s);
@@ -629,6 +779,7 @@ export const Integrators = () => {
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader><DialogTitle className="font-manrope text-xl">{editingIntegrator ? 'Editar Proyecto de Integración' : 'Nuevo Proyecto de Integración'}</DialogTitle></DialogHeader>
+                  {editingIntegrator ? (
                   <form onSubmit={handleSubmit} className="space-y-4 mt-2">
                     {/* === FASE 1: Datos Técnicos de Origen (siempre visibles) === */}
                     <div className="space-y-1">
@@ -750,6 +901,143 @@ export const Integrators = () => {
                       <Button type="submit" className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="submit-integrator-btn">{editingIntegrator ? 'Actualizar' : 'Crear'}</Button>
                     </div>
                   </form>
+                  ) : (
+                  <div className="space-y-4 mt-2" data-testid="integrator-wizard">
+                    {/* Stepper */}
+                    <div className="flex items-center gap-2 text-xs mb-1">
+                      <span className={wizardStep === 1 ? 'font-bold text-brand-blue-600' : 'text-slate-400'}>1. Identificación del Integrador</span>
+                      <span className="text-slate-300">→</span>
+                      <span className={wizardStep === 2 ? 'font-bold text-brand-blue-600' : 'text-slate-400'}>2. Naturaleza del Proyecto</span>
+                    </div>
+
+                    {/* ===== PASO 1: Identificación ===== */}
+                    {wizardStep === 1 && (
+                      <div className="space-y-3">
+                        <div>
+                          <Label>Nombre del Integrador *</Label>
+                          <Input
+                            value={nameQuery}
+                            onChange={(e) => { setNameQuery(e.target.value); if (integratorMode) { setIntegratorMode(''); setExistingName(''); } }}
+                            placeholder="Escribe para buscar un integrador existente..."
+                            autoComplete="off"
+                            data-testid="wizard-name-search"
+                          />
+                        </div>
+                        {/* Sugerencias de integradores existentes */}
+                        {integratorMode !== 'new' && nameSuggestions.length > 0 && (
+                          <div className="border rounded-md divide-y max-h-44 overflow-y-auto" data-testid="wizard-name-suggestions">
+                            {nameSuggestions.map((n) => (
+                              <button type="button" key={n} onClick={() => selectExistingIntegrator(n)} className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center gap-2" data-testid="wizard-suggestion">
+                                <Users size={13} className="text-brand-blue-500" /> {n}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {/* Sin coincidencia exacta → ofrecer alta de nuevo integrador */}
+                        {integratorMode !== 'new' && nameQuery.trim() && !nameExactMatch && (
+                          <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-center justify-between gap-2">
+                            <span>No existe un integrador llamado «{nameQuery.trim()}».</span>
+                            <Button type="button" size="sm" variant="outline" onClick={startNewIntegrator} data-testid="wizard-register-new-btn"><Plus size={13} className="mr-1" />Registrar como Nuevo Integrador</Button>
+                          </div>
+                        )}
+                        {/* Modo NUEVO INTEGRADOR: formulario de alta */}
+                        {integratorMode === 'new' && (
+                          <div data-testid="wizard-new-integrator-fields">
+                            <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Alta de Nuevo Integrador · «{formData.name}»</p>
+                            {renderWizardCoreFields({ lockIntegratorType: false })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ===== PASO 2: Naturaleza (solo integrador existente) ===== */}
+                    {wizardStep === 2 && integratorMode === 'existing' && (
+                      <div className="space-y-4">
+                        {/* Panel solo lectura */}
+                        <div className="rounded-md border bg-slate-50 p-3 space-y-2" data-testid="wizard-existing-panel">
+                          <p className="text-xs font-semibold text-slate-600">Integrador: <span className="text-slate-900">{existingName}</span></p>
+                          <div>
+                            <p className="text-[11px] uppercase text-slate-400">Tipos de Integración vigentes</p>
+                            <div className="flex flex-wrap gap-1 mt-1" data-testid="wizard-existing-types">
+                              {existingTypes.length ? existingTypes.map((t) => <span key={t} className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">{t}</span>) : <span className="text-xs text-slate-400">—</span>}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase text-slate-400">Aplicativos Certificados</p>
+                            <div className="mt-1 space-y-1" data-testid="wizard-certified-apps">
+                              {existingRows.filter((r) => r.integrator_status === 'Certificado').length
+                                ? existingRows.filter((r) => r.integrator_status === 'Certificado').map((r) => (
+                                  <div key={r.integrator_id} className="text-xs text-slate-700 flex items-center gap-2"><CheckCircle size={12} className="text-emerald-600" />{r.app_name} <span className="text-[10px] text-slate-400">({r.integration_type || '—'})</span></div>
+                                ))
+                                : <span className="text-xs text-slate-400">Sin aplicativos certificados</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bifurcación */}
+                        <div>
+                          <Label>¿Es un nuevo tipo de integración o una ampliación de los tipos existentes? *</Label>
+                          <div className="flex gap-2 mt-2">
+                            <button type="button" onClick={() => setScopeChoice('expansion')} data-testid="wizard-scope-expansion"
+                              className={`px-3 py-2 rounded-md text-sm font-semibold border-2 transition ${scopeChoice === 'expansion' ? 'bg-fuchsia-600 text-white border-fuchsia-700' : 'bg-white text-slate-700 border-slate-200 hover:border-fuchsia-400'}`}>
+                              Ampliación de tipo vigente
+                            </button>
+                            <button type="button" onClick={() => { setScopeChoice('new_type'); setFormData((prev) => ({ ...prev, integration_type: '', app_name: '', integration_modality: '', integrator_type: existingRows[0]?.integrator_type || '' })); }} data-testid="wizard-scope-new-type"
+                              className={`px-3 py-2 rounded-md text-sm font-semibold border-2 transition ${scopeChoice === 'new_type' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'}`}>
+                              Nuevo Tipo de Integración
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Opción A: Ampliación */}
+                        {scopeChoice === 'expansion' && (
+                          <div data-testid="wizard-expansion-block">
+                            <Label>Selecciona la integración vigente a ampliar *</Label>
+                            <div className="space-y-1 mt-1">
+                              {existingRows.map((r) => (
+                                <label key={r.integrator_id} className="flex items-center gap-2 border rounded-md px-2 py-1.5 cursor-pointer hover:bg-fuchsia-50" data-testid={`wizard-expand-option-${r.integrator_id}`}>
+                                  <input type="radio" name="expandTarget" checked={expandTargetId === r.integrator_id} onChange={() => setExpandTargetId(r.integrator_id)} data-testid={`wizard-expand-radio-${r.integrator_id}`} />
+                                  <span className="text-xs"><span className="font-bold text-indigo-700">{r.integration_type || '—'}</span> · {r.app_name} <span className="text-slate-400">({r.integration_modality || 'sin modalidad'})</span></span>
+                                </label>
+                              ))}
+                            </div>
+                            {existingRows.length > 1 && !expandTargetId && (
+                              <p className="text-[11px] text-amber-600 mt-1">Debes seleccionar cuál tipo será ampliado antes de guardar.</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Opción B: Nuevo Tipo */}
+                        {scopeChoice === 'new_type' && (
+                          <div data-testid="wizard-new-type-block">
+                            <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Nuevo Tipo para «{existingName}»</p>
+                            {renderWizardCoreFields({ lockIntegratorType: true })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Footer del wizard */}
+                    <div className="flex justify-between gap-3 pt-2">
+                      <div>
+                        {wizardStep === 2 && (
+                          <Button type="button" variant="ghost" onClick={() => { setWizardStep(1); setScopeChoice(''); }} data-testid="wizard-back-btn">Atrás</Button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancelar</Button>
+                        {wizardStep === 1 && integratorMode === 'new' && (
+                          <Button type="button" onClick={handleWizardSubmit} disabled={wizardSaving} className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="wizard-submit-btn">Crear Integrador</Button>
+                        )}
+                        {wizardStep === 2 && scopeChoice && (
+                          <Button type="button" onClick={handleWizardSubmit} disabled={wizardSaving} className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="wizard-submit-btn">
+                            {scopeChoice === 'expansion' ? 'Guardar Ampliación' : 'Crear Nuevo Tipo'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  )}
                 </DialogContent>
               </Dialog>}
             </div>
@@ -812,8 +1100,19 @@ export const Integrators = () => {
                   {gestorOptions.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {(filterStatus || filterType || filterIntType || filterModality || filterGestor || searchTerm) && (
-                <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setFilterStatus('all'); setFilterType('all'); setFilterIntType('all'); setFilterModality('all'); setFilterGestor('all'); setSearchTerm(''); }} data-testid="clear-filters-btn">Limpiar</Button>
+              <Select value={filterScope} onValueChange={setFilterScope}>
+                <SelectTrigger className="w-[200px] h-9 text-xs" data-testid="filter-scope">
+                  <span className="text-[10px] uppercase text-slate-500 mr-1 shrink-0">Alcance:</span>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="new">Proyectos Nuevos</SelectItem>
+                  <SelectItem value="expansion">Proyectos Ampliados</SelectItem>
+                </SelectContent>
+              </Select>
+              {(filterStatus || filterType || filterIntType || filterModality || filterGestor || filterScope || searchTerm) && (
+                <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setFilterStatus('all'); setFilterType('all'); setFilterIntType('all'); setFilterModality('all'); setFilterGestor('all'); setFilterScope('all'); setSearchTerm(''); }} data-testid="clear-filters-btn">Limpiar</Button>
               )}
             </div>
           </div>
@@ -860,17 +1159,26 @@ export const Integrators = () => {
                 <tbody className="divide-y divide-slate-100">
                   {filteredIntegrators.length === 0 ? (
                     <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
-                  ) : filteredIntegrators.map((intg) => (
+                  ) : filteredIntegrators.map((intg) => {
+                    const isExpanding = intg.project_scope === 'expansion' && intg.integrator_status !== 'Certificado';
+                    return (
                     <Fragment key={intg.integrator_id}>
                       <tr className={`transition-colors ${
-                        !intg.implementador
-                          ? 'bg-amber-50/60 hover:bg-amber-100/60'
-                          : intg.integrator_status === 'En proceso'
-                            ? 'bg-blue-50/40 hover:bg-blue-100/40'
-                            : 'hover:bg-slate-50'
+                        isExpanding
+                          ? 'bg-fuchsia-50 hover:bg-fuchsia-100/70'
+                          : !intg.implementador
+                            ? 'bg-amber-50/60 hover:bg-amber-100/60'
+                            : intg.integrator_status === 'En proceso'
+                              ? 'bg-blue-50/40 hover:bg-blue-100/40'
+                              : 'hover:bg-slate-50'
                       }`} data-testid={`integrator-row-${intg.integrator_id}`}>
                         <td className="px-3 py-2">
                           <p className="font-medium text-slate-900 text-sm truncate" title={intg.name}>{intg.name}</p>
+                          {isExpanding && (
+                            <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-fuchsia-600 text-white" data-testid={`expansion-badge-${intg.integrator_id}`}>
+                              <RefreshCw size={9} /> AMPLIACIÓN
+                            </span>
+                          )}
                         </td>
                         <td className="px-2 py-2 text-center">
                           {intg.integration_type ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">{intg.integration_type}</span> : <span className="text-slate-300">—</span>}
@@ -1048,7 +1356,8 @@ export const Integrators = () => {
                         );
                       })()}
                     </Fragment>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

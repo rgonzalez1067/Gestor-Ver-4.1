@@ -1,0 +1,36 @@
+{
+  "summary": "Tested new Integrators Wizard feature (iter 100): predictive search, scope branching (new vs expansion), expansion badge in grid, new 'Alcance del Proyecto' filter, and edit regression. All backend (4/4 pytest) and UI (7/7 critical assertions) tests pass. Created and cleaned up TEST_ integrators; no production data modified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators page", "issues": ["Console hydration errors: <span> nested inside <tr>/<tbody> in the grid markup (React HTML validity warnings). Non-blocking but pollutes console."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_integrators_wizard.py",
+    "/app/test_reports/pytest/wizard_results.xml"
+  ],
+  "action_items": [
+    "Optional: fix HTML hydration warnings in Integrators.jsx grid row (span inside tbody/tr)."
+  ],
+  "critical_code_review_comments": [
+    "Backend POST /integrators/{id}/expand is idempotent and does NOT validate that the row currently has a non-expansion scope. Calling expand on an already-certified row silently overwrites integrator_status to 'En proceso' even if there was no real change of scope. Consider returning a 409 or no-op when project_scope is already 'expansion'.",
+    "Integrators.jsx is 1977 lines — exceeds the 700-line guideline; split wizard, grid, dialogs, bitacora and evolution into separate components/files.",
+    "expand endpoint has no RBAC check (any authenticated user can flip a row to expansion). Consider restricting to admin/canCreate."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_integrators_wizard.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin) — used as provided",
+  "seed_data_creation": "Created and DELETED ephemeral TEST_ integrators (TEST_WIZ_*, TEST_EXP_*, TEST_UI_AMP_*). No production rows modified.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Wizard, expansion, grid badge (fucsia + AMPLIACIÓN), filter-scope (Todos/Proyectos Nuevos/Proyectos Ampliados) and edit-classic-form regression all verified end-to-end with admin credentials. Backend pytest at /app/backend/tests/test_integrators_wizard.py (4 cases, all green). Be aware: console shows pre-existing React hydration warnings (span inside tr) unrelated to this iteration.",
+  "rca of the issue": "N/A — no defects found in this iteration."
+}
