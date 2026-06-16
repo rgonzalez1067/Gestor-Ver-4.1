@@ -19,13 +19,39 @@ router = APIRouter()
 
 # ==================== ANEXOS (ATTACHMENTS) ENDPOINTS ====================
 
+async def _require_quote_attachment_access(authorization: Optional[str], level: str = "read"):
+    """RBAC para anexos de COTIZACIONES VIGENTES (menú Cotizaciones).
+
+    Estos anexos pertenecen a cotizaciones aún activas y son INDEPENDIENTES de la
+    funcionalidad de Anexos del Histórico de Cotizaciones (que se gobierna por el
+    módulo `quote_history` en los endpoints /quote-history/...). El acceso aquí
+    sigue el acceso del usuario a Cotizaciones:
+      - read:  Admin, o `cotizaciones` >= Consulta, o permiso especial cotizaciones:* (Equipos/Reparaciones/Impl).
+      - edit:  Admin, o `cotizaciones` = Edición, o permiso especial cotizaciones:*.
+    """
+    user = await get_current_user(authorization)
+    if user.get("role") == "admin":
+        return user
+    perms = user.get("permissions", {}) or {}
+    cot = perms.get("cotizaciones", "none")
+    specials = user.get("special_permissions", []) or []
+    has_cot_special = any(str(s).startswith("cotizaciones:") for s in specials)
+    if level == "edit":
+        if cot == "edit" or has_cot_special:
+            return user
+    else:
+        if cot in ("read", "edit") or has_cot_special:
+            return user
+    raise HTTPException(status_code=403, detail="No tiene acceso a los anexos de esta cotización")
+
+
 @router.get("/quotes/{quote_id}/attachments")
 async def get_quote_attachments(quote_id: str, authorization: Optional[str] = Header(None)):
     """Obtiene todos los anexos de una cotización.
 
-    RBAC (Matriz estricta de Anexos): exige al menos nivel 'Consulta' (read) en
-    el módulo `quote_history` (o ser Administrador) para listar/visualizar."""
-    await require_permission(authorization, "quote_history", "read")
+    RBAC: anexos de Cotizaciones vigentes (independiente del Histórico). Exige
+    acceso de Consulta a `cotizaciones` (o especial Equipos/Reparaciones, o Admin)."""
+    await _require_quote_attachment_access(authorization, "read")
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "attachments": 1, "quote_number": 1})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
@@ -45,9 +71,9 @@ async def upload_quote_attachment(
 ):
     """Sube un anexo a una cotización.
 
-    RBAC (Matriz estricta de Anexos — Histórico de Cotizaciones):
-      - La carga (POST) exige nivel 'Edición Total' (edit) en el módulo
-        `quote_history`, o ser Administrador. Se valida en backend (no solo UI).
+    RBAC: anexos de Cotizaciones vigentes (independiente del Histórico).
+      - La carga (POST) exige nivel de Edición en `cotizaciones` (o especial
+        Equipos/Reparaciones, o Admin). Se valida en backend (no solo UI).
       - Excepción: el flujo de Taller → "Reparación completada" envía
         context='taller_repair'; ese caso mantiene su comportamiento previo
         (cualquier usuario autenticado) para no bloquear la operación de taller.
@@ -55,7 +81,7 @@ async def upload_quote_attachment(
     if context == "taller_repair":
         current_user = await get_current_user(authorization)
     else:
-        current_user = await require_permission(authorization, "quote_history", "edit")
+        current_user = await _require_quote_attachment_access(authorization, "edit")
 
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
@@ -157,10 +183,10 @@ async def download_quote_attachment(quote_id: str, attachment_id: str, authoriza
       2) Object Storage solo como fallback (~500-2000ms de red) para los
          anexos viejos que ya no están en el FS efímero del pod tras un deploy.
 
-    RBAC (Matriz estricta de Anexos): exige al menos nivel 'Consulta' (read) en
-    el módulo `quote_history` (o ser Administrador) para descargar.
+    RBAC: anexos de Cotizaciones vigentes (independiente del Histórico). Exige
+    acceso de Consulta a `cotizaciones` (o especial Equipos/Reparaciones, o Admin).
     """
-    await require_permission(authorization, "quote_history", "read")
+    await _require_quote_attachment_access(authorization, "read")
 
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:

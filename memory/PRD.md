@@ -5,6 +5,23 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Bugfix: "Error al cargar los anexos" en Cotizaciones vigentes (perfil Analista de Operaciones) — Jun 2026
+
+**Síntoma:** Usuarios con perfil Operaciones (y en general cualquiera con `quote_history='none'`) no podían cargar/ver los anexos de Cotizaciones vigentes → "Error al cargar los anexos".
+
+**Causa raíz:** En la iteración 94 (Matriz estricta de Anexos) se ató TODO el endpoint `/quotes/{id}/attachments` al módulo `quote_history`. Pero esos anexos pertenecen a **Cotizaciones vigentes** (menú Cotizaciones) y son **independientes** de la funcionalidad de Anexos del Histórico (que tiene sus propios endpoints `/quote-history/...`). El perfil Operaciones tiene `quote_history='none'` → 403 "No tiene acceso al módulo 'quote_history'".
+
+**Fix (`backend/routes/attachments.py` + `server.py`):** nuevo helper `_require_quote_attachment_access` que gobierna `/quotes/{id}/attachments` por el módulo **`cotizaciones`** (+ permisos especiales `cotizaciones:*` Equipos/Reparaciones, + Admin):
+- GET/descargar: Admin o `cotizaciones`≥Consulta o especial.
+- POST: Admin o `cotizaciones`=Edición o especial (se mantiene la excepción `context='taller_repair'`).
+- DELETE: solo Admin (sin cambios).
+El Histórico (`/quote-history/...`) sigue gobernado por `quote_history` (matriz estricta intacta).
+
+**QA:** verificado por curl (Operaciones: GET 200, POST 200, DELETE 403; Admin DELETE 200) y pytest **`tests/test_attachments_rbac.py` 9/9 PASS** (ambas matrices; permisos del usuario de prueba restaurados automáticamente).
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 100: Proyectos de Integración — Wizard (búsqueda predictiva + alcance), indicador de Ampliación y filtro de Alcance — Jun 2026
 
 **Requerimiento:** Optimizar el alta de Proyectos de Integración (`/integrators`): (1) búsqueda predictiva del integrador (anti-duplicidad); (2) bifurcación Nuevo Tipo vs Ampliación; (3) indicador visual de ampliación en la grilla; (4) filtro "Alcance del Proyecto". Decisiones del usuario: Tipo de Integración=`integration_type` (CR/LP/PG/MP/TK); Ampliación **actualiza la fila del tipo existente** (no crea fila nueva); Proyecto Nuevo = integrador nuevo o existente+Nuevo Tipo; Proyecto Ampliado = existente+Ampliación; resaltar filas `project_scope='expansion'` con estatus ≠ 'Certificado'; filas heredadas = 'new'.

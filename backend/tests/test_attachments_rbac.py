@@ -1,26 +1,35 @@
-"""Backend tests — Matriz estricta de permisos de Anexos (Histórico de Cotizaciones).
+"""Backend tests — RBAC de Anexos (dos matrices independientes).
 
-Reglas validadas (módulo `quote_history`):
-  - Consulta (read):   GET listar/descargar OK; POST 403; DELETE 403.
-  - Edición Total (edit): GET OK; POST 200; DELETE 403 (solo admin elimina).
-  - Administrador (role): GET OK; POST 200; DELETE 200.
-  - Excepción Taller: POST con context='taller_repair' no exige quote_history:edit
-    (flujo de Reparación completada no se bloquea).
+1) Anexos de COTIZACIONES VIGENTES  (/quotes/{id}/attachments)
+   Gobernados por el módulo `cotizaciones` (+ permisos especiales cotizaciones:*),
+   INDEPENDIENTES del Histórico:
+     - read (GET/descargar): Admin, o cotizaciones>=Consulta, o especial cotizaciones:*
+     - edit (POST):          Admin, o cotizaciones=Edición, o especial cotizaciones:*
+     - delete:               solo Admin
+     - Excepción Taller: POST context='taller_repair' no se bloquea (autenticado).
 
-El test de "Edición Total" altera temporalmente el nivel de un usuario de prueba
-(srubio) a `edit` y lo revierte a `read` en el teardown.
+2) Anexos del HISTÓRICO  (/quote-history/{id}/attachments)
+   Gobernados por el módulo `quote_history` (Matriz estricta de Anexos):
+     - Consulta(read): GET OK; POST 403; DELETE 403
+     - Edición(edit):  GET OK; POST 200; DELETE 403
+     - Admin:          GET/POST/DELETE OK
+
+Usa la cuenta real de Operaciones (ragg1008) flexionando temporalmente sus
+permisos en BD y restaurándolos siempre en el teardown.
 """
 import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://rif-distribution.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN = {"email": "rgonzalez@megasoft.com.ve", "password": "admin123"}
-CONSULTA = {"email": "srubio@megasoft.com.ve", "password": "Test1234!"}  # quote_history=read
+OPS = {"email": "ragg1008@gmail.com", "password": "admin123"}  # Analista de Operaciones
 
-_uploaded = []  # (quote_id, attachment_id) creados para limpiar
+_uploaded = []        # (quote_id, attachment_id)
+_uploaded_hist = []   # (history_id, attachment_id)
+_original_perms = {}  # snapshot para restaurar
 
 
 def _login(creds):
@@ -35,14 +44,57 @@ def _sess(token):
     return s
 
 
+def _db():
+    import os
+    import config  # noqa: F401 — asegura load_dotenv
+    from pymongo import MongoClient
+    cli = MongoClient(os.environ["MONGO_URL"])
+    return cli, cli[os.environ["DB_NAME"]]
+
+
+def _snapshot_ops():
+    cli, db = _db()
+    u = db.users.find_one({"email": OPS["email"]}, {"_id": 0, "permissions": 1, "special_permissions": 1})
+    cli.close()
+    return u or {}
+
+
+def _set_ops(*, cotizaciones=None, quote_history=None, special=None):
+    cli, db = _db()
+    setter = {}
+    if cotizaciones is not None:
+        setter["permissions.cotizaciones"] = cotizaciones
+    if quote_history is not None:
+        setter["permissions.quote_history"] = quote_history
+    if special is not None:
+        setter["special_permissions"] = special
+    if setter:
+        db.users.update_one({"email": OPS["email"]}, {"$set": setter})
+    cli.close()
+
+
+def _restore_ops():
+    cli, db = _db()
+    perms = _original_perms.get("permissions", {}) or {}
+    db.users.update_one({"email": OPS["email"]}, {"$set": {
+        "permissions.cotizaciones": perms.get("cotizaciones", "edit"),
+        "permissions.quote_history": perms.get("quote_history", "none"),
+        "special_permissions": _original_perms.get("special_permissions", []) or [],
+    }})
+    cli.close()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _capture_and_restore():
+    global _original_perms
+    _original_perms = _snapshot_ops()
+    yield
+    _restore_ops()
+
+
 @pytest.fixture(scope="session")
 def admin():
     return _sess(_login(ADMIN))
-
-
-@pytest.fixture(scope="session")
-def consulta():
-    return _sess(_login(CONSULTA))
 
 
 @pytest.fixture(scope="session")
@@ -66,29 +118,11 @@ def history_id(admin):
 
 
 def teardown_module(module):
-    """Elimina (como admin) los anexos creados y asegura srubio en read."""
     s = _sess(_login(ADMIN))
     for qid, aid in _uploaded:
         s.delete(f"{API}/quotes/{qid}/attachments/{aid}", timeout=30)
     for hid, aid in _uploaded_hist:
         s.delete(f"{API}/quote-history/{hid}/attachments/{aid}", timeout=30)
-    # asegurar revert del nivel de srubio
-    try:
-        _set_quote_history_level("read")
-    except Exception:
-        pass
-
-
-def _set_quote_history_level(level: str):
-    """Ajusta el nivel quote_history del usuario de prueba (loop-independiente)."""
-    import os
-    import config  # noqa: F401 — asegura load_dotenv
-    from pymongo import MongoClient
-    cli = MongoClient(os.environ["MONGO_URL"])
-    cli[os.environ["DB_NAME"]].users.update_one(
-        {"email": CONSULTA["email"]}, {"$set": {"permissions.quote_history": level}}
-    )
-    cli.close()
 
 
 def _upload(sess, quote_id, **extra):
@@ -103,92 +137,82 @@ def _upload_hist(sess, history_id, **extra):
     return sess.post(f"{API}/quote-history/{history_id}/attachments", files=files, data=data, timeout=60)
 
 
-_uploaded_hist = []  # (history_id, attachment_id)
-
-
-# ---------------- Consulta (read) ----------------
-def test_consulta_can_list(consulta, quote_id):
-    r = consulta.get(f"{API}/quotes/{quote_id}/attachments", timeout=30)
+# ============================================================
+# 1) Anexos de COTIZACIONES VIGENTES  (módulo `cotizaciones`)
+# ============================================================
+def test_ops_cotizaciones_edit_can_list_and_upload_but_not_delete(quote_id):
+    """OPS con cotizaciones=edit (+ especiales): GET 200, POST 200, DELETE 403."""
+    _set_ops(cotizaciones="edit", special=["cotizaciones:equipos", "cotizaciones:reparaciones"])
+    sess = _sess(_login(OPS))
+    assert sess.get(f"{API}/quotes/{quote_id}/attachments", timeout=30).status_code == 200
+    r = _upload(sess, quote_id)
     assert r.status_code == 200, r.text
+    aid = r.json()["attachment"]["attachment_id"]
+    _uploaded.append((quote_id, aid))
+    rd = sess.delete(f"{API}/quotes/{quote_id}/attachments/{aid}", timeout=30)
+    assert rd.status_code == 403, rd.text  # solo admin elimina
 
 
-def test_consulta_cannot_upload(consulta, quote_id):
-    r = _upload(consulta, quote_id)
-    assert r.status_code == 403, r.text
+def test_ops_consulta_only_can_list_but_not_upload(quote_id):
+    """cotizaciones=read, sin especiales: GET 200, POST 403."""
+    _set_ops(cotizaciones="read", special=[])
+    sess = _sess(_login(OPS))
+    assert sess.get(f"{API}/quotes/{quote_id}/attachments", timeout=30).status_code == 200
+    assert _upload(sess, quote_id).status_code == 403
 
 
-def test_consulta_cannot_delete(consulta, quote_id):
-    r = consulta.delete(f"{API}/quotes/{quote_id}/attachments/att_inexistente", timeout=30)
-    assert r.status_code == 403, r.text
+def test_no_cotizaciones_access_is_blocked(quote_id):
+    """Sin acceso a cotizaciones ni especiales: GET 403, POST 403."""
+    _set_ops(cotizaciones="none", special=[])
+    sess = _sess(_login(OPS))
+    assert sess.get(f"{API}/quotes/{quote_id}/attachments", timeout=30).status_code == 403
+    assert _upload(sess, quote_id).status_code == 403
 
 
-def test_taller_context_bypasses_quote_history(consulta, quote_id):
-    """El flujo de Taller (context=taller_repair) no se bloquea por quote_history."""
-    r = _upload(consulta, quote_id, context="taller_repair")
+def test_taller_context_bypasses_rbac(quote_id):
+    """context='taller_repair' no se bloquea aunque no haya acceso a cotizaciones."""
+    _set_ops(cotizaciones="none", special=[])
+    sess = _sess(_login(OPS))
+    r = _upload(sess, quote_id, context="taller_repair")
     assert r.status_code == 200, r.text
     _uploaded.append((quote_id, r.json()["attachment"]["attachment_id"]))
 
 
-# ---------------- Administrador ----------------
-def test_admin_upload_and_delete(admin, quote_id):
+def test_admin_upload_and_delete_cotizacion(admin, quote_id):
     r = _upload(admin, quote_id)
     assert r.status_code == 200, r.text
     aid = r.json()["attachment"]["attachment_id"]
-    rd = admin.delete(f"{API}/quotes/{quote_id}/attachments/{aid}", timeout=30)
-    assert rd.status_code == 200, rd.text
-
-
-# ---------------- Edición Total (edit) ----------------
-def test_edicion_total_can_upload_but_not_delete(quote_id):
-    try:
-        _set_quote_history_level("edit")
-        sess = _sess(_login(CONSULTA))
-        r = _upload(sess, quote_id)
-        assert r.status_code == 200, r.text
-        aid = r.json()["attachment"]["attachment_id"]
-        # Edición Total NO puede eliminar (solo admin)
-        rd = sess.delete(f"{API}/quotes/{quote_id}/attachments/{aid}", timeout=30)
-        assert rd.status_code == 403, rd.text
-        _uploaded.append((quote_id, aid))
-    finally:
-        _set_quote_history_level("read")
+    assert admin.delete(f"{API}/quotes/{quote_id}/attachments/{aid}", timeout=30).status_code == 200
 
 
 # ============================================================
-# Histórico de Cotizaciones (/quote-history/{id}/attachments)
+# 2) Anexos del HISTÓRICO  (módulo `quote_history`)
 # ============================================================
-def test_hist_consulta_can_list(consulta, history_id):
-    r = consulta.get(f"{API}/quote-history/{history_id}/attachments", timeout=30)
+def test_hist_consulta_can_list_not_upload(history_id):
+    _set_ops(quote_history="read")
+    sess = _sess(_login(OPS))
+    assert sess.get(f"{API}/quote-history/{history_id}/attachments", timeout=30).status_code == 200
+    assert _upload_hist(sess, history_id).status_code == 403
+
+
+def test_hist_edicion_can_upload_not_delete(history_id):
+    _set_ops(quote_history="edit")
+    sess = _sess(_login(OPS))
+    r = _upload_hist(sess, history_id)
     assert r.status_code == 200, r.text
+    aid = r.json()["attachment"]["attachment_id"]
+    _uploaded_hist.append((history_id, aid))
+    assert sess.delete(f"{API}/quote-history/{history_id}/attachments/{aid}", timeout=30).status_code == 403
 
 
-def test_hist_consulta_cannot_upload(consulta, history_id):
-    r = _upload_hist(consulta, history_id)
-    assert r.status_code == 403, r.text
-
-
-def test_hist_consulta_cannot_delete(consulta, history_id):
-    r = consulta.delete(f"{API}/quote-history/{history_id}/attachments/att_inexistente", timeout=30)
-    assert r.status_code == 403, r.text
+def test_hist_no_access_blocked(history_id):
+    _set_ops(quote_history="none")
+    sess = _sess(_login(OPS))
+    assert sess.get(f"{API}/quote-history/{history_id}/attachments", timeout=30).status_code == 403
 
 
 def test_hist_admin_upload_and_delete(admin, history_id):
     r = _upload_hist(admin, history_id)
     assert r.status_code == 200, r.text
     aid = r.json()["attachment"]["attachment_id"]
-    rd = admin.delete(f"{API}/quote-history/{history_id}/attachments/{aid}", timeout=30)
-    assert rd.status_code == 200, rd.text
-
-
-def test_hist_edicion_total_can_upload_but_not_delete(history_id):
-    try:
-        _set_quote_history_level("edit")
-        sess = _sess(_login(CONSULTA))
-        r = _upload_hist(sess, history_id)
-        assert r.status_code == 200, r.text
-        aid = r.json()["attachment"]["attachment_id"]
-        rd = sess.delete(f"{API}/quote-history/{history_id}/attachments/{aid}", timeout=30)
-        assert rd.status_code == 403, rd.text
-        _uploaded_hist.append((history_id, aid))
-    finally:
-        _set_quote_history_level("read")
+    assert admin.delete(f"{API}/quote-history/{history_id}/attachments/{aid}", timeout=30).status_code == 200
