@@ -5,6 +5,17 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Mejora: Trazabilidad en la Matriz de Anexos de Cotizaciones + alineación de permiso de carga — Jun 2026
+
+**Mejora (`frontend/src/components/AnexosModal.jsx`):**
+- Cada tarjeta de anexo ahora muestra un **pie de trazabilidad** con un separador: autor (`uploaded_by_name`/`uploaded_by`, ícono Usuario) y fecha+hora de carga (`uploaded_at` formateado es-VE día/mes/año hora:min, ícono Reloj). data-testid `anexo-meta-{id}`.
+- **Alineación de permiso (cierre del bugfix de anexos):** el gate de "Subir" pasó de `usePermission('quote_history')` a **`usePermission('cotizaciones')`** + permisos especiales `cotizaciones:*` (`canUpload = canEdit || hasCotSpecial`), para que el botón "Subir" sea visible al perfil Operaciones (y demás con acceso a Cotizaciones) recién desbloqueado en el backend. `canDelete` sigue siendo solo Admin.
+
+**QA:** compila OK; campos de trazabilidad confirmados presentes en la respuesta de `/quotes/{id}/attachments`. (El screenshot E2E no se pudo completar por un timeout de login del tool en este entorno; cambio presentacional de bajo riesgo.)
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Bugfix: "Error al cargar los anexos" en Cotizaciones vigentes (perfil Analista de Operaciones) — Jun 2026
 
 **Síntoma:** Usuarios con perfil Operaciones (y en general cualquiera con `quote_history='none'`) no podían cargar/ver los anexos de Cotizaciones vigentes → "Error al cargar los anexos".

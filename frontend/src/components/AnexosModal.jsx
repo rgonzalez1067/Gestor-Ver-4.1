@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { FileText, Upload, Trash2, Download, FolderOpen, File, Image, FileSpreadsheet, Loader2, CreditCard, DollarSign } from 'lucide-react';
+import { FileText, Upload, Trash2, Download, FolderOpen, File, Image, FileSpreadsheet, Loader2, CreditCard, DollarSign, User, Clock } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -38,11 +38,13 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
   const [uploading, setUploading] = useState(null);
   const fileInputRefs = useRef({});
 
-  // Matriz estricta de permisos de Anexos (módulo "Histórico de Cotizaciones"):
-  //  - canUpload (Edición Total / Admin) → puede ver el botón "Subir".
-  //  - canDelete (solo Administrador)    → único que ve la papelera.
-  const { canEdit, isAdmin } = usePermission('quote_history');
-  const canUpload = canEdit;   // canEdit ya incluye admin
+  // Anexos de COTIZACIONES VIGENTES → gobernados por el módulo `cotizaciones`
+  // (independiente del Histórico). Coincide con el RBAC del backend:
+  //  - canUpload: Edición en `cotizaciones` o permiso especial cotizaciones:* (Equipos/Reparaciones/Impl).
+  //  - canDelete: solo Administrador.
+  const { canEdit, isAdmin, user } = usePermission('cotizaciones');
+  const hasCotSpecial = (user?.special_permissions || []).some((s) => String(s).startsWith('cotizaciones:'));
+  const canUpload = canEdit || hasCotSpecial;
   const canDelete = isAdmin;
 
   useEffect(() => {
@@ -208,36 +210,49 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
                       {files.map((att) => (
                         <div
                           key={att.attachment_id}
-                          className="flex items-center gap-2 bg-white rounded-md px-3 py-2 border border-slate-100 group"
+                          className="bg-white rounded-md px-3 py-2 border border-slate-100 group"
                           data-testid={`anexo-file-${att.attachment_id}`}
                         >
-                          {getFileIcon(att.filename)}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{att.filename}</p>
-                            <p className="text-xs text-slate-400">
-                              {formatFileSize(att.file_size)} · {att.uploaded_by_name || att.uploaded_by} · {new Date(att.uploaded_at).toLocaleDateString('es-VE')}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => handleDownload(att)}
-                              data-testid={`anexo-download-${att.attachment_id}`}
-                            >
-                              <Download size={14} />
-                            </Button>
-                            {canDelete && (
+                          <div className="flex items-center gap-2">
+                            {getFileIcon(att.filename)}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{att.filename}</p>
+                              <p className="text-xs text-slate-400">{formatFileSize(att.file_size)}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                                onClick={() => handleDelete(att.attachment_id, att.filename)}
-                                data-testid={`anexo-delete-${att.attachment_id}`}
+                                className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => handleDownload(att)}
+                                data-testid={`anexo-download-${att.attachment_id}`}
                               >
-                                <Trash2 size={14} />
+                                <Download size={14} />
                               </Button>
+                              {canDelete && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                  onClick={() => handleDelete(att.attachment_id, att.filename)}
+                                  data-testid={`anexo-delete-${att.attachment_id}`}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {/* Pie de trazabilidad: quién y cuándo subió el anexo */}
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5 pt-1.5 border-t border-slate-100 text-[11px] text-slate-500" data-testid={`anexo-meta-${att.attachment_id}`}>
+                            <span className="flex items-center gap-1" title="Subido por">
+                              <User size={11} className="text-slate-400" />
+                              <span className="font-medium text-slate-600">{att.uploaded_by_name || att.uploaded_by || 'Desconocido'}</span>
+                            </span>
+                            {att.uploaded_at && (
+                              <span className="flex items-center gap-1" title="Fecha de carga">
+                                <Clock size={11} className="text-slate-400" />
+                                {new Date(att.uploaded_at).toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
                             )}
                           </div>
                         </div>
