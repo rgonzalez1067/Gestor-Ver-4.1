@@ -5,6 +5,21 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 98: Posposición Limitada (Snooze) del Toast Fijo de Mensajes No Leídos — Jun 2026
+
+**Requerimiento:** Permitir posponer hasta 3 veces (tecla ENTER) el banner rojo fijo de Mensajes No Leídos (`GlobalUnreadBanner.jsx`, esquina superior derecha). Cada ENTER oculta el aviso en la vista actual y suma +1 al contador (en `sessionStorage`); reaparece en la siguiente navegación/recarga mostrando el intento (1/3 → 2/3 → 3/3). Tras agotar las 3 posposiciones, en la 4ª aparición el banner queda ANCLADO: muestra `locked-hint`, oculta el `snooze-hint` e ignora ENTER. Solo se destruye cuando el backend reporta `unread===0`.
+
+**Frontend:**
+- `components/GlobalUnreadBanner.jsx`: estado `lockedSticky` que se engancha (latch) SOLO al cambiar `location.pathname` cuando `snoozeCount>=MAX_SNOOZE` (3) — el conteo se lee por `snoozeCountRef` para que el 3er ENTER oculte en la vista actual sin re-disparar el latch. El effect de reset se gatea con `loaded && !hasUnread`.
+- `context/UnreadMessagesContext.jsx`: nuevo flag `loaded` (true tras la primera respuesta de `/inbox/me/summary`). Evita que el default `unread=0` durante la carga inicial borre el contador de `sessionStorage` en una recarga completa (F5).
+
+**Correcciones sobre iteration_97:** (a) el 3er ENTER ahora oculta (antes se anclaba en el acto, dejando solo 2 posposiciones efectivas); (b) la recarga completa ya no reinicia el contador.
+
+**QA:** testing_agent iteration_98.json → **6/6 escenarios PASS, 0 anomalías** (banner inicial 1/3; ENTER oculta y persiste ss='1'; nav SPA reaparece 2/3 y 3/3; 3er ENTER oculta ss='3'; 4ª aparición anclada con locked-hint e ENTER ignorado; recarga F5 preserva ss='1' → muestra 2/3; ENTER dentro de input no pospone).
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 97: Backfill de fecha 'Envío a Implementación' para producción — Jun 2026
 
 **Problema:** En el ambiente de deploy, los Proyectos creados antes de la corrección (registro automático de `sent_to_implementation_at` al crear) muestran la fecha "Envío a Implementación" vacía. El backfill previo solo corrió sobre la BD de Preview; producción usa otra BD.
