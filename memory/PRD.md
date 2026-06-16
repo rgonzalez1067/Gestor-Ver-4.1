@@ -5,6 +5,23 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 99: Proyectos Directos — Condicionalidad Payment Gateway / Link de Pago — Jun 2026
+
+**Requerimiento:** Adaptar dinámicamente el formulario de Proyectos Directos (`/direct-projects`) cuando el Tipo de Proyecto sea **Payment Gateway** (GATEWAY) o **Link de Pago** (LINK_PAGO): productos virtuales sin hardware/distribución física.
+
+**Comportamiento (frontend-only; el backend ya soportaba GATEWAY/LINK):**
+- Oculta **Número de Cajas** (`dp-cantidad-cajas`), **Control Multitienda** (`dp-multistore-toggle`) y el selector **Simple/Multi-RIF** (`dp-project-type-card`). Fuerza `project_type='simple'`, `is_multistore=false`, `cantidad_cajas=1`.
+- El **Reel de Distribución de Cajas** se transforma en **"Matriz de Bancos y Productos Digitales"**: selección Banco × Producto SIN input de cantidad (`dp-reel-quantity` oculto) ni columna "Cantidad" en la grilla; cada combinación = 1 asociación (quantity=1).
+- **Filtro de Integradores por modalidad de certificación** (homologado con el Cotizador, `INTEGRATOR_MODALITY_MATCH` + `certifiedIntegrators`, solo status 'Certificado'): VPOS→**REST**, MPOS→**MPOS**, GATEWAY/LINK→**PG Universal / PG No universal**. Aplica también a VPOS/MPOS (antes mostraba todos).
+- VPOS/MPOS conservan todo el comportamiento original (cajas, multitienda, Multi-RIF, reel con cantidades).
+
+**Archivos:** `pages/DirectProjectCreation.jsx` (helpers `PG_LIKE`/`INTEGRATOR_MODALITY_MATCH`, memo `isPaymentGateway`, `certifiedIntegrators`, render condicional). Sin cambios de backend.
+
+**QA:** testing_agent iteration_99.json → **5/5 criterios PASS** (conmutación reactiva POS↔Gateway/Link, reaparición al volver a VPOS/MPOS, filtro de integradores REST=116/MPOS=10/PG=99 con listas distintas por modo, persistencia: proyecto GATEWAY creado con implementation_matrix/services correctos y eliminado). Sin regresión VPOS/MPOS.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 98: Posposición Limitada (Snooze) del Toast Fijo de Mensajes No Leídos — Jun 2026
 
 **Requerimiento:** Permitir posponer hasta 3 veces (tecla ENTER) el banner rojo fijo de Mensajes No Leídos (`GlobalUnreadBanner.jsx`, esquina superior derecha). Cada ENTER oculta el aviso en la vista actual y suma +1 al contador (en `sessionStorage`); reaparece en la siguiente navegación/recarga mostrando el intento (1/3 → 2/3 → 3/3). Tras agotar las 3 posposiciones, en la 4ª aparición el banner queda ANCLADO: muestra `locked-hint`, oculta el `snooze-hint` e ignora ENTER. Solo se destruye cuando el backend reporta `unread===0`.
