@@ -12,7 +12,8 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 **Solución (`routes/projects.py`):** Nuevo endpoint admin-only `POST /api/projects/backfill-impl-date`. Rellena `sent_to_implementation_at = created_at` para los proyectos que la tengan vacía (un proyecto se crea exactamente en el momento del envío a implementación → created_at es el valor correcto, validado en Preview: created==sent en todos los backfilled). Idempotente y no destructivo (solo toca los vacíos). Devuelve `{total_missing_before, updated, skipped_no_created_at, remaining_missing}`.
 
 **Uso en producción (una sola vez tras redeploy):**
-- `POST /api/projects/backfill-impl-date` con token de Administrador, o desde la consola del navegador (logueado como admin): `fetch('/api/projects/backfill-impl-date',{method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('session_token')}}).then(r=>r.json()).then(console.log)`.
+- Botón **Admin** "Actualizar fechas Envío a Imple" en el encabezado de **/projects** (`data-testid="backfill-impl-date-btn"`, gateado por `isAdmin`): pide confirmación, llama al endpoint, muestra toast con el resultado y refresca el listado.
+- Alternativa por API: `POST /api/projects/backfill-impl-date` con token de Administrador, o desde la consola del navegador (logueado como admin): `fetch('/api/projects/backfill-impl-date',{method:'POST',headers:{Authorization:'Bearer '+localStorage.getItem('session_token')}}).then(r=>r.json()).then(console.log)`.
 
 **QA:** pytest `tests/test_backfill_impl_date.py` 2/2 PASS (admin 200 + idempotente; no-admin 403). curl en Preview → `updated:0, remaining_missing:0` (ya completo).
 **⚠️ Requiere redeploy para que el endpoint exista en producción; luego ejecutarlo una vez.**
