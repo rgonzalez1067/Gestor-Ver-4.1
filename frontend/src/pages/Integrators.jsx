@@ -861,7 +861,8 @@ export const Integrators = () => {
                           value={formData.email || ''}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           placeholder="correo@empresa.com"
-                          type="email"
+                          type="text"
+                          inputMode="email"
                           data-testid="integrator-email-input"
                         />
                       </div>

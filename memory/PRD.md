@@ -5,6 +5,26 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Iteration 103: Ficha de Integrador ampliada (Coordinador, Fecha Inicio, Nombre Proyecto, Observaciones) + plantilla de importación — Jun 2026
+
+**Requerimiento:** 4 campos nuevos en la ficha de Integrador (edición/visualización) + homologar la plantilla .xlsx con validación.
+
+**Backend (`integrators.py`, `models.py`):**
+- `Integrator`/`IntegratorCreate` + campos `coordinador`, `coordinador_user_id`, `project_start_date` (ISO), `project_name`, `observations`.
+- Nuevo `GET /integrators/coordinators`: lista usuarios activos con `cargo='Coordinador'` y `departamento='Implementación'` (alimenta el dropdown). En datos actuales: solo "Kevin Malaguera".
+- Export/Plantilla: orden exacto de columnas → **Coordinador** junto a Implementador, **Fecha de Inicio del Proyecto** antes de Último Contacto, **Nombre del Proyecto** y **Observaciones** al final (tras los 19 productos). Instrucciones actualizadas.
+- Importación: valida Coordinador (debe ser usuario con cargo Coordinador del depto Implementación → si no, rechaza la fila con "Error en fila X: Coordinador no encontrado o cargo inválido"); fuerza formato **DD/MM/AAAA** en Fecha de Inicio (rechaza otros formatos); persiste los 4 campos.
+
+**Frontend (`Integrators.jsx`):**
+- Carga `coordinators` en `fetchData`; bloque "Seguimiento del Proyecto" en el form de edición: Select Coordinador (testid `integrator-coordinador-select`), date `integrator-project-start-date`, input `integrator-project-name-input`, textarea `integrator-observations-textarea`. Persistidos vía PUT.
+- **Bugfix asociado (MEDIUM):** el input Correo usaba `type="email"` → la validación HTML5 abortaba el submit en integradores legacy con email inválido (teléfono), impidiendo guardar cualquier cambio. Cambiado a `type="text"` + `inputMode="email"`.
+
+**QA:** pytest `tests/test_integrator_followup_import.py` **PASS** (válido guarda los 4 campos; coordinador inválido y fecha mal formada rechazan la fila); plantilla con orden verificado; PUT persiste; testing_agent iteration_102.json → **UI 4/4** (dropdown lista solo "Kevin Malaguera", campos editables, guardado end-to-end; datos restaurados).
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+**Backlog:** warning de hidratación recurrente en la tabla de Integradores (span dentro de tbody/tr, ~L1226) — pre-existente; `Integrators.jsx` ~2037 líneas (refactor).
+
+
+
 ### Iteration 102: Garantía documental del PDF en "Enviar al Cliente" (incl. Modificar→Mantener Original) — Jun 2026
 
 **Requerimiento:** Asegurar que, sin importar la ruta (Crear Nueva / Modificar→Crear Nueva / Modificar→Mantener Original), el PDF de la cotización se genere, se indexe en anexos y se adjunte al enviar al cliente; y que si falta, el proceso se detenga y notifique.
