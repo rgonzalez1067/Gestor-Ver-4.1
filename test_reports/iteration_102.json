@@ -1,0 +1,40 @@
+{
+  "summary": "UI test of /integrators edit form ampliada (4 nuevos campos del 'Seguimiento del Proyecto'). Validado en el integrador 'Equinoccio Agency' (int_7c555185aa22): el dropdown Coordinador lista ÚNICAMENTE 'Kevin Malaguera', los 4 campos son visibles+editables y el guardado end-to-end persiste correctamente en backend y en el re-render del formulario. Regresión de campos previos OK. Datos del integrador restaurados al estado original.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Integrators.jsx -> Correo de Contacto input",
+        "issue": "El input usa type='email' (validación HTML5 estricta). Integradores con email histórico inválido (ej. 'cesar ramirez 0424-9404685' en int_7c555185aa22) NO se pueden Actualizar porque el navegador bloquea el submit antes de invocar handleSubmit (no se llega a llamar PUT). El usuario queda atrapado: para guardar cualquier cambio en la ficha (incluyendo los nuevos campos) primero debe corregir el correo. Afecta a la edición de fichas legacy.",
+        "selector": "[data-testid='integrator-email-input']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Integrators table",
+        "issues": [
+          "Console hydration warnings: <span data-ve-dynamic='true'> renderizado como hijo directo de <tbody> y como wrapper de <tr> (líneas ~1219/1226 de Integrators.jsx). React: 'In HTML, <span> cannot be a child of <tbody>' / '<tr> cannot be a child of <span>'. No rompe funcionalidad pero contamina logs y rompe la semántica de la tabla."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPCIONAL (no parte del feature pero descubierto): cambiar 'integrator-email-input' a type='text' con validación opcional, o agregar limpieza de datos en BD para emails históricos inválidos. Sin esto, ~N% de integradores legacy no se pueden editar.",
+    "OPCIONAL: revisar el wrapper <span data-ve-dynamic='true'> que envuelve <tr> dentro de <tbody> en Integrators.jsx (~línea 1226). Causa hydration warning."
+  ],
+  "critical_code_review_comments": [
+    "Integrators.jsx: archivo de 2037 líneas (excede 700) — recomendable extraer el formulario de edición a un componente separado.",
+    "El submit del form depende de validación HTML5 nativa del campo email; añadir validación explícita en handleSubmit con feedback claro al usuario."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped)", "frontend": "100% (4/4 criterios del feature)" },
+  "test_credentials": "admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna. Se modificó temporalmente el integrador int_7c555185aa22 (Equinoccio Agency) con valores TEST_QA_* y se RESTAURÓ a su estado original (coordinador='', project_start_date=None, project_name='', observations='', email='cesar ramirez 0424-9404685').",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature validado completo a nivel UI. Pruebas ejecutadas: (1) Dropdown coordinador devuelve únicamente 'Kevin Malaguera' (1 opción) en data-testid 'integrator-coordinador-select'. (2) data-testids existentes y editables: integrator-coordinador-select, integrator-project-start-date, integrator-project-name-input, integrator-observations-textarea. (3) PUT /api/integrators/{id} response 200; GET posterior confirma persistencia. (4) Reapertura del diálogo muestra los 4 valores guardados. (5) Campos legacy (nombre, aplicativo, modalidad, estatus, gestor, categoría, correo, ticket) se mantienen visibles. NOTA: para probar el guardado en integradores legacy con email inválido (ej. int_7c555185aa22) se debe limpiar/corregir el campo Correo de Contacto antes del submit; de lo contrario la validación HTML5 native bloquea el envío sin avisar via toast.",
+  "rca of the issue": "RCA del falso 'no guarda' detectado durante QA: en el primer intento de submit no se enviaba PUT al backend. Causa raíz: el integrador legacy tenía 'email' con valor 'cesar ramirez 0424-9404685' (no es email válido). El input <Input type='email' /> dispara validación HTML5 nativa al submit del <form>, mostrando popover 'Please include an @' y abortando el submit ANTES de llegar a handleSubmit/api.put. Reproducción: abrir edit en cualquier integrador con email inválido, modificar cualquier campo y pulsar 'Actualizar' → no ocurre PUT, no aparece toast. Mitigación temporal en el test: blanquear el campo email antes del submit (la validación HTML5 no se dispara si está vacío, ya que no es required). Solución definitiva sugerida: cambiar type='email' por type='text' + validación explícita en handleSubmit, o sanear los datos históricos en BD."
+}

@@ -392,6 +392,12 @@ class IntegratorCreate(BaseModel):
     last_contact_date: Optional[str] = None
     contacts: Optional[List[TechnicalContact]] = None
     integration_phase: Optional[str] = "Negociación"
+    # Campos de seguimiento operativo (ficha ampliada).
+    coordinador: Optional[str] = None          # nombre del Coordinador de Implementación
+    coordinador_user_id: Optional[str] = None
+    project_start_date: Optional[str] = None   # ISO (dd/mm/aaaa en UI/plantilla)
+    project_name: Optional[str] = None
+    observations: Optional[str] = None
     # Alcance del proyecto: "new" (integración base/desde cero o nuevo tipo) |
     # "expansion" (ampliación de un tipo de integración ya vigente del integrador).
     project_scope: Optional[str] = "new"
@@ -419,6 +425,12 @@ class Integrator(BaseModel):
     assigned_at: Optional[str] = None
     assigned_by: Optional[str] = None
     project_scope: Optional[str] = "new"
+    # Campos de seguimiento operativo (ficha ampliada).
+    coordinador: Optional[str] = None
+    coordinador_user_id: Optional[str] = None
+    project_start_date: Optional[str] = None
+    project_name: Optional[str] = None
+    observations: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):

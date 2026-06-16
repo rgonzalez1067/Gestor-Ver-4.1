@@ -183,6 +183,25 @@ async def get_integrators_dropdown(authorization: Optional[str] = Header(None)):
     return [{"integrator_id": i["integrator_id"], "name": i["name"], "app_name": i.get("app_name", "")} for i in integrators]
 
 
+@router.get("/integrators/coordinators")
+async def list_implementation_coordinators(authorization: Optional[str] = Header(None)):
+    """Usuarios con cargo 'Coordinador' del departamento 'Implementación' (activos).
+    Alimenta el dropdown dinámico 'Coordinador' de la ficha de integrador. Solo
+    estos perfiles deben poder asignarse como Coordinador del proyecto."""
+    await get_current_user(authorization)
+    cur = db.users.find(
+        {"is_active": True, "cargo": "Coordinador", "departamento": "Implementación"},
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1},
+    )
+    out = []
+    async for u in cur:
+        name = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+        out.append({"user_id": u.get("user_id"), "name": name or u.get("email", ""), "email": u.get("email", "")})
+    out.sort(key=lambda x: (x["name"] or "").lower())
+    return out
+
+
+
 
 @router.get("/integrators/{integrator_id}", response_model=Integrator)
 async def get_integrator(integrator_id: str, authorization: Optional[str] = Header(None)):
@@ -677,13 +696,25 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=404, detail="No integrators to export")
     
     import pandas as pd
-    
-    # Cabecera exacta según la estructura A-AE oficial de la plantilla (iter 183d).
+
+    def _fmt_ddmmyyyy(iso_str):
+        """ISO (aaaa-mm-dd) → dd/mm/aaaa para la plantilla. Tolera vacío."""
+        if not iso_str:
+            return ''
+        try:
+            return datetime.strptime(str(iso_str)[:10], '%Y-%m-%d').strftime('%d/%m/%Y')
+        except Exception:
+            return str(iso_str)
+
+    # Cabecera exacta de la plantilla: Coordinador junto a Implementador,
+    # Fecha de Inicio antes de Último Contacto, y los campos de texto nuevos al final.
     BASE_HEADERS = [
         'Nombre', 'Tipo', 'Aplicativo', 'Modalidad de Integración', 'Estatus',
-        'Tipo de Integracion', 'Gestor Administrativo', 'Implementador', 'Nro Ticket',
-        'Categoría', 'Último contacto con el Cliente', 'Correo',
+        'Tipo de Integracion', 'Gestor Administrativo', 'Implementador', 'Coordinador',
+        'Nro Ticket', 'Categoría', 'Fecha de Inicio del Proyecto',
+        'Último contacto con el Cliente', 'Correo',
     ]
+    TAIL_HEADERS = ['Nombre del Proyecto', 'Observaciones']
 
     rows = []
     for intg in integrators:
@@ -696,17 +727,21 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
             'Tipo de Integracion': intg.get('integration_type', ''),
             'Gestor Administrativo': intg.get('gestor', ''),
             'Implementador': intg.get('implementador', ''),
+            'Coordinador': intg.get('coordinador', ''),
             'Nro Ticket': intg.get('ticket_number', ''),
             'Categoría': intg.get('categoria', ''),
+            'Fecha de Inicio del Proyecto': _fmt_ddmmyyyy(intg.get('project_start_date')),
             'Último contacto con el Cliente': intg.get('last_contact_date', ''),
             'Correo': intg.get('email', ''),
+            'Nombre del Proyecto': intg.get('project_name', ''),
+            'Observaciones': intg.get('observations', ''),
         }
         certs = intg.get('certifications') or {}
         for prod in INTEGRATOR_PRODUCTS:
             row[prod['name']] = certs.get(prod['id'], 'N/A')
         rows.append(row)
 
-    column_order = BASE_HEADERS + [p['name'] for p in INTEGRATOR_PRODUCTS]
+    column_order = BASE_HEADERS + [p['name'] for p in INTEGRATOR_PRODUCTS] + TAIL_HEADERS
     df = pd.DataFrame(rows, columns=column_order)
     
     buffer = io.BytesIO()
@@ -777,11 +812,10 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
     
     import pandas as pd
     
-    # Plantilla oficial: 31 columnas (A-AE) según Estructura de BD Integradores.
-    # A-L: campos base. M-AE: 19 productos (INTEGRATOR_PRODUCTS).
+    # Plantilla oficial: campos base + 19 productos + campos de seguimiento al final.
+    # Coordinador junto a Implementador; Fecha de Inicio antes de Último Contacto.
     sample_vals = ['C', 'P', 'N/A']
     data = {
-        # A-L
         'Nombre': ['TechPay Solutions', 'ComercioApp', 'GatewayVe'],
         'Tipo': ['Integrador', 'Comercio', 'Integrador'],
         'Aplicativo': ['PaymentHub v3', 'MiTienda App', 'GW-Connect'],
@@ -790,16 +824,21 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         'Tipo de Integracion': ['PG', 'MP', 'CR'],
         'Gestor Administrativo': ['', '', ''],
         'Implementador': ['', '', ''],
+        'Coordinador': ['', '', ''],
         'Nro Ticket': ['TKT-00145', '', 'TKT-00203'],
         'Categoría': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS'],
+        'Fecha de Inicio del Proyecto': ['10/01/2026', '', '05/02/2026'],
         'Último contacto con el Cliente': ['15/01/2026', '28/02/2026', ''],
         'Correo': ['contacto@techpay.com', 'info@comercioapp.com', 'soporte@gw.ve'],
     }
-    # M-AE: 19 productos
+    # Productos (matriz de certificación)
     for i, prod in enumerate(INTEGRATOR_PRODUCTS):
         data[prod['name']] = [sample_vals[i % 3], sample_vals[(i + 1) % 3], sample_vals[(i + 2) % 3]]
+    # Campos de seguimiento de texto libre — AL FINAL
+    data['Nombre del Proyecto'] = ['Migración PG Fase 1', '', 'Integración VPOS Retail']
+    data['Observaciones'] = ['Pendiente kickoff', '', 'Requiere ambiente de pruebas']
 
-    column_order = list(data.keys())  # garantiza orden A-AE
+    column_order = list(data.keys())  # garantiza el orden de columnas solicitado
     df = pd.DataFrame(data, columns=column_order)
     
     output = io.BytesIO()
@@ -816,10 +855,14 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Tipo de Integracion',            'Descripcion': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
             {'Campo': 'Gestor Administrativo',          'Descripcion': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Perez'},
             {'Campo': 'Implementador',                  'Descripcion': 'Nombre EXACTO del implementador en BD (o email). Vacío = por asignar.', 'Obligatorio': 'No', 'Ejemplo': 'Maria Gonzalez'},
+            {'Campo': 'Coordinador',                    'Descripcion': 'Nombre EXACTO de un usuario con cargo "Coordinador" del departamento "Implementación". Si no existe o el cargo es inválido, la fila se rechaza.', 'Obligatorio': 'No', 'Ejemplo': 'Kevin Malaguera'},
             {'Campo': 'Nro Ticket',                     'Descripcion': 'Número de ticket (texto libre). Editable en UI.', 'Obligatorio': 'No', 'Ejemplo': 'TKT-00145'},
             {'Campo': 'Categoría',                      'Descripcion': 'Categoria del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
+            {'Campo': 'Fecha de Inicio del Proyecto',   'Descripcion': 'Fecha de inicio (DD/MM/AAAA estricto).', 'Obligatorio': 'No', 'Ejemplo': '10/01/2026'},
             {'Campo': 'Último contacto con el Cliente', 'Descripcion': 'Fecha (DD/MM/AAAA). No futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
             {'Campo': 'Correo',                         'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
+            {'Campo': 'Nombre del Proyecto',            'Descripcion': 'Nombre del proyecto (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Migración PG Fase 1'},
+            {'Campo': 'Observaciones',                  'Descripcion': 'Notas/observaciones (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Pendiente kickoff'},
             {'Campo': '--- MATRIZ DE PRODUCTOS (19) ---', 'Descripcion': 'Columnas M a AE — estado de certificación por producto. Valores C / P / N/A.', 'Obligatorio': '---', 'Ejemplo': '---'},
         ]
         for prod in INTEGRATOR_PRODUCTS:
@@ -978,13 +1021,20 @@ async def import_integrators(
             'Correo': 'email', 'correo': 'email', 'email_contacto': 'email',
             'Tipo Integracion': 'integration_type', 'tipo integracion': 'integration_type',
             'Tipo de Integracion': 'integration_type',
+            'Coordinador': 'coordinador', 'coordinador': 'coordinador',
+            'Fecha de Inicio del Proyecto': 'project_start_date', 'fecha de inicio del proyecto': 'project_start_date',
+            'Fecha de Inicio': 'project_start_date', 'fecha_inicio_proyecto': 'project_start_date',
+            'Nombre del Proyecto': 'project_name', 'nombre del proyecto': 'project_name', 'nombre_proyecto': 'project_name',
+            'Observaciones': 'observations', 'observaciones': 'observations',
         }
         
         # Pre-load users and products
-        all_users = await db.users.find({"is_active": True}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}).to_list(1000)
+        all_users = await db.users.find({"is_active": True}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1, "departamento": 1}).to_list(1000)
         user_names = set()
         # user_lookup maps lowercased fullname/email -> {user_id, display_name}
         user_lookup = {}
+        # coordinator_lookup: SOLO usuarios cargo 'Coordinador' del depto 'Implementación'
+        coordinator_lookup = {}
         for u in all_users:
             full = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
             email = u.get('email', '')
@@ -995,6 +1045,12 @@ async def import_integrators(
             if email:
                 user_names.add(email.lower())
                 user_lookup[email.lower()] = {"user_id": u.get("user_id"), "display": display}
+            if u.get("cargo") == "Coordinador" and u.get("departamento") == "Implementación":
+                entry = {"user_id": u.get("user_id"), "display": display}
+                if full:
+                    coordinator_lookup[full.lower()] = entry
+                if email:
+                    coordinator_lookup[email.lower()] = entry
         
         default_certs = {pid: "N/A" for pid in INTEGRATOR_PRODUCT_IDS}
 
@@ -1155,6 +1211,47 @@ async def import_integrators(
 
                 if integrator_status not in INTEGRATOR_STATUSES:
                     integrator_status = "En proceso"
+
+                # Coordinador (opcional): si viene, debe ser un usuario con cargo
+                # 'Coordinador' del departamento 'Implementación'. Si no, se rechaza la fila.
+                coordinador_raw = _safe_val(row, 'coordinador')
+                coordinador_name = None
+                coordinador_user_id = None
+                coordinador_invalid = False
+                if coordinador_raw:
+                    cfound = coordinator_lookup.get(coordinador_raw.lower())
+                    if cfound:
+                        coordinador_name = cfound["display"]
+                        coordinador_user_id = cfound["user_id"]
+                    else:
+                        coordinador_invalid = True
+                        row_errors.append(ImportError(row=row_num, column='Coordinador',
+                            value=coordinador_raw, error_type='invalid',
+                            message=f'Error en fila {row_num}: Coordinador no encontrado o cargo inválido',
+                            suggested_action='El Coordinador debe ser un usuario con cargo "Coordinador" del departamento "Implementación".'))
+
+                # Fecha de Inicio del Proyecto (opcional): formato estricto DD/MM/AAAA
+                # para texto; se aceptan fechas nativas de Excel.
+                project_start_date = None
+                psd_invalid = False
+                raw_psd = row.get('project_start_date', None)
+                if isinstance(raw_psd, pd.Series):
+                    raw_psd = raw_psd.iloc[0]
+                psd_raw = _safe_val(row, 'project_start_date')
+                if isinstance(raw_psd, datetime):
+                    project_start_date = raw_psd.date().isoformat()
+                elif psd_raw and psd_raw.lower() not in ('n/a', 'na', '', 'nan', 'none'):
+                    try:
+                        project_start_date = datetime.strptime(psd_raw, '%d/%m/%Y').date().isoformat()
+                    except ValueError:
+                        psd_invalid = True
+                        row_errors.append(ImportError(row=row_num, column='Fecha de Inicio del Proyecto',
+                            value=psd_raw, error_type='invalid',
+                            message=f'Fila {row_num}, Fecha de Inicio del Proyecto: El formato "{psd_raw}" no es válido. Use estrictamente DD/MM/AAAA (ej: 10/01/2026).',
+                            suggested_action=f'Corrija la fecha de inicio en la fila {row_num}. Formato obligatorio: DD/MM/AAAA.'))
+
+                project_name = _safe_val(row, 'project_name')
+                observations = _safe_val(row, 'observations')
                 
                 # Parse certification columns
                 row_certs = {}
@@ -1174,7 +1271,7 @@ async def import_integrators(
                 
                 if row_errors:
                     errors.extend(row_errors)
-                    if cert_has_errors or not name or not app_name or integrator_type not in INTEGRATOR_TYPES or integration_modality not in INTEGRATION_MODALITIES:
+                    if cert_has_errors or coordinador_invalid or psd_invalid or not name or not app_name or integrator_type not in INTEGRATOR_TYPES or integration_modality not in INTEGRATION_MODALITIES:
                         skipped_count += 1
                         continue
                 
@@ -1222,6 +1319,15 @@ async def import_integrators(
                         update_data["last_contact_date"] = last_contact_date
                     if email:
                         update_data["email"] = email
+                    if coordinador_name:
+                        update_data["coordinador"] = coordinador_name
+                        update_data["coordinador_user_id"] = coordinador_user_id
+                    if project_start_date:
+                        update_data["project_start_date"] = project_start_date
+                    if project_name:
+                        update_data["project_name"] = project_name
+                    if observations:
+                        update_data["observations"] = observations
                     
                     # Merge certs: existing certs as base, overlay with file data
                     if product_columns:
@@ -1251,6 +1357,11 @@ async def import_integrators(
                         ticket_number=ticket_number or None,
                         last_contact_date=last_contact_date,
                         email=email or None,
+                        coordinador=coordinador_name,
+                        coordinador_user_id=coordinador_user_id,
+                        project_start_date=project_start_date,
+                        project_name=project_name or None,
+                        observations=observations or None,
                         certifications=full_certs
                     )
                     doc = new_integrator.model_dump()

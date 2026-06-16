@@ -69,6 +69,7 @@ export const Integrators = () => {
   const navigate = useNavigate();
   const [integrators, setIntegrators] = useState([]);
   const [users, setUsers] = useState([]);
+  const [coordinators, setCoordinators] = useState([]);
   const [implementadores, setImplementadores] = useState([]);
   const [certProducts, setCertProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -158,12 +159,13 @@ export const Integrators = () => {
       if (filterType && filterType !== 'all') params.append('integrator_type', filterType);
       const url = params.toString() ? `/integrators?${params}` : '/integrators';
 
-      const [intRes, usersRes, servicesRes, implRes] = await Promise.all([
-        api.get(url), api.get('/auth/users'), api.get('/integrators/products'), api.get('/auth/implementadores')
+      const [intRes, usersRes, servicesRes, implRes, coordRes] = await Promise.all([
+        api.get(url), api.get('/auth/users'), api.get('/integrators/products'), api.get('/auth/implementadores'), api.get('/integrators/coordinators')
       ]);
       setIntegrators(intRes.data);
       setUsers(usersRes.data || []);
       setImplementadores(implRes.data || []);
+      setCoordinators(coordRes.data || []);
       // iter 183d: /integrators/products devuelve directo los 19 productos con forma {service_id, name, service_type, application_type}.
       setCertProducts(servicesRes.data || []);
     } catch { toast.error('Error al cargar datos'); }
@@ -269,13 +271,18 @@ export const Integrators = () => {
       certifications: intg.certifications || {},
       last_contact_date: intg.last_contact_date || '',
       email: intg.email || '',
+      coordinador: intg.coordinador || '',
+      coordinador_user_id: intg.coordinador_user_id || '',
+      project_start_date: intg.project_start_date || '',
+      project_name: intg.project_name || '',
+      observations: intg.observations || '',
       contacts: intg.contacts || []
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', contacts: [] });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', project_start_date: '', project_name: '', observations: '', contacts: [] });
     setEditingIntegrator(null);
     resetWizard();
   };
@@ -868,6 +875,59 @@ export const Integrators = () => {
                         />
                       </div>
                     </div>
+                    {/* Seguimiento del Proyecto (ficha ampliada) */}
+                    <div className="border-t border-slate-200 pt-3 mt-1 space-y-3">
+                      <Label className="text-sm font-semibold text-slate-700">Seguimiento del Proyecto</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Coordinador</Label>
+                          <Select
+                            value={formData.coordinador || ''}
+                            onValueChange={(v) => {
+                              const c = coordinators.find((x) => x.name === v);
+                              setFormData({ ...formData, coordinador: v, coordinador_user_id: c?.user_id || '' });
+                            }}
+                          >
+                            <SelectTrigger data-testid="integrator-coordinador-select"><SelectValue placeholder="Seleccione coordinador..." /></SelectTrigger>
+                            <SelectContent>
+                              {coordinators.length === 0 ? (
+                                <div className="px-3 py-2 text-xs text-slate-400 italic">No hay Coordinadores de Implementación activos</div>
+                              ) : coordinators.map((c) => <SelectItem key={c.user_id} value={c.name}>{c.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-slate-400 mt-1">Solo Coordinadores del Depto. de Implementación.</p>
+                        </div>
+                        <div>
+                          <Label>Fecha de Inicio del Proyecto</Label>
+                          <Input
+                            type="date"
+                            value={formData.project_start_date ? String(formData.project_start_date).slice(0, 10) : ''}
+                            onChange={(e) => setFormData({ ...formData, project_start_date: e.target.value })}
+                            data-testid="integrator-project-start-date"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Nombre del Proyecto</Label>
+                        <Input
+                          value={formData.project_name || ''}
+                          onChange={(e) => setFormData({ ...formData, project_name: e.target.value })}
+                          placeholder="Ej: Migración PG Fase 1"
+                          data-testid="integrator-project-name-input"
+                        />
+                      </div>
+                      <div>
+                        <Label>Observaciones</Label>
+                        <Textarea
+                          value={formData.observations || ''}
+                          onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+                          placeholder="Notas u observaciones del proyecto..."
+                          rows={3}
+                          data-testid="integrator-observations-textarea"
+                        />
+                      </div>
+                    </div>
+
                     {/* Contactos Técnicos */}
                     <div className="border-t border-slate-200 pt-3 mt-1">
                       <div className="flex items-center justify-between mb-2">
