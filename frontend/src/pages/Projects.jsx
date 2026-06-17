@@ -21,7 +21,7 @@ import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialo
 import { MasterEditDialog } from '../components/projects/MasterEditDialog';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -135,6 +135,11 @@ const Projects = () => {
   const [sponsorFilter, setSponsorFilter] = useState('all');
   const [sponsorPickerOpen, setSponsorPickerOpen] = useState(false);
   const [sponsorSearch, setSponsorSearch] = useState('');
+  const [integratorFilter, setIntegratorFilter] = useState('all');
+  const [integratorPickerOpen, setIntegratorPickerOpen] = useState(false);
+  const [integratorSearch, setIntegratorSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Assign/Reassign dialog
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -320,7 +325,10 @@ const Projects = () => {
     }
   };
 
-  const filtered = projects.filter(p => {
+  // Predicado de filtros que NO dependen del estado (búsqueda, tipo, patrocinador,
+  // integrador, rango de fechas). Sirve de base tanto para las tarjetas de estado
+  // como para el set final mostrado en la grilla.
+  const matchesNonStatus = (p) => {
     const sponsorLabel = getPatrocinadorLabel(p);
     // Filtro "Cliente": consulta estrictamente sobre el Nombre de Fantasía.
     const fantasy = clientMap[p.client_id]?.fantasy_name || p.fantasy_name || '';
@@ -331,24 +339,60 @@ const Projects = () => {
       p.client_rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.created_by_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.integrator_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sponsorLabel?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = statusFilter === 'all'
-      ? true
-      : statusFilter === 'active'
-        ? !HIDDEN_DEFAULT_STATES.includes(p.status)
-        : statusFilter === 'suspended'
-          ? p.status === 'Suspendido'
-          : statusFilter === 'in_progress'
-            ? ['Asignado', 'En Gestión', 'Implementado parcial'].includes(p.status)
-            : p.status === statusFilter;
     const matchSponsor = sponsorFilter === 'all'
       ? true
       : sponsorFilter === '__none__'
         ? !sponsorLabel
         : sponsorLabel === sponsorFilter;
     const matchType = typeFilter === 'all' ? true : normalizeProjectType(p.quote_type) === typeFilter;
-    return matchSearch && matchStatus && matchSponsor && matchType;
-  });
+    const matchIntegrator = integratorFilter === 'all'
+      ? true
+      : integratorFilter === '__none__'
+        ? !(p.integrator_name || '').trim()
+        : p.integrator_name === integratorFilter;
+    const matchDate = (() => {
+      if (!dateFrom && !dateTo) return true;
+      const raw = p.sent_to_implementation_at || p.created_at || '';
+      const d = raw ? String(raw).slice(0, 10) : '';
+      if (!d) return false;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    })();
+    return matchSearch && matchSponsor && matchType && matchIntegrator && matchDate;
+  };
+
+  const matchesStatus = (p) => statusFilter === 'all'
+    ? true
+    : statusFilter === 'active'
+      ? !HIDDEN_DEFAULT_STATES.includes(p.status)
+      : statusFilter === 'suspended'
+        ? p.status === 'Suspendido'
+        : statusFilter === 'in_progress'
+          ? ['Asignado', 'En Gestión', 'Implementado parcial'].includes(p.status)
+          : p.status === statusFilter;
+
+  // Base: todos los filtros menos el estado. Final: + filtro de estado (lo que se muestra).
+  const baseFiltered = projects.filter(matchesNonStatus);
+  const filtered = baseFiltered.filter(matchesStatus);
+
+  // KPIs dinámicos (Regla de Oro): "Total" refleja el set filtrado completo (incluye
+  // estado); las tarjetas de estado cuentan su estado dentro de los demás filtros.
+  const kpi = {
+    total: filtered.length,
+    pending: baseFiltered.filter(p => p.status === 'Por asignar').length,
+    in_progress: baseFiltered.filter(p => ['Asignado', 'En Gestión', 'Implementado parcial'].includes(p.status)).length,
+    blocked: baseFiltered.filter(p => p.status === 'Suspendido').length,
+    completed: baseFiltered.filter(p => p.status === 'Culminado').length,
+  };
+
+  // Indicador de Avance Global: promedio del % de avance (rollup_progress.global_progress)
+  // sobre el MISMO set filtrado que la grilla. Proyectos sin avance cuentan como 0%.
+  const globalProgress = filtered.length
+    ? Math.round(filtered.reduce((acc, p) => acc + (p.rollup_progress?.global_progress || 0), 0) / filtered.length)
+    : 0;
 
   // Lista de patrocinadores distintos (para el dropdown del filtro).
   const sponsorOptions = Array.from(
@@ -357,6 +401,21 @@ const Projects = () => {
   const sponsorOptionsFiltered = sponsorOptions.filter(
     s => !sponsorSearch || s.toLowerCase().includes(sponsorSearch.toLowerCase())
   );
+
+  // Lista de integradores distintos presentes en los proyectos visibles.
+  const integratorOptions = Array.from(
+    new Set(projects.map(p => (p.integrator_name || '').trim()).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  const integratorOptionsFiltered = integratorOptions.filter(
+    s => !integratorSearch || s.toLowerCase().includes(integratorSearch.toLowerCase())
+  );
+
+  const hasActiveFilters = searchTerm || statusFilter !== 'active' || typeFilter !== 'all'
+    || sponsorFilter !== 'all' || integratorFilter !== 'all' || dateFrom || dateTo;
+  const resetFilters = () => {
+    setSearchTerm(''); setStatusFilter('active'); setTypeFilter('all');
+    setSponsorFilter('all'); setIntegratorFilter('all'); setDateFrom(''); setDateTo('');
+  };
 
   if (loading) {
     return (
@@ -421,27 +480,49 @@ const Projects = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-5 gap-4 mb-4">
             {[
-              { label: 'Total', value: stats.total || 0, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all' },
-              { label: 'Pendientes', value: stats.pending || 0, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar' },
-              { label: 'En Proceso', value: stats.in_progress || 0, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'in_progress' },
-              { label: 'Suspendidos', value: stats.blocked || 0, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'suspended' },
-              { label: 'Finalizados', value: stats.completed || 0, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado' },
+              { label: 'Total', value: kpi.total, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all' },
+              { label: 'Pendientes', value: kpi.pending, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar' },
+              { label: 'En Proceso', value: kpi.in_progress, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'in_progress' },
+              { label: 'Suspendidos', value: kpi.blocked, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'suspended' },
+              { label: 'Finalizados', value: kpi.completed, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado' },
             ].map(s => (
               <div key={s.label}
                 className={`p-4 rounded-lg border cursor-pointer transition-all ${s.cls} ${statusFilter === s.filter ? 'ring-2 ring-offset-1 ring-current' : 'hover:shadow-sm'}`}
                 onClick={() => setStatusFilter(s.filter)}
                 data-testid={`stat-${s.label.toLowerCase().replace(/\s/g, '-')}`}>
-                <p className="text-2xl font-bold">{s.value}</p>
+                <p className="text-2xl font-bold" data-testid={`stat-value-${s.label.toLowerCase().replace(/\s/g, '-')}`}>{s.value}</p>
                 <p className="text-sm">{s.label}</p>
               </div>
             ))}
           </div>
 
+          {/* Indicador de Avance Global (reactivo al filtro activo) */}
+          <div className="mb-6 p-4 rounded-lg border border-violet-200 bg-gradient-to-r from-violet-50 to-indigo-50" data-testid="global-progress-widget">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Gauge size={16} className="text-violet-600" />
+                <span className="text-sm font-semibold text-slate-700">Avance Global</span>
+                <span className="text-xs text-slate-500">
+                  · {filtered.length} proyecto{filtered.length === 1 ? '' : 's'}
+                  {(currentUser?.cargo || '').toLowerCase() === 'implementador' ? ' asignado' + (filtered.length === 1 ? '' : 's') : ' en vista'}
+                </span>
+              </div>
+              <span className="text-2xl font-bold text-violet-700 tabular-nums" data-testid="global-progress-value">{globalProgress}%</span>
+            </div>
+            <div className="h-3 w-full rounded-full bg-violet-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-500"
+                style={{ width: `${globalProgress}%` }}
+                data-testid="global-progress-bar"
+              />
+            </div>
+          </div>
+
           {/* Filters */}
-          <div className="flex gap-3 mb-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="relative flex-1 min-w-[240px] max-w-sm">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input placeholder="Buscar por ticket, proyecto, cliente, RIF, implementador o generador..."
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
@@ -540,6 +621,105 @@ const Projects = () => {
                 </PopoverContent>
               </Popover>
             </div>
+            {/* Filtro por Integrador (dropdown + búsqueda interna) */}
+            <div className="flex items-center gap-2">
+              <UserCog size={16} className="text-slate-400" />
+              <Popover open={integratorPickerOpen} onOpenChange={(o) => { setIntegratorPickerOpen(o); if (!o) setIntegratorSearch(''); }}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-[230px] justify-between font-normal ${integratorFilter !== 'all' ? 'border-indigo-400 text-indigo-700' : 'text-slate-600'}`}
+                    data-testid="project-integrator-filter"
+                  >
+                    <span className="truncate">
+                      {integratorFilter === 'all'
+                        ? 'Todos los integradores'
+                        : integratorFilter === '__none__'
+                          ? 'Sin integrador'
+                          : integratorFilter}
+                    </span>
+                    <ChevronDown size={15} className="shrink-0 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-0" align="start" data-testid="project-integrator-popover">
+                  <div className="p-2 border-b">
+                    <Input
+                      placeholder="Buscar integrador…"
+                      value={integratorSearch}
+                      onChange={(e) => setIntegratorSearch(e.target.value)}
+                      className="h-8 text-sm"
+                      data-testid="project-integrator-search"
+                    />
+                  </div>
+                  <div className="max-h-[260px] overflow-y-auto py-1">
+                    <button
+                      type="button"
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 ${integratorFilter === 'all' ? 'font-semibold text-indigo-700' : 'text-slate-700'}`}
+                      onClick={() => { setIntegratorFilter('all'); setIntegratorPickerOpen(false); setIntegratorSearch(''); }}
+                      data-testid="project-integrator-option-all"
+                    >
+                      Todos los integradores
+                    </button>
+                    <button
+                      type="button"
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 ${integratorFilter === '__none__' ? 'font-semibold text-indigo-700' : 'text-slate-500'}`}
+                      onClick={() => { setIntegratorFilter('__none__'); setIntegratorPickerOpen(false); setIntegratorSearch(''); }}
+                      data-testid="project-integrator-option-none"
+                    >
+                      Sin integrador
+                    </button>
+                    {integratorOptionsFiltered.length === 0 && (
+                      <p className="px-3 py-2 text-xs text-slate-400">Sin coincidencias</p>
+                    )}
+                    {integratorOptionsFiltered.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 ${integratorFilter === s ? 'font-semibold text-indigo-700' : 'text-slate-700'}`}
+                        onClick={() => { setIntegratorFilter(s); setIntegratorPickerOpen(false); setIntegratorSearch(''); }}
+                        data-testid={`project-integrator-option-${s}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+            {/* Filtro por rango de fechas (fecha de envío a implementación) */}
+            <div className="flex items-center gap-1.5">
+              <Calendar size={16} className="text-slate-400" />
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className={`w-[150px] h-9 text-sm ${dateFrom ? 'border-indigo-400 text-indigo-700' : ''}`}
+                data-testid="project-date-from"
+                title="Desde (fecha de envío a implementación)"
+              />
+              <span className="text-slate-400 text-sm">–</span>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className={`w-[150px] h-9 text-sm ${dateTo ? 'border-indigo-400 text-indigo-700' : ''}`}
+                data-testid="project-date-to"
+                title="Hasta (fecha de envío a implementación)"
+              />
+            </div>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetFilters}
+                className="text-slate-500 hover:text-slate-800"
+                data-testid="project-clear-filters"
+                title="Limpiar todos los filtros"
+              >
+                <X size={14} className="mr-1" />
+                Limpiar
+              </Button>
+            )}
           </div>
 
           {/* Projects Table */}

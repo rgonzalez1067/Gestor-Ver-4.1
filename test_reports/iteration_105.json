@@ -1,0 +1,61 @@
+{
+  "summary": "Validated Proyectos KPIs reactivos + Avance Global widget + nuevos filtros (Integrador, Rango de Fechas, Limpiar). 6/6 escenarios PASS. La lógica reactiva funciona end-to-end: Total refleja el set filtrado COMPLETO (incluye estado), las tarjetas de estado se recalculan únicamente sobre los filtros NO-estado (baseFiltered), el Avance Global se promedia sobre el mismo set que la grilla, y 'Limpiar' restaura todos los valores por defecto.",
+  "tests_executed": [
+    {
+      "id": "T1 KPIs reactivos - Total refleja estado",
+      "status": "PASS",
+      "evidence": "Default (Activos) Total=76, progress=6%. Cambiado status a 'En Gestión' -> stat-value-total=14 (EXACTO como dato real), progress=15%. Volver a 'Activos' restaura Total=76, progress=6%. Las tarjetas de estado (Pendientes=0, En Proceso=23, Suspendidos=1, Finalizados=3) NO cambian al mover solo el filtro de estado, lo cual es CORRECTO según spec (baseFiltered excluye el filtro de estado)."
+    },
+    {
+      "id": "T2 Tarjetas de estado reaccionan a otros filtros (Integrador=Bigwise)",
+      "status": "PASS",
+      "evidence": "Default: Total=76, Pendientes=0, En Proceso=23, Suspendidos=1, Finalizados=3, progress=6%. Aplicado Integrador=Bigwise via project-integrator-filter+project-integrator-search+project-integrator-option-Bigwise -> Total=16, Pendientes=0, En Proceso=3, Suspendidos=0, Finalizados=1, progress=16%. Todas las tarjetas Y el Total Y el avance recalcularon. Bigwise tiene 17 totales (16 dentro del filtro 'Activos' por defecto — 1 oculto por estado hidden, plausible)."
+    },
+    {
+      "id": "T3 Avance Global widget presente y reactivo",
+      "status": "PASS",
+      "evidence": "Verificados testids global-progress-widget, global-progress-bar, global-progress-value. El widget muestra 'Avance Global · {N} proyectos en vista {X}%' donde N==stat-value-total. Recalcula con cada filtro: default 6% (76 proyectos), Bigwise 16% (16 proyectos), En Gestión 15% (14 proyectos), Rango fechas 12% (40 proyectos). El style.width del bar también se actualiza acorde."
+    },
+    {
+      "id": "T4 Filtro Integrador funciona (popover + búsqueda)",
+      "status": "PASS",
+      "evidence": "project-integrator-filter abre popover, project-integrator-search filtra opciones por texto 'Bigwise', project-integrator-option-Bigwise selecciona y aplica filtro reduciendo Total a 16 dentro de Activos. La columna integrador no se muestra directamente en la grilla (el screenshot evidencia tipo VPOS/Payment Gateway en el TIPO; el integrador no es una columna), por eso un grep textual 'Bigwise' en tbody devolvió 0, pero el filtro está funcionando por los conteos."
+    },
+    {
+      "id": "T5 Filtro de rango de fechas",
+      "status": "PASS",
+      "evidence": "project-date-from=2026-06-01 y project-date-to=2026-06-30 -> Total bajó 76->40, En Proceso 23->17, Suspendidos=1, Finalizados=3, progress 6%->12%. El widget 'X proyectos en vista' sigue alineado con Total. Limpiar restaura."
+    },
+    {
+      "id": "T6 Limpiar filtros restaura global",
+      "status": "PASS",
+      "evidence": "Tras aplicar Integrador=Bigwise se hizo clic en project-clear-filters -> Total=76, Pendientes=0, En Proceso=23, Suspendidos=1, Finalizados=3, progress=6% (IDÉNTICOS a los iniciales). Mismo comportamiento tras limpiar fechas. statusFilter vuelve visualmente a 'Activos (ocultar cerrados)'. Sin errores en consola atribuibles a la feature."
+    }
+  ],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "console_warnings_seen": [
+    "Pre-existing hydration warnings: '<span> cannot be a child of <tbody>' y '<tr> cannot contain a nested <span>' provocados por el wrapper data-ve-dynamic de la plataforma editorial alrededor de <tr>. Explícitamente fuera del scope de esta iteración según el agente principal.",
+    "WebSocket /api/ws/notifications/* a veces cierra antes de la conexión (preexistente, no bloquea)."
+  ],
+  "critical_code_review_comments": [
+    "Projects.jsx (líneas ~331-395): matchesNonStatus + matchesStatus + baseFiltered/filtered + kpi están bien separados; la 'Regla de Oro' (Total=filtered.length, tarjetas de estado sobre baseFiltered) está aplicada correctamente. globalProgress usa rollup_progress?.global_progress || 0 (faltante=0%) y promedia sobre filtered. Reactivo por construcción (re-render React).",
+    "Buena práctica: los nuevos testids (project-integrator-filter, project-integrator-search, project-integrator-option-{slug}, project-integrator-option-all, project-integrator-option-none, project-date-from, project-date-to, project-clear-filters, global-progress-widget, global-progress-bar, global-progress-value, stat-value-*) son todos estables y testeables.",
+    "Observación menor (no bug): el widget incluye lógica de cargo='implementador' para cambiar el sufijo ('asignado(s)' vs 'en vista'). No se testeó con cuenta de implementador en esta iteración (no estaba en el plan); validar en un test futuro con Jrojas@megasoft.com.ve si se quiere cubrir el scope-por-rol.",
+    "Pre-existente (no de esta feature): wrapper data-ve-dynamic del editor visual mete <span> entre <tbody>/<tr> generando hydration warnings. Ya documentado en iteraciones previas."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped", "frontend": "6/6 PASS"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna. Solo lectura/filtrado sobre el dataset existente. No se creó/modificó ningún proyecto.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "La feature de Panel de Proyectos (KPIs dinámicos + Avance Global + filtros Integrador/Fechas/Limpiar) está completamente funcional en vista admin. Datos reales observados confirman: 76 activos, 14 En Gestión, 23 En Proceso, 1 Suspendido, 3 Finalizados, progress global 6%. Bigwise filtra a 16 (dentro de Activos). Para test futuro de scope por rol, usar Jrojas@megasoft.com.ve (Implementador) y verificar que el widget muestra 'asignado(s)' en lugar de 'en vista'.",
+  "rca of the issue": "n/a — no se encontraron bugs en esta iteración."
+}
