@@ -32,6 +32,7 @@ const INTEGRATOR_EMAIL_VARS = [
 ];
 
 const INTEGRATOR_TYPES = ['Integrador', 'Comercio'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INTEGRATION_TYPE_OPTIONS = [
   { id: 'CR', label: 'CR — Caja Registradora' },
   { id: 'LP', label: 'LP — Link de Pago' },
@@ -96,6 +97,7 @@ export const Integrators = () => {
   const [formData, setFormData] = useState({
     name: '', integrator_type: '', integration_type: '', app_name: '',
     integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '',
+    productos_certificar: '', correo_eventual: '',
     contacts: []
   });
   // Confirmación de asignación de implementador
@@ -183,6 +185,9 @@ export const Integrators = () => {
       if (!formData.name || !formData.integrator_type || !formData.app_name) {
         toast.error('Complete los campos obligatorios'); return;
       }
+    }
+    if (formData.correo_eventual && !EMAIL_RE.test(formData.correo_eventual.trim())) {
+      toast.error('El Correo Adicional Eventual tiene un formato inválido'); return;
     }
     try {
       const payload = { ...formData };
@@ -276,13 +281,15 @@ export const Integrators = () => {
       project_start_date: intg.project_start_date || '',
       project_name: intg.project_name || '',
       observations: intg.observations || '',
+      productos_certificar: intg.productos_certificar || '',
+      correo_eventual: intg.correo_eventual || '',
       contacts: intg.contacts || []
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', project_start_date: '', project_name: '', observations: '', contacts: [] });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', project_start_date: '', project_name: '', observations: '', productos_certificar: '', correo_eventual: '', contacts: [] });
     setEditingIntegrator(null);
     resetWizard();
   };
@@ -367,6 +374,9 @@ export const Integrators = () => {
     if (!formData.integration_type) { toast.error('Selecciona el Tipo de Integración'); return; }
     if (!formData.integrator_type) { toast.error('Selecciona el Tipo de Integrador'); return; }
     if (!formData.app_name) { toast.error('Indica el Nombre del Aplicativo'); return; }
+    if (formData.correo_eventual && !EMAIL_RE.test(formData.correo_eventual.trim())) {
+      toast.error('El Correo Adicional Eventual tiene un formato inválido'); return;
+    }
     setWizardSaving(true);
     try {
       const initCerts = {};
@@ -392,6 +402,30 @@ export const Integrators = () => {
           <SelectTrigger data-testid="wizard-integration-type"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
           <SelectContent>{INTEGRATION_TYPE_OPTIONS.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}</SelectContent>
         </Select>
+      </div>
+      <div className="col-span-2">
+        <Label>Productos a Certificar</Label>
+        <Input
+          value={formData.productos_certificar || ''}
+          onChange={(e) => setFormData({ ...formData, productos_certificar: e.target.value })}
+          placeholder="Ej: VPOS, Link de Pago, Gateway"
+          data-testid="wizard-productos-certificar"
+        />
+        <p className="text-[11px] text-slate-400 mt-0.5">Texto libre. Se incrusta en el correo del Integrador vía la variable {'{Productos_Certificar_Integrador}'}.</p>
+      </div>
+      <div className="col-span-2">
+        <Label>Correo Adicional Eventual</Label>
+        <Input
+          type="email"
+          value={formData.correo_eventual || ''}
+          onChange={(e) => setFormData({ ...formData, correo_eventual: e.target.value })}
+          placeholder="gerente@banco.com"
+          data-testid="wizard-correo-eventual"
+          className={formData.correo_eventual && !EMAIL_RE.test(formData.correo_eventual.trim()) ? 'border-red-400 focus-visible:ring-red-400' : ''}
+        />
+        {formData.correo_eventual && !EMAIL_RE.test(formData.correo_eventual.trim())
+          ? <p className="text-[11px] text-red-500 mt-0.5" data-testid="wizard-correo-eventual-error">Formato de correo inválido (ej: usuario@dominio.com)</p>
+          : <p className="text-[11px] text-slate-400 mt-0.5">Opcional. Recibirá una copia (CC) de la notificación de este proyecto.</p>}
       </div>
       <div>
         <Label>Tipo de Integrador *</Label>

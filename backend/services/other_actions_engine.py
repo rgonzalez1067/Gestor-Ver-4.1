@@ -38,9 +38,16 @@ async def dispatch_other_action(
     current_user: Optional[dict] = None,
     fallback_subject: str = "",
     executive_user_id: Optional[str] = None,
+    extra_cc: Optional[list] = None,
 ) -> dict:
     """Despacha la acción según la config dinámica. Ver reglas en el docstring
-    del módulo."""
+    del módulo.
+
+    `extra_cc`: lista opcional de correos a incluir en COPIA (CC) en CADA envío
+    por email (p.ej. el "Correo Adicional Eventual" de un Proyecto de Integración).
+    No altera los destinatarios configurados; solo se añade en copia.
+    """
+    extra_cc = [e for e in (extra_cc or []) if e and isinstance(e, str) and '@' in e]
     cfg = await get_config(action_id)
     if not cfg:
         return {"dispatched": False, "reason": "no_config"}
@@ -121,6 +128,7 @@ async def dispatch_other_action(
                     subject=subject or fallback_subject or "Notificación",
                     html=body,
                     action=f"{action_id}_other",
+                    cc=extra_cc or None,
                 )
             sent_count += 1
             sent_to.append(rcpt_email)
@@ -135,6 +143,7 @@ async def dispatch_other_action(
             "action_id": action_id,
             "sent_count": sent_count,
             "sent_to": sent_to,
+            "cc": extra_cc,
             "skipped": skipped,
             "executed_by": (current_user or {}).get("email"),
             "executed_at": datetime.now(timezone.utc).isoformat(),
@@ -143,4 +152,4 @@ async def dispatch_other_action(
         pass
 
     logger.info(f"[other-actions] {action_id} dispatched: sent={sent_count}, skipped={len(skipped)}")
-    return {"dispatched": True, "disabled": False, "sent_count": sent_count, "recipients": sent_to, "skipped": skipped}
+    return {"dispatched": True, "disabled": False, "sent_count": sent_count, "recipients": sent_to, "cc": extra_cc, "skipped": skipped}

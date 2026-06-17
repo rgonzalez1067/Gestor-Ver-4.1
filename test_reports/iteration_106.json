@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend-only validation of Integradores wizard 'Nuevo Proyecto de Integración' for the 2 new fields (Productos a Certificar + Correo Adicional Eventual) and presence of variable Productos_Certificar_Integrador in EmailTemplatesEditor. All UI behaviors of the wizard verified end-to-end on the preview URL with admin login.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard/Integrators", "issues": ["React hydration warnings: <tr> children inside <span data-ve-dynamic> inside <tbody> (pre-existing, not part of this feature; surfaces as console errors)."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Integrators.jsx: EMAIL_RE and validation correctly duplicated in handleWizardSubmit and handleSubmit; consider centralizing into a helper to avoid drift.",
+    "Productos a Certificar field has no length limit; if used inside email template, consider trim + maxLength to prevent layout issues in HTML email.",
+    "Both validation message and red border use the same EMAIL_RE check inline 3x in renderWizardCoreFields — extract to memo for clarity (low priority)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100% on wizard fields; variable presence verified by code review (UI navigation to specific Configurar card not completed)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (used).",
+  "seed_data_creation": "Created and then deleted test integrator 'QA Integrador Test Wizard' (App: 'QA Test App', email gerente@banco.com).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Wizard fields tested via Playwright: 1) Both fields render with correct data-testid; 2) Productos-certificar sits visually between integration-type and integrator-type (boundingTop order verified: integration-type=390, productos=>integration-type, correo=>productos); 3) Productos accepts free text 'Certificación de pasarela web y apps móviles'; 4) Invalid email 'correo_invalido' shows wizard-correo-eventual-error 'Formato de correo inválido (ej: usuario@dominio.com)' AND red-border class 'border-red-400 focus-visible:ring-red-400' is applied; 5) Clicking wizard-submit-btn with invalid email produces toast 'El Correo Adicional Eventual tiene un formato inválido' and dialog remains open (creation blocked); 6) Fixing email to 'gerente@banco.com' hides the error, and submit succeeds with toast 'Integrador creado' followed by 'Notificar Nuevo Proyecto' modal opening (Integrador: QA Integrador Test Wizard / Aplicativo: QA Test App / Enviar copia a CC field present). EmailTemplatesEditor: code inspection confirms BASE_TEMPLATE_VARIABLES.new_integration_project contains {key:'Productos_Certificar_Integrador', label:'Productos a Certificar'} (line 401) and the sidebar uses data-testid='master-variables-sidebar' (line 1268). UI navigation into the correct 'Configurar' card for 'Plantillas de Proyecto (Implementación)' was not completed (each Configurar button in Settings landed on Footer Global editor in tests). Suggest main agent verify by clicking that specific card or expose a clearer route/data-testid for the implementation templates editor.",
+  "rca of the issue": "No bugs found. All acceptance criteria for the wizard validated end-to-end via Playwright. Variable wiring verified via static code review."
+}

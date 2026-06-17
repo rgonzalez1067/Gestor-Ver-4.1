@@ -398,6 +398,9 @@ class IntegratorCreate(BaseModel):
     project_start_date: Optional[str] = None   # ISO (dd/mm/aaaa en UI/plantilla)
     project_name: Optional[str] = None
     observations: Optional[str] = None
+    # Alcance comercial de la certificación (texto libre) y correo CC eventual.
+    productos_certificar: Optional[str] = None
+    correo_eventual: Optional[str] = None
     # Alcance del proyecto: "new" (integración base/desde cero o nuevo tipo) |
     # "expansion" (ampliación de un tipo de integración ya vigente del integrador).
     project_scope: Optional[str] = "new"
@@ -431,6 +434,9 @@ class Integrator(BaseModel):
     project_start_date: Optional[str] = None
     project_name: Optional[str] = None
     observations: Optional[str] = None
+    # Alcance comercial de la certificación (texto libre) y correo CC eventual.
+    productos_certificar: Optional[str] = None
+    correo_eventual: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):

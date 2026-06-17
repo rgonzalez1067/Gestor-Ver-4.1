@@ -394,6 +394,18 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
   // === Plantillas de Notificaciones de Proyectos (Implementación) ===
+  new_integration_project: [
+    { key: 'nombre_integrador', label: 'Nombre del Integrador' },
+    { key: 'tipo_integracion', label: 'Tipo de Integración' },
+    { key: 'nombre_aplicativo', label: 'Nombre del Aplicativo' },
+    { key: 'Productos_Certificar_Integrador', label: 'Productos a Certificar' },
+    { key: 'nombre_responsable', label: 'Responsable Técnico (nombre)' },
+    { key: 'email_responsable', label: 'Responsable Técnico (email)' },
+    { key: 'telefono_responsable', label: 'Responsable Técnico (teléfono)' },
+    { key: 'comentarios_personalizados', label: 'Comentarios Personalizados' },
+    { key: 'usuario_creador', label: 'Usuario Creador' },
+    { key: 'fecha_sistema', label: 'Fecha del Sistema' },
+  ],
   project_notify_client: [
     { key: 'Nombre_Cliente', label: 'Nombre del Cliente (Razón Social)' },
     { key: 'Contacto_Principal', label: 'Contacto Principal del Cliente' },

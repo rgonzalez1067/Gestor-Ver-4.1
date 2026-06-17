@@ -1477,7 +1477,22 @@ async def notify_new_integration_project(
         "usuario_creador": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
         "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
         "fecha_sistema": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+        # Productos a Certificar (texto libre del Proyecto de Integración).
+        "Productos_Certificar_Integrador": integrator.get("productos_certificar", "") or "",
+        "productos_certificar_integrador": integrator.get("productos_certificar", "") or "",
     }
+
+    # Correo Adicional Eventual: CC volátil para este envío específico. Se toma
+    # del campo del proyecto (correo_eventual) y de los destinatarios ad-hoc del
+    # modal (header). No altera el correo maestro del integrador.
+    extra_cc: list = []
+    ev = (integrator.get("correo_eventual") or "").strip()
+    if ev and "@" in ev:
+        extra_cc.append(ev)
+    if x_additional_recipients:
+        extra_cc += [e.strip() for e in x_additional_recipients.split(",") if e.strip() and "@" in e.strip()]
+    # Dedupe preservando orden.
+    extra_cc = list(dict.fromkeys(extra_cc))
 
     # Motor dinámico "Configuración de otras Acciones" (con fallback legacy)
     try:
@@ -1485,13 +1500,30 @@ async def notify_new_integration_project(
         _dyn = await dispatch_other_action(
             "new_integration_project", variables, current_user=current_user,
             fallback_subject=f"Nuevo Proyecto de Integracion — {integrator.get('name','')}",
+            extra_cc=extra_cc,
         )
         if _dyn.get("dispatched"):
+            # Auditoría en la bitácora del proyecto (correo eventual incluido).
+            try:
+                await db.bitacora.insert_one({
+                    "entry_id": f"bit_{datetime.now(timezone.utc).timestamp()}",
+                    "integrator_id": integrator_id,
+                    "action": "new_integration_project_notify",
+                    "sent_to": _dyn.get("recipients", []),
+                    "cc": extra_cc,
+                    "productos_certificar": integrator.get("productos_certificar", "") or "",
+                    "executed_by": current_user.get("email"),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception:
+                pass
             if _dyn.get("disabled"):
                 return {"message": "Notificación desactivada en Configuración de otras Acciones", "sent_to": []}
             return {
-                "message": f"Notificación enviada a {_dyn.get('sent_count', 0)} destinatario(s) (Configuración de otras Acciones)",
+                "message": f"Notificación enviada a {_dyn.get('sent_count', 0)} destinatario(s) (Configuración de otras Acciones)"
+                + (f" + {len(extra_cc)} en copia" if extra_cc else ""),
                 "sent_to": _dyn.get("recipients", []),
+                "cc": extra_cc,
             }
     except Exception as e:
         logging.error(f"[Integradores] motor dinámico de otras acciones falló: {e}")
@@ -1515,23 +1547,21 @@ async def notify_new_integration_project(
         subject = subject.replace(f"{{{{{key}}}}}", val)
         subject = subject.replace(f"{{{key}}}", val)
     
-    # Destinatarios
+    # Destinatarios (fallback legacy)
     recipients = [impl_manager_email]
-    cc_list = []
-    if x_additional_recipients:
-        cc_list = [e.strip() for e in x_additional_recipients.split(",") if e.strip() and "@" in e.strip()]
+    cc_list = list(extra_cc)
     
     try:
         from services.email_service import send_email, resolve_sender_for_area
-        all_recipients = recipients + cc_list
         await send_email(
-            to=all_recipients,
+            to=recipients,
             subject=subject,
             html=body,
             action="new_integration_project",
             quote_id=integrator_id,
             sender=await resolve_sender_for_area("integradores"),
+            cc=cc_list or None,
         )
-        return {"message": f"Notificacion enviada a {impl_manager_email}" + (f" y {len(cc_list)} destinatario(s) adicional(es)" if cc_list else ""), "sent_to": all_recipients}
+        return {"message": f"Notificacion enviada a {impl_manager_email}" + (f" y {len(cc_list)} destinatario(s) en copia" if cc_list else ""), "sent_to": recipients, "cc": cc_list}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al enviar correo: {str(e)}")

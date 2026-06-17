@@ -655,9 +655,10 @@ PROJECT_EMAIL_TEMPLATES = {
 <tr style="background:#f8f9fa;"><td style="padding:8px 12px;color:#666;border:1px solid #eee;width:220px;">Integrador:</td><td style="padding:8px 12px;font-weight:600;border:1px solid #eee;">{nombre_integrador}</td></tr>
 <tr><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Tipo de Integracion:</td><td style="padding:8px 12px;border:1px solid #eee;">{tipo_integracion}</td></tr>
 <tr style="background:#f8f9fa;"><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Nombre Aplicativo:</td><td style="padding:8px 12px;border:1px solid #eee;">{nombre_aplicativo}</td></tr>
-<tr><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Nombre Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{nombre_responsable}</td></tr>
-<tr style="background:#f8f9fa;"><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Email Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{email_responsable}</td></tr>
-<tr><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Telefono Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{telefono_responsable}</td></tr>
+<tr><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Productos a Certificar:</td><td style="padding:8px 12px;border:1px solid #eee;">{Productos_Certificar_Integrador}</td></tr>
+<tr style="background:#f8f9fa;"><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Nombre Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{nombre_responsable}</td></tr>
+<tr><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Email Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{email_responsable}</td></tr>
+<tr style="background:#f8f9fa;"><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Telefono Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{telefono_responsable}</td></tr>
 </table>
 
 {comentarios_personalizados}
