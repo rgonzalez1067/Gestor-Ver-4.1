@@ -138,6 +138,7 @@ export const Quotes = () => {
     cantidad_bancos: 1,
     // Nuevos campos de integración y hardware
     integrator_id: '',
+    integrator_name: '',
     integrator_app_name: '', // Campo informativo auto-completado
     pinpad_id: '',
     sponsor_bank_id: '', // Entidad patrocinadora/vendedora
@@ -1012,6 +1013,7 @@ export const Quotes = () => {
       cantidad_cajas: 1,
       cantidad_bancos: 1,
       integrator_id: '',
+      integrator_name: '',
       integrator_app_name: '',
       pinpad_id: '',
       sponsor_bank_id: '',
@@ -3401,6 +3403,9 @@ export const Quotes = () => {
       cantidad_cajas: quote.cantidad_cajas || 1,
       cantidad_bancos: quote.cantidad_bancos || 1,
       integrator_id: quote.integrator_id || '',
+      integrator_name: quote.integrator_id === 'sin_integrador'
+        ? 'sin_integrador'
+        : (integrators.find(i => i.integrator_id === quote.integrator_id)?.name || ''),
       integrator_app_name: quote.integrator_app_name || '',
       pinpad_id: quote.pinpad_id || '',
       sponsor_bank_id: quote.sponsor_bank_id || '',
@@ -3661,6 +3666,7 @@ export const Quotes = () => {
       cantidad_cajas: 1,
       cantidad_bancos: 1,
       integrator_id: '',
+      integrator_name: '',
       integrator_app_name: '',
       pinpad_id: '',
       sponsor_bank_id: '',

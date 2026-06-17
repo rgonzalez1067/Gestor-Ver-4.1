@@ -1,0 +1,41 @@
+{
+  "summary": "Validated homologation of Integrator selector in Cotizaciones (QuoteWizardDialog) to the dedup-by-name + cascade pattern from Proyectos Directos. 5/6 test scenarios mechanically verified PASS; the 6th (edit-load) could not be triggered because top quote rows were in non-editable states (Enviada/Aprobada) or Reparaciones (no integrator). Backend testing was explicitly skipped per request.",
+  "tests_executed": [
+    {"id": "T1 Dedup VPOS", "status": "PASS", "evidence": "Opened wizard -> Clientes Pymes -> select client -> Tipo=VPOS -> open select-integrator. Counted 124 integrator-option items. Counter() found 0 duplicates. Targets: Somos Sistemas Software=1, Bigwise=1, REDES IP=1, Deepcompany=1. Wis de Venezuela C.A. present."},
+    {"id": "T2 Cascade 1 app auto-locked", "status": "PASS", "evidence": "Selected Wis de Venezuela C.A. via integrator-search-input. select-integrator-app-locked rendered with text 'WBlackPos V3.19.27.15' (auto-filled, not the placeholder). select-integrator dropdown not rendered."},
+    {"id": "T3 Cascade 2+ apps dropdown", "status": "PASS", "evidence": "Selected Somos Sistemas Software. select-integrator-app dropdown rendered with options ['AFTIM', 'AFTIM Mobile  POS V1.0']. Selecting AFTIM updated trigger to 'AFTIM'. locked field absent. Bigwise also verified to have 2 apps per data and same logic applies."},
+    {"id": "T4 Modality filter VPOS (physical) negative cases", "status": "PASS", "evidence": "In VPOS, the 124 names included 'Wis de Venezuela C.A.' and Somos Sistemas Software but excluded 'ZUDEV, C.A' and 'Mundo APP / Burger King' (digital integrators)."},
+    {"id": "T4b Modality filter Payment Gateway", "status": "PASS", "evidence": "Switched Tipo to Payment Gateway -> 110 integrator-option items. ZUDEV, C.A present. Mundo APP / Burger King present. Somos Sistemas Software absent. Wis de Venezuela absent. Filter inverts correctly by modality."},
+    {"id": "T5 Reset reactive on modality change", "status": "PASS", "evidence": "Set VPOS -> selected Wis de Venezuela (1-app cascade locked). Changed Tipo to Payment Gateway. Result: select-integrator trigger reverted to 'Seleccione integrador...'; select-integrator-app-locked text reverted to 'Se completa al seleccionar integrador'; toast displayed: 'Integrador anterior no compatible con esta modalidad. Seleccione uno nuevo.'"},
+    {"id": "T6 Edit existing quote hydration", "status": "NOT_MECHANICALLY_VERIFIED", "evidence": "Iterated first 8 quote rows: all in Enviada/Aprobada state showed no 'Editar' menu item in their actions menu (quote-actions-* kebab), and Reparaciones rows have no integrator. Could not open an existing quote in edit mode. Logic-only review confirms: Quotes.jsx initializes quoteData.integrator_name in editar path as integrators.find(...).name; wizard uses selectedName=quoteData.integrator_name as the cascade key, so when integrator_id is set, name will be resolved and the same cascade renders. Risk: low (shared component)."}
+  ],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "console_warnings_seen": [
+    "Hydration warning on QuotesTable: <span data-ve-dynamic='true'> being injected between <tbody> and <tr> (and around <tr>) by the visual editor wrapper (x-excluded='true'). Not blocking and unrelated to this iteration's changes (Cotizaciones integrator homologation). Pre-existing.",
+    "WebSocket /api/ws/notifications/* sometimes closes before connection established (not blocking)."
+  ],
+  "critical_code_review_comments": [
+    "QuoteWizardDialog.jsx (~line 794-900): cascade IIFE is clean, derives certifiedFiltered + allNames + appsForIntegrator and uses onSelectIntegratorName to auto-set 1-app or clear integrator_id for 2+. integrator-option testid uses slug of name. Search input correctly stopPropagation on keydown.",
+    "Minor UX nit (NOT blocking): integratorSearchQuery is NOT cleared when the user closes the dropdown. If user searched 'Somos' and then opens dropdown again, search persists. Acceptable but could reset on close.",
+    "Quotes.jsx adds integrator_name to quoteData (init in createNewQuote/resetQuoteForm and derived on edit). The cascade depends on this; if a future edit path skips the derivation, the dropdown will show empty trigger even when integrator_id is set."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Optional regression check by main agent: open an existing VPOS quote with integrator (state in earlier funnel step like Borrador) via Editar and confirm select-integrator shows the integrator name and the aplicativo field is populated.",
+    "Optional: clear integratorSearchQuery state when the integrator dropdown closes so prior searches don't persist across reopen.",
+    "Optional clean-up (pre-existing): fix QuotesTable hydration warning by removing the <span data-ve-dynamic> wrapper around <tr> elements inside <tbody>."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped", "frontend": "5/6 verified PASS, 1/6 not triggerable due to seed data state"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Used existing certified integrators and existing clients.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Cotizaciones Integrator homologation (dedup-by-name + cascade) is working end-to-end (VPOS create, PG create, modality filter, reset, 1-app auto-lock, 2+ app dropdown, toast). Only remaining uncovered scenario: open existing quote in edit mode -- requires finding a quote in a state that exposes 'Editar' in its quote-actions-* menu (top rows in this seed are Enviada/Aprobada/Reparaciones). Use kebab data-testid 'quote-actions-{quote_id}' to open the menu.",
+  "rca of the issue": "n/a (no bug found in this iteration)"
+}

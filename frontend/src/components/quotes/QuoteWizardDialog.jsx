@@ -284,6 +284,8 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         const matchesNew = integratorModalityMatch(value);
                         const keepIntegrator = !!currentIntegrator && matchesNew(currentIntegrator.integration_modality);
                         let newIntegratorId = keepIntegrator ? quoteData.integrator_id : '';
+                        const newIntegratorName = keepIntegrator ? quoteData.integrator_name : '';
+                        const newIntegratorApp = keepIntegrator ? quoteData.integrator_app_name : '';
                         if (quoteData.integrator_id && quoteData.integrator_id !== 'sin_integrador' && newIntegratorId !== quoteData.integrator_id) {
                           toast.info('Integrador anterior no compatible con esta modalidad. Seleccione uno nuevo.');
                         }
@@ -297,6 +299,8 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           communication_type: 'NO_APLICA',
                           requires_pinpad_config: true,
                           integrator_id: newIntegratorId,
+                          integrator_name: newIntegratorName,
+                          integrator_app_name: newIntegratorApp,
                           sponsor_bank_id: isFastTrack ? (megaSoftBank?.bank_id || quoteData.sponsor_bank_id || '') : quoteData.sponsor_bank_id,
                           // VPOS Multi-RIF: patrocinio implícito (banco = patrocinador absoluto)
                           // y se omite el cliente (el sujeto es el lote del banco).
@@ -792,73 +796,111 @@ export const QuoteWizardDialog = ({ ctx }) => {
                 </h3>
                 
                 <div className={`grid grid-cols-1 ${isPaymentGateway ? 'md:grid-cols-2' : 'md:grid-cols-4'} gap-4`}>
-                  {/* Campo 1: Integrador */}
-                  <div>
-                    <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
-                      <Users size={14} className="text-brand-blue-600" />
-                      Integrador {!isMPOS && <span className="text-red-500">*</span>}
-                      {isMPOS && <span className="text-slate-400 text-xs font-normal">(Opcional)</span>}
-                    </Label>
-                    <Select 
-                      value={quoteData.integrator_id} 
-                      onValueChange={handleIntegratorChange}
-                    >
-                      <SelectTrigger data-testid="select-integrator">
-                        <SelectValue placeholder="Seleccione integrador..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[280px]">
-                        <div className="px-2 pb-2 sticky top-0 bg-white z-10">
-                          <input
-                            type="text"
-                            placeholder="Buscar por nombre..."
-                            className="w-full h-8 px-2 text-sm border rounded-md outline-none focus:ring-1 focus:ring-blue-400"
-                            value={integratorSearchQuery}
-                            onChange={(e) => setIntegratorSearchQuery(e.target.value)}
-                            onKeyDown={(e) => e.stopPropagation()}
-                            data-testid="integrator-search-input"
-                          />
-                        </div>
-                        {(isMPOS || isPaymentGateway || isVPOS) && (
-                          <SelectItem value="sin_integrador">Sin integrador</SelectItem>
-                        )}
-                        {(() => {
-                          const matches = integratorModalityMatch(quoteData.quote_type);
-                          const filtered = integrators.filter(i =>
-                            i.integrator_status === 'Certificado' && matches(i.integration_modality)
-                          );
-                          // Filtro por búsqueda + orden alfabético
-                          const q = integratorSearchQuery.trim().toLowerCase();
-                          const visible = (q.length > 0
-                            ? filtered.filter(i => (i.name || '').toLowerCase().includes(q))
-                            : filtered
-                          ).slice().sort((a, b) =>
-                            (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' })
-                          );
-                          return visible.length > 0 ? visible.map((integrator) => (
-                            <SelectItem key={integrator.integrator_id} value={integrator.integrator_id} data-testid={`integrator-option-${integrator.integrator_id}`}>
-                              {integrator.name}
-                            </SelectItem>
-                          )) : (
-                            <SelectItem value="_no_integrators_" disabled>
-                              {q ? 'Sin coincidencias' : 'No hay integradores para esta modalidad'}
-                            </SelectItem>
-                          );
-                        })()}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Campo 1: Integrador (cascada nombre → aplicativo, homologado con Proyectos Directos) */}
+                  {(() => {
+                    const matches = integratorModalityMatch(quoteData.quote_type);
+                    const certifiedFiltered = integrators.filter(i =>
+                      i.integrator_status === 'Certificado' && matches(i.integration_modality)
+                    );
+                    const q = integratorSearchQuery.trim().toLowerCase();
+                    const allNames = Array.from(new Set(certifiedFiltered.map(i => i.name).filter(Boolean)))
+                      .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+                    const visibleNames = q.length > 0 ? allNames.filter(n => n.toLowerCase().includes(q)) : allNames;
+                    const selectedName = quoteData.integrator_name || '';
+                    const appsForIntegrator = (selectedName && selectedName !== 'sin_integrador')
+                      ? certifiedFiltered.filter(i => i.name === selectedName && (i.app_name || '').trim())
+                      : [];
 
-                  {/* Campo Informativo: Aplicativo */}
-                  <div>
-                    <Label className="text-sm font-medium text-slate-700 mb-2 block">
-                      Aplicativo Certificado
-                    </Label>
-                    <div className="h-10 px-3 py-2 bg-slate-100 border border-slate-200 rounded-md flex items-center">
-                      <span className={`text-sm ${quoteData.integrator_app_name ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                        {quoteData.integrator_app_name || 'Se completa al seleccionar integrador'}
-                      </span>
-                    </div>
-                  </div>
+                    const onSelectIntegratorName = (name) => {
+                      if (name === 'sin_integrador') {
+                        setQuoteData({ ...quoteData, integrator_name: 'sin_integrador', integrator_id: 'sin_integrador', integrator_app_name: 'Stand Alone' });
+                        return;
+                      }
+                      const apps = certifiedFiltered.filter(i => i.name === name && (i.app_name || '').trim());
+                      if (apps.length === 1) {
+                        setQuoteData({ ...quoteData, integrator_name: name, integrator_id: apps[0].integrator_id, integrator_app_name: apps[0].app_name || '' });
+                      } else {
+                        setQuoteData({ ...quoteData, integrator_name: name, integrator_id: '', integrator_app_name: '' });
+                      }
+                    };
+
+                    return (
+                      <>
+                        <div>
+                          <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                            <Users size={14} className="text-brand-blue-600" />
+                            Integrador {!isMPOS && <span className="text-red-500">*</span>}
+                            {isMPOS && <span className="text-slate-400 text-xs font-normal">(Opcional)</span>}
+                          </Label>
+                          <Select
+                            value={selectedName}
+                            onValueChange={onSelectIntegratorName}
+                          >
+                            <SelectTrigger data-testid="select-integrator">
+                              <SelectValue placeholder="Seleccione integrador..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[280px]">
+                              <div className="px-2 pb-2 sticky top-0 bg-white z-10">
+                                <input
+                                  type="text"
+                                  placeholder="Buscar por nombre..."
+                                  className="w-full h-8 px-2 text-sm border rounded-md outline-none focus:ring-1 focus:ring-blue-400"
+                                  value={integratorSearchQuery}
+                                  onChange={(e) => setIntegratorSearchQuery(e.target.value)}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  data-testid="integrator-search-input"
+                                />
+                              </div>
+                              {(isMPOS || isPaymentGateway || isVPOS) && (
+                                <SelectItem value="sin_integrador">Sin integrador</SelectItem>
+                              )}
+                              {visibleNames.length > 0 ? visibleNames.map((name) => (
+                                <SelectItem key={name} value={name} data-testid={`integrator-option-${name.trim().replace(/\s+/g, '-').toLowerCase()}`}>
+                                  {name}
+                                </SelectItem>
+                              )) : (
+                                <SelectItem value="_no_integrators_" disabled>
+                                  {q ? 'Sin coincidencias' : 'No hay integradores para esta modalidad'}
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Campo Aplicativo (cascada): 1 app = auto/bloqueado; 2+ = drop-list */}
+                        <div>
+                          <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                            Aplicativo Certificado
+                            {selectedName && selectedName !== 'sin_integrador' && appsForIntegrator.length > 0 && (
+                              <span className="text-amber-600 text-xs font-normal ml-1">({appsForIntegrator.length})</span>
+                            )}
+                          </Label>
+                          {appsForIntegrator.length >= 2 ? (
+                            <Select
+                              value={quoteData.integrator_id || ''}
+                              onValueChange={handleIntegratorChange}
+                            >
+                              <SelectTrigger data-testid="select-integrator-app">
+                                <SelectValue placeholder="Seleccionar aplicativo..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {appsForIntegrator.map((i) => (
+                                  <SelectItem key={i.integrator_id} value={i.integrator_id}>{i.app_name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="h-10 px-3 py-2 bg-slate-100 border border-slate-200 rounded-md flex items-center" data-testid="select-integrator-app-locked">
+                              <span className={`text-sm ${quoteData.integrator_app_name ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                {quoteData.integrator_app_name
+                                  || (!selectedName ? 'Se completa al seleccionar integrador' : 'Sin apps registradas')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
 
                   {/* Campo 2: Modelo de POS/Pinpad — Visible para VPOS/MPOS y Fast Track */}
                   {!isPaymentGateway && (
