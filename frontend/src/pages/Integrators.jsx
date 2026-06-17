@@ -364,7 +364,7 @@ export const Integrators = () => {
       setWizardSaving(true);
       try {
         const res = await api.post(`/integrators/${expandTargetId}/expand`, {
-          productos_certificar: formData.productos_certificar || '',
+          productos_certificar: (formData.productos_certificar || '').trim(),
           correo_eventual: (formData.correo_eventual || '').trim(),
         });
         toast.success('Proyecto de Ampliación registrado');
