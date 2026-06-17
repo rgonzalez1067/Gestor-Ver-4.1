@@ -397,6 +397,24 @@ const Projects = () => {
     ? Math.round(filtered.reduce((acc, p) => acc + (p.rollup_progress?.global_progress || 0), 0) / filtered.length)
     : 0;
 
+  // === Alertas Críticas de Compromisos (Mis Alertas del Implementador) ===
+  // Fuente: implementer_alerts no completados. Toast y marcas solo para el
+  // Implementador en sesión, sobre SUS proyectos asignados (decisión 1b/3b).
+  const isImplementer = (currentUser?.cargo || '').toLowerCase() === 'implementador';
+  const formatDMY = (s) => {
+    if (!s) return '';
+    const m = String(s).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? String(s) : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  };
+  const activeAlertsOf = (p) => isImplementer
+    ? (p.implementer_alerts || []).filter(a => !a.completed)
+    : [];
+  const hasCommitmentAlerts = isImplementer && projects.some(
+    p => p.assigned_to_user_id === currentUser?.user_id && (p.implementer_alerts || []).some(a => !a.completed)
+  );
+
   // Lista de patrocinadores distintos (para el dropdown del filtro).
   const sponsorOptions = Array.from(
     new Set(projects.map(getPatrocinadorLabel).filter(Boolean))
@@ -440,6 +458,19 @@ const Projects = () => {
             <div>
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Proyectos</h1>
               <p className="text-slate-600">Seguimiento de implementaciones post-venta</p>
+              {hasCommitmentAlerts && (
+                <div
+                  className="mt-3 inline-flex items-center gap-2 rounded-md px-4 py-2 shadow-md"
+                  style={{ backgroundColor: '#D32F2F' }}
+                  data-testid="commitments-alert-toast"
+                  role="alert"
+                >
+                  <AlertTriangle size={18} className="text-white shrink-0" />
+                  <span className="text-white text-sm font-semibold">
+                    Atención: Tiene alertas de compromisos programadas/vencidas en sus proyectos.
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {canManageTemplates && (
@@ -810,6 +841,45 @@ const Projects = () => {
                         data-testid={`project-row-${project.project_id}`}
                         data-direct-project={project.direct_project ? 'true' : 'false'}>
                         <td className="px-4 py-3">
+                          {/* Marca roja de Compromiso (implementer_alerts activos) */}
+                          {(() => {
+                            const activeAlerts = activeAlertsOf(project);
+                            if (activeAlerts.length === 0) return null;
+                            return (
+                              <TooltipProvider delayDuration={0}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span
+                                      className="inline-flex items-center gap-1 mb-1.5 px-1.5 py-0.5 rounded bg-red-600 text-white text-[10px] font-bold cursor-help animate-pulse"
+                                      data-testid={`project-commitment-badge-${project.project_id}`}
+                                    >
+                                      <AlertTriangle size={11} />
+                                      Compromiso{activeAlerts.length > 1 ? ` (${activeAlerts.length})` : ''}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="bg-red-700 text-white border-red-800 max-w-[320px]" data-testid={`project-commitment-tooltip-${project.project_id}`}>
+                                    {activeAlerts.map((a) => {
+                                      const overdue = a.deadline && new Date(a.deadline) < new Date();
+                                      return (
+                                        <div key={a.alert_id} className="mb-2 last:mb-0">
+                                          <p className="text-[11px] font-semibold text-red-200">Compromiso</p>
+                                          <p className="text-xs">{a.message}</p>
+                                          {a.deadline && (
+                                            <p className="text-[11px] mt-0.5">
+                                              <span className="text-red-200">Fecha Límite: </span>
+                                              <span className={overdue ? 'font-bold text-yellow-300' : 'font-medium'}>
+                                                {formatDMY(a.deadline)}{overdue ? ' · Vencido' : ''}
+                                              </span>
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          })()}
                           {/* Cliente como info principal — Nombre de Fantasía nativo; hover → Razón Social */}
                           {(() => {
                             const c = clientMap[project.client_id] || {};

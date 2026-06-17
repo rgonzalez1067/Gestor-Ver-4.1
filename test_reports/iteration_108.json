@@ -1,0 +1,60 @@
+{
+  "summary": "Frontend-only test of 'Alertas Críticas de Compromisos' on /projects (implementer view). Scenarios 1-4 PASS. Scenario 5 FAILS because the 'Marcar cumplida' button inside the 'Mis Alertas' modal on ProjectDetail does NOT issue any backend request, so the alert remains 'Pendientes (1)' and the row badge + header toast persist.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ProjectDetail · ImplementerAlertsModal · alert-complete-{alert_id}",
+        "issue": "Click on 'Marcar cumplida' (data-testid alert-complete-alrt_qa_test_1) does NOT fire any PUT/POST/PATCH to /api/projects/.../implementer-alerts. expect_response waited 30s and timed out. The alert stays in 'Pendientes (1)' after click and after reopening the modal. Consequently the row commitment badge and the header toast in /projects never disappear (Scenario 5).",
+        "selector": "[data-testid=\"alert-complete-alrt_qa_test_1\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "ProjectDetail (detail page, implementer session)",
+        "issue": "Multiple 403 console errors when loading the project detail (4 resources). Worth investigating: may indicate that some ancillary endpoints (notifications/permissions/etc.) reject the implementer token, possibly affecting silently the complete-alert request handler too.",
+        "selector": "n/a",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Projects.jsx · Tooltip de Compromiso (Radix)",
+        "issue": "Después de quitar el mouse del badge, el TooltipContent permanece visible un tiempo (cursor movido a (50,50) y el tooltip sigue renderizado tras 1.5s). Comportamiento por defecto de Radix con delayDuration=0; visualmente correcto pero el spec dice 'Al quitar el mouse, el tooltip se oculta'. Bajo impacto.",
+        "selector": "[data-testid=\"project-commitment-tooltip-prj_c64dfb860591\"]",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Resolver compromiso (Implementer Alerts → completar)",
+        "issue": "Frontend no llama al backend al hacer click en 'Marcar cumplida'. Sin la persistencia, no se puede validar que la marca de fila + Toast desaparezcan al resolver. Verificado capturando network: 0 requests a /implementer-alerts tras click.",
+        "affected_selectors": ["[data-testid=\"alert-complete-alrt_qa_test_1\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "scenarios_results": {
+    "S1_toast_permanent_implementer": "PASS — Toast renderiza con bg #D32F2F (rgb(211,47,47)), texto blanco correcto, sin botón de cierre, alineado debajo del h1 'Proyectos' (h1.y=16, toast.y=116). Persistente tras F5.",
+    "S2_row_badge_only_target_project": "PASS — Únicamente prj_c64dfb860591 muestra project-commitment-badge; prj_92fe734eb1f1 NO. Total de badges en la página: 1.",
+    "S3_tooltip_on_hover": "PASS — Tooltip muestra 'Entrega de credenciales de producción' y 'Fecha Límite: 25/06/2026' (formato dd/mm/aaaa correcto). Minor: tooltip tarda en ocultarse al unhover (no crítico).",
+    "S4_admin_no_toast": "PASS — Como admin (rgonzalez), data-testid commitments-alert-toast no existe; el admin tampoco ve project-commitment-badge para prj_c64dfb860591.",
+    "S5_resolve_destroys_badge_and_toast": "FAIL — La acción 'Marcar cumplida' no emite ningún request al backend; el alert permanece 'Pendientes (1)'. Al volver a /projects la marca y el Toast siguen visibles. Bloqueante de la feature."
+  },
+  "test_report_links": ["/app/test_reports/iteration_108.json"],
+  "action_items": [
+    "Revisar el handler onClick del botón 'Marcar cumplida' (data-testid alert-complete-{alert_id}) en el componente ImplementerAlertsModal (probablemente en /app/frontend/src/components o /app/frontend/src/pages/ProjectDetail.jsx). El click NO dispara ningún PUT/PATCH al backend (timeout 30s capturando network). Posibles causas: handler vacío/condicional incorrecto, validación que retorna temprano, función no enlazada, o estado loading bloqueante. Tras corregirlo, re-validar Escenario 5 (la marca y el toast deben desaparecer al volver a /projects).",
+    "Investigar 4 errores 403 en consola al abrir el detalle del proyecto como Implementador — pueden estar ocultando un fallo del endpoint de completar alertas.",
+    "(Opcional, baja prioridad) Ajustar el TooltipProvider/Tooltip de project-commitment-badge para que se oculte al instante en mouseleave (delayDuration en cierre)."
+  ],
+  "critical_code_review_comments": [
+    "Projects.jsx supera 700 líneas (~1100). Recomendado extraer subcomponentes (CommitmentBadge, CommitmentToast, ProjectRow, SLA bar). DRY: la lógica de activeAlertsOf + tooltip puede encapsularse.",
+    "Posible inconsistencia: el hint del task dice 'el implementador asignado puede marcar completado', pero el click no genera tráfico de red. Verificar que el endpoint PUT /api/projects/{id}/implementer-alerts/{alert_id} (o PATCH/POST equivalente) esté correctamente cableado en el componente del modal."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped)", "frontend": "80% (4/5 escenarios)" },
+  "test_credentials": "Jrojas@megasoft.com.ve / Test1234! (Implementador); rgonzalez@megasoft.com.ve / admin123 (Admin)",
+  "seed_data_creation": "No se creó data; se usó la preparada: prj_c64dfb860591 con implementer_alert 'Entrega de credenciales de producción' deadline 2026-06-25 (alrt_qa_test_1) y prj_92fe734eb1f1 sin alertas.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Escenarios 1-4 validados OK (toast permanente, badge único, tooltip con texto y fecha, admin sin toast). Bloqueante: en ProjectDetail → 'Mis Alertas' el botón [data-testid=alert-complete-alrt_qa_test_1] no realiza ninguna llamada de red al pulsarse. Hay que arreglar ese handler y luego re-validar Escenario 5 (badge + toast deben desaparecer al volver a /projects).",
+  "rca of the issue": "Reproducción S5: 1) login Jrojas, 2) /projects/prj_c64dfb860591, 3) click 'Mis Alertas' (open-implementer-alerts-btn), 4) click 'Marcar cumplida' (alert-complete-alrt_qa_test_1). Resultado: NO request HTTP saliente al endpoint /implementer-alerts (expect_response timeout 30s). El modal sigue mostrando 'Pendientes (1)' tras click. Al navegar a /projects la marca de fila y el toast siguen presentes. Probable causa raíz: handler onClick del botón no llama al servicio API o queda bloqueado en validación; revisar ImplementerAlertsModal y la función que debiera invocar PUT /api/projects/{id}/implementer-alerts/{alert_id} (o equivalente)."
+}
