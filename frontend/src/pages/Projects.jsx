@@ -398,9 +398,13 @@ const Projects = () => {
     ? Math.round(filtered.reduce((acc, p) => acc + (p.rollup_progress?.global_progress || 0), 0) / filtered.length)
     : 0;
 
-  // Mini Tablero de Avance Operativo: agrega las 4 métricas (físico + PVV) sobre
-  // el MISMO set filtrado que la grilla (reactivo a fecha, tipo, integrador y estado).
-  const boardMetrics = filtered.reduce((acc, p) => {
+  // Mini Tablero de Avance Operativo: agrega las 4 métricas (físico + PVV).
+  // Por defecto (statusFilter 'active' o 'all') suma sobre TODOS los estados del
+  // set filtrado por fecha/tipo/integrador/cliente → coincide con el consolidado
+  // del Reporte de Carga. Reacciona a un estado SOLO si el usuario lo selecciona
+  // explícitamente (click en una tarjeta KPI de estado específico).
+  const boardSource = (statusFilter === 'active' || statusFilter === 'all') ? baseFiltered : filtered;
+  const boardMetrics = boardSource.reduce((acc, p) => {
     const om = p.operational_metrics || {};
     acc.cajasAsig += om.cajas_asignadas || 0;
     acc.cajasConf += om.cajas_configuradas || 0;
@@ -526,7 +530,7 @@ const Projects = () => {
           </div>
 
           {/* Mini Tablero de Avance Operativo (físico + PVV) — reactivo al filtro */}
-          <OperationalBoard metrics={boardMetrics} count={filtered.length} />
+          <OperationalBoard metrics={boardMetrics} count={boardSource.length} />
 
           {/* Stats Cards */}
           <div className="grid grid-cols-4 lg:grid-cols-7 gap-2 mb-4">

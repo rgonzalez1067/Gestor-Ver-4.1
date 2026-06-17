@@ -1,0 +1,32 @@
+{
+  "summary": "Frontend-only QA del Mini Tablero de Avance Operativo en /projects tras BUG FIX de PVV Asignados (paridad con Reporte de Carga). TODAS las verificaciones críticas PASARON. La paridad por defecto se restauró: el tablero suma sobre TODOS los estados aunque el filtro default 'Activos (ocultar cerrados)' esté aplicado en la grilla. No hay color rojo. Reactividad correcta tanto a estado explícito como a filtros no-estado/búsqueda.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verifications_passed": [
+    "PARIDAD POR DEFECTO (CRITERIO PRINCIPAL): admin sin tocar filtros => board-fisico-configured=20, board-fisico-assigned=492 (Físico 20/492, 4%); board-digital-configured=124, board-digital-assigned=1216 (Digital 124/1216, 10%). Coincide 100% con valores esperados y board-digital-assigned=1216 (NO 1156). El BUG FIX está confirmado: el sub-conteo por filtro 'active' por defecto fue eliminado (boardSource = baseFiltered cuando statusFilter ∈ {active, all}).",
+    "Reactividad a ESTADO explícito (Culminado): tras click en stat-culminado, el tablero recalcula a Físico 20/20 y Digital 5/50. cajas_configuradas == cajas_asignadas en Culminado (regla de backend: todos los Culminado cuentan como cajas configuradas). subset <= total en ambas dimensiones.",
+    "Resiliencia 0/0: búsqueda 'ZZZZZ_NOPE_XYZ123' => Físico 0/0 y Digital 0/0, sin errores nuevos en consola provenientes de OperationalBoard ni excepciones React.",
+    "Reactividad a filtros NO-estado: la búsqueda (project-search) recalcula los 4 contadores coherentemente (0/0 al vaciar el set). El filtro 'Tipo de proyecto' es un botón-dropdown (no native <select>), por lo que el helper native select_option no aplica; la cobertura de reactividad no-estado quedó cubierta por el search test.",
+    "Auditoría CSS - PROHIBIDO ROJO: 0 offenders en todo el subárbol de [data-testid='operational-board']. board-fisico gradient = linear-gradient(rgb(13,148,136) -> rgb(14,116,144)) [teal->cyan]; board-digital gradient = linear-gradient(rgb(79,70,229) -> rgb(29,78,216)) [indigo->blue]. Texto blanco. Ninguna clase tailwind red-*/rose-* ni computedStyle con r>=170 && g<80 && b<90.",
+    "Render: el Mini Tablero (operational-board) aparece arriba de las tarjetas KPI (76 Total, 9 Asignado, 14 En Gestión, 3 Culminado, etc.) tal como en iteration_109."
+  ],
+  "test_report_links": ["/app/test_reports/op_board_default.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Projects.jsx L401-414: boardSource correcto -- usa baseFiltered (sin status) cuando statusFilter ∈ {'active','all'}, y filtered cuando el usuario selecciona un estado específico. Esta lógica es la que restaura la paridad 1216 con el Reporte de Carga.",
+    "OperationalBoard.jsx: pct() protegido contra div/0 y clampado a 100%. testids board-{fisico|digital}-{configured|assigned|pct|bar} presentes y consumidos correctamente por consumer.",
+    "Conocido (pre-existente, NO bloqueante, NO relacionado con OperationalBoard): warnings de hidratación 'In HTML, <span> cannot be a child of <tbody>' y '<span> cannot contain a nested <tr>' en Projects.jsx (table > tbody con wrapper <span> por algún HOC de tracking, x-source-var='filtered'). Ya documentado en iteration_109 como pre-existente."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped por instrucción)", "frontend": "100%" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (usado)",
+  "seed_data_creation": "Ninguno - data real del preview (80 proyectos).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "BUG FIX paridad PVV verificado: el Mini Tablero por defecto muestra 124/1216 (Digital) y 20/492 (Físico). La clave es boardSource = (statusFilter==='active'||statusFilter==='all') ? baseFiltered : filtered en Projects.jsx (~L401). Si se vuelve a modificar esa lógica, re-verificar: (a) sin filtros -> Digital asig = 1216, NO 1156 (sub-conteo); (b) click en stat-culminado -> board-fisico-configured == board-fisico-assigned (rule del backend compute_project_metrics: cajas_configuradas solo si status ∈ {Culminado, Implementado parcial}); (c) auditoría CSS de no-rojo intacta.",
+  "rca of the issue": "El bug original era boardSource = filtered (siempre), por lo que el filtro default 'active' (oculta Suspendido/Culminado/Implementado parcial) sub-contaba PVV asignados a 1156 en lugar de 1216. Fix: cuando statusFilter es el default 'active' (o 'all'), el tablero debe usar baseFiltered (sin status) para sumar TODOS los proyectos, manteniendo la grilla con su filtro intacto. Sólo cuando el usuario hace click en un estado específico (Culminado, Suspendido, etc.) el tablero baja a filtered. Verificado por UI: 1216 (default) y subsets correctos por estado."
+}
