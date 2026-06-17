@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only validation of CONDITIONAL visibility of the 2 new wizard fields (Productos a Certificar + Correo Adicional Eventual) in /integrators 'Nuevo Proyecto de Integración'. All 5 acceptance scenarios PASSED on the preview URL using the admin account. Fields appear ONLY in the 'Ampliación de tipo vigente' branch and are absent in both 'Integrador Nuevo' and 'Nuevo Tipo de Integración'. Email validation blocks save and valid save triggers the 'Notificar Nuevo Proyecto' modal.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators dashboard", "issues": ["Pre-existing React hydration warning: <tr> child inside <span> inside <tbody> (data-ve-dynamic instrumentation). Not introduced by this iteration."]},
+      {"screen": "Wizard / Notify modal", "issues": ["Pre-existing a11y warning: 'Missing Description or aria-describedby={undefined} for DialogContent'. Add a <DialogDescription> for better screen-reader support (low priority)."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Integrators.jsx handleWizardSubmit (line 392): correctly strips productos_certificar/correo_eventual from payload for new/new_type via destructuring — clean implementation.",
+    "Expansion submit (line 366) calls POST /integrators/{id}/expand and chains setEmailNotifyOpen(true) → correctly executes 'envío del Proyecto' as required.",
+    "EMAIL_RE inline 3 times inside the Ampliación block (className, error message, paragraph). Consider extracting a small isValidEmail() helper or useMemo to avoid drift (already raised in iteration_106; still applies).",
+    "wizard-productos-certificar input has no maxLength; long strings may render awkwardly when embedded as {Productos_Certificar_Integrador} in the email HTML.",
+    "Productos_Certificar_Integrador variable value is not trimmed/sanitized client-side before being persisted via /expand. Consider .trim() on submit to avoid leading/trailing whitespace in emails (mirrors how correo_eventual is trimmed)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "5/5 scenarios PASS (100%)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (used).",
+  "seed_data_creation": "No new integrator created. TEST 5 ('Guardar Ampliación válido') successfully executed against existing integrator 'Alexis Jose Zambrano Pante' (PharmaPoS V2.0). This changed that integrator's project_scope to 'expansion' and persisted productos_certificar='Certificación de pasarela web' + correo_eventual='gerente@banco.com'. The 'Notificar Nuevo Proyecto' modal was dismissed by closing the browser/tab without clicking 'Enviar Notificacion', so NO email was actually sent. Main agent may want to revert this integrator's project_scope/expansion fields if production data is sensitive.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Per-scenario evidence captured via Playwright: T1 — Nuevo Integrador flow: filled name 'ZZ Nuevo Integrador QA Test 2026', clicked wizard-register-new-btn → wizard-new-integrator-fields + wizard-integration-type render; wizard-productos-certificar and wizard-correo-eventual are NOT in DOM. T2 — Existing integrator selected via wizard-suggestion ('Alexis Jose Zambrano Pante'), step 2 wizard-existing-panel visible, clicked wizard-scope-new-type → wizard-new-type-block + wizard-integration-type + wizard-app-name render; productos/correo testids NOT in DOM. T3 — Switched to wizard-scope-expansion → wizard-expansion-block + both wizard-productos-certificar and wizard-correo-eventual visible; wizard-integration-type removed from DOM (correctly scoped to new_type block). T4 — Typed 'correo_invalido' in wizard-correo-eventual → wizard-correo-eventual-error visible, input gains class 'border-red-400 focus-visible:ring-red-400'; selecting expand radio + clicking wizard-submit-btn produces toast text matching 'Correo Adicional Eventual ... formato inválido' and wizard remains open. T5 — Replaced email with 'gerente@banco.com' (error cleared) + productos = 'Certificación de pasarela web' + radio selected → wizard-submit-btn produced toast 'Proyecto de Ampliación registrado' and the 'Notificar Nuevo Proyecto' Dialog opened showing Integrador='Alexis Jose Zambrano Pante', Aplicativo='PharmaPoS V2.0', Comentarios + 'Enviar copia a (CC)' field, and 'Enviar Notificacion' button — confirmed via screenshot. Console contains only pre-existing hydration warnings unrelated to this feature. No regressions observed.",
+  "rca of the issue": "Not applicable — feature behaves exactly as the spec requires. Fields are now conditionally rendered (only inside wizard-expansion-block); the destructure-and-strip in handleWizardSubmit prevents the fields from leaking into POST /integrators payload for the other two scopes."
+}

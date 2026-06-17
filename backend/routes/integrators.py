@@ -230,23 +230,38 @@ async def update_integrator(integrator_id: str, integrator: IntegratorCreate, au
     updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
     return updated
 
+class ExpandPayload(BaseModel):
+    productos_certificar: Optional[str] = None
+    correo_eventual: Optional[str] = None
+
+
 @router.post("/integrators/{integrator_id}/expand")
-async def expand_integrator_type(integrator_id: str, authorization: Optional[str] = Header(None)):
+async def expand_integrator_type(integrator_id: str, payload: Optional[ExpandPayload] = None, authorization: Optional[str] = Header(None)):
     """Marca un Proyecto de Integración existente como 'Ampliación' de un tipo
     vigente. No crea una fila nueva (anti-duplicidad): actualiza la fila del tipo
     seleccionado a project_scope='expansion' y la deja 'En proceso' (en curso),
-    para que se resalte en la grilla y aparezca en el filtro 'Proyectos Ampliados'."""
+    para que se resalte en la grilla y aparezca en el filtro 'Proyectos Ampliados'.
+
+    Al ser un proyecto de complemento, persiste los campos del complemento
+    (productos a certificar y correo adicional eventual) usados luego en la
+    notificación al Integrador."""
     await get_current_user(authorization)
     existing = await db.integrators.find_one({"integrator_id": integrator_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Integrator not found")
+    set_data = {
+        "project_scope": "expansion",
+        "integrator_status": "En proceso",
+        "expanded_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if payload is not None:
+        if payload.productos_certificar is not None:
+            set_data["productos_certificar"] = payload.productos_certificar
+        if payload.correo_eventual is not None:
+            set_data["correo_eventual"] = payload.correo_eventual
     await db.integrators.update_one(
         {"integrator_id": integrator_id},
-        {"$set": {
-            "project_scope": "expansion",
-            "integrator_status": "En proceso",
-            "expanded_at": datetime.now(timezone.utc).isoformat(),
-        }},
+        {"$set": set_data},
     )
     updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
     return updated
