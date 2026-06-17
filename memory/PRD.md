@@ -6,6 +6,24 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Mini Tablero: Bug Fix PVV Asignados + nuevas reglas de Cajas/PVV Configurados — Jun 2026
+
+**Requerimiento:** Auditar/corregir el Mini Tablero de Avance Operativo (/projects) con 3 ajustes.
+
+**1. BUG FIX — PVV Asignados ≠ Reporte de Carga (causa raíz):** El tablero sumaba sobre `filtered`, pero `statusFilter` arranca en **'active'** (oculta `Suspendido/Implementado parcial/Culminado/Anulado`) → sub-contaba 60 PVV (1156 vs 1216 del Reporte de Carga). **Fix (`Projects.jsx` ~L401):** `boardSource = (statusFilter==='active'||'all') ? baseFiltered : filtered` — por defecto consolida TODOS los estados (coincide 100% con el reporte); sólo baja a `filtered` cuando el usuario selecciona un estado específico. La grilla conserva su filtro 'active' intacto. Además, `compute_project_pvv` ahora usa `_total_cajas` robusto a **Multi-RIF** (fallback a `rifs[].box_count`), homologado con `_project_total_cajas` del reporte.
+
+**2. Cajas Configuradas (nueva regla):** ya NO se deriva del avance. Ahora **= total de cajas SOLO si `status` ∈ {'Culminado','Implementado parcial'}** (resto aporta 0, sin importar avance interno). Digital → 0.
+
+**3. PVV Configurados (granular por fase):** Σ terminales en fase **'En Producción'** por combo Banco/Producto. En multitienda/Multi-RIF baja al **nivel de tienda** (suma `stores[].implementation_matrix`, sin doble conteo con la matriz plantilla del proyecto).
+
+**Backend (`services/project_pvv.py`):** `compute_project_metrics` reescrito (helpers `_total_cajas`, `_production_processed`; constantes `CONFIGURED_STATUSES`, `PRODUCTION_PHASE`). Eliminado `_matrix_combos` (sin uso).
+
+**QA:** pytest `tests/test_operational_metrics.py` **7/7 PASS** (cubre los 4 criterios del requerimiento: PVV asignados 2×2×2=8; cajas config En Gestión→0 vs Implementado parcial/Culminado→suma; PVV config estándar fase producción 2/10; granularidad multitienda 1 PVV; fallback Multi-RIF desde rifs). Paridad real verificada por curl: **tablero PVV asignados = 1216 = Reporte de Carga**. testing_agent iteration_110 → **frontend 100% PASS** (default Digital 124/1216 NO 1156, Físico 20/492; reactividad estado Culminado→20/20; resiliencia 0/0; auditoría CSS sin rojo).
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
+
 ### Mini Tablero de Avance Operativo + Motor de Cálculo de PVV — Jun 2026
 
 **Requerimiento:** Componente visual tipo "Mini Tablero de Control" en la zona superior del Panel de Proyectos (/projects), arriba de las tarjetas KPI de estado, que refleja el avance del despliegue en dos dimensiones: Ecosistema Físico (Cajas) y Ecosistema Digital (PVV). Reactivo al mismo set filtrado que la grilla. Fórmula: **PVV = Cajas × Bancos × Productos**. Restricción crítica: PROHIBIDO el rojo (reservado a alertas de compromisos).
