@@ -19,6 +19,7 @@ import { CommitmentModal } from '../components/CommitmentModal';
 import { WorkloadReportFiltersModal } from '../components/WorkloadReportFiltersModal';
 import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
 import { MasterEditDialog } from '../components/projects/MasterEditDialog';
+import { OperationalBoard } from '../components/projects/OperationalBoard';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
   FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar
@@ -397,6 +398,17 @@ const Projects = () => {
     ? Math.round(filtered.reduce((acc, p) => acc + (p.rollup_progress?.global_progress || 0), 0) / filtered.length)
     : 0;
 
+  // Mini Tablero de Avance Operativo: agrega las 4 métricas (físico + PVV) sobre
+  // el MISMO set filtrado que la grilla (reactivo a fecha, tipo, integrador y estado).
+  const boardMetrics = filtered.reduce((acc, p) => {
+    const om = p.operational_metrics || {};
+    acc.cajasAsig += om.cajas_asignadas || 0;
+    acc.cajasConf += om.cajas_configuradas || 0;
+    acc.pvvAsig += om.pvv_asignados || 0;
+    acc.pvvConf += om.pvv_configurados || 0;
+    return acc;
+  }, { cajasAsig: 0, cajasConf: 0, pvvAsig: 0, pvvConf: 0 });
+
   // === Alertas Críticas de Compromisos (Mis Alertas del Implementador) ===
   // Fuente: implementer_alerts no completados. Toast y marcas solo para el
   // Implementador en sesión, sobre SUS proyectos asignados (decisión 1b/3b).
@@ -512,6 +524,9 @@ const Projects = () => {
               </Button>
             </div>
           </div>
+
+          {/* Mini Tablero de Avance Operativo (físico + PVV) — reactivo al filtro */}
+          <OperationalBoard metrics={boardMetrics} count={filtered.length} />
 
           {/* Stats Cards */}
           <div className="grid grid-cols-4 lg:grid-cols-7 gap-2 mb-4">

@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend-only QA del Mini Tablero de Avance Operativo (OperationalBoard) en /projects. Todas las verificaciones funcionales y visuales solicitadas PASARON. El tablero se renderiza correctamente, es reactivo a los filtros, maneja el estado cero limpiamente y NO usa rojo en ninguna parte del componente.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verifications_passed": [
+    "Render: [data-testid='operational-board'] se renderiza en /projects con dos tarjetas duales (board-fisico, board-digital) y todos los testids board-*-configured/assigned/pct/bar presentes.",
+    "Posición: el tablero está ARRIBA de las tarjetas KPI (board.top=136px vs stat-total.top=337.5px).",
+    "Numéricos coherentes (admin sin filtros): Físico 34/492 (7%) y Digital 39/1216 (3%) — coincide con lo esperado (~34/492 y ~39/1216).",
+    "Reactividad a filtro 'Culminado': pasa de 34/492 → 5/20 (Físico) y 39/1216 → 5/50 (Digital), % recalculado a 25% y 10%. Confirma agregación sobre el set filtrado.",
+    "Reactividad a filtro 'Por Asignar' (kpi=0): tablero muestra 0/0/0% en ambas tarjetas sin errores de consola.",
+    "Resiliencia 0 registros: al filtrar por estado con 0 proyectos, todos los contadores quedan en 0/0 y % en 0% sin excepciones (caso 'Por Asignar' = 0 proyectos lo cubre).",
+    "Auditoría CSS - PROHIBIDO ROJO: 0 issues. board-fisico usa linear-gradient(rgb(13,148,136)→rgb(14,116,144)) [teal/cyan]; board-digital usa linear-gradient(rgb(79,70,229)→rgb(29,78,216)) [indigo/blue]. Ningún descendiente del OperationalBoard tiene clase tailwind red-*/rose-* ni computedStyle con r>=170 & g<80 & b<90.",
+    "Sin errores de consola atribuibles al OperationalBoard durante el flujo de pruebas."
+  ],
+  "test_report_links": ["/app/test_reports/operational_board.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "OperationalBoard.jsx: cálculo pct() está protegido contra división por cero (asig>0) y clampa a 100% — correcto.",
+    "Projects.jsx (~L403): boardMetrics usa filtered.reduce y tolera p.operational_metrics ausente con `|| {}` y `|| 0`. Robusto frente a proyectos GATEWAY/LINK_PAGO con bloque físico 0/0.",
+    "Nota menor (no bloqueante): Console muestra warnings de hidratación (<span> dentro de <tbody>) en Dashboard.jsx — NO está relacionado con OperationalBoard. Pre-existente."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped por instrucción)", "frontend": "100%" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (usado)",
+  "seed_data_creation": "Ninguno - se usó la data existente (80 proyectos).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature OperationalBoard validado end-to-end por UI. Si se modifica la lógica de compute_project_metrics o el orden de agregación en Projects.jsx (boardMetrics reduce), correr de nuevo este escenario y verificar la auditoría de color (no-rojo) como guardarraíl visual."
+}

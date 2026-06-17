@@ -177,9 +177,11 @@ async def get_projects(authorization: Optional[str] = Header(None)):
     projects = await db.projects.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     # Iter39: inyectar pvv_count para que la lista pueda mostrarlo / ordenarlo
     # sin un GET adicional por proyecto.
-    from services.project_pvv import compute_project_pvv
+    from services.project_pvv import compute_project_pvv, compute_project_metrics
     for p in projects:
         p["pvv_count"] = compute_project_pvv(p)
+        # Iter: métricas del Mini Tablero de Avance Operativo (físico + PVV).
+        p["operational_metrics"] = compute_project_metrics(p)
     return projects
 
 
