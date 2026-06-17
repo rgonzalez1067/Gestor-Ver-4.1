@@ -380,12 +380,15 @@ const Projects = () => {
 
   // KPIs dinámicos (Regla de Oro): "Total" refleja el set filtrado completo (incluye
   // estado); las tarjetas de estado cuentan su estado dentro de los demás filtros.
+  const countStatus = (st) => baseFiltered.filter(p => p.status === st).length;
   const kpi = {
     total: filtered.length,
-    pending: baseFiltered.filter(p => p.status === 'Por asignar').length,
-    in_progress: baseFiltered.filter(p => ['Asignado', 'En Gestión', 'Implementado parcial'].includes(p.status)).length,
-    blocked: baseFiltered.filter(p => p.status === 'Suspendido').length,
-    completed: baseFiltered.filter(p => p.status === 'Culminado').length,
+    por_asignar: countStatus('Por asignar'),
+    asignado: countStatus('Asignado'),
+    en_gestion: countStatus('En Gestión'),
+    suspendido: countStatus('Suspendido'),
+    parcial: countStatus('Implementado parcial'),
+    culminado: countStatus('Culminado'),
   };
 
   // Indicador de Avance Global: promedio del % de avance (rollup_progress.global_progress)
@@ -480,20 +483,22 @@ const Projects = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-5 gap-4 mb-4">
+          <div className="grid grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
             {[
               { label: 'Total', value: kpi.total, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all' },
-              { label: 'Pendientes', value: kpi.pending, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar' },
-              { label: 'En Proceso', value: kpi.in_progress, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'in_progress' },
-              { label: 'Suspendidos', value: kpi.blocked, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'suspended' },
-              { label: 'Finalizados', value: kpi.completed, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado' },
+              { label: 'Por Asignar', value: kpi.por_asignar, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar' },
+              { label: 'Asignado', value: kpi.asignado, cls: 'bg-sky-50 border-sky-200 text-sky-700', filter: 'Asignado' },
+              { label: 'En Gestión', value: kpi.en_gestion, cls: 'bg-indigo-50 border-indigo-200 text-indigo-700', filter: 'En Gestión' },
+              { label: 'Suspendido', value: kpi.suspendido, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'Suspendido' },
+              { label: 'Implementado Parcial', value: kpi.parcial, cls: 'bg-violet-50 border-violet-200 text-violet-700', filter: 'Implementado parcial' },
+              { label: 'Culminado', value: kpi.culminado, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado' },
             ].map(s => (
               <div key={s.label}
-                className={`p-4 rounded-lg border cursor-pointer transition-all ${s.cls} ${statusFilter === s.filter ? 'ring-2 ring-offset-1 ring-current' : 'hover:shadow-sm'}`}
+                className={`p-3 rounded-lg border cursor-pointer transition-all ${s.cls} ${statusFilter === s.filter ? 'ring-2 ring-offset-1 ring-current' : 'hover:shadow-sm'}`}
                 onClick={() => setStatusFilter(s.filter)}
                 data-testid={`stat-${s.label.toLowerCase().replace(/\s/g, '-')}`}>
-                <p className="text-2xl font-bold" data-testid={`stat-value-${s.label.toLowerCase().replace(/\s/g, '-')}`}>{s.value}</p>
-                <p className="text-sm">{s.label}</p>
+                <p className="text-xl font-bold leading-none" data-testid={`stat-value-${s.label.toLowerCase().replace(/\s/g, '-')}`}>{s.value}</p>
+                <p className="text-xs leading-tight mt-1.5">{s.label}</p>
               </div>
             ))}
           </div>

@@ -890,3 +890,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Nuevos filtros en Projects.jsx: Integrador (popover con búsqueda) y rango de fechas (sent_to_implementation_at), + botón 'Limpiar'. testids: project-integrator-filter/-search/-option-*, project-date-from/-to, project-clear-filters, global-progress-widget/-bar/-value, stat-value-*.
 - Sin cambios de backend (datos ya cargados y scopeados por rol; <=1000 proyectos). Validado por testing_agent iteration_105.json: 6/6 PASS (Total reactivo a estado, tarjetas reactivas a integrador, avance recalcula 6%->16% Bigwise->15% En Gestión->12% rango fechas, limpiar restaura).
 - NOTA DATA: existen estados legacy no estándar ('Asignado / En Proceso'=49, 'Pendiente por Asignar'=1, 'En proceso/reasignado'=3) que NO entran en los buckets de las tarjetas (igual que el endpoint /projects/stats previo). Por eso Total puede ser > suma de tarjetas. Es data preexistente, no afecta la lógica reactiva.
+
+**Rediseño tarjetas KPI Panel de Proyectos · 2026-06-17:**
+- Tarjetas KPI ahora alineadas 1:1 con la taxonomía de estados: Total, Por Asignar, Asignado, En Gestión, Suspendido, Implementado Parcial, Culminado (7 tarjetas, orden por ciclo de vida). Renombrados: Pendientes→Por Asignar, En Proceso→En Gestión; agregados Asignado e Implementado Parcial; Finalizados→Culminado.
+- kpi ahora cuenta por estado exacto (countStatus) sobre baseFiltered; filtros de tarjeta usan los keys de estado reales ('Asignado','En Gestión','Implementado parcial','Suspendido','Culminado','Por asignar') sincronizados con el dropdown de estado.
+- Layout compacto: grid-cols-4 lg:grid-cols-7, gap-2, p-3, valor text-xl, label text-xs leading-tight. testids: stat-value-{slug}.
+- Compila OK. Verificación visual pendiente (preview dormido al momento del cambio).
