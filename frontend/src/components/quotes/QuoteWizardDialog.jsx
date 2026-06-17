@@ -16,6 +16,7 @@ import { BranchDetailPanel } from '../BranchDetailPanel';
 import { MultiRifDistributionPanel } from './MultiRifDistributionPanel';
 import { MultiProductSelector } from '../MultiProductSelector';
 import { QUOTE_TYPES, PRICING_MODELS, SETUP_CONCEPTS } from './constants';
+import { integratorModalityMatch } from '../../utils/integratorModality';
 import { toast } from 'sonner';
 
 export const QuoteWizardDialog = ({ ctx }) => {
@@ -276,18 +277,13 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         // Buscar banco "Mega Soft" para default de Fast Track
                         const megaSoftBank = isFastTrack ? banks.find(b => b.name?.toLowerCase().includes('mega soft') || b.name?.toLowerCase().includes('megasoft')) : null;
                         
-                        // Limpiar integrador si no es compatible con la nueva modalidad
+                        // Limpiar integrador si no es compatible con la nueva modalidad.
+                        // Se conserva el integrador actual solo si su modalidad sigue
+                        // siendo válida para el nuevo Tipo de Proyecto (helper compartido).
                         const currentIntegrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
-                        let newIntegratorId = '';
-                        if (isFastTrack) {
-                          newIntegratorId = (currentIntegrator?.integration_modality === 'MPOS') ? quoteData.integrator_id : 'sin_integrador';
-                        } else if (isPGLike) {
-                          newIntegratorId = (currentIntegrator?.integration_modality === 'PG Universal' || currentIntegrator?.integration_modality === 'PG No universal') ? quoteData.integrator_id : '';
-                        } else if (value === 'VPOS') {
-                          newIntegratorId = (currentIntegrator?.integration_modality === 'REST') ? quoteData.integrator_id : '';
-                        } else if (isMposSelected) {
-                          newIntegratorId = quoteData.integrator_id || '';
-                        }
+                        const matchesNew = integratorModalityMatch(value);
+                        const keepIntegrator = !!currentIntegrator && matchesNew(currentIntegrator.integration_modality);
+                        let newIntegratorId = keepIntegrator ? quoteData.integrator_id : '';
                         if (quoteData.integrator_id && quoteData.integrator_id !== 'sin_integrador' && newIntegratorId !== quoteData.integrator_id) {
                           toast.info('Integrador anterior no compatible con esta modalidad. Seleccione uno nuevo.');
                         }
@@ -826,19 +822,10 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           <SelectItem value="sin_integrador">Sin integrador</SelectItem>
                         )}
                         {(() => {
-                          const filtered = integrators.filter(i => {
-                            if (i.integrator_status !== 'Certificado') return false;
-                            if (isPaymentGateway) {
-                              return i.integration_modality === 'PG Universal' || i.integration_modality === 'PG No universal';
-                            }
-                            if (isFastTrackType) {
-                              return i.integration_modality === 'MPOS';
-                            }
-                            if (isVPOS) {
-                              return i.integration_modality === 'REST';
-                            }
-                            return true;
-                          });
+                          const matches = integratorModalityMatch(quoteData.quote_type);
+                          const filtered = integrators.filter(i =>
+                            i.integrator_status === 'Certificado' && matches(i.integration_modality)
+                          );
                           // Filtro por búsqueda + orden alfabético
                           const q = integratorSearchQuery.trim().toLowerCase();
                           const visible = (q.length > 0

@@ -1,0 +1,39 @@
+{
+  "summary": "Frontend-only validation of dynamic Integrator filtering by Tipo de Proyecto in both modules (Cotizaciones and Proyectos Directos), driven by helper /app/frontend/src/utils/integratorModality.js (PHYSICAL_MODALITIES={REST, Stand Alone, Wrapper, MPOS} / DIGITAL_MODALITIES={Bridge PG, Web Link No/Universal, TKN No/Universal, PG No/Universal}). Logged in as admin (rgonzalez@megasoft.com.ve) and ran the 6 scenarios from the request against real backend data via Playwright. All 7 acceptance checks passed.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Quotes (table) & DirectProjectCreation (dp-boxes-grid table)", "issues": ["Hydration warnings in console: <span data-ve-dynamic> rendered as child of <tbody>/<tr>/<th>. Pre-existing instrumentation wrapper, NOT introduced by this change. Functionality unaffected."]}
+    ]
+  },
+  "test_results": {
+    "cotizaciones_vpos_filter": "PASS — 128 certified integrators listed (physical modalities). 'Wis de Venezuela C.A.' and 'Corporación XETUX' present; 'ZUDEV, C.A', 'Mundo APP / Burger King', 'TokApp Online S.L.', 'Novus Desarrollo Digital C.A' absent.",
+    "cotizaciones_gateway_filter": "PASS — 112 integrators (digital). 'ZUDEV, C.A', 'Mundo APP / Burger King', 'TokApp Online S.L.' present; 'Wis de Venezuela C.A.' and 'Corporación XETUX' absent.",
+    "cotizaciones_reset_reactivo_placeholder": "PASS — After picking 'Bigwise' under VPOS and switching to LINK_PAGO, the select-integrator trigger shows 'Seleccione integrador...' (cleared).",
+    "cotizaciones_reset_toast": "PASS — Toast text confirmed: 'Integrador anterior no compatible con esta modalidad. Seleccione uno nuevo.'",
+    "direct_projects_vpos_filter": "PASS — 124 names (deduped). Physical integrators present, digitals absent.",
+    "direct_projects_gateway_filter": "PASS — 110 names. Digital integrators present, physicals absent.",
+    "direct_projects_reset_reactivo": "PASS — After picking '3D Vision C.A' under VPOS and switching to LINK_PAGO, dp-integrator trigger shows 'Sin integrador'."
+  },
+  "observations": [
+    "Several integrator NAMES appear in both lists (e.g., '3MIT', 'Bigwise', 'Binaural C.A', 'Corporación 3DLink C.A.', 'Inditex', 'INTELIX/Beconsult C.A.', 'Waikeri HiTech CA', 'Epic Tecnology C.A.', 'G&G Software S.A.S', 'Alcantara Trujillo y Asociados', 'T. I. Soluciones C.A.', 'REDES IP', 'KLK Sistemas C.A', 'Meraki Tech Group', 'Nimetrix C.A.'). This is expected because the same integrator company may hold both physical and digital certifications via separate integrator rows (different app/modality). Filtering is by integration_modality, not by name.",
+    "Cotizaciones dropdown lists integrators by integrator_id (so two rows of the same name appear twice — e.g., 'Bigwise', 'Deepcompany', 'REDES IP', 'TV Zamora', 'Somos Sistemas Software'). Proyectos Directos dedupes by name (Array.from(new Set(...))) → 124 vs 128. Both behaviors are intentional in the source code; flag only if product wants UX parity.",
+    "Búsqueda 'integrator-search-input' confirmada operativa (usada para localizar 'Wis de Venezuela C.A.' en escenario de reset)."
+  ],
+  "critical_code_review_comments": [
+    "QuoteWizardDialog.jsx is 2425 lines — exceeds 700-line guideline; consider splitting (e.g., separate Integrador panel sub-component). Same applies to DirectProjectCreation.jsx (1522 lines).",
+    "Pre-existing hydration warnings (<span> inside <tbody>/<tr>) on /quotes and /direct-projects from instrumentation wrapper (data-ve-dynamic). Not caused by this feature but should be cleaned up."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (skipped)", "frontend": "100% (7/7 scenarios)" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "None. No quote/project was saved. Wizard was opened and dismissed after each scenario.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Filtering helper /app/frontend/src/utils/integratorModality.js is consumed by both QuoteWizardDialog.jsx (select-integrator, search via integrator-search-input, type via select-quote-type) and DirectProjectCreation.jsx (dp-integrator, dp-quote-type). For Cotizaciones the wizard requires a client to be selected before the Integrador section becomes visible — use [data-testid=select-client] then pick any [data-testid^=client-option-]. Cotizaciones identifies options by integrator_id (allows duplicate names); Proyectos Directos identifies by integrator NAME (deduped). Reset toast string: 'Integrador anterior no compatible con esta modalidad. Seleccione uno nuevo.'",
+  "rca of the issue": "N/A — feature works as specified."
+}

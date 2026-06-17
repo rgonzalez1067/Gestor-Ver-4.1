@@ -15,6 +15,7 @@ import { ProcessorLinkBankModal } from '../components/shared/ProcessorLinkBankMo
 import { DirectMultiRifSection } from '../components/projects/DirectMultiRifSection';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { integratorModalityMatch } from '../utils/integratorModality';
 import { usePermission } from '../hooks/usePermission';
 
 const QUOTE_TYPES = [
@@ -28,14 +29,6 @@ const AVAIL_FIELD = (qt) => (QUOTE_TYPES.find((x) => x.id === qt) || {}).avail |
 // Payment Gateway / Link de Pago: productos virtuales (sin cajas físicas, sin
 // multitienda/multi-rif; integradores filtrados por certificación PG).
 const PG_LIKE = (qt) => qt === 'GATEWAY' || qt === 'LINK_PAGO';
-// Modalidad de certificación del integrador requerida por tipo de proyecto,
-// homologada con el Cotizador (solo se listan integradores "Certificado").
-const INTEGRATOR_MODALITY_MATCH = (qt) => {
-  if (qt === 'VPOS') return (m) => m === 'REST';
-  if (qt === 'MPOS') return (m) => m === 'MPOS';
-  if (qt === 'GATEWAY' || qt === 'LINK_PAGO') return (m) => m === 'PG Universal' || m === 'PG No universal';
-  return () => true;
-};
 
 /* ------------------------------------------------------------------ */
 /* Combobox de clientes con búsqueda — forwardRef para foco externo   */
@@ -427,7 +420,7 @@ export default function DirectProjectCreation() {
      al tipo de proyecto seleccionado (REST=VPOS, MPOS=MPOS, PG=Gateway/Link).
      Homologado con el filtro del Cotizador. */
   const certifiedIntegrators = useMemo(() => {
-    const matches = INTEGRATOR_MODALITY_MATCH(form.quote_type);
+    const matches = integratorModalityMatch(form.quote_type);
     return integrators.filter(
       (i) => i.integrator_status === 'Certificado' && matches(i.integration_modality)
     );
