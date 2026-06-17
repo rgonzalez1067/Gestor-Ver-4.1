@@ -877,3 +877,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Ambos módulos ya tenían filtro+reset pero con reglas más restrictivas (VPOS=solo REST, MPOS=solo MPOS, Gateway=solo PG): se ampliaron a la matriz nueva. Se mantiene el filtro de estatus "Certificado" (decisión del usuario) y filtrado LOCAL (decisión del usuario).
 - QuoteWizardDialog.jsx: dropdown integrador + lógica de reset en cambio de tipo usan el helper. DirectProjectCreation.jsx: reemplazado INTEGRATOR_MODALITY_MATCH local por el helper.
 - Validado: unit test del helper contra valores reales de BD (ALL PASS) + testing_agent frontend 7/7 escenarios PASS (filtrado físico/digital + reset reactivo + toast, en ambos módulos). iteration_103.json.
+
+**Homologación selector Integrador en Cotizaciones (dedup + cascada Aplicativo) · 2026-06-16:**
+- Cotizaciones (QuoteWizardDialog) ahora replica el patrón de Proyectos Directos: dropdown de Integrador deduplicado por NOMBRE (aparece una sola vez) + campo "Aplicativo Certificado" en cascada. 1 app = auto-selección (display bloqueado, testid select-integrator-app-locked); 2+ apps = dropdown obligatorio (testid select-integrator-app).
+- quoteData ahora incluye integrator_name (init en createNewQuote/resetQuoteForm; derivado al editar desde integrators.find(id).name o 'sin_integrador'). Reset reactivo limpia integrator_name + integrator_id + integrator_app_name al cambiar a modalidad incompatible.
+- testids: select-integrator (ahora value=nombre), integrator-option-{slug-nombre}, select-integrator-app, select-integrator-app-locked.
+- Validado por testing_agent (iteration_104.json): 5/6 PASS (dedup 124 nombres sin duplicados, auto-lock 1 app, dropdown 2+ apps p.ej. 'Somos Sistemas Software'=AFTIM/AFTIM Mobile, filtro modalidad, reset+toast). Caso edit-load con integrador real NO mecanizable (no hay cotizaciones con integrador real en data actual); lógica confirmada (idéntica a Proyectos Directos).
