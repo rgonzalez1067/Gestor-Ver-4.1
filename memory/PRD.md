@@ -6,6 +6,27 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Mini Tablero de Avance Operativo + Motor de Cálculo de PVV — Jun 2026
+
+**Requerimiento:** Componente visual tipo "Mini Tablero de Control" en la zona superior del Panel de Proyectos (/projects), arriba de las tarjetas KPI de estado, que refleja el avance del despliegue en dos dimensiones: Ecosistema Físico (Cajas) y Ecosistema Digital (PVV). Reactivo al mismo set filtrado que la grilla. Fórmula: **PVV = Cajas × Bancos × Productos**. Restricción crítica: PROHIBIDO el rojo (reservado a alertas de compromisos).
+
+**Reglas de negocio (confirmadas por el usuario — 1a/2a/3a/4):**
+- "Configurado/Activo/Certificado" = terminales que alcanzaron la fase final **"En Producción"** de la matriz.
+- **PVV Asignados** = Cajas × (Bancos × Productos) [teórico, = `compute_project_pvv`].
+- **PVV Configurados** = Σ `processed` en la fase "En Producción" de cada combo Banco/Producto (incluye tiendas en multitienda).
+- **Cajas Configuradas** = PVV Configurados ÷ (Bancos × Productos) [congruencia con la fórmula].
+- **Cajas Asignadas** = `box_count`. Proyectos **digitales** (GATEWAY/LINK_PAGO) → bloque físico **0/0** (no hay cajas), pero sí suman PVV.
+
+**Backend (`services/project_pvv.py`):** nueva `compute_project_metrics(project)` → `{cajas_asignadas, cajas_configuradas, pvv_asignados, pvv_configurados}` (helpers `_matrix_combos`, `_production_processed`; constante `DIGITAL_QUOTE_TYPES`). Inyectada como `p["operational_metrics"]` en `GET /api/projects` (junto a `pvv_count`). Configurado nunca excede asignado (clamp de robustez).
+
+**Frontend:** nuevo componente `components/projects/OperationalBoard.jsx` (2 tarjetas duales sólidas de alto contraste — teal/cyan para físico, indigo/azul para digital, texto blanco, barra de avance, **sin rojo**). `pages/Projects.jsx`: `boardMetrics` = `filtered.reduce(...)` sumando `operational_metrics` sobre el set filtrado (reactivo a fecha/tipo/integrador/estado); render `<OperationalBoard>` justo encima de las tarjetas KPI. Testids: `operational-board`, `board-fisico-*`, `board-digital-*` (configured/assigned/pct/bar).
+
+**QA:** pytest `tests/test_operational_metrics.py` **6/6 PASS** (caso QA 2×2×2=8 PVV; fully-configured; digital 0/0 físico; matriz vacía resiliente; agregación multitienda; clamp configurado≤asignado). testing_agent iteration_109 → **frontend 100% PASS**: render sobre KPIs, reactividad (sin filtro 34/492 físico y 39/1216 PVV → "Culminado" 5/20 y 5/50), resiliencia 0/0 limpia, auditoría CSS confirma cero rojo. Backend verificado por curl (operational_metrics en los 80 proyectos).
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
+
 ### Cierre: Sistema de Alertas Críticas de Compromisos + Auditoría de 403 (Implementador) — Jun 2026
 
 **1. Sistema de Alertas Críticas (CERRADO/VALIDADO):**
