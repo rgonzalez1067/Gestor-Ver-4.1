@@ -896,3 +896,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - kpi ahora cuenta por estado exacto (countStatus) sobre baseFiltered; filtros de tarjeta usan los keys de estado reales ('Asignado','En Gestión','Implementado parcial','Suspendido','Culminado','Por asignar') sincronizados con el dropdown de estado.
 - Layout compacto: grid-cols-4 lg:grid-cols-7, gap-2, p-3, valor text-xl, label text-xs leading-tight. testids: stat-value-{slug}.
 - Compila OK. Verificación visual pendiente (preview dormido al momento del cambio).
+
+**Proyectos de Integración: campos 'Productos a Certificar' + 'Correo Adicional Eventual' (CC) · 2026-06-17:**
+- UI (Integrators.jsx, wizard renderWizardCoreFields): 'Productos a Certificar' (texto libre, debajo de Tipo de Integración, testid wizard-productos-certificar) y 'Correo Adicional Eventual' (input email opcional con validación EMAIL_RE, testid wizard-correo-eventual + error wizard-correo-eventual-error). Validación bloquea guardar si el correo es inválido (handleWizardSubmit + handleSubmit).
+- Modelo: productos_certificar y correo_eventual agregados a IntegratorCreate e Integrator (persisten en la ficha, no alteran el correo maestro).
+- Notificación: reutiliza el flujo existente 'new_integration_project' (Configuración de Otras Acciones). notify_new_integration_project agrega variable {Productos_Certificar_Integrador} y arma extra_cc (correo_eventual + recipients del modal). dispatch_other_action ahora acepta extra_cc y lo envía en CC en cada email + lo registra en bitácora (auditoría con integrator_id).
+- Plantillas: {Productos_Certificar_Integrador} agregado al catálogo del editor (BASE_TEMPLATE_VARIABLES.new_integration_project) -> insertable; y a la plantilla semilla new_integration_project (fila 'Productos a Certificar').
+- Validado: curl backend (crear persiste ambos campos; notify devuelve cc=['gerente@banco.com'], '+1 en copia') + testing_agent iteration_106.json 100% wizard (campos, ubicación, bloqueo por email inválido, éxito con válido).
