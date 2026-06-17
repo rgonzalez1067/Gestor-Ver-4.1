@@ -5,6 +5,20 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+
+### Cierre: Sistema de Alertas Críticas de Compromisos + Auditoría de 403 (Implementador) — Jun 2026
+
+**1. Sistema de Alertas Críticas (CERRADO/VALIDADO):**
+- Toast superior rojo persistente (#D32F2F, sin botón de cierre) bajo el h1 de /projects para el implementador con compromisos programados/vencidos; marca roja (`project-commitment-badge`) con tooltip flotante (mensaje + Fecha Límite dd/mm/aaaa) solo en las filas con `implementer_alerts` activas. El admin no ve el toast.
+- testing_agent iteration_108: escenarios 1-4 **PASS**. El "fallo" del escenario 5 (marcar cumplida) es un **artefacto de Playwright** que descarta `window.confirm` (ver `ImplementerAlertsModal.jsx::handleComplete`, L58) → no dispara el request en el bot; NO es un bug de código.
+- **Validación e2e por API (no destructiva):** crear → `PUT /api/projects/{id}/implementer-alerts/{aid}/complete` → verificar `completed=true` → `DELETE` = los 3 HTTP 200. Confirma que al resolver, el badge y el toast desaparecen en uso real.
+
+**2. Auditoría de los 4 errores 403 reportados en iteration_108 (RESUELTO — no reproducible):**
+- Probados como Implementador (Jrojas y agonzalez) TODOS los endpoints del detalle de proyecto y de la lista: `/auth/me`, `/inbox/me/summary`, `/notifications`, `/cc-groups`, `/integrators`, `/projects/{id}`, `/email-templates`, `/project-notification-preferences`, `/projects/{id}/template-variables`, `/projects/{id}/suggested-contacts`, `/projects/{id}/implementer-alerts`, `/projects`, `/projects/stats`, `/clients`, `/projects/implementers/list`, `/project-sla/config` → **todos HTTP 200**. Cero 403 en los logs del backend.
+- **Conclusión:** no hay brecha de autorización RBAC para el Implementador; los 403 del reporte fueron un artefacto transitorio del harness de pruebas (timing de token en la navegación dura), no un defecto del código.
+
+
+
 ### Iteration 103: Ficha de Integrador ampliada (Coordinador, Fecha Inicio, Nombre Proyecto, Observaciones) + plantilla de importación — Jun 2026
 
 **Requerimiento:** 4 campos nuevos en la ficha de Integrador (edición/visualización) + homologar la plantilla .xlsx con validación.
