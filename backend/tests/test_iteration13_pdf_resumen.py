@@ -13,7 +13,7 @@ import requests
 import os
 from pymongo import MongoClient
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://product-lysto-test.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://integradores-filtro.preview.emergentagent.com')
 
 # MongoDB connection for session token
 mongo_client = MongoClient('mongodb://localhost:27017')
