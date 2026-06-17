@@ -869,3 +869,11 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Frontend (MasterEditDialog.jsx): nuevo Select "Generador (Vendedor)" en sección Clasificación, poblado con `/auth/users` (todos los usuarios activos, orden A-Z). testid `master-generador-select`. Preselecciona por `created_by_user_id`.
 - Removidos: botón "Cargar Generador" (Projects.jsx) + endpoint `POST /projects/backfill-generator` + endpoint previo `backfill-impl-date` (este último ya ejecutado en Prod, one-time).
 - Validado vía curl: PUT master-override con generador_user_id → created_by_name/created_by_user_id actualizados, changes_count=1. Frontend compila OK. Smoke test visual no corrió (preview env dormido - gate de plataforma).
+
+**Filtrado dinámico de Integradores por Tipo de Proyecto (Cotizaciones + Proyectos Directos) · 2026-06-16:**
+- Nuevo helper compartido `frontend/src/utils/integratorModality.js` con `integratorModalityMatch(quoteType)` (DRY, consistencia entre ambos módulos). Reglas por `integration_modality`:
+  - Físico (VPOS/VPOS_MULTIRIF/MPOS/FAST_TRACK): REST, Stand Alone, Wrapper, MPOS.
+  - Digital (GATEWAY/LINK_PAGO): Bridge PG, Web Link de Pago (No Univ./Univ.), TKN (No Univ./Univ.), PG (No Univ./Univ.). Normalización case-insensitive.
+- Ambos módulos ya tenían filtro+reset pero con reglas más restrictivas (VPOS=solo REST, MPOS=solo MPOS, Gateway=solo PG): se ampliaron a la matriz nueva. Se mantiene el filtro de estatus "Certificado" (decisión del usuario) y filtrado LOCAL (decisión del usuario).
+- QuoteWizardDialog.jsx: dropdown integrador + lógica de reset en cambio de tipo usan el helper. DirectProjectCreation.jsx: reemplazado INTEGRATOR_MODALITY_MATCH local por el helper.
+- Validado: unit test del helper contra valores reales de BD (ALL PASS) + testing_agent frontend 7/7 escenarios PASS (filtrado físico/digital + reset reactivo + toast, en ambos módulos). iteration_103.json.
