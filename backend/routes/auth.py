@@ -871,27 +871,159 @@ async def update_user_status(user_id: str, is_active: bool, authorization: Optio
 
 
 @router.delete("/admin/users/{user_id}")
-async def delete_user(user_id: str, authorization: Optional[str] = Header(None)):
-    """Eliminar permanentemente un usuario (solo admin — super poder)"""
+async def delete_user(user_id: str, reassign_to: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Eliminar permanentemente un usuario (solo admin — super poder).
+
+    BLINDAJE (evita cotizaciones/proyectos huérfanos): si el usuario tiene
+    cotizaciones o proyectos asociados, el borrado se BLOQUEA (409) salvo que se
+    indique `reassign_to=<user_id>` para reasignar primero esas referencias a otro
+    ejecutivo. Alternativa recomendada: desactivar el usuario (is_active=false) en
+    lugar de borrarlo.
+    """
     current_user = await get_current_user(authorization)
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar usuarios")
-    
+
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1, "name": 1, "user_id": 1})
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
+
     if user_id == current_user.get("user_id"):
         raise HTTPException(status_code=400, detail="No puede eliminarse a sí mismo")
-    
+
+    # Conteo de referencias para blindaje.
+    q_count = await db.quotes.count_documents({"created_by_user_id": user_id})
+    qh_count = await db.quote_history.count_documents({"created_by_user_id": user_id})
+    p_count = await db.projects.count_documents(
+        {"$or": [{"created_by_user_id": user_id}, {"assigned_to_user_id": user_id}]}
+    )
+    total_refs = q_count + qh_count + p_count
+
+    if total_refs and not reassign_to:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"El usuario tiene referencias asociadas: {q_count} cotización(es), "
+                f"{qh_count} histórica(s) y {p_count} proyecto(s). Para evitar registros "
+                f"huérfanos, reasigne primero esas referencias a otro ejecutivo "
+                f"(elimine con ?reassign_to=<user_id>) o desactive el usuario en lugar de borrarlo."
+            ),
+        )
+
+    if reassign_to:
+        target = await db.users.find_one({"user_id": reassign_to}, {"_id": 0, "user_id": 1, "email": 1, "name": 1})
+        if not target:
+            raise HTTPException(status_code=404, detail=f"Usuario destino de reasignación no encontrado: {reassign_to}")
+        await _reassign_executive_references(user_id, reassign_to)
+
     # Eliminar sesiones, tokens y el usuario
     await db.user_sessions.delete_many({"user_id": user_id})
     await db.password_reset_tokens.delete_many({"user_id": user_id})
     await db.email_verification_tokens.delete_many({"user_id": user_id})
     await db.users.delete_one({"user_id": user_id})
-    
+
     logging.info(f"[ADMIN] Usuario eliminado permanentemente: {user.get('email')} ({user_id}) por {current_user.get('email')}")
     return {"message": f"Usuario {user.get('name', user.get('email'))} eliminado permanentemente"}
+
+
+async def _reassign_executive_references(from_user_id: str, to_user_id: str) -> dict:
+    """Reasigna todas las referencias de `from_user_id` → `to_user_id`:
+    cotizaciones, históricas, proyectos (creador y asignado) y las listas
+    `allowed_user_ids` de overrides/acciones custom (re-denormalizando emails).
+
+    Sirve tanto para reasignar antes de borrar como para SANAR registros que ya
+    quedaron huérfanos (cuando el usuario viejo ya fue borrado)."""
+    out = {"quotes": 0, "quote_history": 0, "projects_created": 0, "projects_assigned": 0,
+           "overrides": 0, "custom_actions": 0}
+
+    r = await db.quotes.update_many({"created_by_user_id": from_user_id},
+                                    {"$set": {"created_by_user_id": to_user_id}})
+    out["quotes"] = r.modified_count
+    r = await db.quote_history.update_many({"created_by_user_id": from_user_id},
+                                           {"$set": {"created_by_user_id": to_user_id}})
+    out["quote_history"] = r.modified_count
+    r = await db.projects.update_many({"created_by_user_id": from_user_id},
+                                      {"$set": {"created_by_user_id": to_user_id}})
+    out["projects_created"] = r.modified_count
+    r = await db.projects.update_many({"assigned_to_user_id": from_user_id},
+                                      {"$set": {"assigned_to_user_id": to_user_id}})
+    out["projects_assigned"] = r.modified_count
+
+    # Remapear allowed_user_ids en overrides y acciones custom + re-denormalizar emails.
+    from routes.quote_action_customization import _resolve_emails_for_ids
+    for coll_name, key in (("quote_action_overrides", "overrides"), ("quote_custom_actions", "custom_actions")):
+        coll = db[coll_name]
+        async for it in coll.find({"allowed_user_ids": from_user_id}, {"_id": 0}):
+            ids = [to_user_id if x == from_user_id else x for x in (it.get("allowed_user_ids") or [])]
+            ids = sorted(set(ids))
+            emails = await _resolve_emails_for_ids(ids)
+            await coll.update_one(
+                {"config_key": it.get("config_key")},
+                {"$set": {"allowed_user_ids": ids, "allowed_user_emails": emails}},
+            )
+            out[key] += 1
+    return out
+
+
+@router.get("/admin/executives/orphaned")
+async def list_orphaned_executive_references(authorization: Optional[str] = Header(None)):
+    """Lista los `user_id` referenciados en cotizaciones/proyectos/overrides que YA
+    NO existen en la tabla de usuarios (registros huérfanos), con conteos y el
+    nombre congelado si está disponible. Solo admin."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores")
+
+    existing = {u["user_id"] async for u in db.users.find({}, {"_id": 0, "user_id": 1})}
+
+    counts: dict = {}
+    def _bump(uid, field):
+        if not uid or uid in existing:
+            return
+        counts.setdefault(uid, {"user_id": uid, "quotes": 0, "quote_history": 0,
+                                "projects": 0, "overrides": 0, "sample_name": None})
+        counts[uid][field] += 1
+
+    async for q in db.quotes.find({}, {"_id": 0, "created_by_user_id": 1, "created_by_name": 1}):
+        uid = q.get("created_by_user_id")
+        _bump(uid, "quotes")
+        if uid in counts and not counts[uid]["sample_name"] and q.get("created_by_name"):
+            counts[uid]["sample_name"] = q.get("created_by_name")
+    async for h in db.quote_history.find({}, {"_id": 0, "created_by_user_id": 1}):
+        _bump(h.get("created_by_user_id"), "quote_history")
+    async for p in db.projects.find({}, {"_id": 0, "created_by_user_id": 1, "assigned_to_user_id": 1}):
+        _bump(p.get("created_by_user_id"), "projects")
+        _bump(p.get("assigned_to_user_id"), "projects")
+    for coll_name in ("quote_action_overrides", "quote_custom_actions"):
+        async for it in db[coll_name].find({}, {"_id": 0, "allowed_user_ids": 1}):
+            for uid in (it.get("allowed_user_ids") or []):
+                _bump(uid, "overrides")
+
+    return {"orphaned": sorted(counts.values(), key=lambda x: -(x["quotes"] + x["projects"]))}
+
+
+@router.post("/admin/executives/reassign")
+async def reassign_executive_references(from_user_id: str, to_user_id: str, authorization: Optional[str] = Header(None)):
+    """Reasigna TODAS las referencias de un ejecutivo (incluso si ya fue borrado)
+    a otro usuario existente. Útil para sanar cotizaciones/proyectos huérfanos y
+    remapear los overrides de acciones. Solo admin."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores")
+    if from_user_id == to_user_id:
+        raise HTTPException(status_code=400, detail="from_user_id y to_user_id no pueden ser iguales")
+    target = await db.users.find_one({"user_id": to_user_id}, {"_id": 0, "user_id": 1, "email": 1, "name": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Usuario destino no encontrado: {to_user_id}")
+    result = await _reassign_executive_references(from_user_id, to_user_id)
+    logging.info(f"[ADMIN] Reasignación {from_user_id} → {to_user_id} por {current_user.get('email')}: {result}")
+    return {
+        "ok": True,
+        "from_user_id": from_user_id,
+        "to_user_id": to_user_id,
+        "to_user_email": target.get("email"),
+        "reassigned": result,
+    }
 
 
 @router.put("/admin/users/{user_id}")

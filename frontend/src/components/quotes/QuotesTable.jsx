@@ -76,16 +76,17 @@ export const QuotesTable = ({
     if (!ov.enabled) return { label: ov.custom_label || defaultLabel, hidden: true, disabled: true, tooltip: 'Acción desactivada' };
     const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
     const allowedUserIds = ov.allowed_user_ids || [];
-    const allowedUserEmails = ov.allowed_user_emails || [];
-    // Autorización robusta a deploys: valida por user_id O por email (estable
-    // ante re-seeds / localStorage desactualizado).
-    const isAuthorized = allowedUserIds.includes(currentUserId) || (!!currentUserEmail && allowedUserEmails.includes(currentUserEmail));
-    if (allowedUserIds.length && !isAdmin && !isAuthorized) {
+    const allowedUserEmails = (ov.allowed_user_emails || []).map((e) => (e || '').toLowerCase());
+    const emailLc = (currentUserEmail || '').toLowerCase();
+    // Autorización robusta a deploys y a borrado+recreación: valida por user_id O
+    // por email (estable, case-insensitive).
+    const isAuthorized = allowedUserIds.includes(currentUserId) || (!!emailLc && allowedUserEmails.includes(emailLc));
+    if ((allowedUserIds.length || allowedUserEmails.length) && !isAdmin && !isAuthorized) {
       return { label: ov.custom_label || defaultLabel, hidden: false, disabled: true, tooltip: 'No autorizado para esta acción' };
     }
     // Fallback legacy: algunos overrides viejos pueden tener required_cargos
     const cargosReq = ov.required_cargos || [];
-    if (!allowedUserIds.length && cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) {
+    if (!allowedUserIds.length && !allowedUserEmails.length && cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) {
       return { label: ov.custom_label || defaultLabel, hidden: false, disabled: true, tooltip: `Solo cargos: ${cargosReq.join(', ')}` };
     }
     return { label: ov.custom_label || defaultLabel, hidden: false, disabled: false, tooltip: null };
@@ -102,9 +103,10 @@ export const QuotesTable = ({
       if (ca.business_type !== biz) return false;
       if (ca.product_subcategory && ca.product_subcategory !== sub) return false;
       const allowedUserIds = ca.allowed_user_ids || [];
-      const allowedUserEmails = ca.allowed_user_emails || [];
-      if (allowedUserIds.length) {
-        const isAuthorized = allowedUserIds.includes(currentUserId) || (!!currentUserEmail && allowedUserEmails.includes(currentUserEmail));
+      const allowedUserEmails = (ca.allowed_user_emails || []).map((e) => (e || '').toLowerCase());
+      const emailLc = (currentUserEmail || '').toLowerCase();
+      if (allowedUserIds.length || allowedUserEmails.length) {
+        const isAuthorized = allowedUserIds.includes(currentUserId) || (!!emailLc && allowedUserEmails.includes(emailLc));
         if (!isAdmin && !isAuthorized) return false;
         return true;
       }

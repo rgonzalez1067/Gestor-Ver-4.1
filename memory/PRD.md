@@ -6,6 +6,28 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Fix: cotizaciones huérfanas y override de acciones tras borrar+recrear usuario — Jun 2026
+
+**Contexto (reportado en producción):** un admin borró un usuario (agodoy@megasoft.com.ve) que tenía cotizaciones y lo recreó. El borrado es permanente (`delete_one`), y las cotizaciones referencian al ejecutivo por `created_by_user_id`. Al recrear, el usuario obtuvo un **nuevo user_id**, dejando: (1) cotizaciones huérfanas (solo visibles para Admin), (2) el override de acciones de Cotizaciones-Equipos con el **id viejo** → el usuario recreado no veía las acciones en su menú.
+
+**Causa raíz override:** la autorización en `QuotesTable.jsx` valida por `allowed_user_ids` (id) o `allowed_user_emails`, pero `allowed_user_emails` se resolvía **en vivo** desde los ids; si el id viejo ya no existe, queda vacío → sin fallback estable.
+
+**Fix robusto (id estable = email):**
+- Backend `quote_action_customization.py`: al guardar override/custom action se **denormaliza y persiste `allowed_user_emails`** (`_resolve_emails_for_ids`, minúsculas). `_attach_allowed_emails` combina emails persistidos + resolución en vivo. La EJECUCIÓN de acción custom también autoriza por email (case-insensitive).
+- Frontend `QuotesTable.jsx`: match por email **case-insensitive** y el gate considera ids **o** emails (getActionMeta + getCustomActionsFor).
+
+**Blindaje borrado (3a):** `DELETE /admin/users/{id}` ahora BLOQUEA (409) si el usuario tiene cotizaciones/proyectos, salvo `?reassign_to=<user_id>` (reasigna primero). Mensaje guía a reasignar o desactivar.
+
+**Herramientas de saneamiento (nuevas, admin):**
+- `GET /api/admin/executives/orphaned` → lista user_ids referenciados pero inexistentes, con conteos (quotes/history/projects/overrides) y nombre congelado si existe.
+- `POST /api/admin/executives/reassign?from_user_id=&to_user_id=` → reasigna cotizaciones, históricas, proyectos (creador+asignado) y remapea `allowed_user_ids` de overrides/custom actions (re-denormaliza emails). Resuelve huérfanos y el override en una sola llamada.
+
+**Validado (preview, curl):** persistencia de emails en save (OK), guard 409 (no borra), reassign 200 con conteos, diagnóstico detecta huérfanos, helper resuelve emails en minúsculas y sobrevive a id borrado. No hay cotizaciones 'equipos' en preview → el E2E de UI se validará en producción.
+**⚠️ Fix en PREVIEW; requiere REDEPLOY. Datos huérfanos de producción se sanean DESPUÉS del redeploy con los endpoints de arriba.**
+
+
+
+
 ### Fix timeout (Cloudflare 524) en Auto-recuperación de anexos (Auditar Dry-Run) — Jun 2026
 
 **Síntoma:** en producción, "Auditar (Dry-Run)" / "Ejecutar Recuperación" del modal de migración fallaba con "The origin web server did not respond to Cloudflare within the allowed time" (524).

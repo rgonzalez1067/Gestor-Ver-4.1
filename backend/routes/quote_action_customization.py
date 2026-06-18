@@ -95,24 +95,41 @@ class CustomAction(BaseModel):
 # OVERRIDES — Fase B
 # ============================================================================
 
+async def _resolve_emails_for_ids(ids: list) -> list:
+    """Resuelve una lista de user_id → emails (en minúsculas) contra la tabla de
+    usuarios actual. Se usa para DENORMALIZAR los correos al guardar, de modo que
+    la autorización sobreviva a borrado+recreación de usuarios (el email es estable
+    aunque cambie el user_id)."""
+    if not ids:
+        return []
+    cur = db.users.find({"user_id": {"$in": list(ids)}}, {"_id": 0, "email": 1})
+    emails = []
+    async for u in cur:
+        em = (u.get("email") or "").strip().lower()
+        if em:
+            emails.append(em)
+    return sorted(set(emails))
+
+
 async def _attach_allowed_emails(items: list[dict]) -> list[dict]:
-    """Adjunta `allowed_user_emails` resolviendo `allowed_user_ids` contra la
-    tabla de usuarios ACTUAL. Hace el match de autorización robusto a deploys:
-    si tras un re-seed cambian los user_id o el `localStorage` del navegador
-    quedó con un id viejo, el frontend puede validar también por email (estable).
+    """Adjunta `allowed_user_emails` (en minúsculas) para hacer la autorización
+    robusta a deploys y a borrado+recreación de usuarios.
+
+    Combina dos fuentes:
+      1) Los emails DENORMALIZADOS guardados en el documento (`allowed_user_emails`),
+         estables aunque el `user_id` cambie.
+      2) La resolución EN VIVO de `allowed_user_ids` → email (cubre configs viejas
+         guardadas antes de denormalizar y refleja cambios de email).
     """
     all_ids = {uid for it in items for uid in (it.get("allowed_user_ids") or [])}
-    if not all_ids:
-        for it in items:
-            it.setdefault("allowed_user_emails", [])
-        return items
-    cur = db.users.find({"user_id": {"$in": list(all_ids)}}, {"_id": 0, "user_id": 1, "email": 1})
-    id_to_email = {u["user_id"]: u.get("email") async for u in cur}
+    id_to_email = {}
+    if all_ids:
+        cur = db.users.find({"user_id": {"$in": list(all_ids)}}, {"_id": 0, "user_id": 1, "email": 1})
+        id_to_email = {u["user_id"]: (u.get("email") or "").strip().lower() async for u in cur}
     for it in items:
-        it["allowed_user_emails"] = [
-            id_to_email[uid] for uid in (it.get("allowed_user_ids") or [])
-            if id_to_email.get(uid)
-        ]
+        live = [id_to_email[uid] for uid in (it.get("allowed_user_ids") or []) if id_to_email.get(uid)]
+        stored = [(e or "").strip().lower() for e in (it.get("allowed_user_emails") or []) if e]
+        it["allowed_user_emails"] = sorted(set(live) | set(stored))
     return items
 
 
@@ -136,6 +153,8 @@ async def upsert_override(payload: ActionOverride, authorization: Optional[str] 
     config_key = _build_key(payload.business_type, payload.product_subcategory, payload.action_id)
     doc = payload.model_dump()
     doc["config_key"] = config_key
+    # Denormalizar correos (identificador estable ante borrado+recreación de usuarios).
+    doc["allowed_user_emails"] = await _resolve_emails_for_ids(doc.get("allowed_user_ids") or [])
     doc["updated_at"] = datetime.now(timezone.utc).isoformat()
     doc["updated_by"] = user.get("email")
     await db.quote_action_overrides.update_one(
@@ -181,6 +200,8 @@ async def upsert_custom_action(payload: CustomAction, authorization: Optional[st
     config_key = _build_key(payload.business_type, payload.product_subcategory, payload.action_id)
     doc = payload.model_dump()
     doc["config_key"] = config_key
+    # Denormalizar correos (identificador estable ante borrado+recreación de usuarios).
+    doc["allowed_user_emails"] = await _resolve_emails_for_ids(doc.get("allowed_user_ids") or [])
     doc["updated_at"] = datetime.now(timezone.utc).isoformat()
     doc["updated_by"] = user.get("email")
     await db.quote_custom_actions.update_one(
@@ -249,18 +270,22 @@ async def dispatch_custom_action(
     if not custom or not custom.get("enabled", True):
         raise HTTPException(404, f"Acción custom '{action_id}' no encontrada o inactiva para esta cotización")
 
-    # Verificar permisos: cargo, role, o user_id directo
+    # Verificar permisos: cargo, role, user_id directo o email (estable ante recreación)
     user_role = user.get("role", "")
     user_cargo = user.get("cargo", "")
     user_id = user.get("user_id", "")
+    user_email = (user.get("email") or "").strip().lower()
     req_roles = custom.get("required_roles") or []
     req_cargos = custom.get("required_cargos") or []
     allowed_user_ids = custom.get("allowed_user_ids") or []
+    allowed_user_emails = [(e or "").strip().lower() for e in (custom.get("allowed_user_emails") or [])]
     is_admin = user_role == "admin"
     if not is_admin:
-        if allowed_user_ids and user_id not in allowed_user_ids:
-            raise HTTPException(403, "No estás autorizado para ejecutar esta acción")
-        if not allowed_user_ids:
+        if allowed_user_ids or allowed_user_emails:
+            authorized = (user_id in allowed_user_ids) or (user_email and user_email in allowed_user_emails)
+            if not authorized:
+                raise HTTPException(403, "No estás autorizado para ejecutar esta acción")
+        else:
             if req_roles and user_role not in req_roles:
                 raise HTTPException(403, f"Tu rol ({user_role}) no puede ejecutar esta acción")
             if req_cargos and user_cargo not in req_cargos:
