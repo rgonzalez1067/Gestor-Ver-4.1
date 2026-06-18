@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import {
   Database, Download, Upload, FileJson, FileArchive, Loader2,
-  AlertTriangle, CheckCircle2, FolderOpen, ShieldCheck,
+  AlertTriangle, CheckCircle2, FolderOpen, ShieldCheck, X,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
@@ -37,6 +37,11 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   const [previewing, setPreviewing] = useState(false);
   const [importingData, setImportingData] = useState(false);
   const [importProgress, setImportProgress] = useState(null); // { current, total, fileName }
+  // Lista ACUMULATIVA de archivos JSON seleccionados para importar. El input
+  // nativo `multiple` reemplaza la selección cada vez que se abre el diálogo,
+  // por lo que acumulamos en estado para permitir agregar de a uno o varios y
+  // ver la lista completa antes de aplicar.
+  const [dataFiles, setDataFiles] = useState([]);
   const [importingZip, setImportingZip] = useState(false);
   const [zipProgress, setZipProgress] = useState('');
   const [previewSummary, setPreviewSummary] = useState(null);
@@ -155,6 +160,27 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
     }
   };
 
+  // Acumula archivos JSON en la lista (permite agregar de a uno o varios).
+  // Dedupe por nombre+tamaño. Limpia el value del input para volver a admitir
+  // el mismo archivo si fuera necesario.
+  const handleDataFilesChange = (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (picked.length) {
+      setDataFiles((prev) => {
+        const seen = new Set(prev.map((f) => `${f.name}:${f.size}`));
+        const merged = [...prev];
+        for (const f of picked) {
+          const k = `${f.name}:${f.size}`;
+          if (!seen.has(k)) { merged.push(f); seen.add(k); }
+        }
+        return merged;
+      });
+    }
+    e.target.value = '';
+  };
+  const removeDataFile = (idx) => setDataFiles((prev) => prev.filter((_, i) => i !== idx));
+  const clearDataFiles = () => setDataFiles([]);
+
   const handlePreview = async () => {
     const f = previewFileRef.current?.files?.[0];
     if (!f) {
@@ -179,9 +205,9 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   };
 
   const handleImportData = async () => {
-    const files = Array.from(dataFileRef.current?.files || []);
+    const files = dataFiles;
     if (files.length === 0) {
-      toast.error('Seleccione uno o más archivos JSON de datos');
+      toast.error('Agregue uno o más archivos JSON de datos');
       return;
     }
     if (!confirm(
@@ -245,6 +271,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
         toast.error(`${fileErrors.length} archivo(s) con error. Revise el detalle.`);
       } else {
         toast.success(`${okFiles} archivo(s) importado(s) correctamente`);
+        setDataFiles([]); // limpia la cola tras éxito total
       }
     } finally {
       setImportingData(false);
@@ -512,8 +539,9 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-slate-800">1. Importar datos (JSON)</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    UPSERT por id natural en las 3 colecciones. Puede seleccionar <strong>varios archivos
-                    paginados a la vez</strong> (page_1, page_2, …) y se importan automáticamente en orden.
+                    UPSERT por id natural en las 3 colecciones. Puede <strong>agregar varios archivos
+                    paginados</strong> (page_1, page_2, …) — de a uno o seleccionando varios a la vez.
+                    Se acumulan en la lista y se importan automáticamente en orden.
                   </p>
                 </div>
               </div>
@@ -523,20 +551,62 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                   type="file"
                   multiple
                   accept=".json,application/json"
+                  onChange={handleDataFilesChange}
                   className="flex-1 text-xs file:mr-2 file:py-1 file:px-2 file:border-0 file:bg-slate-200 file:text-slate-700"
                   data-testid="bundle-import-data-file-input"
                 />
                 <Button
                   size="sm"
                   onClick={handleImportData}
-                  disabled={importingData}
+                  disabled={importingData || dataFiles.length === 0}
                   data-testid="bundle-import-data-btn"
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   {importingData ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
-                  Aplicar
+                  Aplicar{dataFiles.length > 0 ? ` (${dataFiles.length})` : ''}
                 </Button>
               </div>
+              {/* Lista acumulativa de archivos seleccionados */}
+              {dataFiles.length > 0 && (
+                <div className="mt-2 bg-white border rounded p-2" data-testid="bundle-import-data-file-list">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[11px] font-semibold text-slate-600">
+                      {dataFiles.length} archivo(s) en cola
+                    </p>
+                    <button
+                      type="button"
+                      onClick={clearDataFiles}
+                      disabled={importingData}
+                      className="text-[11px] text-rose-600 hover:text-rose-700 font-medium disabled:opacity-40"
+                      data-testid="bundle-import-data-clear-btn"
+                    >
+                      Limpiar todo
+                    </button>
+                  </div>
+                  <ul className="max-h-40 overflow-y-auto divide-y divide-slate-100">
+                    {[...dataFiles]
+                      .map((f, i) => ({ f, i }))
+                      .sort((a, b) => a.f.name.localeCompare(b.f.name, undefined, { numeric: true }))
+                      .map(({ f, i }) => (
+                        <li key={`${f.name}:${f.size}:${i}`} className="flex items-center gap-2 py-1 text-xs" data-testid={`bundle-import-data-file-item-${i}`}>
+                          <FileJson size={13} className="text-blue-500 shrink-0" />
+                          <span className="flex-1 truncate text-slate-700" title={f.name}>{f.name}</span>
+                          <span className="font-mono text-[10px] text-slate-400 shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
+                          <button
+                            type="button"
+                            onClick={() => removeDataFile(i)}
+                            disabled={importingData}
+                            className="text-slate-400 hover:text-rose-600 disabled:opacity-40 shrink-0"
+                            title="Quitar archivo"
+                            data-testid={`bundle-import-data-file-remove-${i}`}
+                          >
+                            <X size={13} />
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
               {importProgress && (
                 <div className="mt-2" data-testid="bundle-import-progress">
                   <div className="flex justify-between text-[11px] text-slate-500 mb-1">
