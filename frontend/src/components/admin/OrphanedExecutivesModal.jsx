@@ -62,9 +62,11 @@ export const OrphanedExecutivesModal = ({ open, onOpenChange, activeUsers = [], 
       const r = res.data?.reassigned || {};
       const total = (r.quotes || 0) + (r.quote_history || 0) + (r.projects_created || 0) +
         (r.projects_assigned || 0) + (r.overrides || 0) + (r.custom_actions || 0);
+      const proj = (r.projects_created || 0) + (r.projects_assigned || 0);
+      const acts = (r.overrides || 0) + (r.custom_actions || 0);
       toast.success(
         `Reasignados ${total} registro(s) → ${res.data?.to_user_email || toId} ` +
-        `(${r.quotes || 0} cotiz., ${r.projects_created + r.projects_assigned || 0} proy., ${(r.overrides || 0) + (r.custom_actions || 0)} acción/es)`
+        `(${r.quotes || 0} cotiz., ${proj} proy., ${acts} acción/es)`
       );
       await load();
       onResolved?.();

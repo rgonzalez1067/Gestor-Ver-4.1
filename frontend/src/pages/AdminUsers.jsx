@@ -415,12 +415,14 @@ const AdminUsers = () => {
         </div>
       </main>
 
-      <OrphanedExecutivesModal
-        open={orphanModalOpen}
-        onOpenChange={setOrphanModalOpen}
-        activeUsers={users}
-        onResolved={fetchAll}
-      />
+      {currentUser?.role === 'admin' && (
+        <OrphanedExecutivesModal
+          open={orphanModalOpen}
+          onOpenChange={setOrphanModalOpen}
+          activeUsers={users}
+          onResolved={fetchAll}
+        />
+      )}
     </div>
   );
 };

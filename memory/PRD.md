@@ -6,6 +6,20 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### UI Admin: botón "Ejecutivos huérfanos" (diagnóstico + reasignación) — Jun 2026
+
+**Requerimiento:** herramienta con botón visible SOLO para Admin que resuelva en un clic las cotizaciones/proyectos huérfanos y los overrides con user_id viejo (consecuencia de borrar+recrear un usuario).
+
+**Implementación (frontend):**
+- Nuevo `components/admin/OrphanedExecutivesModal.jsx`: lista ejecutivos huérfanos (GET `/admin/executives/orphaned`) con conteos por tipo; por fila, Select de usuario activo destino + botón "Reasignar" (POST `/admin/executives/reassign`). Toast con resumen + auto-refresh; estado vacío cuando no hay huérfanos.
+- `pages/AdminUsers.jsx` (/admin/users): botón header `open-orphaned-executives` gateado por `currentUser.role==='admin'`; el modal también se monta solo si es admin.
+
+**QA:** testing_agent iteration_112 → **frontend 100% PASS** (botón solo-admin; modal con 7 filas = contador; badges; reasignación E2E de la fila de menor impacto → toast "Reasignados 2 registro(s)" y refresh 7→6). Bug menor detectado (posible `NaN proy.` en el toast) **corregido** (coalescing de campos).
+**⚠️ Fin de la cadena de fixes de este caso. Todo en PREVIEW; requiere REDEPLOY. Tras desplegar: /admin/users → "Ejecutivos huérfanos" → reasignar el id viejo de agodoy al agodoy actual.**
+
+
+
+
 ### Fix: cotizaciones huérfanas y override de acciones tras borrar+recrear usuario — Jun 2026
 
 **Contexto (reportado en producción):** un admin borró un usuario (agodoy@megasoft.com.ve) que tenía cotizaciones y lo recreó. El borrado es permanente (`delete_one`), y las cotizaciones referencian al ejecutivo por `created_by_user_id`. Al recrear, el usuario obtuvo un **nuevo user_id**, dejando: (1) cotizaciones huérfanas (solo visibles para Admin), (2) el override de acciones de Cotizaciones-Equipos con el **id viejo** → el usuario recreado no veía las acciones en su menú.
