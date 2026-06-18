@@ -5,6 +5,23 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Fix P0: Overrides/acciones de "Equipos" no se aplicaban en la grilla de Cotizaciones — Jun 2026
+
+**Síntoma (producción):** el ejecutivo recreado (Anderson) veía sus cotizaciones de Equipos pero NO los overrides ni la acción personalizada "Validar Pago Equipos".
+
+**Causa raíz:** desde la Iter50 los overrides/acciones de Equipos se persisten con subcategoría por segmento → `config_key = equipos|clientes_corp|<accion>` o `equipos|clientes_pyme|<accion>`. Pero `QuotesTable.jsx::resolveBizSub` devolvía `sub=null` para Equipos → `getActionMeta` buscaba `equipos|_|<accion>`, que **nunca coincidía** con la clave guardada. Por eso ningún override de Equipos (relabel/autorización/custom action) se aplicaba.
+
+**Fix (solo frontend, `QuotesTable.jsx`):** cuando `quote_category==='equipment'`, `resolveBizSub` resuelve la subcategoría por segmento del cliente: `CORP → clientes_corp`, resto → `clientes_pyme` (usa `q.client_segment || q.sede`). Se conserva el fallback legacy `equipos|_|<accion>` en `getActionMeta`. Esto reactiva relabel, autorización por usuario y acciones personalizadas para Equipos.
+
+**QA (testing_agent iteration_113 → 100% PASS):** como `ragg1008` (Operaciones, NO admin, fuera del allowlist) en una cotización Equipos PYME (COT-2026-05-034-PYME): "Cobranza" ahora se renombra a **"Registrar pago"** (override `equipos|clientes_pyme|collect`); "Aprobación" queda **deshabilitada** "No autorizado" (override `equipos|clientes_pyme|approve` restringido a 2 usuarios); **"Validar Pago Equipos"** ahora visible. Verificado con datos reales en preview.
+**⚠️ En PREVIEW; requiere REDEPLOY para producción. Tras desplegar, ejecutar el tool de reasignación de huérfanos (/admin/users → "Ejecutivos huérfanos") para que el allowed_user_ids/emails de la acción personalizada apunte al nuevo id del usuario recreado.**
+
+### Issue: subida multi-archivo JSON (bundle) — ya correcta en código
+**Estado:** `QuotesBundleMigrationModal.jsx` ya itera sobre `Array.from(dataFileRef.current.files)` con `multiple` y barra de progreso; el endpoint `POST /admin/quotes-bundle-migration/import-data` recibe 1 archivo por llamada y el loop lo invoca por cada archivo (UPSERT idempotente). NO hay bug en el código → el comportamiento "igual que antes" en producción se debe a **falta de redeploy**.
+
+
+
+
 
 ### Panel de Proyectos: mostrar Nro de Proyecto en columna Cliente/Ticket — Jun 2026
 
