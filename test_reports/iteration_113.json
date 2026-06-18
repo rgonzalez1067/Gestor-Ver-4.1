@@ -1,0 +1,47 @@
+{
+  "summary": "Validated P0 fix for Equipos overrides resolution by segment in QuotesTable.jsx. Logged in as Operaciones user ragg1008@hotmail.com, filtered Cotizaciones by Equipos, opened actions menu on COT-2026-05-034-PYME (quote_id quo_9372666b2757). Both FIX A (relabel) and FIX B (authorization) are working as expected. The resolveBizSub helper now correctly resolves Equipos to sub='clientes_pyme' (segment PYME), so action override keys equipos|clientes_pyme|<action> match.",
+  "validation_results": {
+    "fix_a_relabel": {
+      "expected": "Cobranza action renamed to 'Registrar pago' via override equipos|clientes_pyme|collect (custom_label)",
+      "observed": "Menu shows item label 'Registrar pago' (enabled). Old default label 'Cobranza' no longer appears.",
+      "status": "PASS"
+    },
+    "fix_b_authorization": {
+      "expected": "Aprobación should be DISABLED (greyed) because override equipos|clientes_pyme|approve restricts to 2 users (user_a8e3874291c8, user_4f7c4697b820) and ragg1008 (user_4d748b38bae8) is neither in the allowlist nor admin",
+      "observed": "Menu item 'Aprobación✓' is rendered as DISABLED (aria-disabled / data-disabled / pointer-events-none / opacity-50 class match). Before the fix this item was incorrectly enabled.",
+      "status": "PASS"
+    }
+  },
+  "full_action_menu_for_COT-2026-05-034-PYME": [
+    {"label": "Modificar Cotización", "enabled": true, "testid": "modify-quote-btn-quo_9372666b2757"},
+    {"label": "Enviar al Cliente", "enabled": true, "testid": "send-to-client-btn-quo_9372666b2757"},
+    {"label": "Aprobación", "enabled": false, "note": "DISABLED — override equipos|clientes_pyme|approve aplica correctamente (FIX B verificado)"},
+    {"label": "Factura / Proforma", "enabled": true},
+    {"label": "Registrar pago", "enabled": true, "note": "Renombrado vía override equipos|clientes_pyme|collect (FIX A verificado; antes decía 'Cobranza')"},
+    {"label": "Validar Pago Equipos", "enabled": true, "testid": "custom-action-pago_validado_eq-quo_9372666b2757", "note": "Custom action ahora visible para Equipos PYME (antes no aparecía por mismatch de clave)"},
+    {"label": "Marcar como Entregada", "enabled": true},
+    {"label": "Eliminar Cotización", "enabled": true}
+  ],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones (consola)", "issues": ["React hydration warning: <span> cannot be child of <tbody> and <tr>. Cosmetic but should be cleaned up to avoid hydration mismatches in QuotesTable.jsx rows."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "QuotesTable.jsx fix is correct: resolveBizSub returns sub='clientes_pyme'/'clientes_corp' for Equipos by client_segment/sede. Fallback to `${biz}|_|${actionId}` is preserved for legacy overrides.",
+    "Minor: hydration warning about <span> inside <tr>/<tbody> in QuotesTable rows (logged in browser console) — not blocking but worth cleaning up."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100% on the requested scenario"},
+  "test_credentials": "ragg1008@hotmail.com / Test1234! (Operaciones, Coordinador) — login OK",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "P0 bug 'Equipos overrides not applied in Cotizaciones grid' has been fixed and validated end-to-end in preview. The override key shape `equipos|clientes_pyme|<action>` is now correctly produced by resolveBizSub on the frontend; relabel and authorization gating both work. No further regression observed.",
+  "rca of the issue": "Root cause: In QuotesTable.jsx, resolveBizSub returned sub=null for Equipos, so getActionMeta looked up `equipos|_|<action>` which never matched the persisted override keys `equipos|clientes_corp|<action>` / `equipos|clientes_pyme|<action>` introduced in Iter50. Fix: when category=='equipment', resolve sub from q.client_segment/q.sede (CORP→clientes_corp, default→clientes_pyme). Verified live: Aprobación correctly disabled for non-allowed user and Cobranza correctly relabeled to 'Registrar pago' via override on COT-2026-05-034-PYME."
+}

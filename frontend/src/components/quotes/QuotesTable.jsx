@@ -51,7 +51,15 @@ export const QuotesTable = ({
   // Helper: mapea quote → (biz_type, sub_cat) para resolver overrides.
   const resolveBizSub = (q) => {
     const cat = q.quote_category;
-    if (cat === 'equipment') return { biz: 'equipos', sub: null };
+    if (cat === 'equipment') {
+      // Iter50+: los overrides/acciones de Equipos se guardan con subcategoría
+      // por segmento del cliente (clientes_corp / clientes_pyme). Antes esto
+      // resolvía sub=null y buscaba `equipos|_|...`, que nunca coincidía con la
+      // clave guardada `equipos|clientes_corp|...` → el ejecutivo no veía sus
+      // overrides ni acciones personalizadas. Resolvemos el segmento aquí.
+      const segE = (q.client_segment || q.sede || 'PYME').toUpperCase();
+      return { biz: 'equipos', sub: segE === 'CORP' ? 'clientes_corp' : 'clientes_pyme' };
+    }
     if (cat === 'repair') return { biz: 'reparaciones', sub: null };
     const sede = (q.sede || q.client_segment || 'PYME').toUpperCase();
     const biz = sede === 'CORP' ? 'implementacion_corp' : 'implementacion_pyme';
