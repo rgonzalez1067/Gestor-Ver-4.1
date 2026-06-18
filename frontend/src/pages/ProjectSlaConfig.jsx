@@ -23,6 +23,7 @@ function RecipientRow({ row, users, templates, onChange, onRemove }) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="owner">⚡ Generador del Proyecto</SelectItem>
+            <SelectItem value="project_implementer">🛠️ Usuario Implementador</SelectItem>
             <SelectItem value="external_client">🌐 Cliente Externo (correo)</SelectItem>
             <SelectItem value="user">👤 Usuario interno</SelectItem>
           </SelectContent>
@@ -44,7 +45,11 @@ function RecipientRow({ row, users, templates, onChange, onRemove }) {
           </Select>
         ) : (
           <span className="text-sm text-slate-500 italic">
-            {isExternal ? '— contacto del cliente (variables del proyecto) —' : '— usuario que dio de alta el proyecto —'}
+            {isExternal
+              ? '— contacto del cliente (variables del proyecto) —'
+              : row.type === 'project_implementer'
+              ? '— implementador asignado al proyecto —'
+              : '— usuario que dio de alta el proyecto —'}
           </span>
         )}
       </td>

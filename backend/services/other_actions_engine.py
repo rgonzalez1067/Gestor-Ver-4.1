@@ -24,6 +24,7 @@ from config import db
 from services.email_service import send_email
 from services.inbox_service import deliver_to_inbox
 from services.notification_engine import _load_template, _render, _resolve_user_email
+from services.dynamic_recipients import resolve_project_implementer
 
 logger = logging.getLogger("other_actions_engine")
 
@@ -39,6 +40,7 @@ async def dispatch_other_action(
     fallback_subject: str = "",
     executive_user_id: Optional[str] = None,
     extra_cc: Optional[list] = None,
+    project: Optional[dict] = None,
 ) -> dict:
     """Despacha la acción según la config dinámica. Ver reglas en el docstring
     del módulo.
@@ -46,6 +48,9 @@ async def dispatch_other_action(
     `extra_cc`: lista opcional de correos a incluir en COPIA (CC) en CADA envío
     por email (p.ej. el "Correo Adicional Eventual" de un Proyecto de Integración).
     No altera los destinatarios configurados; solo se añade en copia.
+
+    `project`: documento del proyecto que detona el evento. Necesario para resolver
+    el destinatario dinámico "Usuario Implementador" (type='project_implementer').
     """
     extra_cc = [e for e in (extra_cc or []) if e and isinstance(e, str) and '@' in e]
     cfg = await get_config(action_id)
@@ -96,6 +101,18 @@ async def dispatch_other_action(
                 continue
             rcpt_email, rcpt_name = resolved
             rcpt_user_id = executive_user_id
+        elif rtype == "project_implementer":
+            # "Usuario Implementador": el técnico asignado al proyecto que detona
+            # el evento. Con contingencia a Coordinador/Administrador.
+            rcpt_email, rcpt_name, rcpt_user_id, fb_note = await resolve_project_implementer(project)
+            if not rcpt_email:
+                skipped.append({"row_id": row.get("row_id"), "reason": fb_note or "Implementador no resoluble"})
+                continue
+            if fb_note:
+                logger.warning(
+                    f"[other-actions] {action_id} · Usuario Implementador (fallback): {fb_note} "
+                    f"(proyecto {(project or {}).get('project_number', 's/n')}) → {rcpt_email}"
+                )
         else:
             skipped.append({"row_id": row.get("row_id"), "reason": f"tipo no soportado: {rtype}"})
             continue

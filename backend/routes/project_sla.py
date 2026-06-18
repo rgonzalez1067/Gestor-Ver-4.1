@@ -147,7 +147,7 @@ async def upsert_action(payload: SlaActionConfigPayload, authorization: Optional
     if payload.action_id not in SLA_ACTION_IDS:
         raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(SLA_ACTION_IDS)}")
     for r in payload.recipients:
-        if r.type not in ("owner", "external_client", "user"):
+        if r.type not in ("owner", "external_client", "user", "project_implementer"):
             raise HTTPException(status_code=400, detail=f"Tipo de destinatario inválido: {r.type}")
         if r.type == "user" and not r.user_id:
             raise HTTPException(status_code=400, detail="user_id requerido para destinatarios de tipo 'user'")

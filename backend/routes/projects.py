@@ -2599,6 +2599,7 @@ async def _dispatch_project_status_action(project_id: str, new_status: str, note
             current_user=current_user,
             fallback_subject=f"Proyecto {project.get('project_number', '')} — {new_status}",
             executive_user_id=project.get("created_by_user_id"),
+            project=project,
         )
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[project-status] dispatch '{new_status}' failed: {e}")

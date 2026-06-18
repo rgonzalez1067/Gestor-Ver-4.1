@@ -25,6 +25,7 @@ from config import db
 from services.email_service import send_email
 from services.inbox_service import deliver_to_inbox
 from services.notification_engine import _load_template, _render, _resolve_user_email
+from services.dynamic_recipients import resolve_project_implementer
 from services.project_template_vars import resolve_project_template_vars
 
 logger = logging.getLogger("project_sla_engine")
@@ -197,6 +198,18 @@ async def dispatch_sla_action(action_id: str, project: dict) -> dict:
                 continue
             rcpt_email, rcpt_name = resolved
             rcpt_user_id = row.get("user_id")
+        elif rtype == "project_implementer":
+            # "Usuario Implementador": técnico asignado al proyecto, con
+            # contingencia a Coordinador/Administrador.
+            rcpt_email, rcpt_name, rcpt_user_id, fb_note = await resolve_project_implementer(project)
+            if not rcpt_email:
+                skipped.append({"row_id": row.get("row_id"), "reason": fb_note or "Implementador no resoluble"})
+                continue
+            if fb_note:
+                logger.warning(
+                    f"[sla] {action_id} · Usuario Implementador (fallback): {fb_note} "
+                    f"(proyecto {project.get('project_number', 's/n')}) → {rcpt_email}"
+                )
         else:
             skipped.append({"row_id": row.get("row_id"), "reason": f"tipo no soportado: {rtype}"})
             continue

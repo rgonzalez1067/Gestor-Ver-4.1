@@ -209,7 +209,7 @@ async def upsert_config(payload: OtherActionConfigPayload, authorization: Option
     if payload.action_id not in OTHER_ACTION_IDS:
         raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(OTHER_ACTION_IDS)}")
 
-    ALLOWED_RECIPIENT_TYPES = {"user", "session_user", "session_executive"}
+    ALLOWED_RECIPIENT_TYPES = {"user", "session_user", "session_executive", "project_implementer"}
     for r in payload.recipients:
         if r.type not in ALLOWED_RECIPIENT_TYPES:
             raise HTTPException(status_code=400, detail=f"Tipo de destinatario inválido: {r.type}")
