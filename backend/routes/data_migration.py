@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from starlette.background import BackgroundTask
 
 from config import db, get_current_user, UPLOADS_DIR
-from services.pdf_storage import get_pdf_from_storage, save_pdf_dual, save_pdf_to_storage
+from services.pdf_storage import get_pdf_from_storage, save_pdf_dual, save_pdf_to_storage, list_storage_keys
 
 logger = logging.getLogger(__name__)
 
@@ -1473,6 +1473,15 @@ async def recover_attachments_to_storage(
     total = len(all_tasks)
     batch = all_tasks[skip: skip + limit]
 
+    # Inventario de claves en Object Storage (UNA sola llamada de red por lote).
+    # Verificar existencia en memoria evita descargar cada archivo y elimina el
+    # timeout del proxy (Cloudflare 524) que ocurría con get_pdf_from_storage por anexo.
+    try:
+        storage_keys = await _asyncio.to_thread(list_storage_keys)
+    except Exception as e:
+        logger.warning(f"[recover] No se pudo listar el inventario de storage: {e}")
+        storage_keys = set()
+
     # 2) Procesar el lote con concurrencia controlada
     sem = _asyncio.Semaphore(8)
     missing_details: list = []
@@ -1496,10 +1505,10 @@ async def recover_attachments_to_storage(
                 return
 
             try:
-                obj = await _asyncio.to_thread(get_pdf_from_storage, rel)
+                obj = rel in storage_keys
             except Exception as e:
                 obj = None
-                logger.warning(f"[recover] get_pdf_from_storage error {rel}: {e}")
+                logger.warning(f"[recover] storage existence check error {rel}: {e}")
 
             if obj:
                 counters["already_ok"] += 1

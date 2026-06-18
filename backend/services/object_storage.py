@@ -59,3 +59,23 @@ def get_object(path: str):
     )
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+
+def list_objects(prefix: str) -> tuple[list, bool]:
+    """List objects whose key starts with `prefix` WITHOUT downloading content.
+
+    Returns (objects, is_truncated). Each object is a dict with at least `path`.
+    Mucho más rápido que descargar cada archivo solo para comprobar existencia.
+    """
+    key = init_storage()
+    if not key:
+        raise RuntimeError("Storage not initialized")
+    resp = requests.get(
+        f"{STORAGE_URL}/objects",
+        params={"prefix": prefix},
+        headers={"X-Storage-Key": key},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data.get("objects", []), bool(data.get("is_truncated"))

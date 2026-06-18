@@ -6,6 +6,23 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Fix timeout (Cloudflare 524) en Auto-recuperación de anexos (Auditar Dry-Run) — Jun 2026
+
+**Síntoma:** en producción, "Auditar (Dry-Run)" / "Ejecutar Recuperación" del modal de migración fallaba con "The origin web server did not respond to Cloudflare within the allowed time" (524).
+
+**Causa raíz:** el endpoint `POST /api/admin/attachments/recover-to-storage` (paginado en lotes de 50) comprobaba la existencia de cada anexo en Object Storage con `get_pdf_from_storage(rel)`, que **DESCARGA el contenido completo** del archivo (PDFs grandes). Con ~723 anexos y descargas reales, cada lote superaba el límite de tiempo del proxy/Cloudflare.
+
+**Fix (solo backend):**
+- `services/object_storage.py`: nuevo `list_objects(prefix)` → lista claves vía `GET /objects?prefix=` SIN descargar contenido (devuelve objetos + is_truncated).
+- `services/pdf_storage.py`: nuevo `list_storage_keys()` → set de claves relativas del entorno (`pdfs/{APP_ENV}/...`).
+- `routes/data_migration.py`: la auditoría construye el inventario de storage UNA vez por lote (`list_storage_keys`) y verifica existencia **en memoria** (`rel in storage_keys`) en lugar de descargar por archivo.
+
+**Verificado (preview, curl):** lote de 50 pasó de >100s (timeout) a **~1.2s**; recorrido completo de 723 anexos, `already_in_storage` correcto, 0 faltantes, 0 errores, paginación `next_skip`→`done` OK. El loop del frontend (`QuotesBundleMigrationModal.jsx`) ya estaba correcto (no requirió cambios).
+**⚠️ El fix está en PREVIEW; requiere REDEPLOY para corregir producción.**
+
+
+
+
 ### Destinatario dinámico "Usuario Implementador" para Notificaciones y SLAs — Jun 2026
 
 **Requerimiento:** Nuevo token de destino automatizado "Usuario Implementador" que se resuelve en runtime al técnico asignado al proyecto que detona el evento, replicando la lógica de "Generador del Proyecto". Elegible en dos submódulos: (A) Matriz de Otras Acciones y (B) Configuración de Tiempos y SLA.

@@ -65,6 +65,32 @@ def get_pdf_from_storage(filename: str) -> Optional[Tuple[bytes, str]]:
         return None
 
 
+def list_storage_keys() -> set:
+    """Devuelve el conjunto de claves RELATIVAS (sin el prefijo de ambiente) que
+    existen actualmente en Object Storage para este entorno.
+
+    Ej: {'COT-2026-...pdf', 'client_documents/ab12_x.pdf'}
+
+    Se usa para auditar existencia en lote con UNA sola llamada de red (en vez de
+    descargar cada archivo), evitando timeouts del proxy en la auto-recuperación.
+    """
+    from services.object_storage import list_objects
+
+    objs, truncated = list_objects(PDF_PREFIX)
+    if truncated:
+        logger.warning(
+            "[pdf_storage] list_storage_keys: respuesta truncada por el storage; "
+            "el inventario puede estar incompleto."
+        )
+    prefix = PDF_PREFIX.rstrip("/") + "/"
+    keys = set()
+    for o in objs:
+        p = (o.get("path") or "")
+        if p.startswith(prefix):
+            keys.add(p[len(prefix):])
+    return keys
+
+
 def storage_name_from_upload_url(url: str) -> str:
     """Convierte la URL pública del adjunto en la clave usada por `save_pdf_dual`.
 
