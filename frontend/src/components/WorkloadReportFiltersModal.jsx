@@ -11,12 +11,13 @@ import { toast } from 'sonner';
 const QUOTE_TYPES = ['VPOS', 'VPOS_MULTIRIF', 'MPOS', 'GATEWAY', 'LINK'];
 const TYPE_LABELS = { VPOS_MULTIRIF: 'VPOS Multi-RIF', GATEWAY: 'Payment Gateway', LINK: 'Link de Pago' };
 const STATUS_OPTIONS = [
-  'Pendiente por Asignar',
-  'Asignado / En Proceso',
-  'En proceso/reasignado',
-  'Suspendido por Cliente',
-  'Suspendido por Banco',
-  'Finalizado / Producción',
+  'Por asignar',
+  'Asignado',
+  'En Gestión',
+  'Suspendido',
+  'Implementado parcial',
+  'Culminado',
+  'Anulado',
 ];
 
 // Botón-chip de selección múltiple (módulo-level para no recrearlo en cada render).

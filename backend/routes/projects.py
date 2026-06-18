@@ -3463,10 +3463,11 @@ async def projects_workload_pdf(
         padding: 6px 10px; margin-bottom: 14px; font-size: 10px; color: #475569;
       }}
       .filters strong {{ color: #312e81; margin-right: 4px; }}
-      .group {{ margin-bottom: 18px; break-inside: avoid; }}
+      .group {{ margin-bottom: 18px; }}
       .group-head {{
         display: flex; justify-content: space-between; align-items: baseline;
         background: #eef2ff; border-left: 4px solid #4f46e5; padding: 6px 10px; border-radius: 4px;
+        break-after: avoid;
       }}
       .group-head .impl {{ font-weight: 700; font-size: 13px; color: #312e81; }}
       .group-head .count {{ font-size: 10px; color: #4338ca; font-weight: 600; }}

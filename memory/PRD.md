@@ -6,6 +6,17 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Reporte de Carga: estados canónicos en filtros + fix página 1 en blanco — Jun 2026
+
+**1. Estados del modal de filtros (`WorkloadReportFiltersModal.jsx`):** `STATUS_OPTIONS` reemplazado de los legacy (Pendiente por Asignar / Asignado / En Proceso / En proceso/reasignado / Suspendido por Cliente / Suspendido por Banco / Finalizado / Producción) por los **7 canónicos** de `models.PROJECT_STATUSES`: Por asignar, Asignado, En Gestión, Suspendido, Implementado parcial, Culminado, Anulado. El filtro hace match exacto contra `status` (verificado: `?status=Culminado` → reporte filtrado correcto).
+**Nota:** proyectos con estados *legacy* en la BD (ej. 'Asignado / En Proceso', 'Pendiente por Asignar') no matchean los canónicos hasta normalizar (backlog).
+
+**2. Página 1 en blanco (PDF `GET /projects/reports/workload-pdf`):** causa = `.group { break-inside: avoid; }` empujaba el primer grupo (alto) a la página 2, dejando la página 1 solo con el título. Fix: removido `break-inside: avoid` de `.group` y agregado `break-after: avoid` a `.group-head` (encabezado no queda huérfano). Verificado: página 1 pasa de 171 a 1624 chars (título + primer grupo) y el reporte de 8 a 7 páginas.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
+
 ### Mini Tablero: Bug Fix PVV Asignados + nuevas reglas de Cajas/PVV Configurados — Jun 2026
 
 **Requerimiento:** Auditar/corregir el Mini Tablero de Avance Operativo (/projects) con 3 ajustes.
