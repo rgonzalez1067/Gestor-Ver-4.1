@@ -6,6 +6,20 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Regla de visibilidad: Equipo de Ventas Corporativas (colaborativa) — Jun 2026
+
+**Requerimiento:** todos los usuarios del Equipo de Ventas Corporativas deben ver TODAS las cotizaciones creadas por cualquier integrante del equipo (hoy cada uno solo veía las propias).
+
+**Identificación del equipo:** no existe campo `equipo`; el equipo se define por `departamento == "Ventas Corporativas"` (sede CORP).
+
+**Implementación (`routes/quotes.py`):** nueva rama explícita en `get_quotes` (antes de `is_admin_dept`) que se dispara para no-admin con `departamento` que matchea `"ventas corporativ"` (regex case-insensitive, tolerante a variantes). Construye `created_by_user_id IN (todos los miembros del equipo)` y **no** aplica filtro por segmento → ven todo lo del equipo. Misma tolerancia aplicada en la autorización del **detalle** (`GET /quotes/{id}`) para que puedan abrir cualquier cotización del equipo. Garantiza el comportamiento sin depender de la rama por cargo/perfil.
+
+**Validado (DB, escenario temporal aislado):** 2 usuarios corp + 2 cotizaciones → el usuario A ve las cotizaciones de A y B (más el equipo real). Limpieza OK. Backend sano (admin /quotes 200, sin errores). Otras visibilidades (PYME, Admin, Operaciones, Director) intactas.
+**⚠️ En PREVIEW; requiere REDEPLOY para producción.** En prod, asegúrese de que todos los usuarios del equipo tengan `departamento = "Ventas Corporativas"`.
+
+
+
+
 ### Importación multi-archivo automatizada (bundle paginado) — Jun 2026
 
 **Requerimiento:** automatizar la importación de los JSON paginados del bundle de cotizaciones para no importar archivo por archivo.

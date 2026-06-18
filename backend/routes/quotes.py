@@ -538,6 +538,21 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
         if "director" in cargo:
             # Director (cualquier sede/depto): visibilidad total, sin filtros.
             pass
+        elif "ventas corporativ" in depto_norm:
+            # ===== REGLA DE EQUIPO: Ventas Corporativas (colaborativa) =====
+            # Todos los usuarios del Equipo de Ventas Corporativas ven TODAS las
+            # cotizaciones creadas por cualquier integrante del equipo (no solo las
+            # propias). Match tolerante a variantes del nombre del departamento.
+            # No se aplica filtro por segmento: ven todo lo del equipo.
+            team = await db.users.find(
+                {"departamento": {"$regex": "ventas corporativ", "$options": "i"},
+                 "is_active": {"$ne": False}},
+                {"_id": 0, "user_id": 1}
+            ).to_list(500)
+            team_ids = [u["user_id"] for u in team] or [user_id]
+            if user_id and user_id not in team_ids:
+                team_ids.append(user_id)
+            query["created_by_user_id"] = {"$in": team_ids}
         elif is_admin_dept:
             # Administración: visibilidad por SEDE (PYME/CORP/TBP) sin importar
             # qué usuario creó la cotización. Permite que todo el equipo de
@@ -705,6 +720,15 @@ async def get_quote(quote_id: str, authorization: Optional[str] = Header(None)):
             # Administración: bloqueo por sede
             if (quote.get("client_segment") or "").upper() != user_sede:
                 raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (restricción de sede para Administración)")
+        elif "ventas corporativ" in depto_norm:
+            # Equipo de Ventas Corporativas: acceso a cualquier cotización creada
+            # por un integrante del equipo (consistente con la lista).
+            creator_id = quote.get("created_by_user_id")
+            if creator_id and creator_id != current_user.get("user_id"):
+                creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
+                creator_depto = ((creator or {}).get("departamento") or "").lower()
+                if "ventas corporativ" not in creator_depto:
+                    raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (privacidad por departamento)")
         else:
             creator_id = quote.get("created_by_user_id")
             if creator_id and creator_id != current_user.get("user_id"):
