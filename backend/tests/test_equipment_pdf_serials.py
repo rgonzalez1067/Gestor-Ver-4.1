@@ -10,7 +10,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://integradores-filtro.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://action-key-mismatch.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "ragg1008@gmail.com"
 ADMIN_PASSWORD = "admin123"
 

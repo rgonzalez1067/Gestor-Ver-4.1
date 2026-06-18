@@ -426,7 +426,7 @@ Backend ya estaba listo (sesiones previas). Esta sesión implementó el Frontend
 - `ProjectDetail.jsx`: estado `batchProduct` → `batchProducts` (array), `toggleBatchProduct`, `handleBatchBankChange` (preselecciona todos los medios del banco). Payload envía `product_names` (array) al endpoint que ya lo soporta.
 
 ### Notas
-- Las URLs de preview viejas del handoff están dormidas; URL correcta del entorno: `https://integradores-filtro.preview.emergentagent.com`.
+- Las URLs de preview viejas del handoff están dormidas; URL correcta del entorno: `https://action-key-mismatch.preview.emergentagent.com`.
 - Pendiente opcional (a11y polish): agregar `<DialogDescription>` a `templates-dialog` y `batch-update-dialog`. Hydration warnings preexistentes del instrumentador (no del código).
 
 
