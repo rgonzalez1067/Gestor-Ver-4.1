@@ -36,6 +36,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   const [downloadingZip, setDownloadingZip] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [importingData, setImportingData] = useState(false);
+  const [importProgress, setImportProgress] = useState(null); // { current, total, fileName }
   const [importingZip, setImportingZip] = useState(false);
   const [zipProgress, setZipProgress] = useState('');
   const [previewSummary, setPreviewSummary] = useState(null);
@@ -178,30 +179,76 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   };
 
   const handleImportData = async () => {
-    const f = dataFileRef.current?.files?.[0];
-    if (!f) {
-      toast.error('Seleccione el archivo JSON de datos');
+    const files = Array.from(dataFileRef.current?.files || []);
+    if (files.length === 0) {
+      toast.error('Seleccione uno o más archivos JSON de datos');
       return;
     }
     if (!confirm(
-      'Esto aplicará un UPSERT sobre las cotizaciones, históricos y proyectos:\n\n' +
+      `Esto aplicará un UPSERT sobre cotizaciones, históricos y proyectos usando ` +
+      `${files.length} archivo(s):\n\n` +
       '• Los registros existentes se actualizarán con los datos del archivo.\n' +
-      '• Los registros nuevos se crearán.\n\n' +
+      '• Los registros nuevos se crearán.\n' +
+      '• Los archivos se importan en orden, de forma automática (idempotente).\n\n' +
       '¿Confirma proceder?'
     )) return;
+
     setImportingData(true);
+    setDataResult(null);
+    // Acumulador por colección para mostrar el total combinado de todos los archivos.
+    const aggMap = {}; // collection -> { label, inserted, updated, skipped }
+    let okFiles = 0;
+    const fileErrors = [];
+
     try {
-      const fd = new FormData();
-      fd.append('file', f);
-      const res = await api.post('/admin/quotes-bundle-migration/import-data', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // Orden estable por nombre (page_1, page_2, ...) para reproducibilidad.
+      const ordered = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      for (let i = 0; i < ordered.length; i++) {
+        const f = ordered[i];
+        setImportProgress({ current: i + 1, total: ordered.length, fileName: f.name });
+        try {
+          const fd = new FormData();
+          fd.append('file', f);
+          const res = await api.post('/admin/quotes-bundle-migration/import-data', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          okFiles += 1;
+          for (const r of (res.data?.results || [])) {
+            const cur = aggMap[r.collection] || { label: r.label, collection: r.collection, inserted: 0, updated: 0, skipped: 0 };
+            cur.inserted += r.inserted || 0;
+            cur.updated += r.updated || 0;
+            cur.skipped += r.skipped || 0;
+            aggMap[r.collection] = cur;
+          }
+        } catch (e) {
+          fileErrors.push(`${f.name}: ${e.response?.data?.detail || e.message}`);
+        }
+      }
+
+      const results = Object.values(aggMap);
+      const totals = {
+        inserted: results.reduce((a, r) => a + r.inserted, 0),
+        updated: results.reduce((a, r) => a + r.updated, 0),
+        skipped: results.reduce((a, r) => a + r.skipped, 0),
+      };
+      setDataResult({
+        results,
+        totals,
+        files_ok: okFiles,
+        files_total: ordered.length,
+        file_errors: fileErrors,
+        message:
+          `Importación de ${okFiles}/${ordered.length} archivo(s) completada: ` +
+          `${totals.inserted} creado(s), ${totals.updated} actualizado(s), ${totals.skipped} omitido(s).`,
       });
-      setDataResult(res.data);
-      toast.success(res.data.message || 'Importación completada');
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error al importar datos');
+      if (fileErrors.length) {
+        toast.error(`${fileErrors.length} archivo(s) con error. Revise el detalle.`);
+      } else {
+        toast.success(`${okFiles} archivo(s) importado(s) correctamente`);
+      }
     } finally {
       setImportingData(false);
+      setImportProgress(null);
     }
   };
 
@@ -464,13 +511,17 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                 <FileJson size={20} className="text-blue-600 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-slate-800">1. Importar datos (JSON)</p>
-                  <p className="text-xs text-slate-500 mt-0.5">UPSERT por id natural en las 3 colecciones.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    UPSERT por id natural en las 3 colecciones. Puede seleccionar <strong>varios archivos
+                    paginados a la vez</strong> (page_1, page_2, …) y se importan automáticamente en orden.
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2 mt-2">
                 <input
                   ref={dataFileRef}
                   type="file"
+                  multiple
                   accept=".json,application/json"
                   className="flex-1 text-xs file:mr-2 file:py-1 file:px-2 file:border-0 file:bg-slate-200 file:text-slate-700"
                   data-testid="bundle-import-data-file-input"
@@ -486,6 +537,20 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                   Aplicar
                 </Button>
               </div>
+              {importProgress && (
+                <div className="mt-2" data-testid="bundle-import-progress">
+                  <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+                    <span>Importando {importProgress.fileName}</span>
+                    <span>{importProgress.current} / {importProgress.total}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-600 transition-all duration-300"
+                      style={{ width: `${Math.round((importProgress.current / importProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               {dataResult && (
                 <div className="mt-3 bg-white border rounded p-3 text-xs">
                   <p className="text-emerald-700 font-semibold flex items-center gap-1.5">
@@ -511,6 +576,14 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                       ))}
                     </tbody>
                   </table>
+                  {dataResult.file_errors?.length > 0 && (
+                    <div className="mt-2 text-[11px] text-rose-700" data-testid="bundle-import-file-errors">
+                      <p className="font-semibold">Archivos con error ({dataResult.file_errors.length}):</p>
+                      <ul className="list-disc ml-4">
+                        {dataResult.file_errors.map((er, idx) => <li key={idx}>{er}</li>)}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -6,6 +6,18 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Importación multi-archivo automatizada (bundle paginado) — Jun 2026
+
+**Requerimiento:** automatizar la importación de los JSON paginados del bundle de cotizaciones para no importar archivo por archivo.
+
+**Implementación (solo frontend, `components/quotes/QuotesBundleMigrationModal.jsx`):** el input "1. Importar datos (JSON)" ahora acepta **múltiples archivos** (`multiple`). `handleImportData` itera los archivos seleccionados **en orden natural** (page_1, page_2, …), llama `POST /admin/quotes-bundle-migration/import-data` por cada uno secuencialmente, muestra una **barra de progreso** (archivo actual / total) y **agrega los totales** (creados/actualizados/omitidos) en una sola tabla. Reporta errores por archivo sin abortar el resto. El endpoint de import es UPSERT idempotente por id natural → reimportar es seguro.
+
+**Validado (curl):** 2 archivos "página" reales importados en secuencia → cada uno idempotente (0 creados, 2 actualizados); el loop agrega correctamente. Frontend compila sin errores.
+**⚠️ En PREVIEW; requiere REDEPLOY para usarlo en producción.**
+
+
+
+
 ### UI Admin: botón "Ejecutivos huérfanos" (diagnóstico + reasignación) — Jun 2026
 
 **Requerimiento:** herramienta con botón visible SOLO para Admin que resuelva en un clic las cotizaciones/proyectos huérfanos y los overrides con user_id viejo (consecuencia de borrar+recrear un usuario).
