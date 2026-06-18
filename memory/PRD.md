@@ -6,6 +6,25 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Destinatario dinámico "Usuario Implementador" para Notificaciones y SLAs — Jun 2026
+
+**Requerimiento:** Nuevo token de destino automatizado "Usuario Implementador" que se resuelve en runtime al técnico asignado al proyecto que detona el evento, replicando la lógica de "Generador del Proyecto". Elegible en dos submódulos: (A) Matriz de Otras Acciones y (B) Configuración de Tiempos y SLA.
+
+**Lógica de negocio (resolución + contingencia):** nuevo `services/dynamic_recipients.py::resolve_project_implementer(project)` → toma `project.assigned_to_user_id` y extrae su correo. **Fallback** cuando no hay implementador (Por asignar): 1) Coordinador de Implementación (cargo 'Coordinador' + depto 'Implementación'), 2) Administrador (role='admin'); registra advertencia en logs (`logger.warning`) con el motivo del desvío.
+
+**Backend:**
+- `other_actions_engine.dispatch_other_action`: nuevo param `project` + manejo de `type='project_implementer'` (con log de fallback). `routes/projects._dispatch_project_status_action` ahora pasa `project=project`. `routes/other_actions_config.py`: `ALLOWED_RECIPIENT_TYPES` += `project_implementer`.
+- `project_sla_engine.dispatch_sla_action`: manejo de `type='project_implementer'` (ya tiene el `project`). `routes/project_sla.py` upsert: acepta `project_implementer`.
+- Token unificado `project_implementer` en ambos motores.
+
+**Frontend:** `OtherActionsConfig.jsx` (opción "🛠️ Usuario Implementador" contigua a Ejecutivo generador, placeholder "— implementador asignado al proyecto —") y `ProjectSlaConfig.jsx` (opción contigua a "⚡ Generador del Proyecto").
+
+**QA:** pytest `tests/test_dynamic_recipients.py` **4/4 PASS** (implementer / fallback coordinador / fallback admin / sin destinatario). Prueba de integración con monkeypatch: enrutamiento dinámico independiente (Proyecto A→rpereira, Proyecto B→yrivas, **aislamiento OK**) y fallback al coordinador con advertencia. Endpoints PUT SLA/OA aceptan el tipo (HTTP 200). testing_agent iteration_111 → **frontend 100% PASS** (opción visible/seleccionable/guardable en ambas pantallas; toasts de éxito; badge "1 dest."). Estado de datos restaurado a prístino tras pruebas.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
+
 ### Reporte de Carga: estados canónicos en filtros + fix página 1 en blanco — Jun 2026
 
 **1. Estados del modal de filtros (`WorkloadReportFiltersModal.jsx`):** `STATUS_OPTIONS` reemplazado de los legacy (Pendiente por Asignar / Asignado / En Proceso / En proceso/reasignado / Suspendido por Cliente / Suspendido por Banco / Finalizado / Producción) por los **7 canónicos** de `models.PROJECT_STATUSES`: Por asignar, Asignado, En Gestión, Suspendido, Implementado parcial, Culminado, Anulado. El filtro hace match exacto contra `status` (verificado: `?status=Culminado` → reporte filtrado correcto).
