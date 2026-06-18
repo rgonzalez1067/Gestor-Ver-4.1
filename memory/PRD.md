@@ -19,6 +19,12 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 ### Issue: subida multi-archivo JSON (bundle) — ya correcta en código
 **Estado:** `QuotesBundleMigrationModal.jsx` ya itera sobre `Array.from(dataFileRef.current.files)` con `multiple` y barra de progreso; el endpoint `POST /admin/quotes-bundle-migration/import-data` recibe 1 archivo por llamada y el loop lo invoca por cada archivo (UPSERT idempotente). NO hay bug en el código → el comportamiento "igual que antes" en producción se debe a **falta de redeploy**.
 
+### Fix UX: lista ACUMULATIVA de archivos en Importar (multi-archivo) — Jun 2026
+**Causa real del reporte recurrente:** el `<input type=file multiple>` nativo **reemplaza** la selección cada vez que se abre el diálogo del sistema. Si el usuario elegía un archivo y luego otro, el primero se perdía → "solo procesa uno / no veo la carga de multiarchivos".
+**Fix (`QuotesBundleMigrationModal.jsx`):** estado React controlado `dataFiles` (array). `handleDataFilesChange` acumula los archivos (dedupe por `nombre:tamaño`) y resetea `input.value=''` para poder re-agregar. Se renderiza una **lista visible** (`bundle-import-data-file-list`) con tamaño, botón quitar por fila y "Limpiar todo"; el botón "Aplicar (N)" muestra el contador y se deshabilita con la cola vacía. `handleImportData` itera sobre `dataFiles` (orden natural page_1, page_2…) y limpia la cola tras éxito total.
+**QA (testing_agent iteration_114 → 100% PASS):** acumulación al seleccionar archivos por separado (1→2), quitar individual (2→1), limpiar todo (lista oculta + Aplicar deshabilitado), contador del botón correcto.
+**⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
 
 
 
