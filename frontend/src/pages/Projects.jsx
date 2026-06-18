@@ -932,6 +932,11 @@ const Projects = () => {
                               </TooltipProvider>
                             );
                           })()}
+                          {project.project_number && (
+                            <p className="text-xs font-mono font-semibold text-slate-600 flex items-center gap-1 mt-0.5" data-testid={`project-number-${project.project_id}`} title="Nro de Proyecto">
+                              <FolderKanban size={11} className="text-slate-400" />{project.project_number}
+                            </p>
+                          )}
                           <p className="text-xs font-mono text-slate-400">{formatRif(project.client_rif)}</p>
                           {project.ticket_number && (
                             <p className="text-xs text-indigo-600 flex items-center gap-1 mt-0.5" data-testid={`ticket-${project.project_id}`}>

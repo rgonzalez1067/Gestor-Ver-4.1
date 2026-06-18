@@ -6,6 +6,16 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Panel de Proyectos: mostrar Nro de Proyecto en columna Cliente/Ticket — Jun 2026
+
+**Requerimiento:** ver el Nro de Proyecto en el listado sin abrir el proyecto.
+
+**Implementación (`pages/Projects.jsx`):** en la celda "Cliente / Ticket", debajo del nombre del cliente, se muestra `project.project_number` (icono FolderKanban, mono, semibold) con `data-testid="project-number-<project_id>"` y tooltip "Nro de Proyecto". Usa un campo ya presente en el payload de `GET /api/projects`. Frontend compila sin errores.
+**⚠️ En PREVIEW; requiere REDEPLOY. Verificación visual en preview no posible (el navegador del screenshot tool no alcanza el backend del entorno).**
+
+
+
+
 ### Regla de visibilidad: Equipo de Ventas Corporativas (colaborativa) — Jun 2026
 
 **Requerimiento:** todos los usuarios del Equipo de Ventas Corporativas deben ver TODAS las cotizaciones creadas por cualquier integrante del equipo (hoy cada uno solo veía las propias).
