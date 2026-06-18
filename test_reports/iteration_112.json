@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only E2E validation of the new Admin tool 'Ejecutivos huérfanos' on /admin/users. All four review requests verified: admin-only header button, diagnosis modal with 7 orphan rows + matching header counter + refresh button, end-to-end reassignment of the lowest-impact orphan, and toast/refresh behaviour. Reassigned user_0aa3324142f4 (2 cotiz., 0 proy., 0 overrides) → ragg1008@gmail.com (Rafael González Respaldo). Toast confirmed 'Reasignados 2 registro(s) → ragg1008@gmail.com (2 cotiz., 0 proy., 0 acción/es)', row vanished after auto-refresh and counter updated 7→6.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (any route after login)", "issues": ["Pre-existing non-blocking React hydration warning in console: '<tr> cannot be a child of <span>' / '<span> cannot be a child of <tbody>' caused by an external editor tracker wrapping with style={display:'contents'}. Same warning reported in iteration_111 — not introduced by this feature."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "OrphanedExecutivesModal.jsx L67: toast message computes 'r.projects_created + r.projects_assigned' WITHOUT defaults — if either field is undefined the rendered string becomes 'NaN proy.'. In this test both were 0 so it worked, but recommend coalescing: ((r.projects_created||0)+(r.projects_assigned||0)).",
+    "OrphanedExecutivesModal.jsx L63: same total computation uses '|| 0' on each field correctly. The inconsistency between L63 (defensive) and L67 (not defensive) is a small bug waiting for a partial payload.",
+    "AdminUsers.jsx L107 & L418: orphanModalOpen mounted unconditionally but only triggered behind currentUser.role==='admin' gate — OK. Consider also gating the <OrphanedExecutivesModal/> mount itself to fully eliminate any chance a non-admin could open it via devtools.",
+    "OrphanedExecutivesModal.jsx L78-80: sortedActive filters by is_active !== false, but does NOT exclude the orphan user_id itself or admin-only users. Not blocking — the GET /admin/users API already returns the right pool — but worth a defensive comment."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 + Admin de respaldo ragg1008@gmail.com / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Performed ONE reassignment on the lowest-impact orphan (user_0aa3324142f4, 2 cotiz.) → ragg1008@gmail.com as instructed in the review request. The 6 remaining orphans are intact. This is permanent test-data mutation in preview as authorised by the agent_to_agent_context_note.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature fully validated end-to-end via Playwright on /admin/users as Admin. Verified: (1) button data-testid='open-orphaned-executives' is rendered ONLY for admin in the header. (2) Modal data-testid='orphaned-executives-modal' opens with 7 rows = header counter '7 ejecutivo(s) huérfano(s)' (now 6 after the test reassignment). (3) Each row shows the expected badges (cotiz./hist./proy./acciones). (4) Select 'orphan-target-select-<id>' lists active users with name + email. (5) After choosing Rafael González (Respaldo) and clicking 'Reasignar', a success Sonner toast appears: 'Reasignados 2 registro(s) → ragg1008@gmail.com (2 cotiz., 0 proy., 0 acción/es)'. (6) Auto-refresh removed the row and updated counter 7→6. The non-admin restriction was NOT tested as it was marked optional and the request was satisfied.",
+  "rca of the issue": "N/A — feature works as specified."
+}

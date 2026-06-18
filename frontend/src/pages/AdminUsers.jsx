@@ -9,9 +9,10 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Label } from '../components/ui/label';
-import { Users, Shield, ShieldAlert, Search, RefreshCw, Crown, User as UserIcon, Warehouse, Link2, ChevronDown, Power } from 'lucide-react';
+import { Users, Shield, ShieldAlert, Search, RefreshCw, Crown, User as UserIcon, Warehouse, Link2, ChevronDown, Power, UserX } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { OrphanedExecutivesModal } from '../components/admin/OrphanedExecutivesModal';
 
 // =============================
 // Helpers UI (sticky constants)
@@ -103,6 +104,7 @@ const AdminUsers = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [savingKey, setSavingKey] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [orphanModalOpen, setOrphanModalOpen] = useState(false);
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -296,6 +298,17 @@ const AdminUsers = () => {
               <p className="text-sm text-slate-500 mt-1">Configure grupos de menú, niveles de acceso y funciones especiales por usuario.</p>
             </div>
             <div className="flex items-center gap-3">
+              {currentUser?.role === 'admin' && (
+                <Button
+                  variant="outline"
+                  onClick={() => setOrphanModalOpen(true)}
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  data-testid="open-orphaned-executives"
+                >
+                  <UserX className="h-4 w-4 mr-2" />
+                  Ejecutivos huérfanos
+                </Button>
+              )}
               <Button variant="outline" onClick={fetchAll} disabled={loading} data-testid="refresh-users">
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Actualizar
@@ -401,6 +414,13 @@ const AdminUsers = () => {
           </section>
         </div>
       </main>
+
+      <OrphanedExecutivesModal
+        open={orphanModalOpen}
+        onOpenChange={setOrphanModalOpen}
+        activeUsers={users}
+        onResolved={fetchAll}
+      />
     </div>
   );
 };
