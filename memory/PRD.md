@@ -5,6 +5,18 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Migración BD: restauración de anexos desde MÚLTIPLES ZIP paginados — Jun 2026
+
+**Aclaración del usuario:** la automatización pedida para "Importación" era para los **ZIP de anexos paginados** (parte_1, parte_2, …) que antes se cargaban de a uno — no los JSON (eso fue una confusión previa).
+
+**Fix (`QuotesBundleMigrationModal.jsx`, sección "2. Restaurar anexos (ZIP)"):** misma UX acumulativa que el import JSON. Estado `zipFiles` (array), `handleZipFilesChange` (acumula + dedupe por nombre:tamaño + resetea input.value), `removeZipFile`, `clearZipFiles`. `handleImportAttachments` reescrito para **iterar sobre todos los ZIP** (ordenados natural parte_1/parte_2…), descomprimiendo cada uno con JSZip y subiendo cada anexo con la misma lógica de concurrencia (4) + reintentos (3) ya probada; agrega contadores globales (restaurados/omitidos/reintentos) a través de todos los ZIP, con progreso "ZIP x/N". UI: input oculto + botón punteado `bundle-import-attachments-pick-btn`, lista acumulativa `bundle-import-attachments-file-list` (quitar/limpiar), botón `Restaurar (N)` deshabilitado sin ZIP en cola; limpia la cola tras éxito total.
+
+**QA (testing_agent iteration_118 → 100% PASS 12/12):** acumulación (1→2), dedupe, contador del botón, quitar individual, limpiar todo, disabled sin cola. (No se ejecutó restauración real para no escribir en Object Storage; la subida por-archivo es la misma lógica ya probada.)
+**⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
+
 ### Actualización Masiva de Clientes por RIF (CSV/Excel) — Jun 2026
 
 **Requerimiento:** opción para actualizar en bloque, vía Nro de RIF, los campos de la ficha de cliente: Cantidad de Tiendas, Nro de Cajas, Tipo de Servicio, Integrador, Coordinador, Implementador, Ejecutivo Propietario. Decisiones del usuario: carga por **CSV/Excel**; coincidencia **en cascada a todas las sucursales del mismo RIF**; **actualización parcial** (celdas vacías se ignoran); **Tipo de Servicio se AGREGA** a la lista existente (separador `;`); referencias validadas contra catálogos/usuarios existentes (Integrador en catálogo `integrators`; Coordinador=cargo Coordinador/dept Implementación; Implementador=cargo Implementador; Ejecutivo=usuarios de Ventas). Solo Administrador.
