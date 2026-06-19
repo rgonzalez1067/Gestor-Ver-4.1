@@ -2201,6 +2201,7 @@ async def send_adhoc_email(
 
     # Guardar adjuntos
     saved_files = []
+    email_attachments = []  # {filename, content} para adjuntar al correo
     upload_dir = f"/app/backend/uploads/adhoc_emails/{project_id}"
     os.makedirs(upload_dir, exist_ok=True)
     for f in files:
@@ -2215,6 +2216,7 @@ async def send_adhoc_email(
                 "size": len(content),
                 "content_type": f.content_type,
             })
+            email_attachments.append({"filename": f.filename, "content": content})
 
     # Construir email HTML
     message_html = _adhoc_message_to_html(message)
@@ -2247,6 +2249,7 @@ async def send_adhoc_email(
         quote_id=project.get("quote_id"),
         quote_number=project.get("quote_number"),
         sender=await resolve_sender_for_area("proyectos"),
+        attachments=(email_attachments or None),
     )
 
     # Auto-registrar en bitácora con contenido completo
