@@ -1,0 +1,42 @@
+{
+  "summary": "E2E validation of new feature 'Actualización Masiva de clientes por RIF' (admin-only) on /clients. Logged in as rgonzalez@megasoft.com.ve (admin). Validated: (1) [bulk-update-clients-btn] visible in header for admin; (2) clicking opens [clients-bulk-update-modal]; (3) [bulk-update-template-btn] triggers download of 'plantilla_actualizacion_clientes.csv' without breaking the page; (4) [bulk-update-file-input] accepts the test CSV (1 real RIF E843870670 + 1 inexistent RIF J000000000) via set_input_files; (5) PREVIEW via [bulk-update-preview-btn] renders [bulk-update-result] with badge 'PREVISUALIZACIÓN (no se guardó nada)', Filas:2, OK:1, No encontrados:1, Errores:0, Clientes afectados:1; row for E843870670 shows estado 'Actualizado' with applied fields 'Cantidad de Tiendas · Nro de Cajas · Integrador · Coordinador · Implementador · Ejecutivo Propietario · Tipo de Servicio (+POS, Pinpad)'; row for J000000000 shows estado 'RIF no encontrado' with warning '⚠ RIF no encontrado en la base de clientes'; toast 'Previsualización: 1 fila(s) lista(s), 1 cliente(s) a actualizar' fired; (6) APPLY via [bulk-update-apply-btn] flips badge to 'CAMBIOS APLICADOS' (PREVISUALIZACIÓN gone), keeps counters (Clientes afectados:1, OK:1, No encontrados:1, Errores:0) and fires toast 'Aplicado: 1 cliente(s) actualizado(s)'. All requested validations PASS.",
+  "validation_results": {
+    "admin_button_visible": {"expected": "[bulk-update-clients-btn] visible only for admin", "observed": "Visible for rgonzalez (admin)", "status": "PASS"},
+    "modal_opens": {"expected": "[clients-bulk-update-modal] opens on click", "observed": "Opened with title 'Actualización masiva de clientes (por RIF)'", "status": "PASS"},
+    "template_download": {"expected": "[bulk-update-template-btn] triggers CSV download", "observed": "Download fired: 'plantilla_actualizacion_clientes.csv'", "status": "PASS"},
+    "file_upload": {"expected": "set_input_files works on [bulk-update-file-input]", "observed": "Pick button label changed to 'bulk_update_test.csv'", "status": "PASS"},
+    "preview_badge_and_counters": {"expected": "Badge 'PREVISUALIZACIÓN (no se guardó nada)', Filas:2, OK:1, No encontrados:1", "observed": "All present plus Errores:0 and Clientes afectados:1", "status": "PASS"},
+    "preview_row_real_rif": {"expected": "E843870670 → 'Actualizado' with the 7 applied fields", "observed": "Cantidad de Tiendas · Nro de Cajas · Integrador · Coordinador · Implementador · Ejecutivo Propietario · Tipo de Servicio (+POS, Pinpad) — exact match", "status": "PASS"},
+    "preview_row_missing_rif": {"expected": "J000000000 → 'RIF no encontrado'", "observed": "Estado 'RIF no encontrado' + warning '⚠ RIF no encontrado en la base de clientes'", "status": "PASS"},
+    "apply_badge_change": {"expected": "Badge flips to 'CAMBIOS APLICADOS', Clientes afectados >= 1, success toast", "observed": "Badge='CAMBIOS APLICADOS', Clientes afectados:1, toast 'Aplicado: 1 cliente(s) actualizado(s)'", "status": "PASS"}
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ClientsBulkUpdateModal", "issues": ["Radix a11y warning: 'Missing Description or aria-describedby for DialogContent' on the new modal. Cosmetic; consider adding <DialogDescription> for screen-reader users."]},
+      {"screen": "Dashboard/Clients tables (global, pre-existing)", "issues": ["Hydration warnings '<span> cannot be a child of <tbody>/<tr>' — unrelated to this feature, persists since iter113/116."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_117.json"],
+  "action_items": [
+    "REVERT the test mutation on client RIF 'E843870670' (1 sucursal). The APPLY step persisted: cantidad_tiendas=9, cantidad_cajas=27, integrador_name='ZUDEV, C.A' (+integrador_id), coordinator=joliveros@megasoft.com.ve, implementer=ojimenez@megasoft.com.ve, ejecutivo=rgonzalez@megasoft.com.ve, and APPENDED 'POS' and 'Pinpad' to tipo_servicio. Restore the previous snapshot or remove the appended tipo_servicio values + reset the numeric/role fields.",
+    "(Optional, cosmetic) Add <DialogDescription> or aria-describedby to ClientsBulkUpdateModal's DialogContent to silence the Radix a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "ClientsBulkUpdateModal.jsx L36-L54: send() correctly toggles dry_run and posts multipart to /clients/bulk-update-by-rif via the shared api client (Authorization header is added by the interceptor). Result is stored and toasts differentiate preview vs apply — verified end-to-end.",
+    "ClientsBulkUpdateModal.jsx L96-L138: result block reuses the same [bulk-update-result] testid for preview and apply, which is fine because the badge differentiates (result.dry_run). 'PREVISUALIZACIÓN' badge correctly disappears after apply.",
+    "Clients.jsx L898-L900: the trigger button is gated by isAdmin from usePermission('clientes') — RBAC is enforced on the client side; backend also enforces 403 per the task note.",
+    "ClientsBulkUpdateModal: file input is hidden (className='hidden') and the visible pick button proxies the click — Playwright must use set_input_files on [bulk-update-file-input] (works correctly).",
+    "Minor a11y: DialogContent in ClientsBulkUpdateModal lacks <DialogDescription>; Radix logs a warning. Not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (backend was pre-validated by main agent; UI integration calls 200 OK for both dry_run and apply)", "frontend": "100% on the new feature (admin-gate, modal, template download, file pick, preview, apply, result badge/counters/rows)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 — login OK",
+  "seed_data_creation": "Test CSV /tmp/bulk_update_test.csv (RIF E843870670 + RIF J000000000). DB MUTATION: client with RIF E843870670 (1 sucursal) was modified by the APPLY step — see action_items for revert details.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature 'Actualización Masiva de clientes por RIF' is fully working in preview env. The test CSV in /tmp/bulk_update_test.csv can be reused. If you re-run, pick a different real RIF or revert first — the modal will append tipo_servicio values cumulatively (it does NOT dedupe across runs). The Radix DialogContent warning is a pre-existing pattern in the app and applies to this new modal too.",
+  "rca of the issue": "No bug found — all 8 validations PASS. Only pending action is the requested revert on RIF E843870670."
+}

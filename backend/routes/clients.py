@@ -753,3 +753,224 @@ async def create_fiscal_printer(data: dict, authorization: Optional[str] = Heade
     await db.fiscal_printer_models.insert_one(model)
     return {"model_id": model["model_id"], "name": model["name"], "created_at": model["created_at"]}
 
+
+
+
+# ==================== ACTUALIZACIÓN MASIVA DE CLIENTES POR RIF ====================
+# Permite actualizar en bloque (vía CSV/Excel, coincidencia por RIF en cascada a
+# todas las sucursales del mismo RIF) los campos: Cantidad de Tiendas, Nro de Cajas,
+# Tipo de Servicio (se AGREGA a la lista existente), Integrador, Coordinador,
+# Implementador y Ejecutivo Propietario. Actualización parcial: las celdas vacías
+# se ignoran. Referencias validadas contra catálogos/usuarios existentes.
+
+def _strip_accents(s: str) -> str:
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', s or '') if unicodedata.category(c) != 'Mn')
+
+
+def _norm_text(s) -> str:
+    return _strip_accents(str(s or '').strip().lower())
+
+
+_BULK_HEADER_MAP = {
+    'rif': 'rif',
+    'cantidad de tiendas': 'cantidad_tiendas', 'cantidad_tiendas': 'cantidad_tiendas', 'tiendas': 'cantidad_tiendas',
+    'nro de cajas': 'cantidad_cajas', 'numero de cajas': 'cantidad_cajas', 'cantidad de cajas': 'cantidad_cajas',
+    'cantidad_cajas': 'cantidad_cajas', 'cajas': 'cantidad_cajas', 'nro cajas': 'cantidad_cajas',
+    'tipo de servicio': 'tipo_servicio', 'tipo_servicio': 'tipo_servicio',
+    'integrador': 'integrador',
+    'coordinador': 'coordinador',
+    'implementador': 'implementador',
+    'ejecutivo propietario': 'ejecutivo', 'ejecutivo': 'ejecutivo', 'ejecutivo_propietario': 'ejecutivo',
+}
+
+
+def _parse_bulk_file(filename: str, content: bytes) -> List[dict]:
+    """Parsea CSV o XLSX a una lista de filas {canonical_key: value}."""
+    name = (filename or '').lower()
+    rows_raw = []
+    if name.endswith('.xlsx') or name.endswith('.xlsm'):
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+        headers = None
+        for r in ws.iter_rows(values_only=True):
+            if headers is None:
+                headers = [str(c).strip() if c is not None else '' for c in r]
+                continue
+            if r is None or all(c is None or str(c).strip() == '' for c in r):
+                continue
+            rows_raw.append({headers[i] if i < len(headers) else f'col{i}': (r[i] if i < len(r) else None) for i in range(len(r))})
+    else:
+        import csv
+        text = content.decode('utf-8-sig', errors='replace')
+        reader = csv.DictReader(io.StringIO(text))
+        for r in reader:
+            rows_raw.append(r)
+
+    rows = []
+    for raw in rows_raw:
+        canon = {}
+        for k, v in raw.items():
+            key = _BULK_HEADER_MAP.get(_norm_text(k))
+            if key:
+                canon[key] = '' if v is None else str(v).strip()
+        if any(str(val).strip() for val in canon.values()):
+            rows.append(canon)
+    return rows
+
+
+def _user_lookup(users: List[dict]) -> dict:
+    """Mapa de email y nombre completo (normalizados) → {user_id, name}."""
+    m = {}
+    for u in users:
+        name = f"{u.get('first_name','')} {u.get('last_name','')}".strip()
+        entry = {"user_id": u.get("user_id"), "name": name}
+        if u.get("email"):
+            m[_norm_text(u["email"])] = entry
+        if name:
+            m[_norm_text(name)] = entry
+    return m
+
+
+@router.post("/clients/bulk-update-by-rif")
+async def bulk_update_clients_by_rif(
+    file: UploadFile = File(...),
+    dry_run: str = Form("true"),
+    authorization: Optional[str] = Header(None),
+):
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo un Administrador puede ejecutar la actualización masiva")
+
+    is_dry = str(dry_run).lower() in ("true", "1", "yes", "si", "sí")
+    content = await file.read()
+    try:
+        rows = _parse_bulk_file(file.filename, content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo leer el archivo: {e}")
+    if not rows:
+        raise HTTPException(status_code=400, detail="El archivo no contiene filas válidas (¿encabezados correctos?)")
+
+    # Catálogos / usuarios de referencia
+    integ_docs = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1}).to_list(2000)
+    integ_map = {_norm_text(d.get("name")): {"id": d.get("integrator_id"), "name": d.get("name")} for d in integ_docs if d.get("name")}
+
+    ventas_deptos = ["Ventas Pyme", "Ventas Corporativas"]
+    ejec_users = await db.users.find({"is_active": True, "departamento": {"$in": ventas_deptos}}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}).to_list(2000)
+    impl_users = await db.users.find({"is_active": True, "cargo": "Implementador"}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}).to_list(2000)
+    coord_users = await db.users.find({"is_active": True, "cargo": "Coordinador", "departamento": "Implementación"}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}).to_list(2000)
+    ejec_map, impl_map, coord_map = _user_lookup(ejec_users), _user_lookup(impl_users), _user_lookup(coord_users)
+
+    # Mapa de clientes por RIF normalizado → [client_id]
+    clients_by_rif: dict = {}
+    async for c in db.clients.find({}, {"_id": 0, "client_id": 1, "rif": 1}):
+        clients_by_rif.setdefault(sanitize_rif(c.get("rif", "")), []).append(c.get("client_id"))
+
+    report = []
+    total_clients_updated = 0
+    rows_ok = 0
+
+    for i, row in enumerate(rows, start=2):
+        rif_norm = sanitize_rif(row.get("rif", ""))
+        rec = {"row": i, "rif": row.get("rif", ""), "matched_clients": 0, "applied": [], "warnings": [], "status": "ok"}
+        if not rif_norm:
+            rec.update(status="error", warnings=["RIF vacío"])
+            report.append(rec); continue
+        client_ids = clients_by_rif.get(rif_norm, [])
+        rec["matched_clients"] = len(client_ids)
+        if not client_ids:
+            rec.update(status="not_found", warnings=["RIF no encontrado en la base de clientes"])
+            report.append(rec); continue
+
+        set_fields = {}
+        # Cantidad de Tiendas
+        v = row.get("cantidad_tiendas", "")
+        if str(v).strip():
+            try:
+                set_fields["cantidad_tiendas"] = int(float(str(v).strip())); rec["applied"].append("Cantidad de Tiendas")
+            except ValueError:
+                rec["warnings"].append(f"Cantidad de Tiendas inválida: '{v}'")
+        # Nro de Cajas
+        v = row.get("cantidad_cajas", "")
+        if str(v).strip():
+            try:
+                set_fields["cantidad_cajas"] = int(float(str(v).strip())); rec["applied"].append("Nro de Cajas")
+            except ValueError:
+                rec["warnings"].append(f"Nro de Cajas inválido: '{v}'")
+        # Integrador
+        v = str(row.get("integrador", "")).strip()
+        if v:
+            hit = integ_map.get(_norm_text(v))
+            if hit:
+                set_fields["integrador_id"] = hit["id"]; set_fields["integrador_name"] = hit["name"]; rec["applied"].append("Integrador")
+            else:
+                rec["warnings"].append(f"Integrador no existe en el catálogo: '{v}'")
+        # Coordinador
+        v = str(row.get("coordinador", "")).strip()
+        if v:
+            hit = coord_map.get(_norm_text(v))
+            if hit:
+                set_fields["coordinator_user_id"] = hit["user_id"]; set_fields["coordinator_name"] = hit["name"]; rec["applied"].append("Coordinador")
+            else:
+                rec["warnings"].append(f"Coordinador no está en la lista de Coordinadores de Implementación: '{v}'")
+        # Implementador
+        v = str(row.get("implementador", "")).strip()
+        if v:
+            hit = impl_map.get(_norm_text(v))
+            if hit:
+                set_fields["implementer_user_id"] = hit["user_id"]; set_fields["implementer_name"] = hit["name"]; rec["applied"].append("Implementador")
+            else:
+                rec["warnings"].append(f"Implementador no está en la lista de Implementadores: '{v}'")
+        # Ejecutivo Propietario
+        v = str(row.get("ejecutivo", "")).strip()
+        if v:
+            hit = ejec_map.get(_norm_text(v))
+            if hit:
+                set_fields["ejecutivo_propietario"] = hit["name"]; set_fields["ejecutivo_user_id"] = hit["user_id"]; rec["applied"].append("Ejecutivo Propietario")
+            else:
+                rec["warnings"].append(f"Ejecutivo no está en la lista de usuarios de Ventas: '{v}'")
+        # Tipo de Servicio (se AGREGA a la lista existente; separador ';')
+        new_ts = [t.strip() for t in str(row.get("tipo_servicio", "")).replace("|", ";").split(";") if t.strip()]
+
+        if not set_fields and not new_ts:
+            rec["status"] = "sin_cambios"
+            report.append(rec); continue
+
+        if not is_dry:
+            if set_fields:
+                await db.clients.update_many({"client_id": {"$in": client_ids}}, {"$set": set_fields})
+            if new_ts:
+                for cid in client_ids:
+                    doc = await db.clients.find_one({"client_id": cid}, {"_id": 0, "tipo_servicio": 1})
+                    existing = doc.get("tipo_servicio") or []
+                    merged = list(existing) + [t for t in new_ts if t not in existing]
+                    if merged != existing:
+                        await db.clients.update_one({"client_id": cid}, {"$set": {"tipo_servicio": merged}})
+        if new_ts:
+            rec["applied"].append("Tipo de Servicio (+" + ", ".join(new_ts) + ")")
+
+        total_clients_updated += len(client_ids)
+        rows_ok += 1
+        report.append(rec)
+
+    if not is_dry:
+        await db.bitacora.insert_one({
+            "action": "clients_bulk_update_by_rif",
+            "filename": file.filename,
+            "rows_processed": len(rows),
+            "rows_applied": rows_ok,
+            "clients_updated": total_clients_updated,
+            "executed_by": current_user.get("email"),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    return {
+        "dry_run": is_dry,
+        "rows_processed": len(rows),
+        "rows_ok": rows_ok,
+        "rows_not_found": sum(1 for r in report if r["status"] == "not_found"),
+        "rows_error": sum(1 for r in report if r["status"] == "error"),
+        "clients_updated": total_clients_updated,
+        "report": report,
+    }

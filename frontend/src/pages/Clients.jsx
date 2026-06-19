@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import { useNavigate } from 'react-router-dom';
 import { ClientEmailDialog } from '../components/ClientEmailDialog';
+import { ClientsBulkUpdateModal } from '../components/ClientsBulkUpdateModal';
 
 const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto'];
 const CONDICION_OPTIONS = ['Prospecto', 'Cliente'];
@@ -44,7 +45,8 @@ const emptyContact = () => ({
 });
 
 export const Clients = () => {
-  const { canEdit } = usePermission('clientes');
+  const { canEdit, isAdmin } = usePermission('clientes');
+  const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);
   const navigate = useNavigate();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -892,6 +894,9 @@ export const Clients = () => {
               </Button>}
               {canEdit && <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="border-brand-blue-600 text-brand-blue-600" data-testid="import-clients-btn">
                 <Upload size={18} className="mr-2" />Importar
+              </Button>}
+              {isAdmin && <Button variant="outline" onClick={() => setBulkUpdateOpen(true)} className="border-purple-600 text-purple-600 hover:bg-purple-50" data-testid="bulk-update-clients-btn">
+                <RefreshCw size={18} className="mr-2" />Actualización Masiva
               </Button>}
               <Button variant="outline" onClick={exportToCSV} className="border-brand-green-600 text-brand-green-600">
                 <FileSpreadsheet size={18} className="mr-2" />CSV
@@ -2072,6 +2077,12 @@ export const Clients = () => {
             // Refresh bitacora if viewing a client
             if (emailClient) fetchClients();
           }}
+        />
+
+        <ClientsBulkUpdateModal
+          open={bulkUpdateOpen}
+          onClose={() => setBulkUpdateOpen(false)}
+          onApplied={fetchClients}
         />
 
       </main>
