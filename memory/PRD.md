@@ -5,6 +5,24 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Evolución "Gestionar Seriales" → Panel CRUD (Almacén + Agregar + Modificar) — Jun 2026
+
+**Requerimiento:** transformar la pantalla "Gestionar Seriales (Admin)" (modal en /inventory, pestaña "Por Modelo") en un panel CRUD: (A) columna obligatoria "Almacén", (B) botón "Modificar" por fila cohabitando con Devolver/Desasignar/Eliminar, (C) botón global "Agregar Serial" (individual o masivo). Decisión del usuario: "Modificar" visible en TODAS las filas; reubicación de almacén vía movimiento de transferencia.
+
+**Backend (`routes/inventory.py`):**
+- `admin_serials_by_item` ahora rastrea el almacén del último movimiento por serial y devuelve `warehouse_id` + `warehouse_name` (fallback "Almacén no identificado" para refs huérfanas).
+- `GET /admin/inventory/serializable-items`: modelos de hardware serializables (POS/Pinpad/MPOS) para el dropdown de alta (incluye modelos sin seriales aún).
+- `POST /admin/inventory/serials/create`: alta individual/masiva. Crea un movimiento de entrada "ALTA ADMINISTRATIVA" → seriales nacen en estado **Disponible (en_stock)** en el almacén elegido. Dedupe + rechazo de seriales ya existentes (en stock/asignados/blacklist). Bitácora.
+- `PUT /admin/inventory/serials/edit`: rename (propaga a movimientos + asignaciones + blacklist, valida duplicado→409) y/o reubicación de almacén (en_stock → par de movimientos de transferencia que conserva histórico; asignado → actualiza `warehouse_id` de la asignación; vendido/blacklist → bloqueado con mensaje claro). Bitácora.
+
+**Frontend (`AdminSerialManagementModal.jsx`):** columna "Almacén" (icono + nombre), botón global `serial-add-global-btn`, formularios `serial-create-form` (Producto + Almacén obligatorio + textarea multi-serial) y `serial-edit-form` (rename + reubicación + motivo), botón `btn-bm-edit-<serial>` por fila fuera de los bloques condicionales (garantiza cohabitación con el trío vendido).
+
+**QA (testing_agent iteration_115 → 100% PASS en CRUD):** botón global visible; columna Almacén renderiza; cohabitación de los 4 botones en fila vendida `97240115680043`; alta crea serial en_stock con almacén correcto; modificar renombra y reubica sin romper otras filas. Backend validado por curl (alta bulk, rename+reubicación por transferencia, 409 duplicados). Hallazgo de datos: seriales legacy en preview con `warehouse_id` huérfano (`whs_f00b02f4`) → mitigado con fallback "Almacén no identificado".
+**⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
+
 ### Fix P0: Overrides/acciones de "Equipos" no se aplicaban en la grilla de Cotizaciones — Jun 2026
 
 **Síntoma (producción):** el ejecutivo recreado (Anderson) veía sus cotizaciones de Equipos pero NO los overrides ni la acción personalizada "Validar Pago Equipos".

@@ -1729,8 +1729,13 @@ async def admin_serials_by_item(
             status = "desconocido"
 
         # Almacén de adscripción: la asignación manda si existe; si no, el
-        # almacén del último movimiento físico del serial.
+        # almacén del último movimiento físico del serial. Si el id existe pero
+        # el almacén fue eliminado (ref huérfana), se indica explícitamente.
         wh_id = (asg.get("warehouse_id") if asg else None) or last_wh_by_serial.get(s)
+        if wh_id:
+            wh_name = wh_name_map.get(wh_id) or "Almacén no identificado"
+        else:
+            wh_name = None
 
         rows.append({
             "serial": s,
@@ -1741,7 +1746,7 @@ async def admin_serials_by_item(
             "quote_id": asg.get("quote_id") if asg else None,
             "quote_number": asg.get("quote_number") if asg else None,
             "warehouse_id": wh_id,
-            "warehouse_name": wh_name_map.get(wh_id) if wh_id else None,
+            "warehouse_name": wh_name,
             "blacklist_reason": bl.get("reason") if bl else None,
             "previous_serial": asg.get("previous_serial") if asg else None,
             "replacement_reason": asg.get("replacement_reason") if asg else None,
