@@ -606,6 +606,20 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
     modelSerials.forEach(r => { if (r.warehouse_id) m[r.warehouse_id] = r.warehouse_name || r.warehouse_id; });
     return Object.entries(m).map(([id, name]) => ({ id, name }));
   })();
+  // Resumen de stock por almacén (para el modelo seleccionado)
+  const warehouseSummary = (() => {
+    const m = {};
+    modelSerials.forEach(r => {
+      const id = r.warehouse_id || '__none__';
+      const name = r.warehouse_name || 'Sin almacén';
+      if (!m[id]) m[id] = { id, name, en_stock: 0, asignado: 0, otros: 0, total: 0 };
+      m[id].total += 1;
+      if (r.status === 'en_stock') m[id].en_stock += 1;
+      else if (r.status === 'asignado') m[id].asignado += 1;
+      else m[id].otros += 1;
+    });
+    return Object.values(m).sort((a, b) => b.total - a.total);
+  })();
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
@@ -665,7 +679,42 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
             {actionState && actionState.type === 'delete-sold' && <SubDeleteSold asg={actionState.asg} />}
             {!actionState && modelSerials.length > 0 && (
               <>
-              <div className="flex flex-wrap items-end gap-2 bg-slate-50 border border-slate-200 rounded p-2" data-testid="serial-filters-bar">
+              {warehouseSummary.length > 0 && (
+                <div className="border border-slate-200 rounded overflow-hidden" data-testid="warehouse-summary">
+                  <div className="bg-slate-100 px-2 py-1.5 text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                    <WarehouseIcon size={13} /> Resumen de stock por almacén
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="text-[10px] text-slate-500 bg-slate-50">
+                      <tr>
+                        <th className="px-2 py-1 text-left">Almacén</th>
+                        <th className="px-2 py-1 text-center">Disponible</th>
+                        <th className="px-2 py-1 text-center">Asignado</th>
+                        <th className="px-2 py-1 text-center">Otros</th>
+                        <th className="px-2 py-1 text-center">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {warehouseSummary.map(w => (
+                        <tr
+                          key={w.id}
+                          className={`border-t hover:bg-blue-50 ${w.id !== '__none__' ? 'cursor-pointer' : ''} ${filterWarehouse === w.id ? 'bg-blue-50' : ''}`}
+                          onClick={() => { if (w.id !== '__none__') setFilterWarehouse(filterWarehouse === w.id ? 'all' : w.id); }}
+                          data-testid={`warehouse-summary-row-${w.id}`}
+                          title={w.id !== '__none__' ? 'Click para filtrar por este almacén' : ''}
+                        >
+                          <td className="px-2 py-1 text-slate-700">{w.name}</td>
+                          <td className="px-2 py-1 text-center font-semibold text-emerald-700">{w.en_stock}</td>
+                          <td className="px-2 py-1 text-center font-semibold text-amber-700">{w.asignado}</td>
+                          <td className="px-2 py-1 text-center text-slate-500">{w.otros}</td>
+                          <td className="px-2 py-1 text-center font-bold text-slate-900">{w.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="flex flex-wrap items-end gap-2 bg-slate-50 border border-slate-200 rounded p-2 mt-2" data-testid="serial-filters-bar">
                 <div className="flex items-center gap-1 text-slate-500 text-xs font-medium pb-2">
                   <Filter size={13} /> Filtros
                 </div>

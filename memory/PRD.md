@@ -14,6 +14,8 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 **Backend (`routes/inventory.py`):** `POST /admin/inventory/serials/assign` — valida que el serial esté en_stock (no asignado/blacklist/vendido), crea `serial_assignments` status 'asignado' con cliente/almacén/cotización, 409 si ya está asignado. Bitácora.
 
 **QA (testing_agent iteration_116 → 100% PASS):** filtros estatus/almacén/combinado/limpiar + contador; botón Asignar en 6/6 filas con disabled correcto; cohabitación en fila vendida (Devolver+Desasignar+Eliminar+Modificar+Asignar); flujo de asignación E2E (serial pasa a 'asignado' con cliente). Backend validado por curl (asigna + 409). Datos de prueba revertidos.
+
+**Mejora añadida — Resumen de stock por almacén:** sobre la grilla, tabla `warehouse-summary` (derivada en cliente de `modelSerials`) con columnas Almacén / Disponible / Asignado / Otros / Total por cada almacén del modelo seleccionado; filas clicables que activan el filtro por ese almacén. Sin cambios de backend.
 **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
 
 
