@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import {
   Database, Download, Upload, FileJson, FileArchive, Loader2,
-  AlertTriangle, CheckCircle2, FolderOpen, ShieldCheck, X,
+  AlertTriangle, CheckCircle2, FolderOpen, ShieldCheck, X, FilePlus2,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
@@ -545,27 +545,38 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 mt-2">
-                <input
-                  ref={dataFileRef}
-                  type="file"
-                  multiple
-                  accept=".json,application/json"
-                  onChange={handleDataFilesChange}
-                  className="flex-1 text-xs file:mr-2 file:py-1 file:px-2 file:border-0 file:bg-slate-200 file:text-slate-700"
-                  data-testid="bundle-import-data-file-input"
-                />
+              <input
+                ref={dataFileRef}
+                type="file"
+                multiple
+                accept=".json,application/json"
+                onChange={handleDataFilesChange}
+                className="hidden"
+                data-testid="bundle-import-data-file-input"
+              />
+              <div className="flex gap-2 mt-2 items-stretch">
+                <button
+                  type="button"
+                  onClick={() => dataFileRef.current?.click()}
+                  className="flex-1 border-2 border-dashed border-blue-300 rounded-lg py-3 px-3 text-sm font-medium text-blue-700 hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                  data-testid="bundle-import-data-pick-btn"
+                >
+                  <FilePlus2 size={18} /> Seleccionar archivos JSON (uno o varios)
+                </button>
                 <Button
                   size="sm"
                   onClick={handleImportData}
                   disabled={importingData || dataFiles.length === 0}
                   data-testid="bundle-import-data-btn"
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-blue-600 hover:bg-blue-700 px-4"
                 >
                   {importingData ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
                   Aplicar{dataFiles.length > 0 ? ` (${dataFiles.length})` : ''}
                 </Button>
               </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Mantén <b>Ctrl/Cmd</b> para elegir varios a la vez, o vuelve a pulsar el botón para <b>agregar más</b>. Se acumulan en la lista de abajo y se importan en orden al pulsar <b>Aplicar</b>.
+              </p>
               {/* Lista acumulativa de archivos seleccionados */}
               {dataFiles.length > 0 && (
                 <div className="mt-2 bg-white border rounded p-2" data-testid="bundle-import-data-file-list">
