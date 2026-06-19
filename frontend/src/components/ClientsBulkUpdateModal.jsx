@@ -136,6 +136,12 @@ export const ClientsBulkUpdateModal = ({ open, onClose, onApplied }) => {
                   <Download size={14} className="mr-1" /> Exportar reporte CSV
                 </Button>
               </div>
+              {result.ignored_columns?.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-800" data-testid="bulk-update-ignored-columns">
+                  <AlertTriangle size={12} className="inline mr-1" />
+                  Columnas no reconocidas (se ignoraron): <b>{result.ignored_columns.join(', ')}</b>. Verifica los encabezados contra la plantilla.
+                </div>
+              )}
               <div className="max-h-[40vh] overflow-y-auto border rounded">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-100 text-slate-600 sticky top-0">

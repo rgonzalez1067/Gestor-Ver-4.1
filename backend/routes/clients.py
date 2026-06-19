@@ -775,18 +775,21 @@ def _norm_text(s) -> str:
 _BULK_HEADER_MAP = {
     'rif': 'rif',
     'cantidad de tiendas': 'cantidad_tiendas', 'cantidad_tiendas': 'cantidad_tiendas', 'tiendas': 'cantidad_tiendas',
+    'nro de tiendas': 'cantidad_tiendas', 'numero de tiendas': 'cantidad_tiendas',
     'nro de cajas': 'cantidad_cajas', 'numero de cajas': 'cantidad_cajas', 'cantidad de cajas': 'cantidad_cajas',
     'cantidad_cajas': 'cantidad_cajas', 'cajas': 'cantidad_cajas', 'nro cajas': 'cantidad_cajas',
+    'cajas activas': 'cantidad_cajas', 'cajas_activas': 'cantidad_cajas', 'nro de cajas activas': 'cantidad_cajas',
     'tipo de servicio': 'tipo_servicio', 'tipo_servicio': 'tipo_servicio',
     'integrador': 'integrador',
     'coordinador': 'coordinador',
     'implementador': 'implementador',
     'ejecutivo propietario': 'ejecutivo', 'ejecutivo': 'ejecutivo', 'ejecutivo_propietario': 'ejecutivo',
+    'gerencia': 'ejecutivo', 'gerente': 'ejecutivo',
 }
 
 
-def _parse_bulk_file(filename: str, content: bytes) -> List[dict]:
-    """Parsea CSV o XLSX a una lista de filas {canonical_key: value}."""
+def _parse_bulk_file(filename: str, content: bytes):
+    """Parsea CSV o XLSX a (filas [{canonical_key: value}], columnas_ignoradas)."""
     name = (filename or '').lower()
     rows_raw = []
     if name.endswith('.xlsx') or name.endswith('.xlsm'):
@@ -809,15 +812,20 @@ def _parse_bulk_file(filename: str, content: bytes) -> List[dict]:
             rows_raw.append(r)
 
     rows = []
+    ignored = set()
     for raw in rows_raw:
         canon = {}
         for k, v in raw.items():
+            if k is None or str(k).strip() == '':
+                continue
             key = _BULK_HEADER_MAP.get(_norm_text(k))
             if key:
                 canon[key] = '' if v is None else str(v).strip()
+            else:
+                ignored.add(str(k).strip())
         if any(str(val).strip() for val in canon.values()):
             rows.append(canon)
-    return rows
+    return rows, sorted(ignored)
 
 
 def _user_lookup(users: List[dict]) -> dict:
@@ -846,7 +854,7 @@ async def bulk_update_clients_by_rif(
     is_dry = str(dry_run).lower() in ("true", "1", "yes", "si", "sí")
     content = await file.read()
     try:
-        rows = _parse_bulk_file(file.filename, content)
+        rows, ignored_columns = _parse_bulk_file(file.filename, content)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"No se pudo leer el archivo: {e}")
     if not rows:
@@ -972,5 +980,6 @@ async def bulk_update_clients_by_rif(
         "rows_not_found": sum(1 for r in report if r["status"] == "not_found"),
         "rows_error": sum(1 for r in report if r["status"] == "error"),
         "clients_updated": total_clients_updated,
+        "ignored_columns": ignored_columns,
         "report": report,
     }
