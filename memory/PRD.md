@@ -5,6 +5,20 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Actualización Masiva de Clientes por RIF (CSV/Excel) — Jun 2026
+
+**Requerimiento:** opción para actualizar en bloque, vía Nro de RIF, los campos de la ficha de cliente: Cantidad de Tiendas, Nro de Cajas, Tipo de Servicio, Integrador, Coordinador, Implementador, Ejecutivo Propietario. Decisiones del usuario: carga por **CSV/Excel**; coincidencia **en cascada a todas las sucursales del mismo RIF**; **actualización parcial** (celdas vacías se ignoran); **Tipo de Servicio se AGREGA** a la lista existente (separador `;`); referencias validadas contra catálogos/usuarios existentes (Integrador en catálogo `integrators`; Coordinador=cargo Coordinador/dept Implementación; Implementador=cargo Implementador; Ejecutivo=usuarios de Ventas). Solo Administrador.
+
+**Backend (`routes/clients.py`):** `POST /clients/bulk-update-by-rif` (multipart `file` + `dry_run`). Parsea CSV (utf-8-sig) y XLSX (openpyxl); normaliza encabezados (acentos/variantes); resuelve referencias por correo o nombre; aplica `cantidad_tiendas`/`cantidad_cajas` (int), integrador_id/name, coordinator_*, implementer_*, ejecutivo_propietario/user_id; `tipo_servicio` union por cliente. `dry_run` devuelve reporte sin guardar; al aplicar registra bitácora. Devuelve reporte por fila (status ok/sin_cambios/not_found/error, matched_clients, applied, warnings) + totales.
+
+**Frontend (`ClientsBulkUpdateModal.jsx` + `Clients.jsx`):** botón admin `bulk-update-clients-btn`; modal con descarga de plantilla CSV, selección de archivo, **Previsualizar** (dry-run) y **Aplicar**, y tabla de reporte con badges/contadores.
+
+**QA (testing_agent iteration_117 → 100% PASS):** botón solo-admin, modal, plantilla, preview (badge "no se guardó nada", contadores, fila Actualizado con 7 campos + RIF no encontrado), apply (badge "CAMBIOS APLICADOS" + toast). Backend validado por curl (dry-run, apply, append tipo_servicio, RIF inexistente, resolución de referencias). Datos de prueba revertidos. A11y `DialogDescription` agregado.
+**⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
+
 ### Gestionar Seriales: Filtros (Almacén + Estatus) + botón "Asignar" — Jun 2026
 
 **Requerimiento:** en "Gestionar Seriales (Admin)" (/inventory → "Por Modelo") agregar (1) filtro por Almacén con contador (cuántos equipos por almacén), (2) filtro por Estatus, (3) botón "Asignar" al nivel de Devolver/Desasignar/Eliminar/Modificar. Decisiones del usuario: botón Asignar en TODAS las filas (deshabilitado si el serial no está Disponible) y los filtros deben funcionar COMBINADOS.

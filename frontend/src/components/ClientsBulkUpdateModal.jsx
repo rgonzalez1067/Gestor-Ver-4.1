@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Loader2, Upload, Download, FileUp, CheckCircle2, AlertTriangle, XCircle, Eye } from 'lucide-react';
 import api from '../utils/api';
@@ -58,6 +58,7 @@ export const ClientsBulkUpdateModal = ({ open, onClose, onApplied }) => {
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="clients-bulk-update-modal">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Upload size={18} /> Actualización masiva de clientes (por RIF)</DialogTitle>
+          <DialogDescription>Sube un CSV/Excel para actualizar en bloque los datos de imple de los clientes coincidiendo por RIF.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
