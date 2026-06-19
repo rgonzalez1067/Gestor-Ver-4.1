@@ -5,6 +5,20 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Gestionar Seriales: Filtros (Almacén + Estatus) + botón "Asignar" — Jun 2026
+
+**Requerimiento:** en "Gestionar Seriales (Admin)" (/inventory → "Por Modelo") agregar (1) filtro por Almacén con contador (cuántos equipos por almacén), (2) filtro por Estatus, (3) botón "Asignar" al nivel de Devolver/Desasignar/Eliminar/Modificar. Decisiones del usuario: botón Asignar en TODAS las filas (deshabilitado si el serial no está Disponible) y los filtros deben funcionar COMBINADOS.
+
+**Frontend (`AdminSerialManagementModal.jsx`):** barra `serial-filters-bar` con `serial-filter-warehouse` + `serial-filter-status` + `serial-filter-count` ("Mostrando N de M equipo(s)") + botón Limpiar; derivado `filteredModelSerials` aplica AND de ambos filtros; opciones de almacén derivadas de los seriales del modelo. Botón `btn-bm-assign-<serial>` renderizado fuera de los bloques condicionales (disabled si `status!=='en_stock'`). Componente `SubAssign` (form `serial-assign-form`): Cliente (oblig.) + Cotización (opcional) + Motivo. Reset de filtros al cambiar de modelo.
+
+**Backend (`routes/inventory.py`):** `POST /admin/inventory/serials/assign` — valida que el serial esté en_stock (no asignado/blacklist/vendido), crea `serial_assignments` status 'asignado' con cliente/almacén/cotización, 409 si ya está asignado. Bitácora.
+
+**QA (testing_agent iteration_116 → 100% PASS):** filtros estatus/almacén/combinado/limpiar + contador; botón Asignar en 6/6 filas con disabled correcto; cohabitación en fila vendida (Devolver+Desasignar+Eliminar+Modificar+Asignar); flujo de asignación E2E (serial pasa a 'asignado' con cliente). Backend validado por curl (asigna + 409). Datos de prueba revertidos.
+**⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
+
 ### Evolución "Gestionar Seriales" → Panel CRUD (Almacén + Agregar + Modificar) — Jun 2026
 
 **Requerimiento:** transformar la pantalla "Gestionar Seriales (Admin)" (modal en /inventory, pestaña "Por Modelo") en un panel CRUD: (A) columna obligatoria "Almacén", (B) botón "Modificar" por fila cohabitando con Devolver/Desasignar/Eliminar, (C) botón global "Agregar Serial" (individual o masivo). Decisión del usuario: "Modificar" visible en TODAS las filas; reubicación de almacén vía movimiento de transferencia.
