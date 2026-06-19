@@ -2527,3 +2527,94 @@ async def admin_edit_serial(body: dict, authorization: Optional[str] = Header(No
         + (f" → {final_serial}" if rename else "")
         + (f" · reubicado a {audit.get('new_warehouse_name','')}" if relocate else ""),
     }
+
+
+
+@router.post("/admin/inventory/serials/assign")
+async def admin_assign_serial(body: dict, authorization: Optional[str] = Header(None)):
+    """Asigna un serial DISPONIBLE (en_stock) a un cliente (y opcionalmente a
+    una cotización), dejándolo en estado 'asignado'. Auditoría en bitácora.
+
+    body: { serial: str, client_id: str, quote_id?: str, reason: str }
+    """
+    user = await _require_admin_user(authorization)
+    serial = (body.get("serial") or "").strip()
+    client_id = (body.get("client_id") or "").strip()
+    quote_id = (body.get("quote_id") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    if not serial:
+        raise HTTPException(status_code=400, detail="serial requerido")
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id (Cliente) requerido")
+    if not reason:
+        raise HTTPException(status_code=400, detail="Motivo (reason) requerido para la auditoría")
+
+    active = await db.serial_assignments.find_one(
+        {"serial": serial, "status": {"$in": ["preasignado", "asignado", "asignado_temporal"]}},
+        {"_id": 0},
+    )
+    if active:
+        raise HTTPException(
+            status_code=409,
+            detail=f"El serial ya está {active.get('status')} (cotización {active.get('quote_number') or '—'}). Desasígnelo primero.",
+        )
+    if await db.serial_blacklist.find_one({"serial": serial}, {"_id": 1}):
+        raise HTTPException(status_code=409, detail="El serial está en la lista de NO asignables. Libérelo primero.")
+
+    last_mov = await db.inventory_movements.find_one(
+        {"serials": serial}, {"_id": 0}, sort=[("created_at", -1)]
+    )
+    if not last_mov:
+        raise HTTPException(status_code=404, detail="Serial no encontrado en inventario")
+    if last_mov.get("movement_type") not in ("entrada", "transferencia_entrada"):
+        raise HTTPException(status_code=400, detail="Solo se puede asignar un serial Disponible (en stock).")
+
+    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    quote_number = ""
+    if quote_id:
+        q = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "quote_number": 1})
+        if not q:
+            raise HTTPException(status_code=404, detail="Cotización no encontrada")
+        quote_number = q.get("quote_number", "")
+
+    now = datetime.now(timezone.utc).isoformat()
+    assignment_id = f"sa_{uuid.uuid4().hex[:12]}"
+    client_name = client.get("fantasy_name") or client.get("legal_name") or ""
+    doc = {
+        "assignment_id": assignment_id,
+        "serial": serial,
+        "item_id": last_mov.get("item_id"),
+        "item_name": last_mov.get("item_name", ""),
+        "warehouse_id": last_mov.get("warehouse_id"),
+        "quote_id": quote_id or None,
+        "quote_number": quote_number,
+        "client_id": client_id,
+        "client_name": client_name,
+        "client_rif": client.get("rif", ""),
+        "status": "asignado",
+        "assigned_at": now,
+        "assigned_by": user.get("user_id"),
+        "assigned_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
+        "is_admin_assignment": True,
+        "assignment_reason": reason,
+    }
+    await db.serial_assignments.insert_one(doc)
+
+    await db.bitacora.insert_one({
+        "action": "admin_serial_assign",
+        "serial": serial,
+        "assignment_id": assignment_id,
+        "client_id": client_id,
+        "client_name": client_name,
+        "quote_id": quote_id or None,
+        "quote_number": quote_number,
+        "warehouse_id": doc["warehouse_id"],
+        "reason": reason,
+        "executed_by": user.get("email"),
+        "executed_at": now,
+    })
+
+    return {"ok": True, "assignment_id": assignment_id, "message": f"Serial {serial} asignado a {client_name}"}

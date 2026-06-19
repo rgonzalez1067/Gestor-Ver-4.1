@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
-import { Search, RefreshCw, UserCog, Ban, ListX, ChevronLeft, Loader2, Undo2, Trash2, Plus, Pencil, Warehouse as WarehouseIcon } from 'lucide-react';
+import { Search, RefreshCw, UserCog, Ban, ListX, ChevronLeft, Loader2, Undo2, Trash2, Plus, Pencil, Warehouse as WarehouseIcon, UserPlus, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -33,6 +33,9 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
   const [selectedModel, setSelectedModel] = useState('');
   const [modelSerials, setModelSerials] = useState([]);
   const [modelCounts, setModelCounts] = useState(null);
+  // Filtros combinados de la vista por modelo
+  const [filterWarehouse, setFilterWarehouse] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   const reset = () => { setActionState(null); setQuery(''); setResults([]); };
 
@@ -48,6 +51,8 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
   // Cargar seriales cuando se selecciona un modelo
   useEffect(() => {
     if (!selectedModel) { setModelSerials([]); setModelCounts(null); return; }
+    setFilterWarehouse('all');
+    setFilterStatus('all');
     setLoading(true);
     api.get('/admin/inventory/serials/by-item', { params: { item_id: selectedModel } })
       .then(r => {
@@ -527,6 +532,81 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
     );
   };
 
+  // ── Asignar un serial disponible a un cliente (y cotización opcional) ──
+  const SubAssign = ({ asg }) => {
+    const [clientId, setClientId] = useState('');
+    const [quoteId, setQuoteId] = useState('');
+    const [reason, setReason] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const submit = async () => {
+      if (!clientId) { toast.error('Seleccione el cliente destino'); return; }
+      if (!reason.trim()) { toast.error('El motivo es obligatorio (auditoría)'); return; }
+      setSubmitting(true);
+      try {
+        const res = await api.post('/admin/inventory/serials/assign', {
+          serial: asg.serial,
+          client_id: clientId,
+          quote_id: quoteId.trim() || '',
+          reason: reason.trim(),
+        });
+        toast.success(res.data?.message || 'Serial asignado');
+        setActionState(null);
+        refreshByModel();
+      } catch (e) {
+        toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+      } finally { setSubmitting(false); }
+    };
+    return (
+      <div className="space-y-3 p-4 bg-emerald-50 border border-emerald-200 rounded" data-testid="serial-assign-form">
+        <h4 className="text-sm font-semibold text-emerald-900 flex items-center gap-1.5"><UserPlus size={15} /> Asignar serial a cliente</h4>
+        <p className="text-xs text-slate-600">Serial: <b className="font-mono">{asg.serial}</b> · pasará a estado <b>Asignado</b>.</p>
+        <div>
+          <label className="text-xs text-slate-600">Cliente destino *</label>
+          <Select value={clientId} onValueChange={setClientId}>
+            <SelectTrigger data-testid="serial-assign-client-select"><SelectValue placeholder="Selecciona cliente" /></SelectTrigger>
+            <SelectContent className="max-h-72 overflow-y-auto">
+              {clients
+                .slice()
+                .sort((a, b) => (a.legal_name || '').localeCompare(b.legal_name || ''))
+                .map(c => (
+                  <SelectItem key={c.client_id} value={c.client_id}>{c.legal_name || c.fantasy_name}</SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-slate-600">Cotización (opcional)</label>
+          <Input value={quoteId} onChange={(e) => setQuoteId(e.target.value)} placeholder="quote_id (opcional)" data-testid="serial-assign-quote-input" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-600">Motivo *</label>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Asignación manual administrativa" data-testid="serial-assign-reason" />
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setActionState(null)} disabled={submitting}>Cancelar</Button>
+          <Button size="sm" onClick={submit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700" data-testid="serial-assign-submit">
+            {submitting && <Loader2 size={14} className="animate-spin mr-1" />}Asignar
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Filtrado combinado (almacén + estatus) de la vista por modelo
+  const STATUS_LABELS = {
+    en_stock: 'Disponible', asignado: 'Asignado', preasignado: 'Preasignado',
+    asignado_temporal: 'Asignado temporal', blacklist: 'No asignable', vendido: 'Vendido',
+  };
+  const filteredModelSerials = modelSerials.filter(r =>
+    (filterWarehouse === 'all' || (r.warehouse_id || '') === filterWarehouse) &&
+    (filterStatus === 'all' || r.status === filterStatus)
+  );
+  const warehouseOptions = (() => {
+    const m = {};
+    modelSerials.forEach(r => { if (r.warehouse_id) m[r.warehouse_id] = r.warehouse_name || r.warehouse_id; });
+    return Object.entries(m).map(([id, name]) => ({ id, name }));
+  })();
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="admin-serial-management-modal">
@@ -576,6 +656,7 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
             )}
             {actionState && actionState.type === 'create' && <SubCreate />}
             {actionState && actionState.type === 'edit' && <SubEdit asg={actionState.asg} />}
+            {actionState && actionState.type === 'assign' && <SubAssign asg={actionState.asg} />}
             {actionState && actionState.type === 'replace' && <SubReplace asg={actionState.asg} />}
             {actionState && actionState.type === 'reassign' && <SubReassign asg={actionState.asg} />}
             {actionState && actionState.type === 'unassign' && <SubUnassign asg={actionState.asg} />}
@@ -583,7 +664,48 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
             {actionState && actionState.type === 'unassign-sold' && <SubUnassignSold asg={actionState.asg} />}
             {actionState && actionState.type === 'delete-sold' && <SubDeleteSold asg={actionState.asg} />}
             {!actionState && modelSerials.length > 0 && (
-              <div className="max-h-[50vh] overflow-y-auto border rounded">
+              <>
+              <div className="flex flex-wrap items-end gap-2 bg-slate-50 border border-slate-200 rounded p-2" data-testid="serial-filters-bar">
+                <div className="flex items-center gap-1 text-slate-500 text-xs font-medium pb-2">
+                  <Filter size={13} /> Filtros
+                </div>
+                <div className="min-w-[200px]">
+                  <label className="text-[10px] text-slate-500 block">Almacén</label>
+                  <Select value={filterWarehouse} onValueChange={setFilterWarehouse}>
+                    <SelectTrigger className="h-8 text-xs" data-testid="serial-filter-warehouse"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los almacenes</SelectItem>
+                      {warehouseOptions.map(w => (
+                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-[160px]">
+                  <label className="text-[10px] text-slate-500 block">Estatus</label>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="h-8 text-xs" data-testid="serial-filter-status"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los estatus</SelectItem>
+                      <SelectItem value="en_stock">Disponible</SelectItem>
+                      <SelectItem value="asignado">Asignado</SelectItem>
+                      <SelectItem value="preasignado">Preasignado</SelectItem>
+                      <SelectItem value="asignado_temporal">Asignado temporal</SelectItem>
+                      <SelectItem value="blacklist">No asignable</SelectItem>
+                      <SelectItem value="vendido">Vendido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(filterWarehouse !== 'all' || filterStatus !== 'all') && (
+                  <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => { setFilterWarehouse('all'); setFilterStatus('all'); }} data-testid="serial-filter-clear">
+                    Limpiar
+                  </Button>
+                )}
+                <div className="ml-auto text-xs text-slate-600 pb-2" data-testid="serial-filter-count">
+                  Mostrando <b className="text-slate-900">{filteredModelSerials.length}</b> de {modelSerials.length} equipo(s)
+                </div>
+              </div>
+              <div className="max-h-[50vh] overflow-y-auto border rounded mt-2">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-100 text-slate-600 sticky top-0">
                     <tr>
@@ -596,7 +718,7 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {modelSerials.map(r => {
+                    {filteredModelSerials.map(r => {
                       const statusColors = {
                         'en_stock': 'bg-emerald-100 text-emerald-700',
                         'asignado': 'bg-amber-100 text-amber-700',
@@ -655,6 +777,18 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
                             <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-sky-700 border-sky-300" onClick={() => setActionState({ type: 'edit', asg: { serial: r.serial, status: r.status, warehouse_id: r.warehouse_id } })} data-testid={`btn-bm-edit-${r.serial}`}>
                               <Pencil size={10} className="mr-0.5" /> Modificar
                             </Button>
+                            {/* Asignar — visible en todas las filas; habilitado solo si está Disponible */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] px-1.5 text-emerald-700 border-emerald-300 disabled:opacity-40"
+                              disabled={r.status !== 'en_stock'}
+                              title={r.status !== 'en_stock' ? 'Solo se puede asignar un serial Disponible' : 'Asignar a un cliente'}
+                              onClick={() => setActionState({ type: 'assign', asg: { serial: r.serial } })}
+                              data-testid={`btn-bm-assign-${r.serial}`}
+                            >
+                              <UserPlus size={10} className="mr-0.5" /> Asignar
+                            </Button>
                             </div>
                           </td>
                         </tr>
@@ -663,6 +797,12 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
                   </tbody>
                 </table>
               </div>
+              {filteredModelSerials.length === 0 && (
+                <p className="text-sm text-slate-500 text-center py-6" data-testid="serial-filter-empty">
+                  No hay seriales que coincidan con los filtros seleccionados.
+                </p>
+              )}
+              </>
             )}
             {!actionState && selectedModel && modelSerials.length === 0 && !loading && (
               <p className="text-sm text-slate-500 text-center py-8">No hay seriales registrados para este modelo.</p>
