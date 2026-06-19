@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
-import { Search, RefreshCw, UserCog, Ban, ListX, ChevronLeft, Loader2, Undo2, Trash2, Plus, Pencil, Warehouse as WarehouseIcon, UserPlus, Filter } from 'lucide-react';
+import { Search, RefreshCw, UserCog, Ban, ListX, ChevronLeft, Loader2, Undo2, Trash2, Plus, Pencil, Warehouse as WarehouseIcon, UserPlus, Filter, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -621,6 +621,41 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
     return Object.values(m).sort((a, b) => b.total - a.total);
   })();
 
+  // Exporta el resumen por almacén (+ detalle de seriales filtrados) a CSV (Excel).
+  const exportWarehouseCsv = () => {
+    const cell = (v) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const modelName = models.find(m => m.item_id === selectedModel)?.name || selectedModel;
+    const tot = warehouseSummary.reduce((a, w) => ({
+      en_stock: a.en_stock + w.en_stock, asignado: a.asignado + w.asignado,
+      otros: a.otros + w.otros, total: a.total + w.total,
+    }), { en_stock: 0, asignado: 0, otros: 0, total: 0 });
+    const lines = [];
+    lines.push(`Resumen de stock por almacén - ${modelName}`);
+    lines.push(`Generado: ${new Date().toLocaleString('es-VE')}`);
+    lines.push('');
+    lines.push(['Almacén', 'Disponible', 'Asignado', 'Otros', 'Total'].map(cell).join(','));
+    warehouseSummary.forEach(w => lines.push([w.name, w.en_stock, w.asignado, w.otros, w.total].map(cell).join(',')));
+    lines.push(['TOTAL', tot.en_stock, tot.asignado, tot.otros, tot.total].map(cell).join(','));
+    lines.push('');
+    lines.push('Detalle de seriales (según filtros aplicados)');
+    lines.push(['Serial', 'Estado', 'Almacén', 'Cliente', 'Cotización'].map(cell).join(','));
+    filteredModelSerials.forEach(r => lines.push(
+      [r.serial, STATUS_LABELS[r.status] || r.status, r.warehouse_name || '', r.client_name || '', r.quote_number || ''].map(cell).join(',')
+    ));
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inventario_seriales_${(modelName || 'modelo').replace(/[^a-z0-9]+/gi, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="admin-serial-management-modal">
@@ -681,8 +716,17 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
               <>
               {warehouseSummary.length > 0 && (
                 <div className="border border-slate-200 rounded overflow-hidden" data-testid="warehouse-summary">
-                  <div className="bg-slate-100 px-2 py-1.5 text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                    <WarehouseIcon size={13} /> Resumen de stock por almacén
+                  <div className="bg-slate-100 px-2 py-1.5 text-xs font-semibold text-slate-600 flex items-center justify-between gap-1.5">
+                    <span className="flex items-center gap-1.5"><WarehouseIcon size={13} /> Resumen de stock por almacén</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2 text-emerald-700 border-emerald-300"
+                      onClick={exportWarehouseCsv}
+                      data-testid="warehouse-summary-export-btn"
+                    >
+                      <Download size={11} className="mr-1" /> Exportar CSV
+                    </Button>
                   </div>
                   <table className="w-full text-xs">
                     <thead className="text-[10px] text-slate-500 bg-slate-50">
