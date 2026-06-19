@@ -33,6 +33,31 @@ export const ClientsBulkUpdateModal = ({ open, onClose, onApplied }) => {
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   };
 
+  const exportReportCsv = () => {
+    if (!result?.report?.length) return;
+    const cell = (v) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const meta = { ok: 'Actualizado', sin_cambios: 'Sin cambios', not_found: 'RIF no encontrado', error: 'Error' };
+    const lines = [];
+    lines.push(`Reporte de Actualización Masiva de Clientes - ${result.dry_run ? 'PREVISUALIZACIÓN' : 'APLICADO'}`);
+    lines.push(`Generado: ${new Date().toLocaleString('es-VE')}`);
+    lines.push(`Filas: ${result.rows_processed} | OK: ${result.rows_ok} | No encontrados: ${result.rows_not_found} | Errores: ${result.rows_error} | Clientes afectados: ${result.clients_updated}`);
+    lines.push('');
+    lines.push(['Fila', 'RIF', 'Sucursales', 'Estado', 'Campos aplicados', 'Avisos'].map(cell).join(','));
+    result.report.forEach((r) => lines.push([
+      r.row, r.rif || '', r.matched_clients, meta[r.status] || r.status,
+      (r.applied || []).join(' | '), (r.warnings || []).join(' | '),
+    ].map(cell).join(',')));
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reporte_actualizacion_clientes_${result.dry_run ? 'preview' : 'aplicado'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  };
+
   const send = async (dryRun) => {
     if (!file) { toast.error('Selecciona un archivo CSV o Excel'); return; }
     setLoading(true); setIsDryRun(dryRun);
@@ -96,15 +121,20 @@ export const ClientsBulkUpdateModal = ({ open, onClose, onApplied }) => {
 
           {result && (
             <div className="space-y-2" data-testid="bulk-update-result">
-              <div className="flex flex-wrap gap-2 text-xs">
-                <span className={`px-2 py-1 rounded ${result.dry_run ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'} font-semibold`}>
-                  {result.dry_run ? 'PREVISUALIZACIÓN (no se guardó nada)' : 'CAMBIOS APLICADOS'}
-                </span>
-                <span className="px-2 py-1 rounded bg-slate-100">Filas: {result.rows_processed}</span>
-                <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700">OK: {result.rows_ok}</span>
-                <span className="px-2 py-1 rounded bg-amber-50 text-amber-700">No encontrados: {result.rows_not_found}</span>
-                <span className="px-2 py-1 rounded bg-rose-50 text-rose-700">Errores: {result.rows_error}</span>
-                <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">Clientes afectados: {result.clients_updated}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className={`px-2 py-1 rounded ${result.dry_run ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'} font-semibold`}>
+                    {result.dry_run ? 'PREVISUALIZACIÓN (no se guardó nada)' : 'CAMBIOS APLICADOS'}
+                  </span>
+                  <span className="px-2 py-1 rounded bg-slate-100">Filas: {result.rows_processed}</span>
+                  <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700">OK: {result.rows_ok}</span>
+                  <span className="px-2 py-1 rounded bg-amber-50 text-amber-700">No encontrados: {result.rows_not_found}</span>
+                  <span className="px-2 py-1 rounded bg-rose-50 text-rose-700">Errores: {result.rows_error}</span>
+                  <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">Clientes afectados: {result.clients_updated}</span>
+                </div>
+                <Button variant="outline" size="sm" onClick={exportReportCsv} className="shrink-0 text-emerald-700 border-emerald-300" data-testid="bulk-update-export-report-btn">
+                  <Download size={14} className="mr-1" /> Exportar reporte CSV
+                </Button>
               </div>
               <div className="max-h-[40vh] overflow-y-auto border rounded">
                 <table className="w-full text-xs">
