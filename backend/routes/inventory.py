@@ -1678,14 +1678,22 @@ async def admin_serials_by_item(
     # (orden cronológico). Esto permite que una devolución (entrada posterior a
     # una salida) restablezca el serial a "en stock" sin marcarlo como vendido.
     last_mtype_by_serial: dict = {}
+    last_wh_by_serial: dict = {}  # almacén del ÚLTIMO movimiento (adscripción física)
     cursor = db.inventory_movements.find(
         {"item_id": item_id, "serials": {"$exists": True, "$ne": []}},
-        {"_id": 0, "movement_type": 1, "serials": 1, "created_at": 1},
+        {"_id": 0, "movement_type": 1, "serials": 1, "created_at": 1, "warehouse_id": 1},
     ).sort("created_at", 1)  # asc → la última asignación sobreescribe
     async for m in cursor:
         mtype = m.get("movement_type")
+        wh = m.get("warehouse_id")
         for s in (m.get("serials") or []):
             last_mtype_by_serial[s] = mtype
+            last_wh_by_serial[s] = wh
+
+    # Mapa de nombres de almacén (para mostrar el nombre en la grilla)
+    wh_name_map: dict = {}
+    async for w in db.warehouses.find({}, {"_id": 0, "warehouse_id": 1, "name": 1}):
+        wh_name_map[w.get("warehouse_id")] = w.get("name")
 
     physical_serials = {s for s, mt in last_mtype_by_serial.items() if mt in ("entrada", "transferencia_entrada")}
     serials_left_stock = {s for s, mt in last_mtype_by_serial.items() if mt in ("salida", "transferencia_salida")}
@@ -1720,6 +1728,10 @@ async def admin_serials_by_item(
         else:
             status = "desconocido"
 
+        # Almacén de adscripción: la asignación manda si existe; si no, el
+        # almacén del último movimiento físico del serial.
+        wh_id = (asg.get("warehouse_id") if asg else None) or last_wh_by_serial.get(s)
+
         rows.append({
             "serial": s,
             "status": status,
@@ -1728,7 +1740,8 @@ async def admin_serials_by_item(
             "client_name": asg.get("client_name") if asg else None,
             "quote_id": asg.get("quote_id") if asg else None,
             "quote_number": asg.get("quote_number") if asg else None,
-            "warehouse_id": asg.get("warehouse_id") if asg else None,
+            "warehouse_id": wh_id,
+            "warehouse_name": wh_name_map.get(wh_id) if wh_id else None,
             "blacklist_reason": bl.get("reason") if bl else None,
             "previous_serial": asg.get("previous_serial") if asg else None,
             "replacement_reason": asg.get("replacement_reason") if asg else None,
@@ -2235,3 +2248,277 @@ async def admin_delete_sold_serial(
         "movements_updated": updated_movs,
     }
 
+
+# ==================== CRUD ADMIN DE SERIALES (Alta / Modificación) ====================
+# Evolución del módulo "Gestionar Seriales": creación (alta) y edición
+# (rename + reubicación de almacén) de números de serie, con auditoría.
+
+
+@router.get("/admin/inventory/serializable-items")
+async def admin_list_serializable_items(authorization: Optional[str] = Header(None)):
+    """Lista de modelos de hardware serializables (POS/Pinpad/MPOS) para el
+    alta de nuevos seriales. A diferencia de /admin/inventory/items, incluye
+    modelos que aún NO tienen seriales registrados.
+    """
+    await _require_admin_user(authorization)
+    docs = await db.hardware.find(
+        {}, {"_id": 0, "hardware_id": 1, "name": 1, "type": 1}
+    ).to_list(1000)
+    items = sorted(
+        [
+            {"item_id": h["hardware_id"], "name": h.get("name", ""), "type": h.get("type", "")}
+            for h in docs
+            if is_serialized(h.get("type", ""))
+        ],
+        key=lambda x: (x["name"] or "").lower(),
+    )
+    return {"count": len(items), "items": items}
+
+
+async def _serial_exists_anywhere(serial: str) -> bool:
+    """True si el serial ya existe en movimientos, asignaciones o blacklist."""
+    if await db.inventory_movements.find_one({"serials": serial}, {"_id": 1}):
+        return True
+    if await db.serial_assignments.find_one({"serial": serial}, {"_id": 1}):
+        return True
+    if await db.serial_blacklist.find_one({"serial": serial}, {"_id": 1}):
+        return True
+    return False
+
+
+@router.post("/admin/inventory/serials/create")
+async def admin_create_serials(body: dict, authorization: Optional[str] = Header(None)):
+    """Da de alta uno o varios seriales nuevos en estado DISPONIBLE (en_stock).
+
+    body: { item_id: str, warehouse_id: str, serials: [str, ...] }
+
+    Crea un único movimiento de ENTRADA "ALTA ADMINISTRATIVA" con los seriales
+    válidos en el almacén indicado. Rechaza seriales ya existentes (en stock,
+    asignados o en blacklist). Registra auditoría en bitácora.
+    """
+    user = await _require_admin_user(authorization)
+    item_id = (body.get("item_id") or "").strip()
+    warehouse_id = (body.get("warehouse_id") or "").strip()
+    raw_serials = body.get("serials") or []
+    if not item_id:
+        raise HTTPException(status_code=400, detail="item_id (Producto) requerido")
+    if not warehouse_id:
+        raise HTTPException(status_code=400, detail="warehouse_id (Almacén de adscripción) requerido")
+
+    hw = await db.hardware.find_one({"hardware_id": item_id}, {"_id": 0, "name": 1, "type": 1})
+    if not hw:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    if not is_serialized(hw.get("type", "")):
+        raise HTTPException(status_code=400, detail="El producto seleccionado no es serializable (debe ser POS/Pinpad/MPOS)")
+
+    wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0, "name": 1})
+    if not wh:
+        raise HTTPException(status_code=404, detail="Almacén no encontrado")
+
+    # Normalizar: strip, descartar vacíos, dedupe preservando orden
+    seen = set()
+    serials = []
+    for s in raw_serials:
+        sn = (s or "").strip()
+        if sn and sn not in seen:
+            seen.add(sn)
+            serials.append(sn)
+    if not serials:
+        raise HTTPException(status_code=400, detail="Debe indicar al menos un número de serial")
+
+    created, skipped = [], []
+    for sn in serials:
+        if await _serial_exists_anywhere(sn):
+            skipped.append({"serial": sn, "reason": "Ya existe en el sistema"})
+        else:
+            created.append(sn)
+
+    if not created:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Todos los seriales ya existen. Omitidos: {', '.join(s['serial'] for s in skipped)}",
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    movement_id = f"mov_{uuid.uuid4().hex[:12]}"
+    entry_doc = {
+        "movement_id": movement_id,
+        "item_id": item_id,
+        "item_name": hw.get("name", ""),
+        "warehouse_id": warehouse_id,
+        "movement_type": "entrada",
+        "quantity": len(created),
+        "unit_cost": 0,
+        "serials": created,
+        "supplier": "ALTA ADMINISTRATIVA",
+        "invoice_number": "",
+        "notes": f"Alta administrativa de {len(created)} serial(es) por {user.get('email')}",
+        "reference": "Alta administrativa de seriales",
+        "created_at": now,
+        "created_by": user.get("email"),
+        "is_admin_creation": True,
+    }
+    await db.inventory_movements.insert_one(entry_doc)
+
+    await db.bitacora.insert_one({
+        "action": "admin_serial_create",
+        "item_id": item_id,
+        "item_name": hw.get("name", ""),
+        "warehouse_id": warehouse_id,
+        "warehouse_name": wh.get("name", ""),
+        "serials_created": created,
+        "serials_skipped": skipped,
+        "movement_id": movement_id,
+        "executed_by": user.get("email"),
+        "executed_at": now,
+    })
+
+    return {
+        "ok": True,
+        "movement_id": movement_id,
+        "created": created,
+        "created_count": len(created),
+        "skipped": skipped,
+        "message": (
+            f"{len(created)} serial(es) creado(s) en '{wh.get('name','')}'"
+            + (f" · {len(skipped)} omitido(s) (ya existían)" if skipped else "")
+        ),
+    }
+
+
+@router.put("/admin/inventory/serials/edit")
+async def admin_edit_serial(body: dict, authorization: Optional[str] = Header(None)):
+    """Modifica un serial existente: corrige el número (rename) y/o reubica su
+    almacén de adscripción. No corrompe el histórico (rename propaga a todos
+    los movimientos/asignaciones/blacklist; la reubicación de un serial en
+    stock usa un par de movimientos de transferencia). Auditoría en bitácora.
+
+    body: { current_serial: str, new_serial?: str, new_warehouse_id?: str, reason: str }
+    """
+    user = await _require_admin_user(authorization)
+    current_serial = (body.get("current_serial") or "").strip()
+    new_serial = (body.get("new_serial") or "").strip()
+    new_warehouse_id = (body.get("new_warehouse_id") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    if not current_serial:
+        raise HTTPException(status_code=400, detail="current_serial requerido")
+    if not reason:
+        raise HTTPException(status_code=400, detail="Motivo (reason) requerido para la auditoría")
+
+    rename = bool(new_serial and new_serial != current_serial)
+    relocate = bool(new_warehouse_id)
+    if not rename and not relocate:
+        raise HTTPException(status_code=400, detail="No hay cambios: indique nuevo serial y/o nuevo almacén")
+
+    # Último movimiento físico (define item_id/item_name/almacén actual)
+    last_mov = await db.inventory_movements.find_one(
+        {"serials": current_serial}, {"_id": 0}, sort=[("created_at", -1)]
+    )
+    asg = await db.serial_assignments.find_one(
+        {"serial": current_serial,
+         "status": {"$in": ["preasignado", "asignado", "asignado_temporal"]}},
+        {"_id": 0},
+    )
+    if not last_mov and not asg:
+        raise HTTPException(status_code=404, detail="Serial no encontrado en el sistema")
+
+    now = datetime.now(timezone.utc).isoformat()
+    audit = {
+        "action": "admin_serial_edit",
+        "current_serial": current_serial,
+        "reason": reason,
+        "executed_by": user.get("email"),
+        "executed_at": now,
+    }
+
+    # ── 1) RENAME ──
+    final_serial = current_serial
+    if rename:
+        if await _serial_exists_anywhere(new_serial):
+            raise HTTPException(
+                status_code=409,
+                detail=f"El serial {new_serial} ya existe en el sistema. Use otro valor.",
+            )
+        await db.inventory_movements.update_many(
+            {"serials": current_serial},
+            {"$set": {"serials.$": new_serial}},
+        )
+        await db.serial_assignments.update_many(
+            {"serial": current_serial}, {"$set": {"serial": new_serial}}
+        )
+        await db.serial_blacklist.update_many(
+            {"serial": current_serial}, {"$set": {"serial": new_serial}}
+        )
+        final_serial = new_serial
+        audit["new_serial"] = new_serial
+
+    # ── 2) REUBICACIÓN DE ALMACÉN ──
+    if relocate:
+        wh = await db.warehouses.find_one({"warehouse_id": new_warehouse_id}, {"_id": 0, "name": 1})
+        if not wh:
+            raise HTTPException(status_code=404, detail="Almacén destino no encontrado")
+
+        if asg:
+            # Serial asignado/preasignado → actualizar el almacén de la asignación
+            await db.serial_assignments.update_one(
+                {"serial": final_serial,
+                 "status": {"$in": ["preasignado", "asignado", "asignado_temporal"]}},
+                {"$set": {"warehouse_id": new_warehouse_id}},
+            )
+            audit["relocate_mode"] = "assignment"
+        else:
+            # Determinar estado físico actual a partir del último movimiento
+            last_type = (last_mov or {}).get("movement_type")
+            in_stock = last_type in ("entrada", "transferencia_entrada")
+            if not in_stock:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No se puede reubicar un serial que no está en stock (vendido/no asignable). Devuélvalo al stock primero.",
+                )
+            old_wh = (last_mov or {}).get("warehouse_id")
+            if old_wh == new_warehouse_id:
+                raise HTTPException(status_code=400, detail="El serial ya está en ese almacén")
+            item_id = (last_mov or {}).get("item_id")
+            item_name = (last_mov or {}).get("item_name", "")
+            base = {
+                "item_id": item_id,
+                "item_name": item_name,
+                "quantity": 1,
+                "unit_cost": (last_mov or {}).get("unit_cost", 0),
+                "serials": [final_serial],
+                "created_at": now,
+                "created_by": user.get("email"),
+                "is_admin_relocation": True,
+                "notes": f"Reubicación administrativa del serial {final_serial}. Motivo: {reason}",
+            }
+            await db.inventory_movements.insert_one({
+                **base,
+                "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
+                "warehouse_id": old_wh,
+                "movement_type": "transferencia_salida",
+                "reference": f"Reubicación admin → {wh.get('name','')}",
+            })
+            await db.inventory_movements.insert_one({
+                **base,
+                "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
+                "warehouse_id": new_warehouse_id,
+                "movement_type": "transferencia_entrada",
+                "reference": "Reubicación administrativa (destino)",
+            })
+            audit["relocate_mode"] = "transfer"
+            audit["old_warehouse_id"] = old_wh
+
+        audit["new_warehouse_id"] = new_warehouse_id
+        audit["new_warehouse_name"] = wh.get("name", "")
+
+    await db.bitacora.insert_one(audit)
+
+    return {
+        "ok": True,
+        "serial": final_serial,
+        "renamed": rename,
+        "relocated": relocate,
+        "message": f"Serial actualizado: {current_serial}"
+        + (f" → {final_serial}" if rename else "")
+        + (f" · reubicado a {audit.get('new_warehouse_name','')}" if relocate else ""),
+    }

@@ -1,0 +1,47 @@
+{
+  "summary": "E2E validation of the new CRUD panel for 'Gestionar Seriales' (AdminSerialManagementModal). Logged in as admin rgonzalez@megasoft.com.ve, opened /inventory → 'Gestionar Seriales (Admin)' modal → 'Por Modelo' tab → selected Morefun MF360 (hwr_6df9205c09ec). Validated: (1) global 'Agregar Serial' button visible top-right; (2) new 'Almacén' column header + per-row warehouse cells; (3) cohabitation of 4 action buttons (Devolver al Stock / Desasignar / Eliminar / Modificar) in the same cell for sold row 97240115680043; (4) Agregar flow creates QA-CRUD-9001 in 'en_stock' assigned to Pymes warehouse; (5) Modificar flow renames QA-CRUD-9001 → QA-CRUD-9001X AND relocates the warehouse to Corporativo, with the grid reflecting the new name and warehouse, no other rows broken. ONE blocker observed: the warehouse name renders '—' for the 6 pre-existing seeded MF360 serials because their persisted warehouse_id ('whs_f00b02f4') no longer exists in the warehouses collection (orphan reference / stale seed). The frontend code path is correct (UI for QA-CRUD-9001/9001X shows the right warehouse name); this is a backend data-integrity issue, not a feature bug.",
+  "validation_results": {
+    "open_modal": {"expected": "open-admin-serial-modal-btn opens admin-serial-management-modal", "observed": "Modal opened on first click, default tab 'Por Modelo'", "status": "PASS"},
+    "global_add_button": {"expected": "serial-add-global-btn visible top-right next to model selector", "observed": "Button present and visible inside the modal header next to admin-serial-model-select", "status": "PASS"},
+    "model_select_mf360": {"expected": "Selecting 'Morefun MF360' renders 6 seeded serials", "observed": "6 rows loaded with statuses (4 en_stock + 2 vendido) for item hwr_6df9205c09ec", "status": "PASS"},
+    "almacen_column_header": {"expected": "Grid shows column 'Almacén'", "observed": "Header 'Almacén' present (1 match)", "status": "PASS"},
+    "almacen_column_cells_render": {"expected": "Each row exposes serial-warehouse-<serial> with a warehouse name", "observed": "All 6 cells exist with the correct data-testid, BUT the cell renders '—' because backend returns warehouse_name=null for the seeded warehouse_id 'whs_f00b02f4' (orphan ref). New serials created in this test correctly show 'Almacen Torre Banco Plaza (Pymes)' / 'Almacen Los Chaguaramos (Corporativo)'.", "status": "PARTIAL"},
+    "cohabitation_sold_row": {"expected": "Sold row 97240115680043 shows simultaneously: Devolver al Stock, Desasignar, Eliminar AND Modificar", "observed": "All 4 buttons present in the same actions cell (btn-bm-return-sold/-unassign-sold/-delete-sold/-edit, count=1 each, all visible)", "status": "PASS"},
+    "agregar_flow": {"expected": "serial-add-global-btn opens serial-create-form; selecting Producto MF360 + Almacén Pymes + serial QA-CRUD-9001 + submit creates the serial as 'en_stock' with correct warehouse name", "observed": "Form opened, both warehouses listed (Corporativo & Pymes), submit succeeded, after re-selecting model the new row appears: serial=QA-CRUD-9001, status=en_stock, warehouse='Almacen Torre Banco Plaza (Pymes)'", "status": "PASS"},
+    "modificar_flow": {"expected": "btn-bm-edit-QA-CRUD-9001 opens serial-edit-form; renaming to QA-CRUD-9001X + relocating to Corporativo + reason + submit persists changes", "observed": "Form opened, rename + relocation succeeded; after refresh the grid shows ONLY QA-CRUD-9001X (old QA-CRUD-9001 gone) with warehouse 'Almacen Los Chaguaramos (Corporativo)'. Other rows intact (sold row 97240115680043 still has 4 buttons).", "status": "PASS"}
+  },
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/inventory/serials/by-item", "issue": "warehouse_name resolves to null for serials whose warehouse_id no longer exists in db.warehouses (orphan ref). Affects all 6 seeded MF360 serials currently pointing to 'whs_f00b02f4'. Live warehouses are 'whs_bdd845f6' (Corporativo) and 'whs_40dfa046' (Pymes). The code at routes/inventory.py L1694-L1744 is correct; the underlying inventory_movements/serial_assignments docs reference a deleted warehouse. Consider either (a) backfill: update legacy MF360 inventory_movements.warehouse_id to the current valid id, OR (b) fallback in the API to return a placeholder string like 'Almacén (desconocido)' when the wh_id is orphaned so the UI doesn't show '—'."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AdminSerialManagementModal", "issues": ["Pre-existing Radix warning: 'Missing Description or aria-describedby for DialogContent' (a11y, cosmetic)."]},
+      {"screen": "Dashboard/QuotesTable (global)", "issues": ["Pre-existing hydration warnings: <span> cannot be a child of <tbody>/<tr> (already reported in iterations 113/114, unrelated to this change)."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Backfill seed: replace orphan warehouse_id 'whs_f00b02f4' in db.inventory_movements (and any serial_assignments) for item_id 'hwr_6df9205c09ec' with one of the live warehouses ('whs_bdd845f6' or 'whs_40dfa046'). After backfill the Almacén column will render the actual warehouse names for the seeded MF360 serials.",
+    "Cleanup test seed: delete the test serial QA-CRUD-9001X created during this E2E run (rename of QA-CRUD-9001) for item hwr_6df9205c09ec.",
+    "(Optional hardening) In admin_serials_by_item, when wh_name_map.get(wh_id) returns None but wh_id is truthy, return 'Almacén eliminado' or similar so the UI never shows a silent '—' for orphan refs."
+  ],
+  "critical_code_review_comments": [
+    "AdminSerialManagementModal.jsx L613-L618: correct use of r.warehouse_name with '—' fallback. The icon+name layout matches the spec.",
+    "AdminSerialManagementModal.jsx L654-L657: 'Modificar' button is rendered OUTSIDE the status-conditional blocks (replace/reassign/unassign for assigned states, and return/unassign/delete for 'vendido'), guaranteeing cohabitation in the same actions cell — confirmed visually for sold row 97240115680043.",
+    "routes/inventory.py admin_serials_by_item (L1663-L1755): the data-merge logic (last movement → physical state, assignments override, blacklist override) is sound; the warehouse name resolution is correct given live data. The null-warehouse-name issue is purely a stale-seed problem.",
+    "Frontend SubCreate (serial-create-form) and SubEdit (serial-edit-form) load warehouses dropdown correctly with both live warehouses. Rename + relocation produced exactly one row in the refreshed grid (no duplicates), implying the backend correctly created the new movement record and removed/superseded the old one."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (covered by main agent's earlier curl run; one data-quality finding here)", "frontend": "100% on the new CRUD interactions (Agregar, Modificar, cohabitation, column existence). Almacén name rendering for legacy seed rows is blocked by orphan warehouse_id in seed data, not by the UI."},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin) — login OK",
+  "seed_data_creation": "Created QA-CRUD-9001 (Pymes) and then renamed/relocated to QA-CRUD-9001X (Corporativo) for item hwr_6df9205c09ec. Per the request, the main agent will clean these up via DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The CRUD UI (Agregar/Modificar) and the cohabitation of the 4 sold-row actions are fully working in preview. If you re-test the Almacén column on the legacy MF360 seed, expect '—' until the main agent backfills inventory_movements.warehouse_id (orphan ref whs_f00b02f4 → use whs_bdd845f6 Corporativo or whs_40dfa046 Pymes). Don't treat that as a UI bug.",
+  "rca of the issue": "Almacén column shows '—' for the 6 legacy MF360 serials. RCA: GET /api/admin/inventory/serials/by-item builds wh_name_map from db.warehouses (keyed by warehouse_id). The seeded movements for item hwr_6df9205c09ec reference warehouse_id='whs_f00b02f4', which does NOT exist in db.warehouses anymore (only 'whs_bdd845f6' and 'whs_40dfa046' do). Therefore wh_name_map.get(wh_id) returns None, the API serializes warehouse_name=null, and the frontend's `{r.warehouse_name || '—'}` renders the em-dash. New rows created via the Agregar/Modificar UI correctly bind to live warehouses and render their names, proving the code path is correct. Mitigation options: (a) DB backfill of orphan warehouse_id; (b) defensive fallback string in backend; (c) seed-clean script that re-points stale references."
+}

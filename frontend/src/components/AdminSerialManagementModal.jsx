@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
-import { Search, RefreshCw, UserCog, Ban, ListX, ChevronLeft, Loader2, Undo2, Trash2 } from 'lucide-react';
+import { Search, RefreshCw, UserCog, Ban, ListX, ChevronLeft, Loader2, Undo2, Trash2, Plus, Pencil, Warehouse as WarehouseIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -27,6 +27,7 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
   const [actionState, setActionState] = useState(null); // {type, assignment}
   const [clients, setClients] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [serializableItems, setSerializableItems] = useState([]);
   // Tab "Por Modelo"
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
@@ -40,6 +41,7 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
     api.get('/clients').then(r => setClients(r.data || [])).catch(() => {});
     api.get('/admin/inventory/items').then(r => setModels(r.data?.items || [])).catch(() => {});
     api.get('/inventory/warehouses').then(r => setWarehouses(r.data || [])).catch(() => {});
+    api.get('/admin/inventory/serializable-items').then(r => setSerializableItems(r.data?.items || [])).catch(() => {});
     if (tab === 'blacklist') loadBlacklist();
   }, [open, tab]);
 
@@ -385,6 +387,146 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
     );
   };
 
+  // ── Alta de nuevos seriales (individual o masivo) ──
+  const SubCreate = () => {
+    const [itemId, setItemId] = useState(selectedModel || '');
+    const [warehouseId, setWarehouseId] = useState('');
+    const [serialsText, setSerialsText] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const parsed = serialsText
+      .split(/[\n,;]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    const submit = async () => {
+      if (!itemId) { toast.error('Seleccione el Producto'); return; }
+      if (!warehouseId) { toast.error('Seleccione el Almacén de adscripción'); return; }
+      if (parsed.length === 0) { toast.error('Ingrese al menos un número de serial'); return; }
+      setSubmitting(true);
+      try {
+        const res = await api.post('/admin/inventory/serials/create', {
+          item_id: itemId, warehouse_id: warehouseId, serials: parsed,
+        });
+        toast.success(res.data?.message || 'Seriales creados');
+        setActionState(null);
+        // Si se creó sobre el modelo en pantalla, refrescar; si no, seleccionarlo.
+        if (itemId === selectedModel) refreshByModel();
+        else setSelectedModel(itemId);
+      } catch (e) {
+        toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+      } finally { setSubmitting(false); }
+    };
+    return (
+      <div className="space-y-3 p-4 bg-indigo-50 border border-indigo-200 rounded" data-testid="serial-create-form">
+        <h4 className="text-sm font-semibold text-indigo-900 flex items-center gap-1.5"><Plus size={15} /> Agregar Serial(es)</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-slate-600">Producto *</label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger data-testid="serial-create-item-select"><SelectValue placeholder="Selecciona producto" /></SelectTrigger>
+              <SelectContent className="max-h-72 overflow-y-auto">
+                {serializableItems.map(m => (
+                  <SelectItem key={m.item_id} value={m.item_id}>{m.name} {m.type ? `· ${m.type}` : ''}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-600">Almacén de adscripción *</label>
+            <Select value={warehouseId} onValueChange={setWarehouseId}>
+              <SelectTrigger data-testid="serial-create-warehouse-select"><SelectValue placeholder="Selecciona almacén" /></SelectTrigger>
+              <SelectContent>
+                {warehouses.map(w => (
+                  <SelectItem key={w.warehouse_id || w.id} value={w.warehouse_id || w.id}>{w.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-slate-600">Número(s) de Serial * <span className="text-slate-400">(uno por línea o separados por coma — individual o masivo)</span></label>
+          <textarea
+            value={serialsText}
+            onChange={(e) => setSerialsText(e.target.value)}
+            rows={4}
+            placeholder={'SN-2026-XYZ\nSN-2026-ABC'}
+            className="w-full text-xs font-mono border border-slate-300 rounded p-2 mt-0.5"
+            data-testid="serial-create-serials-input"
+          />
+          <p className="text-[10px] text-slate-500 mt-0.5">{parsed.length} serial(es) a crear · nacen en estado <b>Disponible</b>.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setActionState(null)} disabled={submitting}>Cancelar</Button>
+          <Button size="sm" onClick={submit} disabled={submitting} className="bg-indigo-600 hover:bg-indigo-700" data-testid="serial-create-submit">
+            {submitting && <Loader2 size={14} className="animate-spin mr-1" />}Crear Serial(es)
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Modificación de un serial (rename + reubicación de almacén) ──
+  const SubEdit = ({ asg }) => {
+    const [newSerial, setNewSerial] = useState(asg.serial || '');
+    const [warehouseId, setWarehouseId] = useState(asg.warehouse_id || '');
+    const [reason, setReason] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    // La reubicación de almacén solo aplica a seriales en stock o asignados.
+    const canRelocate = ['en_stock', 'asignado', 'preasignado', 'asignado_temporal'].includes(asg.status);
+    const submit = async () => {
+      const rename = newSerial.trim() && newSerial.trim() !== asg.serial;
+      const relocate = canRelocate && warehouseId && warehouseId !== (asg.warehouse_id || '');
+      if (!rename && !relocate) { toast.error('Indique un nuevo serial y/o un nuevo almacén'); return; }
+      if (!reason.trim()) { toast.error('El motivo es obligatorio (auditoría)'); return; }
+      setSubmitting(true);
+      try {
+        const res = await api.put('/admin/inventory/serials/edit', {
+          current_serial: asg.serial,
+          new_serial: rename ? newSerial.trim() : '',
+          new_warehouse_id: relocate ? warehouseId : '',
+          reason: reason.trim(),
+        });
+        toast.success(res.data?.message || 'Serial actualizado');
+        setActionState(null);
+        refreshByModel();
+      } catch (e) {
+        toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+      } finally { setSubmitting(false); }
+    };
+    return (
+      <div className="space-y-3 p-4 bg-sky-50 border border-sky-200 rounded" data-testid="serial-edit-form">
+        <h4 className="text-sm font-semibold text-sky-900 flex items-center gap-1.5"><Pencil size={15} /> Modificar serial</h4>
+        <p className="text-xs text-slate-600">Actual: <b className="font-mono">{asg.serial}</b> · Estado: <span className="font-semibold">{asg.status}</span></p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-slate-600">Número de Serial</label>
+            <Input value={newSerial} onChange={(e) => setNewSerial(e.target.value)} className="font-mono" data-testid="serial-edit-serial-input" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-600">Almacén de adscripción {canRelocate ? '' : '(no editable en este estado)'}</label>
+            <Select value={warehouseId} onValueChange={setWarehouseId} disabled={!canRelocate}>
+              <SelectTrigger data-testid="serial-edit-warehouse-select"><SelectValue placeholder="Selecciona almacén" /></SelectTrigger>
+              <SelectContent>
+                {warehouses.map(w => (
+                  <SelectItem key={w.warehouse_id || w.id} value={w.warehouse_id || w.id}>{w.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-slate-600">Motivo *</label>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Corrección de tipeo / reubicación física" data-testid="serial-edit-reason" />
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setActionState(null)} disabled={submitting}>Cancelar</Button>
+          <Button size="sm" onClick={submit} disabled={submitting} className="bg-sky-600 hover:bg-sky-700" data-testid="serial-edit-submit">
+            {submitting && <Loader2 size={14} className="animate-spin mr-1" />}Guardar cambios
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="admin-serial-management-modal">
@@ -401,16 +543,26 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
 
         {tab === 'by-model' && (
           <div className="space-y-3">
-            <div>
-              <label className="text-xs text-slate-600 mb-1 block">Selecciona modelo de POS / PINPAD</label>
-              <Select value={selectedModel} onValueChange={setSelectedModel}>
-                <SelectTrigger data-testid="admin-serial-model-select"><SelectValue placeholder="Elige un modelo..." /></SelectTrigger>
-                <SelectContent className="max-h-72 overflow-y-auto">
-                  {models.map(m => (
-                    <SelectItem key={m.item_id} value={m.item_id}>{m.name} {m.type ? `· ${m.type}` : ''}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-end justify-between gap-2">
+              <div className="flex-1">
+                <label className="text-xs text-slate-600 mb-1 block">Selecciona modelo de POS / PINPAD</label>
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger data-testid="admin-serial-model-select"><SelectValue placeholder="Elige un modelo..." /></SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    {models.map(m => (
+                      <SelectItem key={m.item_id} value={m.item_id}>{m.name} {m.type ? `· ${m.type}` : ''}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setActionState({ type: 'create' })}
+                className="bg-indigo-600 hover:bg-indigo-700 shrink-0"
+                data-testid="serial-add-global-btn"
+              >
+                <Plus size={14} className="mr-1" /> Agregar Serial
+              </Button>
             </div>
             {modelCounts && (
               <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-[11px]">
@@ -422,6 +574,8 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
                 <div className="bg-slate-50 rounded p-2 text-center"><div className="text-slate-500">Vendido</div><div className="font-bold text-slate-700">{modelCounts.vendido}</div></div>
               </div>
             )}
+            {actionState && actionState.type === 'create' && <SubCreate />}
+            {actionState && actionState.type === 'edit' && <SubEdit asg={actionState.asg} />}
             {actionState && actionState.type === 'replace' && <SubReplace asg={actionState.asg} />}
             {actionState && actionState.type === 'reassign' && <SubReassign asg={actionState.asg} />}
             {actionState && actionState.type === 'unassign' && <SubUnassign asg={actionState.asg} />}
@@ -435,6 +589,7 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
                     <tr>
                       <th className="px-2 py-1.5 text-left">Serial</th>
                       <th className="px-2 py-1.5 text-left">Estado</th>
+                      <th className="px-2 py-1.5 text-left">Almacén</th>
                       <th className="px-2 py-1.5 text-left">Cliente</th>
                       <th className="px-2 py-1.5 text-left">Cotización</th>
                       <th className="px-2 py-1.5 text-right">Acciones</th>
@@ -455,9 +610,16 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
                         <tr key={r.serial} className="border-t hover:bg-slate-50">
                           <td className="px-2 py-1.5 font-mono">{r.serial}</td>
                           <td className="px-2 py-1.5"><span className={`px-1.5 py-0.5 rounded text-[10px] ${statusColors[r.status] || 'bg-slate-100'}`}>{r.status}</span></td>
+                          <td className="px-2 py-1.5 text-slate-700" data-testid={`serial-warehouse-${r.serial}`}>
+                            <span className="inline-flex items-center gap-1">
+                              <WarehouseIcon size={11} className="text-slate-400 shrink-0" />
+                              {r.warehouse_name || '—'}
+                            </span>
+                          </td>
                           <td className="px-2 py-1.5 text-slate-700">{r.client_name || '—'}</td>
                           <td className="px-2 py-1.5 text-slate-700">{r.quote_number || '—'}</td>
                           <td className="px-2 py-1.5 text-right">
+                            <div className="inline-flex flex-wrap gap-1 justify-end items-center">
                             {canEdit && r.assignment_id && (
                               <div className="inline-flex gap-1">
                                 <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-amber-700 border-amber-300" onClick={() => setActionState({ type: 'replace', asg: { ...r, assignment_id: r.assignment_id, serial: r.serial } })} data-testid={`btn-bm-replace-${r.serial}`}>
@@ -489,6 +651,11 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
                                 </Button>
                               </div>
                             )}
+                            {/* Modificar — disponible en TODAS las filas (rename + reubicación) */}
+                            <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-sky-700 border-sky-300" onClick={() => setActionState({ type: 'edit', asg: { serial: r.serial, status: r.status, warehouse_id: r.warehouse_id } })} data-testid={`btn-bm-edit-${r.serial}`}>
+                              <Pencil size={10} className="mr-0.5" /> Modificar
+                            </Button>
+                            </div>
                           </td>
                         </tr>
                       );
