@@ -42,6 +42,8 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   // por lo que acumulamos en estado para permitir agregar de a uno o varios y
   // ver la lista completa antes de aplicar.
   const [dataFiles, setDataFiles] = useState([]);
+  // Lista ACUMULATIVA de ZIP de anexos (paginados) a restaurar.
+  const [zipFiles, setZipFiles] = useState([]);
   const [importingZip, setImportingZip] = useState(false);
   const [zipProgress, setZipProgress] = useState('');
   const [previewSummary, setPreviewSummary] = useState(null);
@@ -279,108 +281,135 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
     }
   };
 
+  // Acumula ZIP (permite agregar de a uno o varios). Dedupe por nombre+tamaño.
+  const handleZipFilesChange = (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (picked.length) {
+      setZipFiles((prev) => {
+        const seen = new Set(prev.map((f) => `${f.name}:${f.size}`));
+        const merged = [...prev];
+        for (const f of picked) {
+          const k = `${f.name}:${f.size}`;
+          if (!seen.has(k)) { merged.push(f); seen.add(k); }
+        }
+        return merged;
+      });
+    }
+    e.target.value = '';
+  };
+  const removeZipFile = (idx) => setZipFiles((prev) => prev.filter((_, i) => i !== idx));
+  const clearZipFiles = () => setZipFiles([]);
+
   const handleImportAttachments = async () => {
-    const f = zipFileRef.current?.files?.[0];
-    if (!f) {
-      toast.error('Seleccione el archivo ZIP de anexos');
+    const zips = [...zipFiles].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    if (zips.length === 0) {
+      toast.error('Agregue uno o más archivos ZIP de anexos');
       return;
     }
     setImportingZip(true);
     setZipResult(null);
-    setZipProgress('Leyendo ZIP local...');
+
+    // Subida con reintentos automáticos para sobrevivir a 502/504 y errores
+    // de red transitorios típicos del ingress en producción.
+    const MAX_RETRIES = 3;
+    const BACKOFF_MS = [500, 1500, 3500];
+    const uploadOne = async ({ relPath, entry }) => {
+      let lastErr = null;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const blob = await entry.async('blob');
+          const fd = new FormData();
+          fd.append('path', relPath);
+          fd.append('file', blob, relPath.split('/').pop() || 'file.bin');
+          await api.post('/admin/quotes-bundle-migration/import-attachment', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 60000,
+          });
+          return { ok: true, path: relPath, retries: attempt };
+        } catch (err) {
+          lastErr = err;
+          const status = err.response?.status;
+          if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+            return { ok: false, path: relPath, error: err.response?.data?.detail || err.message, retries: attempt };
+          }
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt] || 3500));
+          }
+        }
+      }
+      return { ok: false, path: relPath, error: lastErr?.response?.data?.detail || lastErr?.message || 'unknown', retries: MAX_RETRIES };
+    };
+
+    // Acumuladores globales sobre TODOS los ZIP
+    let restored = 0;
+    let skipped = 0;
+    let retriedCount = 0;
+    let totalEntriesAll = 0;
+    const errors = [];
+
     try {
-      // Extraer el ZIP en el browser con JSZip y subir cada archivo
-      // individualmente. Inmune al límite de tamaño del ingress (que rechaza
-      // uploads grandes con 413) y al timeout del proxy.
-      const zip = await JSZip.loadAsync(f);
-      const entries = [];
-      zip.forEach((relPath, entry) => {
-        if (entry.dir) return;
-        if (relPath === 'manifest.json') return;
-        // Normalizar path para el backend (siempre forward-slash)
-        const norm = relPath.replace(/\\/g, '/');
-        if (norm.split('/').includes('..')) return;
-        entries.push({ relPath: norm, entry });
-      });
-      const total = entries.length;
-      if (total === 0) {
-        toast.error('El ZIP no contiene archivos restaurables');
+      for (let z = 0; z < zips.length; z++) {
+        const f = zips[z];
+        const zipLabel = `ZIP ${z + 1}/${zips.length} · ${f.name}`;
+        setZipProgress(`${zipLabel}: leyendo...`);
+        let zip;
+        try {
+          zip = await JSZip.loadAsync(f);
+        } catch (e) {
+          errors.push({ path: f.name, error: `ZIP ilegible: ${e.message}` });
+          continue;
+        }
+        const entries = [];
+        zip.forEach((relPath, entry) => {
+          if (entry.dir) return;
+          if (relPath === 'manifest.json') return;
+          const norm = relPath.replace(/\\/g, '/');
+          if (norm.split('/').includes('..')) return;
+          entries.push({ relPath: norm, entry });
+        });
+        const total = entries.length;
+        totalEntriesAll += total;
+        if (total === 0) continue;
+
+        const CONCURRENCY = 4;
+        let cursor = 0;
+        let done = 0;
+        const worker = async () => {
+          while (true) {
+            const i = cursor++;
+            if (i >= total) return;
+            const item = entries[i];
+            const res = await uploadOne(item);
+            done += 1;
+            if (res.ok) {
+              restored += 1;
+              if (res.retries > 0) retriedCount += 1;
+            } else {
+              skipped += 1;
+              errors.push({ path: res.path, error: res.error });
+            }
+            setZipProgress(`${zipLabel}: ${done}/${total} (Total OK ${restored} · fallidos ${skipped})`);
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
+      }
+
+      if (totalEntriesAll === 0) {
+        toast.error('Los ZIP no contienen archivos restaurables');
         return;
       }
 
-      // Subida con reintentos automáticos para sobrevivir a 502/504 y errores
-      // de red transitorios típicos del ingress en producción. Sin reintentos
-      // muchos anexos fallaban silenciosamente con "skipped".
-      const MAX_RETRIES = 3;
-      const BACKOFF_MS = [500, 1500, 3500];
-      const uploadOne = async ({ relPath, entry }) => {
-        let lastErr = null;
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-          try {
-            const blob = await entry.async('blob');
-            const fd = new FormData();
-            fd.append('path', relPath);
-            fd.append('file', blob, relPath.split('/').pop() || 'file.bin');
-            await api.post('/admin/quotes-bundle-migration/import-attachment', fd, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-              timeout: 60000,
-            });
-            return { ok: true, path: relPath, retries: attempt };
-          } catch (err) {
-            lastErr = err;
-            const status = err.response?.status;
-            // 4xx (excepto 408/429) NO reintentamos — es error de cliente.
-            if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
-              return { ok: false, path: relPath, error: err.response?.data?.detail || err.message, retries: attempt };
-            }
-            if (attempt < MAX_RETRIES) {
-              await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt] || 3500));
-            }
-          }
-        }
-        return { ok: false, path: relPath, error: lastErr?.response?.data?.detail || lastErr?.message || 'unknown', retries: MAX_RETRIES };
-      };
-
-      let restored = 0;
-      let skipped = 0;
-      let retriedCount = 0;
-      const errors = [];
-      // Concurrencia controlada: 4 uploads simultáneos es buen balance entre
-      // velocidad e impacto en el ingress (evita gateway timeouts por overload).
-      const CONCURRENCY = 4;
-      let cursor = 0;
-      let done = 0;
-
-      const worker = async () => {
-        while (true) {
-          const i = cursor++;
-          if (i >= total) return;
-          const item = entries[i];
-          setZipProgress(`Subiendo ${done + 1}/${total} · ${item.relPath.slice(-40)}`);
-          const res = await uploadOne(item);
-          done += 1;
-          if (res.ok) {
-            restored += 1;
-            if (res.retries > 0) retriedCount += 1;
-          } else {
-            skipped += 1;
-            errors.push({ path: res.path, error: res.error });
-          }
-          setZipProgress(`Subiendo ${done}/${total} (${restored} OK · ${skipped} fallidos)`);
-        }
-      };
-      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
-
       const result = {
         module: 'quotes-bundle-attachments',
+        zips: zips.length,
         restored,
         skipped,
         retried: retriedCount,
         errors: errors.slice(0, 50),
-        message: `Restauración completada: ${restored} restaurado(s), ${skipped} fallido(s)${retriedCount ? `, ${retriedCount} requirió reintento` : ''}.`,
+        message: `Restauración completada (${zips.length} ZIP): ${restored} restaurado(s), ${skipped} fallido(s)${retriedCount ? `, ${retriedCount} requirió reintento` : ''}.`,
       };
       setZipResult(result);
-      if (restored > 0 && skipped === 0) toast.success(result.message);
+      if (restored > 0 && skipped === 0) { toast.success(result.message); setZipFiles([]); }
       else if (skipped > 0 && restored > 0) toast.warning(result.message);
       else toast.error(result.message);
     } catch (e) {
@@ -676,30 +705,87 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-slate-800">2. Restaurar anexos (ZIP)</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Descomprime el ZIP en tu navegador y sube cada archivo individualmente
-                    al Object Storage. Inmune a límites de tamaño del proxy (ingress).
+                    Descomprime cada ZIP en tu navegador y sube cada archivo al Object Storage.
+                    Inmune a límites de tamaño del proxy. Puedes <strong>agregar varios ZIP
+                    paginados</strong> (parte_1, parte_2, …) y se restauran en orden, uno tras otro.
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 mt-2">
-                <input
-                  ref={zipFileRef}
-                  type="file"
-                  accept=".zip,application/zip"
-                  className="flex-1 text-xs file:mr-2 file:py-1 file:px-2 file:border-0 file:bg-slate-200 file:text-slate-700"
-                  data-testid="bundle-import-attachments-file-input"
-                />
+              <input
+                ref={zipFileRef}
+                type="file"
+                multiple
+                accept=".zip,application/zip"
+                onChange={handleZipFilesChange}
+                className="hidden"
+                data-testid="bundle-import-attachments-file-input"
+              />
+              <div className="flex gap-2 mt-2 items-stretch">
+                <button
+                  type="button"
+                  onClick={() => zipFileRef.current?.click()}
+                  disabled={importingZip}
+                  className="flex-1 border-2 border-dashed border-emerald-300 rounded-lg py-3 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  data-testid="bundle-import-attachments-pick-btn"
+                >
+                  <FileArchive size={18} /> Seleccionar ZIP de anexos (uno o varios)
+                </button>
                 <Button
                   size="sm"
                   onClick={handleImportAttachments}
-                  disabled={importingZip}
+                  disabled={importingZip || zipFiles.length === 0}
                   data-testid="bundle-import-attachments-btn"
-                  className="bg-emerald-600 hover:bg-emerald-700"
+                  className="bg-emerald-600 hover:bg-emerald-700 px-4"
                 >
                   {importingZip ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
-                  {importingZip ? (zipProgress || 'Restaurando...') : 'Restaurar'}
+                  {importingZip ? 'Restaurando...' : `Restaurar${zipFiles.length > 0 ? ` (${zipFiles.length})` : ''}`}
                 </Button>
               </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Mantén <b>Ctrl/Cmd</b> para elegir varios a la vez, o vuelve a pulsar el botón para <b>agregar más</b>. Se acumulan en la lista de abajo.
+              </p>
+              {importingZip && zipProgress && (
+                <p className="text-[11px] text-emerald-700 mt-1" data-testid="bundle-import-attachments-progress">{zipProgress}</p>
+              )}
+              {/* Lista acumulativa de ZIP seleccionados */}
+              {zipFiles.length > 0 && (
+                <div className="mt-2 bg-white border rounded p-2" data-testid="bundle-import-attachments-file-list">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[11px] font-semibold text-slate-600">{zipFiles.length} ZIP en cola</p>
+                    <button
+                      type="button"
+                      onClick={clearZipFiles}
+                      disabled={importingZip}
+                      className="text-[11px] text-rose-600 hover:text-rose-700 font-medium disabled:opacity-40"
+                      data-testid="bundle-import-attachments-clear-btn"
+                    >
+                      Limpiar todo
+                    </button>
+                  </div>
+                  <ul className="max-h-40 overflow-y-auto divide-y divide-slate-100">
+                    {[...zipFiles]
+                      .map((f, i) => ({ f, i }))
+                      .sort((a, b) => a.f.name.localeCompare(b.f.name, undefined, { numeric: true }))
+                      .map(({ f, i }) => (
+                        <li key={`${f.name}:${f.size}:${i}`} className="flex items-center gap-2 py-1 text-xs" data-testid={`bundle-import-attachments-file-item-${i}`}>
+                          <FileArchive size={13} className="text-emerald-500 shrink-0" />
+                          <span className="flex-1 truncate text-slate-700" title={f.name}>{f.name}</span>
+                          <span className="font-mono text-[10px] text-slate-400 shrink-0">{(f.size / 1048576).toFixed(1)} MB</span>
+                          <button
+                            type="button"
+                            onClick={() => removeZipFile(i)}
+                            disabled={importingZip}
+                            className="text-slate-400 hover:text-rose-600 disabled:opacity-40 shrink-0"
+                            title="Quitar ZIP"
+                            data-testid={`bundle-import-attachments-file-remove-${i}`}
+                          >
+                            <X size={13} />
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
               {zipResult && (
                 <div className="mt-3 bg-white border rounded p-3 text-xs">
                   <p className="text-emerald-700 font-semibold flex items-center gap-1.5">

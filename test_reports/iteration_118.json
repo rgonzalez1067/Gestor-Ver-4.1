@@ -1,0 +1,40 @@
+{
+  "summary": "Frontend-only test of cumulative ZIP selection in Quotes Bundle Migration modal (Importar → Restaurar anexos). Validated accumulation, dedup-by-index, item count, remove, clear, and button enable/disable + counter. All 12 validations PASSED.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard & Quotes table", "issues": ["Hydration warnings in console: <span> child of <tbody> and <tr> child of <span>. Caused by visual-editor wrapper x-excluded span around <tr>. Pre-existing, unrelated to this iteration."]},
+      {"screen": "QuotesBundleMigrationModal", "issues": ["DialogContent missing aria-describedby (Radix warning). Pre-existing."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "handleZipFilesChange + removeZipFile + clearZipFiles mirror the JSON pattern (iter114) correctly. State accumulates and dedupes by name:size, input.value is reset to allow re-pick.",
+    "handleImportAttachments orders ZIPs by localeCompare numeric (parte_1, parte_2…) and aggregates restored/skipped/retries across all ZIPs — solid.",
+    "Pre-existing hydration warning from visual-editor wrappers in Dashboard/QuotesTable should eventually be addressed but is unrelated to this change."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100% (12/12)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Created /tmp/parte_1.zip and /tmp/parte_2.zip (small valid ZIPs via python zipfile).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Validated cumulative multi-ZIP selection UX in QuotesBundleMigrationModal Importar tab section 2. Did NOT execute real restore (per request) to avoid Object Storage writes. All testids verified: bundle-import-attachments-pick-btn, -file-input, -btn, -file-list, -file-item-{0,1}, -file-remove-0, -clear-btn.",
+  "validations_executed": {
+    "modal_opens": "PASS",
+    "import_tab_active": "PASS",
+    "pick_button_visible": "PASS",
+    "restore_button_disabled_when_empty": "PASS",
+    "file_list_hidden_when_empty": "PASS",
+    "first_zip_appears_as_item_0": "PASS — count '1 ZIP en cola'",
+    "restore_button_counter_(1)_enabled": "PASS",
+    "second_zip_accumulates_to_2_items": "PASS — count '2 ZIP en cola' (no replace)",
+    "restore_button_counter_(2)_enabled": "PASS",
+    "remove_item_0_drops_to_1_item": "PASS — '1 ZIP en cola', btn '(1)'",
+    "clear_button_empties_queue_hides_list": "PASS",
+    "restore_button_disabled_after_clear_no_counter": "PASS — text reverts to 'Restaurar'"
+  }
+}
