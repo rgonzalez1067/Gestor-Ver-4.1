@@ -11,6 +11,7 @@ import logging
 from config import db, get_current_user
 from services.pdf_storage import save_pdf_dual, load_attachment_bytes, storage_name_from_upload_url
 from services.email_service import send_email, resolve_sender_for_area
+from services.signature import build_signature_html
 
 router = APIRouter()
 
@@ -96,7 +97,7 @@ async def delete_client_document(document_id: str, authorization: Optional[str] 
 
 # ==================== ENVÍO DE EMAIL A CLIENTES ====================
 
-def _render_client_vars(text: str, client: dict) -> str:
+def _render_client_vars(text: str, client: dict, signature_html: str = "") -> str:
     """Reemplaza variables dinámicas del cliente en el texto."""
     contacts = client.get("contacts", [])
     contact_name = ""
@@ -115,6 +116,7 @@ def _render_client_vars(text: str, client: dict) -> str:
         "direccion": client.get("address", ""),
         "telefono": contacts[0].get("phone", "") if contacts else "",
         "nombre_comercial": client.get("fantasy_name", ""),
+        "Firma_Notificacion_Global": signature_html,
     }
 
     result = text
@@ -156,9 +158,10 @@ async def send_client_email(
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
     client_name = client.get("legal_name") or client.get("fantasy_name", "")
 
-    # Resolver variables en subject y message
-    subject = _render_client_vars(subject, client)
-    message_html = _render_client_vars(message.replace("\n", "<br>"), client)
+    # Resolver variables en subject y message (incluye firma institucional global)
+    signature_html = await build_signature_html(current_user)
+    subject = _render_client_vars(subject, client, signature_html)
+    message_html = _render_client_vars(message.replace("\n", "<br>"), client, signature_html)
 
     html = f"""
     <div style="font-family: Arial, sans-serif; width: 95%; max-width: 900px; margin: 0 auto;">
@@ -278,12 +281,13 @@ async def send_client_email(
 @router.post("/clients/{client_id}/preview-email")
 async def preview_client_email(client_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Vista previa de un email con variables resueltas."""
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
     if not client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    subject = _render_client_vars(body.get("subject", ""), client)
-    message = _render_client_vars(body.get("message", ""), client)
+    signature_html = await build_signature_html(current_user)
+    subject = _render_client_vars(body.get("subject", ""), client, signature_html)
+    message = _render_client_vars(body.get("message", ""), client, signature_html)
 
     return {"subject": subject, "message": message}

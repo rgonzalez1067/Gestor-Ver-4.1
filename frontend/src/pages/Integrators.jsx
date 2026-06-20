@@ -29,6 +29,7 @@ const INTEGRATOR_EMAIL_VARS = [
   { key: '{{estado}}', desc: 'Estado actual' },
   { key: '{{aplicativo}}', desc: 'Aplicativo' },
   { key: '{{fase}}', desc: 'Fase de integración' },
+  { key: '{Firma_Notificacion_Global}', desc: 'Firma institucional (tus datos)' },
 ];
 
 const INTEGRATOR_TYPES = ['Integrador', 'Comercio'];

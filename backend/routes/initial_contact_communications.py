@@ -12,11 +12,12 @@ import logging
 from config import db, get_current_user
 from services.pdf_storage import save_pdf_dual
 from services.email_service import send_email, resolve_sender_for_area
+from services.signature import build_signature_html
 
 router = APIRouter()
 
 
-def _render_contact_vars(text: str, contact: dict) -> str:
+def _render_contact_vars(text: str, contact: dict, signature_html: str = "") -> str:
     """Reemplaza variables dinámicas del contacto inicial en el texto."""
     replacements = {
         "nombre": contact.get("contact_name", ""),
@@ -28,6 +29,7 @@ def _render_contact_vars(text: str, contact: dict) -> str:
         "referido_por": contact.get("referred_by", ""),
         "asignado_a": contact.get("assigned_to_name", ""),
         "aspectos_interes": contact.get("interest_notes", ""),
+        "Firma_Notificacion_Global": signature_html,
     }
     result = text or ""
     for key, val in replacements.items():
@@ -66,9 +68,10 @@ async def send_initial_contact_email(
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
     contact_label = contact.get("legal_name") or contact.get("contact_name") or ""
+    signature_html = await build_signature_html(current_user)
 
-    subject = _render_contact_vars(subject, contact)
-    message_html = _render_contact_vars(message.replace("\n", "<br>"), contact)
+    subject = _render_contact_vars(subject, contact, signature_html)
+    message_html = _render_contact_vars(message.replace("\n", "<br>"), contact, signature_html)
 
     html = f"""
     <div style="font-family: Arial, sans-serif; width: 95%; max-width: 900px; margin: 0 auto;">
@@ -170,11 +173,12 @@ async def send_initial_contact_email(
 @router.post("/initial-contacts/{contact_id}/preview-email")
 async def preview_initial_contact_email(contact_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Vista previa con variables resueltas."""
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     contact = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
     if not contact:
         raise HTTPException(status_code=404, detail="Contacto inicial no encontrado")
+    signature_html = await build_signature_html(current_user)
     return {
-        "subject": _render_contact_vars(body.get("subject", ""), contact),
-        "message": _render_contact_vars(body.get("message", ""), contact),
+        "subject": _render_contact_vars(body.get("subject", ""), contact, signature_html),
+        "message": _render_contact_vars(body.get("message", ""), contact, signature_html),
     }

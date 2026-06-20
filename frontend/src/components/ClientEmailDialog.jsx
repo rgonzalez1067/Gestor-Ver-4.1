@@ -16,6 +16,7 @@ const VARIABLES = [
   { key: '{{direccion}}', desc: 'Dirección' },
   { key: '{{telefono}}', desc: 'Teléfono' },
   { key: '{{nombre_comercial}}', desc: 'Nombre comercial' },
+  { key: '{Firma_Notificacion_Global}', desc: 'Firma institucional (tus datos)' },
 ];
 
 export const ClientEmailDialog = ({ open, onClose, client, onSent }) => {

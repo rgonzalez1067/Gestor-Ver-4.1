@@ -22,6 +22,7 @@ const NP_EMAIL_VARS = [
   { key: '{{sqa}}', desc: 'Analista SQA' },
   { key: '{{fecha_entrega}}', desc: 'Fecha de entrega' },
   { key: '{{banco}}', desc: 'Banco patrocinador' },
+  { key: '{Firma_Notificacion_Global}', desc: 'Firma institucional (tus datos)' },
 ];
 
 const PIPELINE_STATUSES = [

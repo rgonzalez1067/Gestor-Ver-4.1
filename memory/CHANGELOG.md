@@ -909,3 +909,12 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - handleWizardSubmit rama expansion: valida email, persiste vía POST /integrators/{id}/expand (ExpandPayload: productos_certificar, correo_eventual, con trim) y abre el modal de notificación (ejecuta el envío del Proyecto). Rama new/new_type excluye explícitamente esos campos del payload (destructure-and-strip).
 - Backend: endpoint /expand ahora acepta y persiste los campos de complemento.
 - Validado: curl (expand persiste campos; notify devuelve cc + '+1 en copia') + testing_agent iteration_107.json 5/5 PASS (ausencia en Nuevo Tipo/Integrador Nuevo, presencia en Ampliación, validación email bloquea, guardar válido abre modal de notificación). Dato de prueba revertido.
+
+## 2026-06-20 — Firma Institucional Global homologada en TODA la plataforma
+- Propagado `{Firma_Notificacion_Global}` (firma dinámica del usuario que envía, vía `build_signature_html(current_user)`) a los motores de email de:
+  - Clientes (`client_communications.py`): preview + send.
+  - Integradores y Nuevos Productos (`entity_communications.py`): preview + send (inyección central en `_send_and_log` y en ambos preview).
+  - Contactos Iniciales (`initial_contact_communications.py`): preview + send.
+- Frontend: variable agregada a los pickers de `ClientEmailDialog.jsx`, `Integrators.jsx` (INTEGRATOR_EMAIL_VARS), `NewProducts.jsx` (NP_EMAIL_VARS) e `InitialContactEmailDialog.jsx`.
+- Validado E2E (curl, URL externa) en los 4 módulos: el preview resuelve la firma con razón social institucional + datos del usuario en sesión (Rafael González).
+- NOTA: surte efecto en Producción al RE-DESPLEGAR.

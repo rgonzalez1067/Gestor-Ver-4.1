@@ -16,6 +16,7 @@ const VARIABLES = [
   { key: '{{referido_por}}', desc: 'Referido por' },
   { key: '{{asignado_a}}', desc: 'Asignado a' },
   { key: '{{aspectos_interes}}', desc: 'Aspectos de interés' },
+  { key: '{Firma_Notificacion_Global}', desc: 'Firma institucional (tus datos)' },
 ];
 
 export const InitialContactEmailDialog = ({ open, onClose, contact, onSent }) => {

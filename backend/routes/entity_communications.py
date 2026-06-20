@@ -13,6 +13,7 @@ import logging
 from config import db, get_current_user
 from services.pdf_storage import save_pdf_dual, load_attachment_bytes, storage_name_from_upload_url
 from services.email_service import send_email
+from services.signature import build_signature_html
 
 router = APIRouter()
 
@@ -300,6 +301,9 @@ async def _send_and_log(
     if not subject.strip():
         raise HTTPException(status_code=400, detail="El asunto es obligatorio")
 
+    # Firma institucional global: datos dinámicos del usuario que detona el envío
+    variables = {**variables, "Firma_Notificacion_Global": await build_signature_html(current_user)}
+
     rendered_subject = _render_vars(subject, variables)
     rendered_message_html = _render_vars(message.replace("\n", "<br>"), variables)
 
@@ -462,11 +466,12 @@ async def send_integrator_email(
 
 @router.post("/integrators/{integrator_id}/preview-email")
 async def preview_integrator_email(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     integrator = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
     if not integrator:
         raise HTTPException(status_code=404, detail="Integrador no encontrado")
     variables = _build_integrator_vars(integrator)
+    variables["Firma_Notificacion_Global"] = await build_signature_html(current_user)
     return {
         "subject": _render_vars(body.get("subject", ""), variables),
         "message": _render_vars(body.get("message", ""), variables),
@@ -550,11 +555,12 @@ async def send_new_product_email(
 
 @router.post("/new-products/{product_id}/preview-email")
 async def preview_new_product_email(product_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     product = await db.new_products.find_one({"product_id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     variables = _build_new_product_vars(product)
+    variables["Firma_Notificacion_Global"] = await build_signature_html(current_user)
     return {
         "subject": _render_vars(body.get("subject", ""), variables),
         "message": _render_vars(body.get("message", ""), variables),
