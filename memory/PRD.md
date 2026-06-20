@@ -5,6 +5,23 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Firma Institucional Global para Notificaciones {Firma_Notificacion_Global} — Jun 2026
+
+**Requerimiento:** sección en Configuración para cargar un "Logotipo para Pie de Notificaciones" y construir una variable dinámica global (bloque de firma HTML) disponible en todas las plantillas/grillas de notificación, resuelta en runtime con los datos del usuario que detona.
+
+**Backend:**
+- `routes/settings.py`: `POST/GET/DELETE /config/notification-logo` (admin; .png/.jpg; guarda `notif_logo.*` en UPLOADS_DIR e indexa en `config` type `notification_footer_logo`; invalida cache de firma).
+- `services/signature.py` (nuevo): `build_signature_html(user)` → bloque HTML con logo (URL pública `REACT_APP_BACKEND_URL/api/config/notification-logo`, cache 60s) + Nombre del usuario + `Mega Soft Computación, C.A.` + `Rif: J-00343075-7` + `Caracas - Venezuela` + Email/Telf (omite si vacío) + `Web Site: www.megasoft.com.ve`. Sin usuario (SLA automático) → nombre **"CRM - Gestor"**.
+- Token `Firma_Notificacion_Global` inyectado en TODOS los motores: `notification_engine.try_dispatch`, `other_actions_engine`, `workflow_notifications`, `project_sla_engine` (None→CRM-Gestor), `project_template_vars` (baseline) y flujo manual `_send_sequential_notification` (sobreescribe con el usuario que detona). `_render`/`render_template` insertan el HTML sin escape.
+
+**Frontend:** `Settings.jsx` nueva sección `notification-logo-section` (debajo del logo principal) con dropzone + preview. `templateVariables.js` nueva categoría "Firma Institucional" con `Firma_Notificacion_Global` → aparece en todos los editores de plantillas.
+
+**QA (testing_agent iteration_119 → 100% PASS 4/4 + unit/curl):** sección visible debajo del logo principal; upload PNG + preview + toast; dropzone con formatos; variable `master-var-Firma_Notificacion_Global` en categoría "Firma Institucional" del editor (con buscador). Backend: build_signature_html con Carlos vs María (firmas distintas), "CRM - Gestor" en automático, token resuelto sin literal. Constantes correctas.
+**⚠️ En PREVIEW; requiere REDEPLOY. En producción debe subirse el logo real (el de preview es de prueba 1x1).**
+
+
+
+
 ### Migración BD: restauración de anexos desde MÚLTIPLES ZIP paginados — Jun 2026
 
 **Aclaración del usuario:** la automatización pedida para "Importación" era para los **ZIP de anexos paginados** (parte_1, parte_2, …) que antes se cargaban de a uno — no los JSON (eso fue una confusión previa).
