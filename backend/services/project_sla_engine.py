@@ -166,6 +166,9 @@ async def dispatch_sla_action(action_id: str, project: dict) -> dict:
         return {"dispatched": False, "reason": "no_recipients"}
 
     tvars = await resolve_project_template_vars(project)
+    # Firma institucional global. SLA es automático (sin humano) → CRM - Gestor.
+    from services.signature import build_signature_html
+    tvars["Firma_Notificacion_Global"] = await build_signature_html(None)
     # Variables extra propias del SLA
     tvars.update({
         "estado_proyecto": project.get("status", ""),

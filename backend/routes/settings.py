@@ -363,6 +363,68 @@ async def delete_logo(authorization: Optional[str] = Header(None)):
     
     raise HTTPException(status_code=404, detail="No hay logo para eliminar")
 
+
+# ==================== LOGO DE PIE DE NOTIFICACIONES (FIRMA) ====================
+
+@router.post("/config/notification-logo")
+async def upload_notification_logo(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Sube el 'Logotipo para Pie de Notificaciones' usado en la firma global."""
+    user = await get_current_user(authorization)
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden cargar el logo de notificaciones")
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen (.png o .jpg)")
+
+    file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else 'png'
+    if file_extension not in ("png", "jpg", "jpeg"):
+        raise HTTPException(status_code=400, detail="Formato no permitido. Use .png o .jpg")
+
+    for existing in UPLOADS_DIR.glob("notif_logo.*"):
+        existing.unlink()
+    logo_path = UPLOADS_DIR / f"notif_logo.{file_extension}"
+    with open(logo_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    await db.config.update_one(
+        {"type": "notification_footer_logo"},
+        {"$set": {"type": "notification_footer_logo", "filename": f"notif_logo.{file_extension}",
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    try:
+        from services.signature import invalidate_signature_logo_cache
+        invalidate_signature_logo_cache()
+    except Exception:
+        pass
+    return {"message": "Logo de notificaciones subido exitosamente", "filename": f"notif_logo.{file_extension}"}
+
+
+@router.get("/config/notification-logo")
+async def get_notification_logo():
+    for logo_file in UPLOADS_DIR.glob("notif_logo.*"):
+        return FileResponse(logo_file, media_type="image/png")
+    raise HTTPException(status_code=404, detail="No hay logo de notificaciones configurado")
+
+
+@router.delete("/config/notification-logo")
+async def delete_notification_logo(authorization: Optional[str] = Header(None)):
+    user = await get_current_user(authorization)
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores")
+    removed = False
+    for existing in UPLOADS_DIR.glob("notif_logo.*"):
+        existing.unlink()
+        removed = True
+    await db.config.delete_one({"type": "notification_footer_logo"})
+    try:
+        from services.signature import invalidate_signature_logo_cache
+        invalidate_signature_logo_cache()
+    except Exception:
+        pass
+    if removed:
+        return {"message": "Logo de notificaciones eliminado"}
+    raise HTTPException(status_code=404, detail="No hay logo para eliminar")
+
 # ==================== QUOTE TEMPLATES (PDFs) ====================
 
 TEMPLATE_TYPES = [

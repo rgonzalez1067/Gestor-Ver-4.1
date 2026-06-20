@@ -122,6 +122,10 @@ async def dispatch_other_action(
             skipped.append({"row_id": row.get("row_id"), "reason": "Plantilla no encontrada"})
             continue
 
+        if "Firma_Notificacion_Global" not in template_vars:
+            from services.signature import build_signature_html
+            template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
+
         subject = _render(tpl.get("subject", ""), template_vars) or fallback_subject
         body = _render(tpl.get("body_html", "") or tpl.get("body", ""), template_vars)
 

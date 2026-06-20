@@ -16,6 +16,14 @@ export const VARIABLE_ICON_MAP = { Building2, CreditCard, Users, Server, Package
 // Catálogo unificado de categorías y variables. `key` = token, `label` = descripción.
 export const VARIABLE_CATEGORIES = [
   {
+    cat: 'Firma Institucional',
+    icon: 'Building2',
+    iconColor: 'text-emerald-600',
+    vars: [
+      { key: 'Firma_Notificacion_Global', label: 'Bloque de firma institucional (logo + datos del usuario en sesión)' },
+    ],
+  },
+  {
     cat: 'Cliente',
     icon: 'Building2',
     iconColor: 'text-blue-500',

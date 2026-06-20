@@ -257,6 +257,10 @@ async def send_workflow_notification(
     if extra_template_vars:
         template_vars.update(extra_template_vars)
 
+    # Firma institucional global (usuario que ejecuta la acción)
+    from services.signature import build_signature_html
+    template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
+
     subject = render_template(template.get("subject", ""), template_vars)
     html_content = render_template(template.get("body_html", ""), template_vars)
 

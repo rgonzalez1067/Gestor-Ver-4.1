@@ -1288,6 +1288,14 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 
     # Resolver variables del proyecto
     template_vars = await resolve_project_template_vars(project)
+    # Firma institucional: si hay usuario que detona, sobreescribir con sus datos
+    try:
+        from services.signature import build_signature_html
+        _actor = await get_current_user(authorization) if authorization else None
+        if _actor:
+            template_vars["Firma_Notificacion_Global"] = await build_signature_html(_actor)
+    except Exception:
+        pass
 
     # Construir email con plantilla + prefijo dinámico
     email_data = await _resolve_notification_email(project, target, bank_name, send_count, template_vars, override_template_id=template_id)

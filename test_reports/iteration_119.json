@@ -1,0 +1,28 @@
+{
+  "summary": "UI validation for the new 'Firma Institucional para Notificaciones' feature in /settings. All 4 critical UI checks PASS: (1) notification-logo-section visible and located BELOW the main 'Logo de la Empresa' card (Y=494 vs Y=136). (2) Dropzone present with explicit 'PNG o JPG, con soporte de fondo transparente' format hint. (3) Upload via notification-logo-file-input with set_input_files of a valid PNG renders the preview image (notification-logo-preview, blob: src) and a success toast ('Logotipo de notificaciones subido'). (4) In EmailTemplatesEditor (after expanding 'tpl-section-toggle-project' and editing 'project_notify_client'), the master-variables-sidebar shows category 'Firma Institucional' containing the chip 'master-var-Firma_Notificacion_Global' with title 'Bloque de firma institucional (logo + datos del usuario en sesión)'. Search input 'Firma' filters correctly and keeps the variable visible. Admin-only loading was not exercised as a negative case but feature works for admin.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Settings/Dashboard", "issues": ["Console hydration warnings: '<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>' (originating in Dashboard around line 374/389 and Settings line 1023/1044 due to data-ve-dynamic <span style=display:contents> wrappers around <tr>). Cosmetic — does not block functionality, but pollutes console and could cause hydration mismatches."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional, low priority) Address React hydration warning caused by <span data-ve-dynamic style=display:contents> wrappers being inserted as direct children of <tbody> around <tr> rows in Dashboard.jsx (~line 374-389) and Settings.jsx (~line 1023-1044). Replace with React.Fragment or remove the wrapping span for table rows."
+  ],
+  "critical_code_review_comments": [
+    "Settings.jsx is 1134 lines and contains many concerns (logos, emails, plantillas, etc.) — could benefit from being split into smaller subcomponents (e.g., NotificationLogoCard, CompanyLogoCard) for readability.",
+    "EmailTemplatesEditor.jsx is 1506 lines and the template list is rendered 4 times (custom/sede/project/legacy) with similar markup — extract a TemplateRow component to DRY the JSX.",
+    "Hidden file input order/positioning relies on flexbox; the visual order is correct (main logo card first, then notification logo card) — confirmed by absolute Y offsets in DOM (136 vs 494)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not retested per request)", "frontend": "100% (4/4 UI validations passed)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Uploaded a small valid PNG (/tmp/t.png, base64 1x1) as the notification logo via UI; previous logo (if any) was replaced.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature works end-to-end on UI. EmailTemplatesEditor sections are collapsed by default (openSections starts all false); to reach an edit-template-* button, first click one of: tpl-section-toggle-project / -legacy / -custom / -sede-{id}. The variables sidebar uses data-testid 'master-variables-sidebar', search 'master-var-search', chips 'master-var-{key}', no-results 'master-var-no-results'. The variable under test is master-var-Firma_Notificacion_Global. Notification logo testids: notification-logo-section, notification-logo-dropzone, notification-logo-file-input, notification-logo-preview, delete-notification-logo-button.",
+  "rca of the issue": "No bug. All requested validations passed."
+}

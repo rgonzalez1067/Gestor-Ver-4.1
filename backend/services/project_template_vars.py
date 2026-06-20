@@ -744,4 +744,12 @@ async def resolve_project_template_vars(project: dict) -> dict:
     except Exception:
         quote_vars = {}
 
+    # Firma institucional global (baseline: CRM - Gestor para flujos sin actor;
+    # los flujos manuales la sobreescriben con el usuario que detona).
+    try:
+        from services.signature import build_signature_html
+        variables["Firma_Notificacion_Global"] = await build_signature_html(None)
+    except Exception:
+        pass
+
     return {**quote_vars, **variables}

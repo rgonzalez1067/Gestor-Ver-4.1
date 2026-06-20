@@ -31,7 +31,9 @@ export const Settings = () => {
   const { canEdit } = usePermission('configuracion');
   const navigate = useNavigate();
   const [logoUrl, setLogoUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [notifLogoUrl, setNotifLogoUrl] = useState(null);
+  const [notifUploading, setNotifUploading] = useState(false);
+  const [notifDragOver, setNotifDragOver] = useState(false);  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [templates, setTemplates] = useState({});
@@ -58,9 +60,11 @@ export const Settings = () => {
   const [openSedes, setOpenSedes] = useState({ PYME: false, CORP: false });
   const fileInputRef = useRef(null);
   const templateInputRefs = useRef({});
+  const notifLogoInputRef = useRef(null);
 
   useEffect(() => {
     fetchLogo();
+    fetchNotifLogo();
     fetchTemplates();
     fetchSettings();
     fetchEmailLogs();
@@ -280,6 +284,45 @@ export const Settings = () => {
     }
   };
 
+  // ── Logotipo para Pie de Notificaciones (Firma institucional) ──
+  const fetchNotifLogo = async () => {
+    try {
+      const response = await api.get('/config/notification-logo', { responseType: 'blob' });
+      setNotifLogoUrl(URL.createObjectURL(response.data));
+    } catch (error) {
+      if (error.response?.status !== 404) console.error('Error fetching notif logo:', error);
+      setNotifLogoUrl(null);
+    }
+  };
+
+  const uploadNotifLogo = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Seleccione una imagen .png o .jpg'); return; }
+    setNotifUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      await api.post('/config/notification-logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success('Logotipo de notificaciones subido');
+      fetchNotifLogo();
+    } catch (error) {
+      toast.error(`Error: ${error.response?.data?.detail || 'No se pudo subir'}`);
+    } finally {
+      setNotifUploading(false);
+    }
+  };
+
+  const handleDeleteNotifLogo = async () => {
+    if (!window.confirm('¿Eliminar el logotipo de notificaciones?')) return;
+    try {
+      await api.delete('/config/notification-logo');
+      setNotifLogoUrl(null);
+      toast.success('Logotipo de notificaciones eliminado');
+    } catch (error) {
+      toast.error('Error al eliminar');
+    }
+  };
+
   const handleSeedBanks = async () => {
     if (!window.confirm('¿Desea poblar la base de datos con bancos de Venezuela, EE.UU. y Fintechs?')) return;
 
@@ -384,6 +427,74 @@ export const Settings = () => {
                 <p className="text-sm text-slate-500">
                   Tamaño recomendado: 200x200 píxeles o mayor
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Logotipo para Pie de Notificaciones (Firma institucional global) */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="notification-logo-section">
+            <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1 flex items-center gap-2">
+              <Image size={24} className="text-emerald-600" />
+              Logotipo para Pie de Notificaciones
+            </h2>
+            <p className="text-slate-600 mb-4">
+              Logo exclusivo para la <strong>firma institucional</strong> de correos y notificaciones.
+              Se combina con los datos del usuario en sesión en la variable global{' '}
+              <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs text-emerald-700">{'{Firma_Notificacion_Global}'}</code>,
+              disponible en todos los editores de plantillas.
+            </p>
+
+            <div className="flex items-start gap-8">
+              <div className="flex-shrink-0">
+                {notifLogoUrl ? (
+                  <div className="relative">
+                    <img
+                      src={notifLogoUrl}
+                      alt="Logotipo de notificaciones"
+                      className="w-48 h-32 object-contain border border-slate-200 rounded-lg bg-slate-50 p-2"
+                      data-testid="notification-logo-preview"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDeleteNotifLogo}
+                      className="absolute -top-2 -right-2 text-red-600 hover:text-red-700 hover:border-red-300 bg-white"
+                      data-testid="delete-notification-logo-button"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-48 h-32 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center bg-slate-50">
+                    <Image size={40} className="text-slate-400 mb-2" />
+                    <p className="text-sm text-slate-500">Sin logo</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1">
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setNotifDragOver(true); }}
+                  onDragLeave={() => setNotifDragOver(false)}
+                  onDrop={(e) => { e.preventDefault(); setNotifDragOver(false); uploadNotifLogo(e.dataTransfer.files?.[0]); }}
+                  onClick={() => notifLogoInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${notifDragOver ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:bg-slate-50'}`}
+                  data-testid="notification-logo-dropzone"
+                >
+                  <Upload size={28} className="mx-auto text-emerald-600 mb-2" />
+                  <p className="text-sm font-medium text-slate-700">
+                    {notifUploading ? 'Subiendo...' : 'Arrastra y suelta el logo aquí, o haz clic para seleccionar'}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">PNG o JPG, con soporte de fondo transparente</p>
+                </div>
+                <input
+                  type="file"
+                  ref={notifLogoInputRef}
+                  onChange={(e) => uploadNotifLogo(e.target.files?.[0])}
+                  accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                  className="hidden"
+                  data-testid="notification-logo-file-input"
+                />
               </div>
             </div>
           </div>

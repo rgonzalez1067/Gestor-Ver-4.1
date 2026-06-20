@@ -463,6 +463,9 @@ async def try_dispatch(
     tpl_vars = await _build_template_vars(quote)
     if extra_template_vars:
         tpl_vars.update(extra_template_vars)
+    # Firma institucional global (resuelve datos del usuario que detona)
+    from services.signature import build_signature_html
+    tpl_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
 
     # Email del cliente (resolver una vez)
     client_email = tpl_vars.get("Email_Contacto") or quote.get("client_email") or ""
