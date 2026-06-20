@@ -1476,7 +1476,7 @@ class PreviewNotificationRequest(BaseModel):
 @router.post("/projects/{project_id}/preview-notification")
 async def preview_notification(project_id: str, body: PreviewNotificationRequest, authorization: Optional[str] = Header(None)):
     """Vista previa de la próxima notificación de proyecto (prefijo automático por conteo)."""
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
@@ -1489,6 +1489,13 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
 
     # Resolver variables del proyecto
     template_vars = await resolve_project_template_vars(project)
+    # Firma institucional con el usuario en sesión (igual que el envío real manual)
+    try:
+        from services.signature import build_signature_html
+        if current_user:
+            template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
+    except Exception:
+        pass
 
     # Construir email (sin enviar) con prefijo basado en conteo y plantilla seleccionada
     email_data = await _resolve_notification_email(project, body.target, body.bank_name, send_count, template_vars, override_template_id=body.template_id)

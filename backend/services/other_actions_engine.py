@@ -122,9 +122,15 @@ async def dispatch_other_action(
             skipped.append({"row_id": row.get("row_id"), "reason": "Plantilla no encontrada"})
             continue
 
-        if "Firma_Notificacion_Global" not in template_vars:
-            from services.signature import build_signature_html
+        # Firma institucional global: SIEMPRE refleja al usuario que ejecuta la
+        # acción manual. Los template_vars de proyecto traen un baseline
+        # "CRM - Gestor" (resolve_project_template_vars), que aquí se sobreescribe
+        # con los datos reales del operador en sesión.
+        from services.signature import build_signature_html
+        if current_user:
             template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
+        elif "Firma_Notificacion_Global" not in template_vars:
+            template_vars["Firma_Notificacion_Global"] = await build_signature_html(None)
 
         subject = _render(tpl.get("subject", ""), template_vars) or fallback_subject
         body = _render(tpl.get("body_html", "") or tpl.get("body", ""), template_vars)

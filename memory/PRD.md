@@ -19,6 +19,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 **QA (testing_agent iteration_119 → 100% PASS 4/4 + unit/curl):** sección visible debajo del logo principal; upload PNG + preview + toast; dropzone con formatos; variable `master-var-Firma_Notificacion_Global` en categoría "Firma Institucional" del editor (con buscador). Backend: build_signature_html con Carlos vs María (firmas distintas), "CRM - Gestor" en automático, token resuelto sin literal. Constantes correctas.
 **⚠️ En PREVIEW; requiere REDEPLOY. En producción debe subirse el logo real (el de preview es de prueba 1x1).**
 
+### Fix: firma de notificaciones manuales de Proyectos mostraba "CRM - Gestor" — Jun 2026
+**Síntoma:** las notificaciones manuales de Proyectos (cambio de estado, "Otras Acciones", respuesta de implementador) mostraban la firma con "CRM - Gestor" en lugar del usuario en sesión.
+**Causa raíz:** `resolve_project_template_vars` inyecta un baseline `Firma_Notificacion_Global = CRM - Gestor`; en `other_actions_engine` el override estaba guardado con `if "Firma_Notificacion_Global" not in template_vars`, por lo que NUNCA sobreescribía (la clave ya existía con el baseline).
+**Fix:** `other_actions_engine` ahora sobreescribe SIEMPRE con `build_signature_html(current_user)` cuando hay usuario (acción manual); si no hay (automático) usa baseline/None → CRM-Gestor. Además `preview_notification` también resuelve la firma con el usuario en sesión (consistencia con el envío). Los flujos `notify_client/bank/send-notification` ya sobreescribían vía `_send_sequential_notification`. El motor SLA (`/project-sla/evaluate`, cron) sigue usando None → CRM-Gestor (correcto, automático).
+**Verificado E2E:** preview de notificación como `rgonzalez` → firma "Rafael González" (no CRM-Gestor); `build_signature_html(None)` → "CRM - Gestor". 
+**⚠️ En PREVIEW; requiere REDEPLOY.**
+
 
 
 
