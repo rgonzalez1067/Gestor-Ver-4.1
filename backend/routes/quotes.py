@@ -272,8 +272,15 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 # Generar PDF
                 pdf_buffer = generator.generate()
                 
-                # Agregar páginas estáticas/anexos según producto y segmento (PyME/Corporativo)
-                pdf_buffer = append_quote_static_pages(pdf_buffer, data.quote_type, pdf_request.client_segment)
+                # Agregar páginas estáticas/anexos según producto y segmento (PyME/Corporativo).
+                # Segmento autoritativo: PG/LP heredan del cliente (no confiar en lo que envíe el
+                # frontend, que al "Modificar" puede perder el segmento y degradar a PYME).
+                resolved_seg = await _resolve_client_segment(
+                    pdf_request.client_id or data.client_id,
+                    data.quote_type,
+                    pdf_request.client_segment or data.client_segment or "PYME",
+                )
+                pdf_buffer = append_quote_static_pages(pdf_buffer, data.quote_type, resolved_seg)
                 
                 # Estampar header/footer en TODAS las páginas (incluyendo anexos inyectados)
                 pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
@@ -1783,8 +1790,10 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
         # Generar PDF
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas/anexos según producto y segmento (PyME/Corporativo)
-        pdf_buffer = append_quote_static_pages(pdf_buffer, data.quote_type, data.client_segment)
+        # Agregar páginas estáticas/anexos según producto y segmento (PyME/Corporativo).
+        # Segmento autoritativo desde la ficha del cliente para PG/LP.
+        resolved_seg = await _resolve_client_segment(data.client_id, data.quote_type, data.client_segment or "PYME")
+        pdf_buffer = append_quote_static_pages(pdf_buffer, data.quote_type, resolved_seg)
         
         # Estampar header/footer en TODAS las páginas
         pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, data.quote_number or '', logo_path)

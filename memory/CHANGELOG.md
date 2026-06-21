@@ -939,3 +939,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Anexo corporativo (1 pág, mismo para PG y LP) cargado por el usuario → static_pdfs/anexo_gateway_corp.pdf y anexo_link_corp.pdf.
 - Segmento determinado por client_segment (PYME/CORP), definido por el operador al crear la cotización.
 - Validado: testing_agent iteration_121 17/17 (unit + e2e preview: PG CORP=5 págs, LP CORP=6 págs, PyME intacto).
+
+## 2026-06-21 — Fix: Modificar cotización Corporativa regeneraba PDF como PyME
+- Causa: el flujo "Modificar" guarda vía POST /quotes/create-with-pdf rama `data.pdf_data` (quotes.py ~L276), que usaba `pdf_request.client_segment` tal cual lo envía el frontend; al modificar, el frontend perdía el segmento y mandaba 'PYME', degradando el anexo a estándar (el doc guardado sí resolvía CORP).
+- Fix: en los sitios de guardar (site1), generar y previsualizar con template (sites 4/5) ahora el segmento se resuelve autoritativamente desde la ficha del cliente vía `_resolve_client_segment` (PG/LP heredan del cliente; VPOS conserva fallback). 
+- Validado E2E (curl URL externa) con cliente corporativo enviando client_segment=PYME: PG -> 5 págs (4 base + anexo corp), LINK_PAGO -> 6 págs (5 base + anexo corp). PyME sin regresión.
