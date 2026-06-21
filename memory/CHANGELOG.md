@@ -918,3 +918,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Frontend: variable agregada a los pickers de `ClientEmailDialog.jsx`, `Integrators.jsx` (INTEGRATOR_EMAIL_VARS), `NewProducts.jsx` (NP_EMAIL_VARS) e `InitialContactEmailDialog.jsx`.
 - Validado E2E (curl, URL externa) en los 4 módulos: el preview resuelve la firma con razón social institucional + datos del usuario en sesión (Rafael González).
 - NOTA: surte efecto en Producción al RE-DESPLEGAR.
+
+## 2026-06-20 — Botón "Homologar plantillas" (insertar firma global en todas las plantillas)
+- Backend: nuevo endpoint admin `POST /api/email-templates/append-signature` (`seed_and_templates.py`) que agrega `{Firma_Notificacion_Global}` al pie de TODAS las plantillas (persistidas + predeterminadas) que aún no la tengan. Idempotente; inserta antes de </body>/</html> o al final.
+- Frontend: botón `Homologar plantillas` (data-testid `append-signature-button`) dentro de la tarjeta "Logotipo para Pie de Notificaciones" en Configuración (Settings.jsx), fila `append-signature-row`.
+- Validado por testing_agent (iteration_120): backend 7/7 (403 no-admin, idempotencia, 4 preview-email resuelven la firma), frontend 100% (botón + POST 200 + toast + contención DOM en la tarjeta del logo).

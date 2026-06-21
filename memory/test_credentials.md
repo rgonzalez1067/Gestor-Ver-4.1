@@ -29,7 +29,8 @@
 
 ## Usuario NO-admin de pruebas (perfil Consulta + Cotizaciones inactivas)
 - Email: srubio@megasoft.com.ve
-- Password: Test1234!
+- Password: Test1234!   ⚠️ DESINCRONIZADO (jun 2026): el login devuelve "Credenciales inválidas".
+  Para pruebas de 403/no-admin usar en su lugar: Jrojas@megasoft.com.ve / Test1234! (role=user).
 - Role: user
 - user_id: usr_3e9641ea80e3
 - Name: Sergio Rubio
