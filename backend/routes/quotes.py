@@ -9,7 +9,7 @@ import logging
 import io
 import os
 
-from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_corporate_static_pages, append_equipment_conditions, stamp_header_footer_on_all_pages, render_email_template
+from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_corporate_static_pages, append_quote_static_pages, append_equipment_conditions, stamp_header_footer_on_all_pages, render_email_template
 from services.pdf_storage import save_pdf_dual
 from services.rif_formatter import format_rif
 from models import *
@@ -272,13 +272,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 # Generar PDF
                 pdf_buffer = generator.generate()
                 
-                # Agregar páginas estáticas según tipo
-                if data.quote_type in ('GATEWAY', 'LINK_PAGO'):
-                    pdf_buffer = append_pg_static_pages(pdf_buffer)
-                elif pdf_request.client_segment == 'CORP':
-                    pdf_buffer = append_corporate_static_pages(pdf_buffer)
-                else:
-                    pdf_buffer = append_vpos_static_pages(pdf_buffer)
+                # Agregar páginas estáticas/anexos según producto y segmento (PyME/Corporativo)
+                pdf_buffer = append_quote_static_pages(pdf_buffer, data.quote_type, pdf_request.client_segment)
                 
                 # Estampar header/footer en TODAS las páginas (incluyendo anexos inyectados)
                 pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
@@ -348,7 +343,9 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                     
                     generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
                     pdf_buffer = generator.generate()
-                    pdf_buffer = append_pg_static_pages(pdf_buffer)
+                    # Segmento PyME/Corporativo: resolver y aplicar el anexo correspondiente
+                    resolved_seg = await _resolve_client_segment(data.client_id, data.quote_type or "GATEWAY", data.client_segment or "PYME")
+                    pdf_buffer = append_quote_static_pages(pdf_buffer, data.quote_type or "GATEWAY", resolved_seg)
                     
                     # Estampar header/footer en TODAS las páginas
                     pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
@@ -1086,13 +1083,8 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
         generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas según tipo (LINK_PAGO reusa las de PG)
-        if quote_type in ('GATEWAY', 'LINK_PAGO'):
-            pdf_buffer = append_pg_static_pages(pdf_buffer)
-        elif client_segment == 'CORP':
-            pdf_buffer = append_corporate_static_pages(pdf_buffer)
-        else:
-            pdf_buffer = append_vpos_static_pages(pdf_buffer)
+        # Agregar páginas estáticas/anexos según producto y segmento (PyME/Corporativo)
+        pdf_buffer = append_quote_static_pages(pdf_buffer, quote_type, client_segment)
         
         # Estampar header/footer
         pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
@@ -1791,13 +1783,8 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
         # Generar PDF
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas según tipo (LINK_PAGO reusa PG)
-        if data.quote_type in ('GATEWAY', 'LINK_PAGO'):
-            pdf_buffer = append_pg_static_pages(pdf_buffer)
-        elif data.client_segment == 'CORP':
-            pdf_buffer = append_corporate_static_pages(pdf_buffer)
-        else:
-            pdf_buffer = append_vpos_static_pages(pdf_buffer)
+        # Agregar páginas estáticas/anexos según producto y segmento (PyME/Corporativo)
+        pdf_buffer = append_quote_static_pages(pdf_buffer, data.quote_type, data.client_segment)
         
         # Estampar header/footer en TODAS las páginas
         pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, data.quote_number or '', logo_path)

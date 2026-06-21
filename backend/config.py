@@ -299,6 +299,73 @@ def append_corporate_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
     return output
 
 
+# Mapa de anexos corporativos para PG / Link de Pago (truncado + fusión).
+# keep_pages = número de páginas originales a preservar antes de fusionar el anexo.
+_CORP_PG_LP_ANEXOS = {
+    "GATEWAY":   {"keep_pages": 4, "anexo": "anexo_gateway_corp.pdf"},
+    "LINK_PAGO": {"keep_pages": 5, "anexo": "anexo_link_corp.pdf"},
+}
+
+
+def apply_corporate_pg_lp_restructure(pdf_buffer: io.BytesIO, quote_type: str) -> io.BytesIO:
+    """Opción Corporativa para Payment Gateway / Link de Pago.
+
+    Trunca el PDF base conservando solo las primeras `keep_pages` páginas
+    (PG: 1-4, Link de Pago: 1-5) y fusiona a continuación la totalidad del PDF
+    corporativo anexo correspondiente al producto.
+
+    Si el anexo corporativo no está disponible en disco, se hace fallback al
+    flujo estándar (append_pg_static_pages) para no romper la generación.
+    """
+    cfg = _CORP_PG_LP_ANEXOS.get(quote_type)
+    if not PYPDF2_AVAILABLE or not cfg:
+        return pdf_buffer
+
+    anexo_path = STATIC_PDFS_DIR / cfg["anexo"]
+    if not anexo_path.exists():
+        logging.warning(
+            f"[pdf-corp] Anexo corporativo no encontrado ({cfg['anexo']}); "
+            f"fallback a anexo estándar para quote_type={quote_type}"
+        )
+        return append_pg_static_pages(pdf_buffer)
+
+    keep = cfg["keep_pages"]
+    writer = PdfWriter()
+    pdf_buffer.seek(0)
+    reader = PdfReader(pdf_buffer)
+    for i, page in enumerate(reader.pages):
+        if i < keep:
+            writer.add_page(page)
+
+    anexo_reader = PdfReader(str(anexo_path))
+    for page in anexo_reader.pages:
+        writer.add_page(page)
+
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output
+
+
+def append_quote_static_pages(pdf_buffer: io.BytesIO, quote_type: str, client_segment: str) -> io.BytesIO:
+    """Motor unificado de páginas estáticas/anexos según producto y segmento.
+
+    - PG / Link de Pago + PYME  -> anexo estándar (append_pg_static_pages).
+    - PG / Link de Pago + CORP  -> truncado + fusión del anexo corporativo.
+    - VPOS + CORP               -> anexo corporativo VPOS.
+    - VPOS + PYME               -> anexo VPOS estándar.
+    """
+    seg = (client_segment or "PYME").upper()
+    if quote_type in ("GATEWAY", "LINK_PAGO"):
+        if seg == "CORP":
+            return apply_corporate_pg_lp_restructure(pdf_buffer, quote_type)
+        return append_pg_static_pages(pdf_buffer)
+    if seg == "CORP":
+        return append_corporate_static_pages(pdf_buffer)
+    return append_vpos_static_pages(pdf_buffer)
+
+
+
 def append_equipment_conditions(pdf_bytes: bytes, equipment_type: str, sede: str = "") -> bytes:
     """Anexa el PDF de condiciones legales correspondiente al tipo de equipo y sede."""
     if not PYPDF2_AVAILABLE:
