@@ -835,6 +835,75 @@ async def get_email_templates(context: Optional[str] = None, authorization: Opti
 
     return templates
 
+SIGNATURE_TOKEN = "{Firma_Notificacion_Global}"
+
+
+def _inject_signature_block(body_html: str) -> str:
+    """Inserta el bloque de firma global al pie del cuerpo HTML.
+    Lo coloca antes de </body> (o </html>) si existen; si no, lo agrega al final."""
+    block = f'\n<p style="margin-top:16px;">{SIGNATURE_TOKEN}</p>\n'
+    body = body_html or ""
+    low = body.lower()
+    for tag in ("</body>", "</html>"):
+        idx = low.rfind(tag)
+        if idx != -1:
+            return body[:idx] + block + body[idx:]
+    return body + block
+
+
+@router.post("/email-templates/append-signature")
+async def append_signature_to_all_templates(authorization: Optional[str] = Header(None)):
+    """Homologa la plataforma: agrega la variable {Firma_Notificacion_Global} al pie
+    de TODAS las plantillas de correo (persistidas + predeterminadas que falten) que
+    aún no la incluyan. Idempotente: las que ya la tienen se omiten. Solo admin."""
+    user = await get_current_user(authorization)
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden homologar las plantillas")
+
+    # Reunir el universo completo de plantillas (misma lógica que GET /email-templates sin contexto)
+    templates = await db.email_templates.find({}, {"_id": 0}).to_list(500)
+    tombstoned = {
+        d["template_id"]
+        async for d in db.deleted_default_templates.find({}, {"_id": 0, "template_id": 1})
+    }
+    template_ids = {t["template_id"] for t in templates}
+    for source in (EMAIL_TEMPLATES_BY_SEDE, PROJECT_EMAIL_TEMPLATES, DEFAULT_EMAIL_TEMPLATES):
+        for template_id, default_template in source.items():
+            if template_id in template_ids or template_id in tombstoned:
+                continue
+            if source is DEFAULT_EMAIL_TEMPLATES and any(t["template_id"].startswith(template_id + "_") for t in templates):
+                continue
+            templates.append(default_template)
+            template_ids.add(template_id)
+
+    now = datetime.now(timezone.utc).isoformat()
+    updated = 0
+    skipped = 0
+    for t in templates:
+        body = t.get("body_html") or ""
+        if SIGNATURE_TOKEN in body:
+            skipped += 1
+            continue
+        new_body = _inject_signature_block(body)
+        data = {k: v for k, v in t.items() if k != "_id"}
+        data["body_html"] = new_body
+        data["updated_at"] = now
+        await db.email_templates.update_one(
+            {"template_id": t["template_id"]},
+            {"$set": data},
+            upsert=True,
+        )
+        updated += 1
+
+    return {
+        "updated": updated,
+        "skipped": skipped,
+        "total": len(templates),
+        "message": f"Firma agregada a {updated} plantilla(s). {skipped} ya la tenían.",
+    }
+
+
+
 @router.get("/email-templates/{template_id}")
 async def get_email_template(template_id: str, authorization: Optional[str] = Header(None)):
     """Obtiene una plantilla de correo específica"""

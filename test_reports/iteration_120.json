@@ -1,0 +1,36 @@
+{
+  "summary": "Validated the new 'Homologar plantillas' feature and the global signature variable. Backend: 7/7 pytest cases pass — (a) POST /api/email-templates/append-signature returns 403 for non-admin (Jrojas) and 401/403 unauthenticated; (b) endpoint is idempotent for admin (rgonzalez) — second call returns updated=0, skipped=48, total=48 with the expected 'Firma agregada a 0 plantilla(s). 48 ya la tenían.' message; (c) preview-email endpoints for /api/clients/{id}, /api/integrators/{id}, /api/new-products/{id} and /api/initial-contacts/{id} all resolve {Firma_Notificacion_Global} (no raw token left in 'message', and 'Mega Soft' razon social present in rendered HTML). Frontend (Playwright on /settings): append-signature-row is visible INSIDE notification-logo-section (Logotipo para Pie de Notificaciones) — confirmed by DOM containment check. The button data-testid='append-signature-button' has the exact text 'Homologar plantillas'. Clicking it (with confirm dialog auto-accepted) triggers POST /api/email-templates/append-signature -> 200 with body {updated:0,skipped:48,total:48} and a success toast 'Firma agregada a 0 plantilla(s). 48 ya la tenían.' is rendered. Variable {Firma_Notificacion_Global} is declared in all 4 frontend picker arrays (ClientEmailDialog VARIABLES, Integrators INTEGRATOR_EMAIL_VARS, NewProducts NP_EMAIL_VARS, InitialContactEmailDialog VARIABLES) — verified via grep on source files.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      { "screen": "Settings", "issues": ["Pre-existing React hydration warnings ('<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>') in Settings.jsx around lines 1060/1081 due to data-ve-dynamic style=display:contents wrapper spans around <tr> rows inside <tbody>. Cosmetic only — already flagged in iteration_119; no functional impact on the append-signature feature."] }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_append_signature_and_previews.py",
+    "/app/test_reports/pytest/iter120_signature.xml"
+  ],
+  "action_items": [
+    "(Optional, pre-existing) Wrap data-ve-dynamic spans around <tr> with React.Fragment to clear the hydration warning in Settings.jsx (line ~1060/1081).",
+    "(Maintenance) The non-admin test user srubio@megasoft.com.ve / Test1234! documented in /app/memory/test_credentials.md no longer logs in (server returns 'Credenciales inválidas'). The password is desynced. As a workaround the test now uses Jrojas@megasoft.com.ve / Test1234! (also role=user). Please reset srubio's password or update the credentials file."
+  ],
+  "critical_code_review_comments": [
+    "POST /api/email-templates/append-signature: correctly uses Header(None) + get_current_user + role check (returns 403 for non-admin) and is idempotent via SIGNATURE_TOKEN substring check — good implementation.",
+    "_inject_signature_block places the firma before </body> or </html> if present, otherwise appends — robust to both fragment and full HTML bodies.",
+    "Settings.jsx is now 1171 lines — still bloated. Consider extracting NotificationLogoCard (containing the dropzone + append-signature-row) into its own component.",
+    "Backend services consistently call build_signature_html(current_user) before render — good. Confirmed in client_communications.py, entity_communications.py (3 endpoints), initial_contact_communications.py.",
+    "Frontend pickers use plain string keys '{Firma_Notificacion_Global}' across 4 files — duplication could be centralized in a shared constants module (low priority)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_append_signature_and_previews.py (new)"
+  ],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100% (button + API call + toast + DOM containment all PASS)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123. Non-admin (for 403 test): used Jrojas@megasoft.com.ve / Test1234! — note srubio's password listed in /app/memory/test_credentials.md no longer works.",
+  "seed_data_creation": "None. Endpoint is idempotent and the main agent had already run it; second-call assertion was used.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature 'Homologar plantillas' is fully working end-to-end (UI + API). The append-signature endpoint state in the DB shows 48 templates already homologated. To re-run the pytest file: `python -m pytest /app/backend/tests/test_append_signature_and_previews.py -v`. The file auto-loads REACT_APP_BACKEND_URL from /app/frontend/.env (backend/.env points to a different stale URL — do NOT rely on env var being exported). Testids: append-signature-row, append-signature-button, notification-logo-section. The 4 preview-email endpoints accept JSON with key 'message' (also 'body_html'); the response field that contains the rendered message is 'message'.",
+  "rca of the issue": "N/A — no bug. All requested validations passed. Only side observation: srubio@megasoft.com.ve password is out of sync; switched to Jrojas for the non-admin 403 test."
+}

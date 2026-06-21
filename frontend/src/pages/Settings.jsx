@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi, DatabaseBackup } from 'lucide-react';
+import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi, DatabaseBackup, PenLine } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import { ContingencyAttachmentsExport } from '../components/ContingencyAttachmentsExport';
@@ -32,6 +32,7 @@ export const Settings = () => {
   const navigate = useNavigate();
   const [logoUrl, setLogoUrl] = useState(null);
   const [notifLogoUrl, setNotifLogoUrl] = useState(null);
+  const [appendingSignature, setAppendingSignature] = useState(false);
   const [notifUploading, setNotifUploading] = useState(false);
   const [notifDragOver, setNotifDragOver] = useState(false);  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -323,6 +324,20 @@ export const Settings = () => {
     }
   };
 
+  const handleAppendSignatureToTemplates = async () => {
+    if (!window.confirm('Se agregará la variable {Firma_Notificacion_Global} al pie de TODAS las plantillas de correo que aún no la tengan. ¿Continuar?')) return;
+    setAppendingSignature(true);
+    try {
+      const res = await api.post('/email-templates/append-signature');
+      const { updated = 0, skipped = 0 } = res.data || {};
+      toast.success(`Firma agregada a ${updated} plantilla(s). ${skipped} ya la tenían.`);
+    } catch (error) {
+      toast.error(`Error: ${error.response?.data?.detail || 'No se pudo homologar las plantillas'}`);
+    } finally {
+      setAppendingSignature(false);
+    }
+  };
+
   const handleSeedBanks = async () => {
     if (!window.confirm('¿Desea poblar la base de datos con bancos de Venezuela, EE.UU. y Fintechs?')) return;
 
@@ -496,6 +511,28 @@ export const Settings = () => {
                   data-testid="notification-logo-file-input"
                 />
               </div>
+            </div>
+
+            {/* Homologación: insertar la firma global en todas las plantillas */}
+            <div className="mt-6 pt-5 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid="append-signature-row">
+              <div className="flex items-start gap-2">
+                <PenLine size={18} className="text-emerald-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Insertar firma en todas las plantillas</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Agrega <code className="bg-slate-100 px-1 py-0.5 rounded text-[11px] text-emerald-700">{'{Firma_Notificacion_Global}'}</code> al pie de las plantillas que aún no la tengan. Las que ya la incluyen se omiten.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleAppendSignatureToTemplates}
+                disabled={appendingSignature}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0"
+                data-testid="append-signature-button"
+              >
+                <PenLine size={16} className="mr-2" />
+                {appendingSignature ? 'Aplicando...' : 'Homologar plantillas'}
+              </Button>
             </div>
           </div>
 
