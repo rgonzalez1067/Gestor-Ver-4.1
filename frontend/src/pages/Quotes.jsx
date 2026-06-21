@@ -3399,6 +3399,7 @@ export const Quotes = () => {
     setQuoteData({
       quote_type: quote.quote_type || 'VPOS',
       client_id: quote.client_id || '',
+      client_segment: (quote.client_segment || 'PYME').toUpperCase(),
       pricing_model: quote.pricing_model || 'conventional',
       cantidad_cajas: quote.cantidad_cajas || 1,
       cantidad_bancos: quote.cantidad_bancos || 1,

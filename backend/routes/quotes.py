@@ -26,19 +26,13 @@ router = APIRouter()
 # ==================== QUOTES ENDPOINTS ====================
 
 async def _resolve_client_segment(client_id: Optional[str], quote_type: str, fallback: str) -> str:
-    """Bug fix canal Gateway Corporativo: para cotizaciones Payment Gateway / Link de
-    Pago el segmento (canal) se hereda estrictamente del CLIENTE (su ficha), NO de la
-    sede del ejecutivo. Si la ficha del cliente es 'Corporativo' → 'CORP'; si es
-    Pymes/Emprendedor/Mixto → 'PYME'. Para el resto de tipos se conserva el fallback."""
-    if quote_type not in ("GATEWAY", "LINK_PAGO") or not client_id:
-        return fallback
-    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0, "segment": 1})
-    seg = ((client.get("segment") if client else "") or "").strip().lower()
-    if seg in ("corporativo", "corp", "corporate"):
+    """El segmento (PyME/Corporativo) lo determina la OPCIÓN DEL MENÚ que elige el
+    operador al emitir la cotización (Clientes PyME vs Clientes Corporativos), NO la
+    clasificación de la ficha del cliente. Se normaliza estrictamente a 'CORP' o 'PYME'."""
+    seg = (fallback or "").strip().upper()
+    if seg in ("CORP", "CORPORATIVO", "CORPORATE"):
         return "CORP"
-    if seg in ("pymes", "pyme", "emprendedor", "mixto"):
-        return "PYME"
-    return fallback
+    return "PYME"
 
 @router.post("/quotes", response_model=Quote)
 async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = Header(None)):
@@ -73,9 +67,9 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     
     quote_number = await generate_quote_number(user_sede)
     
-    # Bug fix: canal/segmento de Gateway Corporativo se hereda del cliente.
+    # El segmento PyME/Corporativo lo define la opción del menú elegida por el operador.
     qtype = quote_data.quote_type or "VPOS"
-    resolved_segment = await _resolve_client_segment(quote_data.client_id, qtype, user_sede)
+    resolved_segment = await _resolve_client_segment(quote_data.client_id, qtype, quote_data.client_segment or user_sede)
     
     quote = Quote(
         quote_number=quote_number,
@@ -107,7 +101,7 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         pg_recurring_cost=quote_data.pg_recurring_cost,
         pg_transaction_range=quote_data.pg_transaction_range,
         sede=user_sede,  # Sede del usuario
-        client_segment=resolved_segment if qtype in ("GATEWAY", "LINK_PAGO") else "PYME",
+        client_segment=resolved_segment,
         created_by_user_id=current_user.get("user_id")  # ID del usuario que crea
     )
     

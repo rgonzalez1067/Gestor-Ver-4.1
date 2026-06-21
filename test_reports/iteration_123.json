@@ -1,0 +1,30 @@
+{
+  "summary": "Validated the bug fix that makes the PyME vs Corporativo PDF format follow the MENU option chosen by the operator (Clientes PyME / Clientes Corporativos) at creation time, and that 'Modificar Cotización' preserves the original client_segment instead of degrading it to PYME. Backend was previously reconfirmed by the main agent via curl; this run focused on the frontend (creation badge + modify preservation) and on intercepting the outgoing /api/quotes/preview-pdf-with-template request body issued by the wizard, which is the definitive source of truth for PDF format selection.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "QuoteWizardDialog header (Modificar mode)", "issues": ["The Corporativo/Pyme badge next to the title is gated by `!isEditing` (QuoteWizardDialog.jsx L236), so it is intentionally hidden when modifying a quote. Functionally the segment is preserved (confirmed via network capture), but if the product spec expects the badge to be visible during 'Modificar' to give the operator visual confirmation of the preserved segment, the condition should be relaxed to `quoteData.client_segment && (...)` regardless of isEditing. Non-blocking."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL: Drop the `!isEditing` gate on the segment-badge in /app/frontend/src/components/quotes/QuoteWizardDialog.jsx L236 so the 'Corporativo'/'Pyme' badge is also visible when modifying an existing quote (currently only shown on new quotes). Functional behaviour is already correct; this is a UX/clarity improvement only."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routes/quotes.py L28 _resolve_client_segment now correctly normalizes the operator's chosen segment (fallback) to CORP/PYME and IGNORES client.segment. This is the right contract: the menu drives the PDF format, not the client master record. Good.",
+    "/app/frontend/src/pages/Quotes.jsx L3402 `client_segment: (quote.client_segment || 'PYME').toUpperCase()` properly restores the segment from the persisted quote when opening 'Modificar Cotización' → 'Nueva Versión'. Confirmed via network interception of the preview-pdf-with-template request body issued from the wizard.",
+    "/app/frontend/src/components/quotes/NewQuoteButtons.jsx (testids new-impl-pyme / new-impl-corp) correctly dispatches the segment to openWizard(segment) in Quotes.jsx L997, which seeds quoteData.client_segment = segment.",
+    "QuoteWizardDialog.jsx L236 hides the segment-badge while `isEditing=true`. The internal state IS preserved (PDF request shows CORP for a Corp quote) but the operator cannot see a visual confirmation of the segment while modifying. Consider removing the !isEditing gate for parity with the create flow.",
+    "Pre-existing hydration warnings (<tr> cannot be a child of <span>, <span> cannot be a child of <tbody>) caused by data-ve-dynamic wrappers in QuotesTable persist. Not part of this fix but worth tracking."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (re-reconfirmed by main agent via curl)", "frontend": "100% (4/4 scenarios validated)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "None. Modify wizard was opened in 'Nueva Versión' mode and closed without saving so no persisted changes were made. Existing quotes used: quo_05e569ead910 (COT-2026-06-082-PYME, GATEWAY, CORP) for the Corp-modify case and quo_ef6b2a5e89e4 (COT-2026-06-087-PYME, GATEWAY, PYME) for the Pyme-modify case.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Definitive way to validate the menu-driven segment behavior end-to-end on the frontend: log in as admin → /quotes → attach a request listener on /api/quotes/preview-pdf-with-template POST → trigger preview-pdf either from a new wizard (NewQuoteButtons → new-impl-corp / new-impl-pyme) or from a 'Modificar Cotización' → 'Nueva Versión' on an existing quote → inspect the POST body's client_segment. That body is what the backend uses for PDF format selection. Both CORP and PYME flows were verified in this iteration.",
+  "rca of the issue": "ROOT CAUSE (already fixed by main agent): (1) Backend _resolve_client_segment used to read client.segment from Mongo, which forced the PDF format from the client master record and ignored the operator's menu choice. (2) The Modify load in Quotes.jsx did NOT restore client_segment on the wizard state, so when the operator re-saved or previewed a Corp quote in modify mode the wizard defaulted to PYME. FIX VERIFIED: (a) routes/quotes.py _resolve_client_segment now normalizes the request fallback (operator's menu) to 'CORP' or 'PYME' and never reads client.segment. (b) Quotes.jsx L3402 restores client_segment from the stored quote on modify load. END-TO-END EVIDENCE: With test interception of /api/quotes/preview-pdf-with-template, the wizard opened via 'Modificar Cotización → Nueva Versión' on quo_05e569ead910 (CORP) sent client_segment='CORP', and on quo_ef6b2a5e89e4 (PYME) sent client_segment='PYME'. Creating a new quote via the 'Clientes Corporativos' menu shows the 'Corporativo' badge in the header; via 'Clientes Pymes' shows the 'Pyme' badge."
+}
