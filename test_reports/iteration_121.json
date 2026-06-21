@@ -1,0 +1,27 @@
+{
+  "summary": "Validated the new corporate PDF restructuring engine for Payment Gateway (GATEWAY) and Link de Pago (LINK_PAGO) quotes. Backend: 17/17 pytest cases PASS — (a) Pure-function suite on /app/backend/config.py: apply_corporate_pg_lp_restructure keeps first 4 pages + 1-page anexo_gateway_corp.pdf for GATEWAY (=5 total) and first 5 pages + 1-page anexo_link_corp.pdf for LINK_PAGO (=6 total), unknown quote_type passes through unchanged, fallback to append_pg_static_pages activates when anexo missing (verified by monkeypatching STATIC_PDFS_DIR). (b) append_quote_static_pages routing: GATEWAY/LINK_PAGO + PYME page-counts match append_pg_static_pages exactly; + CORP truncates to 5/6 pages; lowercase 'corp' segment is normalized; VPOS_MPOS + CORP still uses anexo_corporativa.pdf; extract_text() confirms first 4 (PG) / 5 (LP) pages are EXACTLY the base pages (label 'PGBASE-PAGE-{i}' / 'LPBASE-PAGE-{i}' preserved). (c) E2E preview endpoint /api/quotes/preview-pdf-with-template hit with admin token (rgonzalez): GATEWAY+PYME -> 200, >4 pages (base 5 + anexo_pg.pdf); GATEWAY+CORP -> 200, EXACTLY 5 pages; LINK_PAGO+PYME -> 200, >5 pages; LINK_PAGO+CORP -> 200, EXACTLY 6 pages; CORP variant always has fewer pages than PYME (truncation effective). Static grep confirms append_quote_static_pages is wired at all 5 generation sites (create_quote_with_pdf pdf_request L276, create_quote_with_pdf pg_setup_items L348, regenerate_quote_pdf L1087, generate_quote_pdf_with_template L1735, preview_quote_pdf_with_template L1787); the persisted /uploads/{quote_number}_Cotizacion.pdf uses the SAME pdf_buffer (post-anexo) bytes (L284 final_bytes = pdf_buffer.getvalue()), so send-to-client transmits the truncated+merged document.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration121_corp_pg_lp_anexo.py",
+    "/app/test_reports/pytest/iter121_corp_pg_lp.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "apply_corporate_pg_lp_restructure() has a SAFE fallback: when the corporate anexo file is missing it falls back to append_pg_static_pages() and only logs a warning — verified by monkeypatching STATIC_PDFS_DIR. Good defensive coding.",
+    "_CORP_PG_LP_ANEXOS map cleanly encodes the keep_pages contract (GATEWAY=4, LINK_PAGO=5). Easy to extend if a new product needs the same treatment.",
+    "append_quote_static_pages() correctly normalizes client_segment via .upper() and defaults to 'PYME' when None — safe.",
+    "All 5 PDF generation call-sites in routes/quotes.py have been migrated to append_quote_static_pages(buffer, quote_type, segment). The persisted file (UPLOADS_DIR / '{quote_number}_Cotizacion.pdf') writes the same buffer bytes — so preview, save, regenerate and 'send to client' all share the same structure. No regression risk for PyME (page count matches legacy exactly).",
+    "Minor (pre-existing): PyPDF2 is deprecated — the project should consider migrating to pypdf at some point but it is not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration121_corp_pg_lp_anexo.py (new)"
+  ],
+  "success_rate": { "backend": "100% (17/17)", "frontend": "N/A (backend-only testing requested)" },
+  "test_credentials": "Admin used for E2E preview: rgonzalez@megasoft.com.ve / admin123. Login returns session_token in body; used as Bearer in /api/quotes/preview-pdf-with-template.",
+  "seed_data_creation": "None. The preview endpoint does not persist any quote; only an in-memory PDF is generated and returned. No DB writes performed by the test suite.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature is fully verified. To re-run: `python -m pytest /app/backend/tests/test_iteration121_corp_pg_lp_anexo.py -v`. The pure-function tests build synthetic PDFs in-memory with reportlab and validate page counts and page-by-page text content via PdfReader. The E2E tests hit /api/quotes/preview-pdf-with-template with a minimal TemplateQuotePDFRequest payload (pg_setup_items+pg_recurring_cost provided so the dynamic PDF generator builds the full PG/LP base). The BASE_URL is read from /app/frontend/.env (REACT_APP_BACKEND_URL). Persistence path (POST /api/quotes with pdf_data) was NOT exercised end-to-end because it requires valid client_id/integrator_id and is structurally identical (same append_quote_static_pages call, same buffer written to disk via save_pdf_dual). The main agent already validated the function with their own unit test, so this iteration provides the regression net.",
+  "rca of the issue": "N/A — no bug. All requested validations passed."
+}
