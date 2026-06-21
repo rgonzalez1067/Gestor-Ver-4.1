@@ -950,3 +950,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Fix (frontend, Quotes.jsx ~L3433): al cargar la cotización para modificar se re-etiqueta como `fixed:true` el item base (observacion==='Costo Base' o concepto contiene 'persona jur'). Aplica a GATEWAY y LINK_PAGO.
 - Confirmado con data de Mongo (quotes con num_products==setup_items estaban infladas) y validado por testing_agent iteration_122 (2/2): COT-2026-06-078 ahora 4 (antes 5), LINK_PAGO COT-2026-06-155 ahora 1 (antes 2). Re-guardar sana las cotizaciones ya infladas.
 - Nota: el fix es en la carga; el flag `fixed` sigue sin persistirse en BD (no necesario, el wizard re-etiqueta en cada modificación).
+
+## 2026-06-21 — Fix: Link de Pago no registraba el costo (total_usd=0) en el proyecto
+- Causa: en create_quote_with_pdf (ruta de guardado del wizard, quotes.py L208) la condición de cálculo del total era `== "GATEWAY"`, excluyendo LINK_PAGO; las cotizaciones Link de Pago caían al else (services/hardware vacíos) y guardaban total_usd=0. Al convertir a proyecto se copiaba 0.
+- Fix: la condición ahora es `in ("GATEWAY","LINK_PAGO")` → total_usd = subtotal_usd = suma de pg_setup_items (base imponible / Setup Neto), igual que GATEWAY.
+- Backfill: 7 cotizaciones LINK_PAGO existentes con total_usd=0 corregidas a la suma de su setup (e.g. 360, 372, 288). No había proyectos LINK_PAGO existentes.
+- Verificado por datos: cotizaciones LINK_PAGO ahora reportan total_usd correcto; nuevas LP heredarán el costo al proyecto vía quote_transitions (project.total_usd = quote.total_usd).
