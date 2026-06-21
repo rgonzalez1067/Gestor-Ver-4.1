@@ -963,3 +963,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Frontend (Quotes.jsx modify-load L3402): restaura client_segment desde la cotización guardada (antes se degradaba a PYME al modificar — causa real del bug anterior). QuoteWizardDialog: el badge Corporativo/Pyme ahora se muestra también en modo Modificar.
 - Verificado: curl (cliente CORP + menú PyME -> 8 págs PyME; + menú CORP -> 5 págs Corp) y testing_agent iteration_123 (4/4 frontend, interceptando el request real: Modificar preserva CORP/PYME).
 - Nota: esto reemplaza la lógica previa donde el segmento se heredaba de la ficha del cliente.
+
+## 2026-06-21 — Fix: Modificar PG/Link de Pago CORP renderizaba PDF PyME (regenerate-pdf fallaba)
+- Causa raíz: el flujo "Modificar" (handleSaveEditedQuote) usa POST /quotes/{id}/regenerate-pdf. Esa función construía TemplateQuotePDFRequest pasando None en campos exigidos como string (cliente_address, integrator_name, integrator_app_name, pinpad_model, sponsor_bank_name, notes). En PG/LP esos campos suelen ser None -> 500 de validación -> el PDF corporativo no se regeneraba. En VPOS esos campos están poblados, por eso funcionaba.
+- Fix (quotes.py regenerate_quote_pdf): coerción None->"" en esos campos (quote.get(k) or "").
+- Verificado por curl: regenerate-pdf en GATEWAY CORP -> 5 págs (corporativo) y LINK_PAGO CORP -> 6 págs (corporativo). Antes daba HTTP 500.
+- Resultado: al Modificar una cotización PG/LP Corporativa, el PDF ahora se regenera en formato Corporativo.
