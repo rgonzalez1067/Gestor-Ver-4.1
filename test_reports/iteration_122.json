@@ -1,0 +1,24 @@
+{
+  "summary": "Validated frontend bug fix in Quotes.jsx (L3432-3445): when loading a GATEWAY or LINK_PAGO quote for 'Modificar Cotización', the base concept 'Persona Jurídica' (Costo Base) is re-tagged with fixed:true so the count `pgMediosPagoCount = pgSetupItems.filter(i=>!i.fixed).length` excludes it. End-to-end UI validation passed for both quote types.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix at /app/frontend/src/pages/Quotes.jsx L3436-3440 is minimal and targeted: maps pg_setup_items on load and re-applies fixed:true to items where observacion==='Costo Base' OR concepto contains 'persona jur'. Both conditions provide redundancy in case legacy quotes lack one or the other identifier. Good defensive coding.",
+    "The fix only addresses the LOAD path. The root cause (the `fixed` flag being dropped when the quote is persisted) is NOT being fixed at the SAVE side — this means stored data in Mongo still has `fixed` missing on Persona Jurídica. This is acceptable because (a) the wizard re-tags on every load, and (b) the inflated `num_products` in already-saved quotes is a separate data backfill concern handled elsewhere. Recommend documenting that future code paths consuming pg_setup_items from Mongo should NOT rely on `fixed` and should use the 'Costo Base' / 'persona jur' heuristic, OR persist the flag on save (server-side, in /app/backend/routes/quotes.py) to make the data self-describing.",
+    "Pre-existing console hydration warnings observed (`<tr> cannot be a child of <span>` and `<span> cannot be a child of <tbody>`) — caused by `data-ve-dynamic` instrumentation wrappers around table rows. Cosmetic; not part of this bug but worth tracking."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (frontend-only testing requested)", "frontend": "100% (2/2 scenarios validated)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "None — used existing Borrador quotes only. The wizard was opened in 'Nueva Versión' mode, so closing the modal without saving leaves no persisted change.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To re-verify: login as admin → /quotes → click ⋮ (data-testid=quote-actions-{quote_id}) → 'Modificar Cotización' (modify-quote-btn-{quote_id}) → 'Nueva Versión' (modify-choice-new-version) → justificación >=20 chars (impl-justification-input) → 'Confirmar y Guardar' (impl-confirm-save-btn). Wizard opens with the existing PG/LP data. In Section 2, the table must show Persona Jurídica with a 'Fijo' badge and 'Costo Base' observation, followed by the medios de pago. In Section 3 the banner 'Medios de Pago seleccionados: N' MUST equal the number of actual medios de pago (NOT count Persona Jurídica). After clicking 'Generar Tabla de Recurrentes' (pg-generate-recurring-btn), the header reads 'Tabla calculada para N medio(s) de pago'.",
+  "rca of the issue": "ROOT CAUSE: When a PG/LP quote was persisted, the `fixed:true` flag on the 'Persona Jurídica' (Costo Base) item was dropped by the backend serializer. On RE-OPEN via 'Modificar', the loader hydrated pgSetupItems without `fixed`, so the derived count `pgMediosPagoCount = pgSetupItems.filter(i=>!i.fixed).length` included Persona Jurídica as if it were a medio de pago, inflating `num_products` by +1 in the recurring-costs table. REPRO STEPS validated in this iteration: (1) Login as admin. (2) Modificar COT-2026-06-078-PYME (GATEWAY, Borrador, 4 medios+PJ): with fix, count = 4 (was 5 pre-fix). (3) Modificar COT-2026-06-155-PYME (LINK_PAGO, Borrador, 1 medio+PJ): with fix, count = 1 (was 2 pre-fix). MITIGATION applied: /app/frontend/src/pages/Quotes.jsx L3436-3440 re-tags base item as fixed:true on load. The recurring table is now generated for the correct number of products in both PG and LP modify flows."
+}

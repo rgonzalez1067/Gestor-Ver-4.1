@@ -3430,7 +3430,15 @@ export const Quotes = () => {
     
     // Load PG data if it's a Payment Gateway / Link de Pago quote
     if (quote.quote_type === 'GATEWAY' || quote.quote_type === 'LINK_PAGO') {
-      setPgSetupItems(quote.pg_setup_items || []);
+      // Re-etiquetar el concepto base (Persona Jurídica / "Costo Base") como fixed.
+      // El flag `fixed` se descarta al guardar; sin restaurarlo, al modificar se
+      // contaría como un medio de pago extra e inflaría la tabla de recurrentes (+1 producto).
+      const restoredSetup = (quote.pg_setup_items || []).map(item => {
+        const isBase = item.observacion === 'Costo Base' ||
+          (item.concepto || '').toLowerCase().includes('persona jur');
+        return isBase ? { ...item, fixed: true } : item;
+      });
+      setPgSetupItems(restoredSetup);
       setPgTransactionRange(quote.pg_transaction_range || null);
     }
     
