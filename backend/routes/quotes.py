@@ -462,7 +462,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         }
         
     except Exception as e:
-        logging.error(f"Error creando cotización con PDF: {str(e)}")
+        import traceback
+        logging.error(f"Error creando cotización con PDF: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error al crear cotización: {str(e)}")
 
 
