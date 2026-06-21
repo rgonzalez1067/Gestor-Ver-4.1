@@ -979,3 +979,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
   - Guardar (create-with-pdf): corporativo
   - Modificar (duplicate -> PUT -> regenerate-pdf): 5 (simulación completa)
 - Junto con el fix previo de regenerate-pdf (None->""), el flujo Modificar de PG/LP Corporativo ahora genera correctamente el PDF corporativo.
+
+## 2026-06-21 — Fix definitivo: asimetría de "Exportar PDF" + regresión Modificar Corporativo
+- FALLO 1 (causa raíz real): exportCurrentQuoteToPDF (Quotes.jsx L2168) elegía endpoint LEGACY /api/quotes/generate-pdf cuando hasTemplate/useTemplateForPDF era false -> Exportar generaba un PDF desactualizado/PyME, mientras Previsualizar (preview-pdf-with-template) y Guardar (create-with-pdf) daban Corp. Fix: Exportar ahora usa SIEMPRE /api/quotes/generate-pdf-with-template -> los 3 botones idénticos.
+- FALLO 2: regenerate-pdf (usado por Modificar) preserva el segmento CORP del registro original y ya no falla por campos None (coerción None->'' en strings y cantidad_cajas None->1).
+- Verificado: testing_agent iteration_124, 6/6 pytest -> GATEWAY CORP=5 / LINK_PAGO CORP=6 / PyME=8 en los 3 endpoints; regenerate-pdf conserva CORP en GATEWAY y LINK_PAGO (incl. cotización real quo_05e569ead910).
