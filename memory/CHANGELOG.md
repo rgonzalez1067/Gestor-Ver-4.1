@@ -928,3 +928,14 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Causa raíz: backend/.env tenía REACT_APP_BACKEND_URL OBSOLETO (action-key-mismatch.preview... → 404). signature.py arma el <img src> del logo con esa base en runtime, por eso el logo salía roto en los correos.
 - Fix: actualizado backend/.env REACT_APP_BACKEND_URL a la URL actual (global-signature-fix.preview...) y reiniciado backend. Verificado: el src renderizado responde HTTP 200 (image, 19825 bytes).
 - NOTA producción: al desplegar, el backend debe tener REACT_APP_BACKEND_URL = URL pública de producción para que el logo cargue allí.
+
+## 2026-06-21 — Motor condicional de PDFs Corporativos para PG y Link de Pago
+- Backend (config.py): nuevas funciones `apply_corporate_pg_lp_restructure(buffer, quote_type)` y motor unificado `append_quote_static_pages(buffer, quote_type, client_segment)`.
+  - PG/LP + PYME: flujo estándar (append_pg_static_pages) — sin cambios.
+  - PG + CORP: conserva páginas 1-4 + fusiona anexo_gateway_corp.pdf.
+  - LP + CORP: conserva páginas 1-5 + fusiona anexo_link_corp.pdf.
+  - VPOS CORP/PYME: sin cambios. Fallback seguro a estándar si falta el anexo.
+- quotes.py: los 5 puntos de generación (crear, regenerar, generar/previsualizar con template) usan el motor unificado. El PDF persistido = el que se envía al cliente.
+- Anexo corporativo (1 pág, mismo para PG y LP) cargado por el usuario → static_pdfs/anexo_gateway_corp.pdf y anexo_link_corp.pdf.
+- Segmento determinado por client_segment (PYME/CORP), definido por el operador al crear la cotización.
+- Validado: testing_agent iteration_121 17/17 (unit + e2e preview: PG CORP=5 págs, LP CORP=6 págs, PyME intacto).
