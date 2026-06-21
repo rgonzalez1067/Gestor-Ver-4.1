@@ -2165,10 +2165,10 @@ export const Quotes = () => {
       
       const backendUrl = process.env.REACT_APP_BACKEND_URL;
       
-      // Decidir qué endpoint usar
-      const endpoint = (hasTemplate && useTemplateForPDF) 
-        ? '/api/quotes/generate-pdf-with-template'
-        : '/api/quotes/generate-pdf';
+      // Homogeneidad (Fallo 1): Exportar usa SIEMPRE el mismo motor de plantilla
+      // que Previsualizar (preview-pdf-with-template) y Guardar (create-with-pdf),
+      // para que las 3 salidas sean idénticas. Nunca caer al endpoint legacy.
+      const endpoint = '/api/quotes/generate-pdf-with-template';
       
       // Usar fetch nativo para mejor control
       const response = await fetch(`${backendUrl}${endpoint}`, {

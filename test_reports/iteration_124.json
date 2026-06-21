@@ -1,0 +1,32 @@
+{
+  "summary": "Validated the two fixes for the Corporativo (CORP) PG/LP PDF generation flow: (1) PDF SYMMETRY: the three quote PDF endpoints (generate-pdf-with-template, preview-pdf-with-template, create-with-pdf) produce IDENTICAL page counts for the same payload — GATEWAY+CORP=5, LINK_PAGO+CORP=6, GATEWAY+PYME=8. (2) MODIFY REGRESSION: /api/quotes/{id}/regenerate-pdf on a CORP quote keeps the Corporativo format (no PyME downgrade): 5 pages for GATEWAY/CORP, 6 pages for LINK_PAGO/CORP. Also confirmed read-only on the existing real CORP quote quo_05e569ead910 (5 pages). Frontend export endpoint hardcoding to generate-pdf-with-template was verified by code review of /app/frontend/src/pages/Quotes.jsx L2168-2171 (Fallo 1 fix in place).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "QuotesTable", "issues": ["Pre-existing hydration warnings persist: '<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>' caused by data-ve-dynamic wrapper spans in QuotesTable rows. Not in scope for this iteration but worth tracking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter124_pdf_symmetry_modify.py",
+    "/app/test_reports/pytest/iter124_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/frontend/src/pages/Quotes.jsx L2168-2171 (exportCurrentQuoteToPDF): endpoint is now hardcoded to '/api/quotes/generate-pdf-with-template' and no longer branches on hasTemplate/useTemplateForPDF — Export is now identical to Preview/Save. Good.",
+    "/app/backend/routes/quotes.py L1736 (generate-pdf-with-template): now calls append_quote_static_pages with the resolved segment from _resolve_client_segment(...) — matches preview-pdf-with-template L1787 and the create-with-pdf path. The 3 endpoints now produce identical PDFs (verified by page count for CORP/PYME × GATEWAY/LINK_PAGO).",
+    "/app/backend/routes/quotes.py L968-1170 (regenerate-pdf): reconstructs TemplateQuotePDFRequest from the stored quote and preserves client_segment from the stored quote (L985, L1052). Test confirmed: CORP GATEWAY -> 5 pages, CORP LINK_PAGO -> 6 pages on quotes freshly created via create-with-pdf AND on the existing real quote quo_05e569ead910.",
+    "MINOR ROBUSTNESS: L1045 `cantidad_cajas=quote.get('cantidad_cajas', 1)` will pass `None` to Pydantic if the field exists with value None on the stored doc (Pydantic v2 rejects None for an int). During testing, an early version of the test produced this error because the created quote document persisted `cantidad_cajas: null`. Suggest replacing with `quote.get('cantidad_cajas') or 1` for defensive coercion (same pattern already used in main agent's PG/LP None->'' fix on string fields). Non-blocking — real quotes coming from the wizard always carry cantidad_cajas>=1, but it is a latent KeyError-style trap."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter124_pdf_symmetry_modify.py"
+  ],
+  "success_rate": { "backend": "100% (6/6 pytest)", "frontend": "Verified by code review + backend e2e (Modificar dialog opened correctly; the regenerate-pdf invoked after justification is already covered by the backend test)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "Two transient CORP quotes (GATEWAY and LINK_PAGO) created via /api/quotes/create-with-pdf for the regenerate-pdf assertions and deleted in the test teardown (DELETE /api/quotes/{id}). No persistent data left behind. Reference real quote (read-only): quo_05e569ead910 (COT-2026-06-082-PYME, CORP GATEWAY).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To re-verify both fixes quickly: `cd /app && export $(grep REACT_APP_BACKEND_URL frontend/.env) && pytest backend/tests/test_iter124_pdf_symmetry_modify.py -v`. The 6 tests assert (a) page-count equality between generate-pdf-with-template and preview-pdf-with-template for CORP/PYME × GATEWAY/LINK_PAGO and (b) regenerate-pdf preserves CORP format for both GATEWAY and LINK_PAGO. To re-verify the frontend Export button, intercept fetch requests to /api/quotes/... while clicking [data-testid='pg-export-pdf-button'] inside the wizard — it must hit /api/quotes/generate-pdf-with-template (and NEVER the legacy /api/quotes/generate-pdf).",
+  "rca of the issue": "ROOT CAUSES (already fixed by main agent, now verified end-to-end): (1) Export button asymmetry — exportCurrentQuoteToPDF in Quotes.jsx used to pick a legacy endpoint when hasTemplate/useTemplateForPDF was false, producing a PyME-style PDF for CORP quotes. Fix: endpoint is now hardcoded to /api/quotes/generate-pdf-with-template (L2168-2171). (2) Modify-Corporativo regression — regenerate-pdf occasionally failed for PG/LP CORP quotes due to None string fields being passed to the Pydantic model. Fix: None->'' coercion + client_segment preserved from the stored quote (L985 and field hydration). EVIDENCE: pytest /app/backend/tests/test_iter124_pdf_symmetry_modify.py = 6/6 passed: CORP GATEWAY produces 5 pages on all 3 endpoints, CORP LINK_PAGO produces 6 pages, PYME GATEWAY produces 8 pages, regenerate-pdf on freshly created CORP quotes keeps CORP format, and the real quo_05e569ead910 (CORP GATEWAY) regenerates to 5 pages."
+}
