@@ -923,3 +923,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Backend: nuevo endpoint admin `POST /api/email-templates/append-signature` (`seed_and_templates.py`) que agrega `{Firma_Notificacion_Global}` al pie de TODAS las plantillas (persistidas + predeterminadas) que aún no la tengan. Idempotente; inserta antes de </body>/</html> o al final.
 - Frontend: botón `Homologar plantillas` (data-testid `append-signature-button`) dentro de la tarjeta "Logotipo para Pie de Notificaciones" en Configuración (Settings.jsx), fila `append-signature-row`.
 - Validado por testing_agent (iteration_120): backend 7/7 (403 no-admin, idempotencia, 4 preview-email resuelven la firma), frontend 100% (botón + POST 200 + toast + contención DOM en la tarjeta del logo).
+
+## 2026-06-20 — Fix: logo roto en la firma de notificaciones
+- Causa raíz: backend/.env tenía REACT_APP_BACKEND_URL OBSOLETO (action-key-mismatch.preview... → 404). signature.py arma el <img src> del logo con esa base en runtime, por eso el logo salía roto en los correos.
+- Fix: actualizado backend/.env REACT_APP_BACKEND_URL a la URL actual (global-signature-fix.preview...) y reiniciado backend. Verificado: el src renderizado responde HTTP 200 (image, 19825 bytes).
+- NOTA producción: al desplegar, el backend debe tener REACT_APP_BACKEND_URL = URL pública de producción para que el logo cargue allí.
