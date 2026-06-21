@@ -233,7 +233,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
               <DialogHeader>
                 <DialogTitle className="font-manrope text-2xl flex items-center gap-3">
                   {isEditing ? 'Modificar Cotización (Nueva Versión)' : 'Nueva Implementación'}
-                  {!isEditing && quoteData.client_segment && (
+                  {quoteData.client_segment && (
                     <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
                       quoteData.client_segment === 'CORP'
                         ? 'bg-blue-100 text-blue-700 border border-blue-300'

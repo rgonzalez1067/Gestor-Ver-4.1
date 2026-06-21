@@ -956,3 +956,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Fix: la condición ahora es `in ("GATEWAY","LINK_PAGO")` → total_usd = subtotal_usd = suma de pg_setup_items (base imponible / Setup Neto), igual que GATEWAY.
 - Backfill: 7 cotizaciones LINK_PAGO existentes con total_usd=0 corregidas a la suma de su setup (e.g. 360, 372, 288). No había proyectos LINK_PAGO existentes.
 - Verificado por datos: cotizaciones LINK_PAGO ahora reportan total_usd correcto; nuevas LP heredarán el costo al proyecto vía quote_transitions (project.total_usd = quote.total_usd).
+
+## 2026-06-21 — Formato PDF (PyME/Corp) ahora lo gobierna la OPCIÓN DEL MENÚ, no la ficha del cliente
+- Requerimiento: el segmento PyME/Corporativo del PDF debe seguir el menú elegido por el operador (Clientes PyME vs Clientes Corporativos), no client.segment.
+- Backend (quotes.py _resolve_client_segment): ahora NORMALIZA la selección del operador (fallback) a CORP/PYME y ya NO lee client.segment. Ajustado create_quote (L78/L110) para almacenar el segmento del menú en todos los tipos.
+- Frontend (Quotes.jsx modify-load L3402): restaura client_segment desde la cotización guardada (antes se degradaba a PYME al modificar — causa real del bug anterior). QuoteWizardDialog: el badge Corporativo/Pyme ahora se muestra también en modo Modificar.
+- Verificado: curl (cliente CORP + menú PyME -> 8 págs PyME; + menú CORP -> 5 págs Corp) y testing_agent iteration_123 (4/4 frontend, interceptando el request real: Modificar preserva CORP/PYME).
+- Nota: esto reemplaza la lógica previa donde el segmento se heredaba de la ficha del cliente.
