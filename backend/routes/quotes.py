@@ -1731,13 +1731,10 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
         # Generar PDF
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas según tipo (LINK_PAGO reusa PG)
-        if data.quote_type in ('GATEWAY', 'LINK_PAGO'):
-            pdf_buffer = append_pg_static_pages(pdf_buffer)
-        elif data.client_segment == 'CORP':
-            pdf_buffer = append_corporate_static_pages(pdf_buffer)
-        else:
-            pdf_buffer = append_vpos_static_pages(pdf_buffer)
+        # Agregar páginas estáticas/anexos según producto y segmento (PyME/Corporativo).
+        # Segmento autoritativo desde la selección del operador (igual que Previsualizar/Guardar).
+        resolved_seg = await _resolve_client_segment(data.client_id, data.quote_type, data.client_segment or "PYME")
+        pdf_buffer = append_quote_static_pages(pdf_buffer, data.quote_type, resolved_seg)
         
         # Estampar header/footer en TODAS las páginas
         pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, data.quote_number or '', logo_path)

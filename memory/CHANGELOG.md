@@ -969,3 +969,13 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Fix (quotes.py regenerate_quote_pdf): coerción None->"" en esos campos (quote.get(k) or "").
 - Verificado por curl: regenerate-pdf en GATEWAY CORP -> 5 págs (corporativo) y LINK_PAGO CORP -> 6 págs (corporativo). Antes daba HTTP 500.
 - Resultado: al Modificar una cotización PG/LP Corporativa, el PDF ahora se regenera en formato Corporativo.
+
+## 2026-06-21 — Fix: Exportar PDF (y los 3 botones) inconsistentes con Corporativo
+- Causa: el endpoint generate-pdf-with-template (botón "Exportar PDF") había quedado con la lógica VIEJA de anexos (append_pg_static_pages para todo PG/LP), ignorando el segmento -> Exportar daba PyME (8 págs) mientras Previsualizar daba Corp (5 págs).
+- Fix: generate-pdf-with-template ahora usa append_quote_static_pages con el segmento resuelto, igual que Previsualizar y Guardar.
+- Verificado por curl, los 4 caminos consistentes para GATEWAY CORP=5 / LINK_PAGO CORP=6 / PyME=8:
+  - Previsualizar (preview-pdf-with-template): 5/6
+  - Exportar (generate-pdf-with-template): 5/6
+  - Guardar (create-with-pdf): corporativo
+  - Modificar (duplicate -> PUT -> regenerate-pdf): 5 (simulación completa)
+- Junto con el fix previo de regenerate-pdf (None->""), el flujo Modificar de PG/LP Corporativo ahora genera correctamente el PDF corporativo.
