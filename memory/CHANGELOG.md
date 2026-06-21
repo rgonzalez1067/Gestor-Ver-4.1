@@ -944,3 +944,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Causa: el flujo "Modificar" guarda vía POST /quotes/create-with-pdf rama `data.pdf_data` (quotes.py ~L276), que usaba `pdf_request.client_segment` tal cual lo envía el frontend; al modificar, el frontend perdía el segmento y mandaba 'PYME', degradando el anexo a estándar (el doc guardado sí resolvía CORP).
 - Fix: en los sitios de guardar (site1), generar y previsualizar con template (sites 4/5) ahora el segmento se resuelve autoritativamente desde la ficha del cliente vía `_resolve_client_segment` (PG/LP heredan del cliente; VPOS conserva fallback). 
 - Validado E2E (curl URL externa) con cliente corporativo enviando client_segment=PYME: PG -> 5 págs (4 base + anexo corp), LINK_PAGO -> 6 págs (5 base + anexo corp). PyME sin regresión.
+
+## 2026-06-21 — Fix: Modificar cotización PG/Link de Pago inflaba la tabla de recurrentes (+1 producto)
+- Causa: al guardar se descarta el flag `fixed` del item base 'Persona Jurídica' (Costo Base); al reabrir en Modificar, `pgMediosPagoCount = pgSetupItems.filter(i=>!i.fixed).length` lo contaba como medio de pago, inflando num_products en +1 en la tabla de recurrentes.
+- Fix (frontend, Quotes.jsx ~L3433): al cargar la cotización para modificar se re-etiqueta como `fixed:true` el item base (observacion==='Costo Base' o concepto contiene 'persona jur'). Aplica a GATEWAY y LINK_PAGO.
+- Confirmado con data de Mongo (quotes con num_products==setup_items estaban infladas) y validado por testing_agent iteration_122 (2/2): COT-2026-06-078 ahora 4 (antes 5), LINK_PAGO COT-2026-06-155 ahora 1 (antes 2). Re-guardar sana las cotizaciones ya infladas.
+- Nota: el fix es en la carga; el flag `fixed` sigue sin persistirse en BD (no necesario, el wizard re-etiqueta en cada modificación).
