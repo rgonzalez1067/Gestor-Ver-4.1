@@ -11,6 +11,10 @@
 - **QA:** pytest del testing_agent `tests/test_iteration126_calendar_holidays.py` **14/14 PASS** (list admin/no-admin/unauth, create específico, 409 duplicado específico, recurrente, 409 duplicado recurrente, 400 fecha inválida, RBAC POST/DELETE 403 no-admin, unauth 401, delete admin, 404, business_days_in_state en /projects). Validación directa del motor: **AC#2** (Vie→Lun = 1 día hábil) y **AC#3 crítica** (SLA 3 días hábiles, inicio lunes con martes feriado → vence viernes, elapsed=3). Smoke test UI: página y panel renderizan con etiquetas "d háb.".
 - **⚠️ En PREVIEW; requiere REDEPLOY para producción.** La colección `holidays` queda vacía (datos de prueba revertidos); el Admin debe cargar los feriados reales tras desplegar.
 
+### Extensión — Reporte de Carga (PDF) muestra "Días háb." por proyecto
+- **Backend (`routes/projects.py` · `projects_workload_pdf`):** se agregó la columna **"Días háb."** (días hábiles transcurridos en el estado actual, calculados con `stage_entered_at` + `business_days_between`, excluyendo sáb/dom + feriados) en ambos modos de agrupación del reporte (por Implementador y por Tipo). Estilo destacado teal. Anchos de columna reajustados. Sin cambios de frontend (el reporte se genera server-side).
+- **Validado (curl + pdfplumber):** el PDF (group_by=implementer y group_by=type) muestra el encabezado "DÍAS HÁB." y el valor por fila (ej. "En Gestión 10" = 10 días hábiles). HTTP 200, 8 páginas.
+
 
 ## 2026-06 — Fix: imágenes pegadas en plantillas llegaban rotas al correo (ahora CID inline)
 

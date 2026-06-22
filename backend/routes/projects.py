@@ -3184,16 +3184,25 @@ async def projects_workload_pdf(
             "fantasy_name": 1,
             "implementation_matrix": 1,  # Iter39: necesario para calcular PVV
             "project_type": 1, "rifs": 1,  # Multi-RIF: total de cajas vive en rifs
+            "status_changed_at": 1, "sent_to_implementation_at": 1,
+            "created_at": 1, "unblocked_at": 1,  # para días hábiles en estado
         },
     ).to_list(5000)
 
     # Iter39: pre-calcular PVV por proyecto para no recalcular en cada uso.
     from services.project_pvv import compute_project_pvv
+    from services.business_calendar import get_holiday_sets, business_days_between
+    from services.project_sla_engine import stage_entered_at
+    _specific, _recurring = await get_holiday_sets()
+    _today = datetime.now(timezone.utc).date()
     for _p in projects:
         # Total de cajas robusto (Multi-RIF incluido) y PVV consistente con ese total.
         _p["_cajas"] = _project_total_cajas(_p)
         _p["box_count"] = _p["_cajas"]
         _p["_pvv"] = compute_project_pvv(_p)
+        # Días hábiles transcurridos en el estado actual (excluye sáb/dom + feriados).
+        _entered = stage_entered_at(_p)
+        _p["_bdays"] = business_days_between(_entered.date(), _today, _specific, _recurring) if _entered else 0
 
     # Aplicar filtros en memoria (dataset pequeño <5k)
     def _matches(p: dict) -> bool:
@@ -3284,6 +3293,7 @@ async def projects_workload_pdf(
               <td class="num">{cajas}</td>
               <td class="num pvv">{pvv_cell}</td>
               <td class="state">{p.get('status') or '—'}</td>
+              <td class="num bdays">{p.get('_bdays', 0)}</td>
               <td>{orig_html}</td>
               <td class="date">{_format_es_date(p.get('assigned_at'))}</td>
               <td class="date">{_format_es_date(p.get('last_contact_at'))}</td>
@@ -3302,6 +3312,7 @@ async def projects_workload_pdf(
               <col class="c-cajas" />
               <col class="c-pvv" />
               <col class="c-estado" />
+              <col class="c-bdays" />
               <col class="c-orig" />
               <col class="c-fasign" />
               <col class="c-ultcont" />
@@ -3309,7 +3320,7 @@ async def projects_workload_pdf(
             <thead>
               <tr>
                 <th>Cliente</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
-                <th>Estado</th><th>Implementador Original</th>
+                <th>Estado</th><th>Días háb.</th><th>Implementador Original</th>
                 <th>Fecha Asignación</th><th>Último Contacto</th>
               </tr>
             </thead>
@@ -3413,6 +3424,7 @@ async def projects_workload_pdf(
                   <td class="num">{cajas}</td>
                   <td class="num pvv">{pvv_cell}</td>
                   <td class="state">{p.get('status') or '—'}</td>
+                  <td class="num bdays">{p.get('_bdays', 0)}</td>
                   <td>{impl_html}</td>
                   <td class="date">{_format_es_date(p.get('assigned_at'))}</td>
                   <td class="date">{_format_es_date(p.get('last_contact_at'))}</td>
@@ -3427,12 +3439,12 @@ async def projects_workload_pdf(
               <table class="rep">
                 <colgroup>
                   <col class="c-cliente" /><col class="c-tipo" /><col class="c-cajas" /><col class="c-pvv" />
-                  <col class="c-estado" /><col class="c-orig" /><col class="c-fasign" /><col class="c-ultcont" />
+                  <col class="c-estado" /><col class="c-bdays" /><col class="c-orig" /><col class="c-fasign" /><col class="c-ultcont" />
                 </colgroup>
                 <thead>
                   <tr>
                     <th>Cliente</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
-                    <th>Estado</th><th>Implementador</th>
+                    <th>Estado</th><th>Días háb.</th><th>Implementador</th>
                     <th>Fecha Asignación</th><th>Último Contacto</th>
                   </tr>
                 </thead>
@@ -3510,15 +3522,17 @@ async def projects_workload_pdf(
       .group-head .count {{ font-size: 10px; color: #4338ca; font-weight: 600; }}
       table.rep {{ width: 100%; border-collapse: collapse; margin-top: 6px; table-layout: fixed; }}
       /* Anchos fijos por columna para que TODAS las tablas (por implementador) queden alineadas */
-      table.rep col.c-cliente  {{ width: 20%; }}
-      table.rep col.c-tipo     {{ width: 8%; }}
-      table.rep col.c-cajas    {{ width: 6%; }}
-      table.rep col.c-pvv      {{ width: 7%; }}
-      table.rep col.c-estado   {{ width: 15%; }}
-      table.rep col.c-orig     {{ width: 15%; }}
-      table.rep col.c-fasign   {{ width: 14%; }}
-      table.rep col.c-ultcont  {{ width: 15%; }}
+      table.rep col.c-cliente  {{ width: 18%; }}
+      table.rep col.c-tipo     {{ width: 7%; }}
+      table.rep col.c-cajas    {{ width: 5%; }}
+      table.rep col.c-pvv      {{ width: 6%; }}
+      table.rep col.c-estado   {{ width: 14%; }}
+      table.rep col.c-bdays    {{ width: 7%; }}
+      table.rep col.c-orig     {{ width: 14%; }}
+      table.rep col.c-fasign   {{ width: 13%; }}
+      table.rep col.c-ultcont  {{ width: 13%; }}
       table.rep td.pvv {{ font-weight: 700; color: #4f46e5; }}
+      table.rep td.bdays {{ font-weight: 700; color: #0f766e; }}
       table.rep th {{
         background: #f8fafc; color: #475569; text-transform: uppercase; font-size: 8px;
         padding: 5px 6px; border-bottom: 1px solid #e2e8f0; text-align: left;
