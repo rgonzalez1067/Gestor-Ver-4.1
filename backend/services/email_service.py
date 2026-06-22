@@ -193,13 +193,33 @@ def _send_smtp(
     if cc:
         msg["Cc"] = ", ".join(cc)
 
-    # Cuerpo HTML
-    msg.attach(MIMEText(html, "html", "utf-8"))
+    # Cuerpo HTML + imágenes inline (CID) dentro de un contenedor multipart/related.
+    inline_atts = [a for a in (attachments or []) if a.get("content_id")]
+    regular_atts = [a for a in (attachments or []) if not a.get("content_id")]
+    if inline_atts:
+        from email.mime.image import MIMEImage
+        related = MIMEMultipart("related")
+        related.attach(MIMEText(html, "html", "utf-8"))
+        for att in inline_atts:
+            content = att.get("content", b"")
+            if isinstance(content, str):
+                import base64
+                try:
+                    content = base64.b64decode(content)
+                except Exception:
+                    content = content.encode("utf-8")
+            img = MIMEImage(content)
+            img.add_header("Content-ID", f"<{att['content_id']}>")
+            img.add_header("Content-Disposition", "inline", filename=att.get("filename", "logo"))
+            related.attach(img)
+        msg.attach(related)
+    else:
+        msg.attach(MIMEText(html, "html", "utf-8"))
 
     # Adjuntos (compatible con formato Resend: {filename, content})
     # content puede ser: base64 string (de Resend) o bytes crudos
-    if attachments:
-        for att in attachments:
+    if regular_atts:
+        for att in regular_atts:
             part = MIMEBase("application", "octet-stream")
             content = att.get("content", b"")
             if isinstance(content, str):
@@ -264,6 +284,25 @@ async def send_email(
     except Exception as e:
         logger.warning(f"[Footer] No se pudo anexar footer global: {e}")
 
+    # Logo de firma incrustado (CID): si el HTML referencia cid:firma_logo, adjuntar el
+    # archivo del logo como imagen inline para que se vea en cualquier cliente de correo.
+    try:
+        if "cid:firma_logo" in (html or ""):
+            from services.signature import get_footer_logo_file
+            logo_file = get_footer_logo_file()
+            if logo_file:
+                import mimetypes
+                inline_logo = {
+                    "filename": logo_file.name,
+                    "content": logo_file.read_bytes(),
+                    "content_id": "firma_logo",
+                    "inline": True,
+                    "content_type": mimetypes.guess_type(str(logo_file))[0] or "image/png",
+                }
+                attachments = ([inline_logo] + list(attachments)) if attachments else [inline_logo]
+    except Exception as e:
+        logger.warning(f"[Firma] No se pudo adjuntar el logo inline (CID): {e}")
+
     email_log = {
         "email_log_id": f"eml_{uuid.uuid4().hex[:12]}",
         "action": action,
@@ -308,7 +347,19 @@ async def send_email(
                 resend.api_key = api_key
                 params = {"from": sender, "to": to, "subject": subject, "html": html}
                 if attachments:
-                    params["attachments"] = attachments
+                    import base64 as _b64
+                    rs_atts = []
+                    for att in attachments:
+                        content = att.get("content", b"")
+                        if isinstance(content, (bytes, bytearray)):
+                            content = _b64.b64encode(content).decode("ascii")
+                        item = {"filename": att.get("filename", "adjunto"), "content": content}
+                        if att.get("content_id"):
+                            item["content_id"] = att["content_id"]
+                            item["content_type"] = att.get("content_type", "image/png")
+                            item["disposition"] = "inline"
+                        rs_atts.append(item)
+                    params["attachments"] = rs_atts
                 result = await asyncio.to_thread(resend.Emails.send, params)
                 email_log["status"] = "sent"
                 email_log["method"] = "resend"

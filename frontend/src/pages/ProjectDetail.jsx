@@ -199,6 +199,7 @@ const ProjectDetail = () => {
   const [applicationName, setApplicationName] = useState('');
   const [integratorsList, setIntegratorsList] = useState([]);
   const [boxCount, setBoxCount] = useState(0);
+  const [fechaProduccion, setFechaProduccion] = useState('');
 
   const fetchProject = useCallback(async () => {
     try {
@@ -216,6 +217,7 @@ const ProjectDetail = () => {
       setIntegratorName(project.integrator_name || '');
       setApplicationName(project.integrator_app_name || project.application_name || '');
       setBoxCount(project.box_count || project.cantidad_cajas || 0);
+      setFechaProduccion((project.fecha_estimada_produccion || '').slice(0, 10));
     }
   }, [project]);
 
@@ -286,8 +288,7 @@ const ProjectDetail = () => {
   };
 
   // Guardar integrador/aplicativo
-  const saveIntegratorFields = async () => {
-    try {
+  const saveIntegratorFields = async () => {    try {
       await api.put(`/projects/${projectId}/implementation-fields`, {
         integrator_name: integratorName,
         integrator_app_name: applicationName,
@@ -297,6 +298,16 @@ const ProjectDetail = () => {
       setEditingIntegrator(false);
       fetchProject();
     } catch { toast.error('Error al guardar'); }
+  };
+
+  // 3.3: Guardar Fecha Estimada de Entrada en Producción
+  const saveFechaProduccion = async (value) => {
+    setFechaProduccion(value);
+    try {
+      await api.put(`/projects/${projectId}/implementation-fields`, { fecha_estimada_produccion: value || null });
+      toast.success('Fecha de producción guardada');
+      fetchProject();
+    } catch { toast.error('Error al guardar la fecha'); }
   };
 
   // Matrix update con cantidades
@@ -1088,6 +1099,7 @@ const ProjectDetail = () => {
                   project.status === 'Por asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
                   project.status === 'Asignado' ? 'bg-blue-100 text-blue-800 border-blue-200' :
                   project.status === 'En Gestión' ? 'bg-indigo-100 text-indigo-800 border-indigo-200' :
+                  project.status === 'Configurado en espera del Cliente' ? 'bg-cyan-100 text-cyan-800 border-cyan-200' :
                   project.status === 'Suspendido' ? 'bg-red-100 text-red-800 border-red-200' :
                   project.status === 'Implementado parcial' ? 'bg-orange-100 text-orange-800 border-orange-200' :
                   'bg-emerald-100 text-emerald-800 border-emerald-200'
@@ -1097,6 +1109,17 @@ const ProjectDetail = () => {
                     <Store size={12} />Multitienda ({project.stores?.length || 0})
                   </span>
                 )}
+                <div className="flex items-center gap-2 bg-cyan-50 border border-cyan-200 rounded-lg px-2.5 py-1.5" data-testid="fecha-produccion-field">
+                  <Calendar size={14} className="text-cyan-600 shrink-0" />
+                  <label className="text-xs font-medium text-cyan-800 whitespace-nowrap">Fecha estimada de entrada en producción:</label>
+                  <input
+                    type="date"
+                    value={fechaProduccion}
+                    onChange={(e) => saveFechaProduccion(e.target.value)}
+                    className="text-xs border border-cyan-300 rounded px-1.5 py-0.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-cyan-400"
+                    data-testid="fecha-produccion-input"
+                  />
+                </div>
                 {rollup.global_progress !== undefined && (
                   <div className="flex items-center gap-2 w-40">
                     <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -1112,6 +1135,11 @@ const ProjectDetail = () => {
                   <Button variant="outline" size="sm" onClick={openEmailDialog} className="text-xs gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50 h-7 px-2" data-testid="adhoc-email-btn">
                     <Megaphone size={12} />Otras Notificaciones
                   </Button>
+                  {project.status === 'Configurado en espera del Cliente' && (
+                    <Button variant="outline" size="sm" onClick={() => openNotifDialog('client')} className="text-xs gap-1 border-green-400 text-green-700 hover:bg-green-50 h-7 px-2" data-testid="notif-prod-btn">
+                      <Megaphone size={12} />Notificación Puesta en Prod
+                    </Button>
+                  )}
                   {(() => {
                     const isAssignedImpl = currentUser.user_id && currentUser.user_id === project.assigned_to_user_id;
                     const cargo = (currentUser.cargo || '').toLowerCase();

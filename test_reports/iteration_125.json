@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 125 — Gestor MegaNexus Proyectos BLOQUES A+B fully validated. Backend (7/7 pytest passed): (a) PUT /api/projects/{id}/status guard returns 400 from non-'En Gestión' (prj_826643491b64 Asignado) and 200 from 'En Gestión' (prj_9affacb36c89) when setting 'Configurado en espera del Cliente'; (b) PUT /api/projects/{id}/implementation-fields persists fecha_estimada_produccion='2026-08-15' and clears with null; (c) /api/clients/{id}/preview-email resolves {Firma_Notificacion_Global} to HTML containing cid:firma_logo (no http URL for footer logo); upload-image endpoint returns {url} and the served URL responds 200; subject ghost-variable regex (L1103 projects.py) strips {Token_Fantasma}. Frontend (E2E via Playwright): filter dropdown on /projects includes 'Configurado en espera del Cliente' (10 options total, applies and lists 1 project, CAFE EUROPA 2015 C.A.); ProjectDetail of prj_9affacb36c89 shows [data-testid=fecha-produccion-field] + [data-testid=fecha-produccion-input], date 2026-09-30 persists after reload; [data-testid=notif-prod-btn] is HIDDEN while project is 'En Gestión' (gating OK) and APPEARS after switching status to 'Configurado en espera del Cliente'; clicking it opens the notification modal with template selector ('Notificación de Proyecto — Cliente ★') and rich-text body editor (CONTENIDO DEL MENSAJE). Project state restored: prj_9affacb36c89 = 'En Gestión', fecha_estimada_produccion = null.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Projects list / ProjectDetail", "issues": ["Pre-existing React hydration warnings: '<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>' caused by data-ve-dynamic wrapper spans inside table rows (already tracked in iter124). NOT in scope for this iteration but persists."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration125_proyectos_block_ab.py",
+    "/app/test_reports/pytest/iter125_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/backend/routes/projects.py L355-357: Guard for 'Configurado en espera del Cliente' is implemented correctly. Confirmed 400 from Asignado, 200 from En Gestión.",
+    "/app/backend/routes/projects.py L2006-2034 (implementation-fields): Accepts fecha_estimada_produccion as a top-level field, persists null on falsy. Validated via GET round-trip.",
+    "/app/backend/routes/projects.py L1100-1105 (subject template render): Regex r'\\{\\{?\\s*[A-Za-z0-9_áéíóúÁÉÍÓÚñÑ]+\\s*\\}?\\}' correctly strips unresolved {Token} from the template subject AFTER variable substitution, then collapses double spaces. NOTE (latent gap, non-blocking): the same cleaning is NOT applied to body.custom_subject in /preview-notification (L1517-1520) — only _render_vars is invoked, so an operator typing '{Token}' literally in the asunto override would still produce '{Token}' in the preview/send. Recommend reusing the same 2-line cleanup on custom_subject for consistency with the requirement '2.3 no imprimir variables fantasma'.",
+    "/app/backend/services/signature.py + email_service.py: signature HTML now uses src='cid:firma_logo' and email_service attaches the file inline both in SMTP (multipart/related) and Resend (base64+content_id). Confirmed in preview-email response.",
+    "/app/frontend/src/pages/ProjectDetail.jsx L1138-1139: notif-prod-btn is correctly gated by `project.status === 'Configurado en espera del Cliente'`. UI test confirmed visibility toggling on status change.",
+    "/app/frontend/src/pages/ProjectDetail.jsx L1112-1124: fecha-produccion-field / fecha-produccion-input render a native HTML <input type='date'> (browser default picker), not a shadcn calendar component. This is per spec ('campo DatePicker' interpreted as native date input). Acceptable, but if the team wants visual consistency with the rest of the app (where shadcn Popover+Calendar is used), this is a candidate for future polish — NOT blocking.",
+    "/app/frontend/src/pages/Projects.jsx STATUS_CONFIG: Filter dropdown lists the new status correctly in order (after 'En Gestión', before 'Suspendido')."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration125_proyectos_block_ab.py"
+  ],
+  "success_rate": { "backend": "100% (7/7 pytest)", "frontend": "100% (filter + date persistence + gated button + modal open with template selector)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "None persistent. Transient: (a) prj_9affacb36c89 toggled En Gestión <-> Configurado en espera del Cliente during testing — RESTORED to 'En Gestión' at end (verified via GET); (b) fecha_estimada_produccion set to 2026-08-15 / 2026-09-30 then CLEARED to null (verified via GET); (c) one PNG image uploaded via /api/projects/upload-image (1x1 px, ~70 bytes, untracked record in db.uploaded_images — negligible).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To re-verify: `pytest /app/backend/tests/test_iteration125_proyectos_block_ab.py -v` (7 tests). The autouse teardown fixture restores prj_9affacb36c89 to 'En Gestión' with null fecha. Frontend: login as admin -> /projects, open status filter to see 'Configurado en espera del Cliente'; open ProjectDetail for prj_9affacb36c89 (En Gestión) -> notif-prod-btn must be absent; switch status via PUT /api/projects/{id}/status (multipart form, field 'new_status') -> reload -> notif-prod-btn appears -> click opens dialog with [role='dialog'] containing 'Plantilla' label. Latent (non-blocking): subject ghost-cleaning is NOT applied to custom_subject in /preview-notification override path (see code review comment).",
+  "rca of the issue": "N/A — no defects. All BLOQUE A (2.1 upload-image, 2.2 cid signature, 2.3 ghost subject) and BLOQUE B (3.1 new status + filter + transition guard, 3.2 gated notif button + modal, 3.3 fecha persistent date field) requirements pass both backend and UI verification."
+}

@@ -760,9 +760,9 @@ class ExchangeRate(BaseModel):
 
 # ==================== PROJECT MODELS ====================
 
-PROJECT_STATUSES = ["Por asignar", "Asignado", "En Gestión", "Suspendido", "Implementado parcial", "Culminado", "Anulado"]
+PROJECT_STATUSES = ["Por asignar", "Asignado", "En Gestión", "Configurado en espera del Cliente", "Suspendido", "Implementado parcial", "Culminado", "Anulado"]
 # Estados asignados ÚNICAMENTE de forma manual por el usuario (sin automatización).
-PROJECT_MANUAL_STATUSES = ["Suspendido", "Implementado parcial", "Culminado", "Anulado"]
+PROJECT_MANUAL_STATUSES = ["Configurado en espera del Cliente", "Suspendido", "Implementado parcial", "Culminado", "Anulado"]
 
 
 class ProjectCommitment(BaseModel):
@@ -838,6 +838,7 @@ class Project(BaseModel):
     assigned_by_name: Optional[str] = None
     assigned_at: Optional[str] = None
     estimated_delivery_date: Optional[str] = None
+    fecha_estimada_produccion: Optional[str] = None  # Fecha estimada de entrada en producción (compromiso del cliente)
     priority: str = "Normal"  # Baja, Normal, Alta, Urgente
     # Notas e historial
     notes: List[ProjectNote] = []

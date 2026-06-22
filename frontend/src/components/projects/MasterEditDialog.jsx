@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { Pencil, Plus, Trash2, Landmark, Cpu, Store, AlertTriangle } from 'lucide-react';
 
 // Catálogo oficial de estados (sincronizado con backend models.PROJECT_STATUSES).
-const PROJECT_STATUSES = ['Por asignar', 'Asignado', 'En Gestión', 'Suspendido', 'Implementado parcial', 'Culminado', 'Anulado'];
+const PROJECT_STATUSES = ['Por asignar', 'Asignado', 'En Gestión', 'Configurado en espera del Cliente', 'Suspendido', 'Implementado parcial', 'Culminado', 'Anulado'];
 const QUOTE_TYPES = [
   { value: 'VPOS', label: 'VPOS', flag: 'vpos_available' },
   { value: 'MPOS', label: 'MPOS', flag: 'mpos_available' },

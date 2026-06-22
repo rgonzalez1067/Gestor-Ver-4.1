@@ -352,6 +352,10 @@ async def update_project_status(
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
+    # Regla: "Configurado en espera del Cliente" solo puede asignarse desde "En Gestión".
+    if new_status == "Configurado en espera del Cliente" and project.get("status") != "En Gestión":
+        raise HTTPException(status_code=400, detail="El estado 'Configurado en espera del Cliente' solo puede asignarse desde 'En Gestión'.")
+
     now = datetime.now(timezone.utc).isoformat()
     update_data = {"status": new_status, "status_changed_at": now, "updated_at": now}
     if new_status == "Culminado":
@@ -1094,6 +1098,10 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         template = await _get_notification_template(override_template_id or "project_notify_client")
         if template and template.get("body_html"):
             raw_subject = _render_vars(template.get("subject", "Implementación: {project_number}"), template_vars)
+            # 2.3: limpiar variables NO parametrizadas que quedaron sin resolver en el asunto
+            # (evita imprimir nombres técnicos como {Nombre_Variable} que el operador no insertó).
+            raw_subject = re.sub(r"\{\{?\s*[A-Za-z0-9_áéíóúÁÉÍÓÚñÑ]+\s*\}?\}", "", raw_subject)
+            raw_subject = re.sub(r"\s{2,}", " ", raw_subject).strip()
             subject = f"{raw_subject} [{prefix_label}]"
             html = _render_vars(template.get("body_html", ""), template_vars)
         else:
@@ -2012,6 +2020,8 @@ async def update_implementation_fields(project_id: str, body: dict, authorizatio
         update_set["integrator_app_name"] = body["integrator_app_name"]
     if "box_count" in body:
         update_set["box_count"] = body["box_count"]
+    if "fecha_estimada_produccion" in body:
+        update_set["fecha_estimada_produccion"] = body["fecha_estimada_produccion"] or None
     if update_set:
         update_set["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.projects.update_one({"project_id": project_id}, {"$set": update_set})

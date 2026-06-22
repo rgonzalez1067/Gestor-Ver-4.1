@@ -29,6 +29,7 @@ const STATUS_CONFIG = {
   'Por asignar': { color: 'bg-amber-100 text-amber-800 border-amber-200', icon: Clock },
   'Asignado': { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: UserCheck },
   'En Gestión': { color: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: UserCog },
+  'Configurado en espera del Cliente': { color: 'bg-cyan-100 text-cyan-800 border-cyan-200', icon: Pause },
   'Suspendido': { color: 'bg-red-100 text-red-800 border-red-200', icon: Pause },
   'Implementado parcial': { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: CheckCircle2 },
   'Culminado': { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
@@ -79,6 +80,7 @@ const showTicketReminderToast = (status) => {
 // Los estados automáticos (Por asignar, Asignado, En Gestión) responden a triggers.
 const STATUS_TRANSITIONS = [
   { id: 'En Gestión', label: 'En Gestión (Reactivar)', icon: UserCog, iconColor: 'text-indigo-600', reactivation: true },
+  { id: 'Configurado en espera del Cliente', label: 'Configurado en espera del Cliente', icon: Pause, iconColor: 'text-cyan-600' },
   { id: 'Suspendido', label: 'Suspendido', icon: Pause, iconColor: 'text-red-600' },
   { id: 'Implementado parcial', label: 'Implementado parcial', icon: CheckCircle2, iconColor: 'text-orange-600' },
   { id: 'Culminado', label: 'Culminado', icon: CheckCircle2, iconColor: 'text-emerald-600' },

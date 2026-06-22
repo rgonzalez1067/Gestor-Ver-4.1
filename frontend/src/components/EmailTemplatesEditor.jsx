@@ -832,6 +832,37 @@ export const EmailTemplatesEditor = () => {
     }
   };
 
+  // 2.1: Pegar capturas de pantalla directamente en el cuerpo de la plantilla.
+  // Sube la imagen a /projects/upload-image e inserta la etiqueta <img> en el cursor.
+  const handleBodyPaste = async (e) => {
+    const items = e.clipboardData?.items || [];
+    const imageItem = Array.from(items).find(it => it.type && it.type.startsWith('image/'));
+    if (!imageItem) return; // dejar el pegado de texto normal
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) return;
+    try {
+      toast.loading('Subiendo imagen...', { id: 'tpl-img' });
+      const fd = new FormData();
+      fd.append('file', file, file.name || 'captura.png');
+      const { data } = await api.post('/projects/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const url = data?.url;
+      if (!url) throw new Error('Sin URL');
+      const imgTag = `<img src="${url}" style="max-width:100%;height:auto;" />`;
+      const el = document.getElementById('template-body');
+      const text = formData.body_html || '';
+      const start = el ? el.selectionStart : text.length;
+      const end = el ? el.selectionEnd : text.length;
+      const newText = text.substring(0, start) + imgTag + text.substring(end);
+      setFormData(prev => ({ ...prev, body_html: newText }));
+      toast.success('Imagen insertada', { id: 'tpl-img' });
+      setTimeout(() => { if (el) { el.focus(); const p = start + imgTag.length; el.setSelectionRange(p, p); } }, 50);
+    } catch (err) {
+      toast.error('No se pudo subir la imagen', { id: 'tpl-img' });
+    }
+  };
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -1227,7 +1258,8 @@ export const EmailTemplatesEditor = () => {
                   value={formData.body_html}
                   onChange={(e) => setFormData(prev => ({ ...prev, body_html: e.target.value }))}
                   onFocus={() => setActiveField('body')}
-                  placeholder="Contenido HTML del correo..."
+                  onPaste={handleBodyPaste}
+                  placeholder="Contenido HTML del correo... (puedes pegar una captura de pantalla directamente)"
                   rows={18}
                   className="font-mono text-sm"
                   data-testid="template-body-input"

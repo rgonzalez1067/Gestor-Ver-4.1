@@ -10,9 +10,12 @@ import os
 import time
 import logging
 
-from config import db
+from config import db, UPLOADS_DIR
 
 logger = logging.getLogger(__name__)
+
+# Content-ID usado para incrustar el logo inline en el correo (independiente del entorno).
+CID_FIRMA_LOGO = "firma_logo"
 
 # Constantes institucionales (Texto fijo)
 _RAZON_SOCIAL = "Mega Soft Computación, C.A."
@@ -31,6 +34,17 @@ _LOGO_TTL = 60.0
 def invalidate_signature_logo_cache():
     _LOGO_CACHE["url"] = None
     _LOGO_CACHE["fetched_at"] = 0.0
+
+
+def get_footer_logo_file():
+    """Path del archivo de logo de pie cargado en Configuración (o None).
+    Se lee directamente de disco para no depender de URLs/variables de entorno."""
+    try:
+        for f in UPLOADS_DIR.glob("notif_logo.*"):
+            return f
+    except Exception as e:
+        logger.warning(f"[Firma] Error localizando logo: {e}")
+    return None
 
 
 async def _get_footer_logo_url() -> str:
@@ -67,11 +81,12 @@ async def build_signature_html(user: dict = None) -> str:
         email = (user.get("email") or "").strip()
         phone = (user.get("phone") or "").strip()
 
-    logo_url = await _get_footer_logo_url()
+    # Logo incrustado vía CID (cid:firma_logo) -> visible en Gmail/Outlook sin depender
+    # de URLs públicas/variables de entorno. El adjunto inline lo agrega send_email().
     logo_html = (
-        f'<img src="{logo_url}" alt="Mega Soft Computación" '
+        f'<img src="cid:{CID_FIRMA_LOGO}" alt="Mega Soft Computación" '
         f'style="max-height:52px;width:auto;margin-bottom:10px;display:block;" />'
-        if logo_url else ""
+        if get_footer_logo_file() else ""
     )
 
     rows = [f'<div style="font-weight:700;color:#111827;font-size:14px;">{name}</div>']
