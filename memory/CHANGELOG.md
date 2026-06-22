@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — {Matriz_Seguimiento_Evolutiva} V2: bloques verticales por banco + celda con cajas
+
+- **Cambio de arquitectura:** se reemplazó la tabla horizontal única (bancos como columnas adyacentes) por **tablas independientes apiladas verticalmente, una por banco** (`<div>` con título "BLOQUE: {Banco}"). Cada tabla: eje vertical = RIF → Tiendas; columnas = Producto×Fase con encabezado "PRODUCTO: {producto} (Fase {fase})".
+- **Nueva celda (`_seg_cell_v2`):** cada cruce muestra `% avance / Cajas Estimadas / Cajas Recibidas` (ej. `80% / 10 / 8`; sin recibidas → `0% / 5 / 0`). Estimadas=`expected`, Recibidas=`processed`, % = 100 si completed, si no `processed/expected`. Se eliminó la columna independiente de Cajas (ahora va en la celda).
+- **Descarte modular optimizado:** como cada banco es un bloque autocontenido, el filtro al banco destinatario (`bank_filter` en `_resolve_notification_email`, ramas bank/bank_client) emite solo ese bloque; los demás bancos se omiten por completo sin romper el diseño. Aplica en preview y envío.
+- **Frontend:** previews (`templateVariables.js`, `RichTextEditor.jsx`) actualizados al layout V2 con el nuevo formato de celda.
+- **QA (self-test, criterios V2):** formato de celda `100% / 5 / 5`, `0% / 5 / 0`, `40% / 5 / 2`; disposición vertical (BLOQUE: Banco A y BLOQUE: Banco B apilados); prueba de fuego de segmentación: filtrar a "Banco B" deja solo su bloque (Banco A removido) conservando RIF/tiendas. Frontend compila.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
 ## 2026-06 — Nueva variable {Matriz_Seguimiento_Evolutiva} (matriz multinivel modular por banco)
 
 - **Requerimiento:** variable global de reporte bidimensional: eje vertical = RIF → Tienda/Sucursal (+ columna Cajas); eje horizontal = Banco → Producto → Fases (Rec/Conf/Test/Prod) con % de avance por fase. **Modular por banco**: al Cliente muestra todos los bancos; al enviar a un Banco específico elimina los bloques del resto (confidencialidad interbancaria). Basada en 3 modelos Excel aportados (single / multi-tienda / multi-RIF).

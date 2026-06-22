@@ -562,70 +562,91 @@ def _seg_rows(project: dict) -> list:
     return rows
 
 
+def _seg_cell_v2(phase_data: dict):
+    """Celda V2: '% / Cajas Estimadas / Cajas Recibidas' (ej. '80% / 10 / 8').
+    Estimadas = expected, Recibidas = processed. Retorna (texto, color)."""
+    pd = phase_data or {}
+    try:
+        expected = int(pd.get("expected") or 0)
+    except (TypeError, ValueError):
+        expected = 0
+    try:
+        processed = int(pd.get("processed") or 0)
+    except (TypeError, ValueError):
+        processed = 0
+    if pd.get("completed"):
+        pct = 100
+    elif expected > 0:
+        pct = min(round(processed / expected * 100), 100)
+    else:
+        pct = 0
+    color = '#16a34a' if pct >= 100 else '#d97706' if pct > 0 else '#64748b'
+    return (f"{pct}% / {expected} / {processed}", color)
+
+
 def _build_seguimiento_evolutiva_html(project: dict, bank_filter: str = None) -> str:
-    """Variable {Matriz_Seguimiento_Evolutiva}. Si bank_filter, solo ese banco."""
+    """Variable {Matriz_Seguimiento_Evolutiva} (V2).
+
+    Renderiza un bloque (tabla) independiente por banco, apilados verticalmente.
+    Cada tabla: eje vertical = RIF → Tiendas; columnas = Producto×Fase;
+    celda = '% / Cajas Estimadas / Cajas Recibidas'.
+    Si `bank_filter`, solo se emite el bloque de ese banco (descarte modular).
+    """
     banks = _seg_banks_products(project.get("implementation_matrix") or {}, bank_filter)
     rows = _seg_rows(project)
     if not banks:
         msg = "Sin bancos asociados para el destinatario." if bank_filter else "Sin matriz de implementación."
         return f'<p style="font-family:Arial,sans-serif;font-size:12px;color:#888;margin:6px 0;"><em>{msg}</em></p>'
 
-    bf = "border:1px solid #d8dee9;"
-    th = "padding:6px 8px;text-align:center;font-size:11px;color:#fff;"
-    # --- Encabezado de 3 niveles ---
-    head = '<thead>'
-    # Nivel 1: Sucursal + Cajas (rowspan 3) + Banco (colspan productos*4)
-    head += (f'<tr style="background:#1f3a5f;">'
-             f'<th rowspan="3" style="{th}{bf}text-align:left;">Sucursal</th>'
-             f'<th rowspan="3" style="{th}{bf}">Cajas</th>')
+    bd = "border:1px solid #d8dee9;"
+    blocks = []
     for bank, prods in banks:
-        head += f'<th colspan="{len(prods) * 4}" style="{th}{bf}background:#16324f;">{bank}</th>'
-    head += '</tr>'
-    # Nivel 2: Productos
-    head += '<tr style="background:#2c5378;">'
-    for bank, prods in banks:
-        for p in prods:
-            head += f'<th colspan="4" style="{th}{bf}background:#2c5378;">{p}</th>'
-    head += '</tr>'
-    # Nivel 3: Fases (Rec/Conf/Test/Prod)
-    head += '<tr style="background:#3a6491;">'
-    for bank, prods in banks:
-        for p in prods:
-            for _full, short in _SEG_PHASES:
-                head += f'<th style="{th}{bf}background:#3a6491;font-weight:600;">{short}</th>'
-    head += '</tr></thead>'
+        # Columnas: una por (producto, fase).
+        cols = [(p, full) for p in prods for full, _short in _SEG_PHASES]
+        total_cols = 1 + len(cols)
 
-    total_cols = 2 + sum(len(prods) for _b, prods in banks) * 4
+        # Encabezado: "Estructura del Cliente" + "PRODUCTO: X (Fase Y)"
+        head = ('<thead><tr style="background:#1f3a5f;color:#fff;">'
+                f'<th style="padding:7px 10px;{bd}text-align:left;font-size:11px;min-width:170px;">Estructura del Cliente</th>')
+        for p, full in cols:
+            head += (f'<th style="padding:7px 9px;{bd}text-align:center;font-size:11px;font-weight:600;">'
+                     f'PRODUCTO: {p}<br/><span style="font-weight:400;opacity:.85;">(Fase {full})</span></th>')
+        head += '</tr></thead>'
 
-    # --- Cuerpo: bandas por RIF + filas por tienda ---
-    body = '<tbody>'
-    last_rif = None
-    for row in rows:
-        if row["rif_label"] != last_rif:
-            last_rif = row["rif_label"]
-            body += (f'<tr><td colspan="{total_cols}" style="padding:6px 10px;{bf}'
-                     f'background:#e8eef5;color:#1f3a5f;font-weight:700;font-size:12px;">{last_rif}</td></tr>')
-        cells = ''
-        rmatrix = row["matrix"] or {}
-        for bank, prods in banks:
-            for p in prods:
+        # Cuerpo: banda RIF + filas de tienda.
+        body = '<tbody>'
+        last_rif = None
+        for row in rows:
+            if row["rif_label"] != last_rif:
+                last_rif = row["rif_label"]
+                body += (f'<tr><td colspan="{total_cols}" style="padding:6px 10px;{bd}'
+                         f'background:#e8eef5;color:#1f3a5f;font-weight:700;font-size:12px;">RIF: {last_rif}</td></tr>')
+            rmatrix = row["matrix"] or {}
+            cells = ''
+            for p, full in cols:
                 phdata = ((rmatrix.get(bank) or {}).get(p)) or {}
-                for full, _short in _SEG_PHASES:
-                    val, kind = _phase_cell_value(phdata.get(full))
-                    color = '#16a34a' if kind == 'done' else '#d97706' if kind == 'progress' else '#9ca3af'
-                    weight = '700' if kind in ('done', 'progress') else '400'
-                    cells += f'<td style="padding:5px 6px;{bf}text-align:center;font-size:11px;color:{color};font-weight:{weight};">{val}</td>'
-        body += (f'<tr><td style="padding:5px 8px;{bf}font-size:11px;color:#334155;">{row["name"]}</td>'
-                 f'<td style="padding:5px 8px;{bf}text-align:center;font-size:11px;font-weight:600;color:#1f3a5f;">{row["boxes"] or "—"}</td>'
-                 f'{cells}</tr>')
-    body += '</tbody>'
+                val, color = _seg_cell_v2(phdata.get(full))
+                cells += (f'<td style="padding:6px 9px;{bd}text-align:center;font-size:11px;'
+                          f'color:{color};font-weight:700;white-space:nowrap;">{val}</td>')
+            body += (f'<tr><td style="padding:6px 10px;{bd}font-size:11px;color:#334155;">'
+                     f'<span style="color:#94a3b8;">└─</span> {row["name"]}</td>{cells}</tr>')
+        body += '</tbody>'
+
+        blocks.append(
+            f'<div style="margin:0 0 18px;">'
+            f'<div style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#16324f;'
+            f'background:#dbeafe;padding:7px 12px;border-left:4px solid #1f3a5f;border-radius:4px;margin-bottom:6px;">'
+            f'BLOQUE: {bank}</div>'
+            f'<div style="overflow-x:auto;">'
+            f'<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;">'
+            f'{head}{body}</table></div></div>'
+        )
 
     scope = f' · Banco: {bank_filter}' if bank_filter else ' · Todos los bancos'
-    caption = (f'<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:600;color:#475569;margin:6px 0 4px;">'
-               f'Matriz de Seguimiento Evolutiva{scope}</div>')
-    return (caption + '<div style="overflow-x:auto;">'
-            '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;min-width:600px;">'
-            + head + body + '</table></div>')
+    caption = (f'<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:600;color:#475569;margin:6px 0 8px;">'
+               f'Matriz de Seguimiento Evolutiva{scope}'
+               f'<span style="font-weight:400;color:#94a3b8;"> — formato celda: % avance / cajas estimadas / cajas recibidas</span></div>')
+    return caption + ''.join(blocks)
 
 
 
