@@ -506,6 +506,128 @@ def _build_avance_matrix_html(project: dict, with_dates: bool = False) -> str:
     return header + _avance_phase_table(project.get("implementation_matrix") or {}, with_dates=with_dates)
 
 
+# ===================== {Matriz_Seguimiento_Evolutiva} =====================
+# Matriz bidimensional multinivel: eje vertical = RIF → Tienda/Sucursal (+ Cajas);
+# eje horizontal = Banco → Producto → Fases (Rec/Conf/Test/Prod) con % de avance.
+# Modular por banco: si `bank_filter` se especifica, solo se renderiza ese banco
+# (para envíos dirigidos a un Banco específico — confidencialidad interbancaria).
+
+_SEG_PHASES = [("Recibido", "Rec"), ("Configurado", "Conf"), ("Testeado", "Test"), ("En Producción", "Prod")]
+
+
+def _seg_banks_products(matrix: dict, bank_filter: str = None) -> list:
+    """Lista ordenada [(banco, [productos])] desde la matriz plantilla del proyecto.
+    Si `bank_filter`, conserva solo ese banco (match case-insensitive)."""
+    out = []
+    bf = (bank_filter or "").strip().lower()
+    for bank, products in (matrix or {}).items():
+        if bf and (bank or "").strip().lower() != bf:
+            continue
+        prods = [p for p in (products or {}).keys()]
+        if prods:
+            out.append((bank, prods))
+    return out
+
+
+def _seg_rows(project: dict) -> list:
+    """Filas verticales: [{rif_label, name, boxes, matrix}] agrupables por RIF."""
+    ptype = (project.get("project_type") or "").lower()
+    stores = project.get("stores") or []
+    rows = []
+    if ptype in ("multistore", "multirif") and stores:
+        rifs = project.get("rifs") or []
+        if ptype == "multirif" and rifs:
+            for rif in rifs:
+                rlabel = f'{rif.get("client_name", "Cliente")} — RIF: {format_rif(rif.get("rif", ""))}'
+                rstores = [s for s in stores if s.get("rif_id") == rif.get("rif_id")]
+                for s in rstores:
+                    rows.append({"rif_label": rlabel, "name": s.get("name", "Sucursal"),
+                                 "boxes": int(s.get("box_count") or 0), "matrix": s.get("implementation_matrix") or {}})
+            assigned = {rif.get("rif_id") for rif in rifs}
+            for s in [s for s in stores if s.get("rif_id") not in assigned]:
+                rows.append({"rif_label": "Sin RIF asignado", "name": s.get("name", "Sucursal"),
+                             "boxes": int(s.get("box_count") or 0), "matrix": s.get("implementation_matrix") or {}})
+        else:
+            rlabel = f'{project.get("client_name", "Cliente")} — RIF: {format_rif(project.get("client_rif", ""))}'
+            for s in stores:
+                rows.append({"rif_label": rlabel, "name": s.get("name", "Sucursal"),
+                             "boxes": int(s.get("box_count") or 0), "matrix": s.get("implementation_matrix") or {}})
+    else:
+        # Single: una fila = el proyecto mismo.
+        rlabel = f'{project.get("client_name", "Cliente")} — RIF: {format_rif(project.get("client_rif", ""))}'
+        services = project.get("services", []) or []
+        boxes = project.get("cantidad_cajas") or max((s.get("cantidad_cajas", 0) for s in services), default=0) or 0
+        rows.append({"rif_label": rlabel, "name": project.get("client_sede") or "Sede Principal",
+                     "boxes": int(boxes or 0), "matrix": project.get("implementation_matrix") or {}})
+    return rows
+
+
+def _build_seguimiento_evolutiva_html(project: dict, bank_filter: str = None) -> str:
+    """Variable {Matriz_Seguimiento_Evolutiva}. Si bank_filter, solo ese banco."""
+    banks = _seg_banks_products(project.get("implementation_matrix") or {}, bank_filter)
+    rows = _seg_rows(project)
+    if not banks:
+        msg = "Sin bancos asociados para el destinatario." if bank_filter else "Sin matriz de implementación."
+        return f'<p style="font-family:Arial,sans-serif;font-size:12px;color:#888;margin:6px 0;"><em>{msg}</em></p>'
+
+    bf = "border:1px solid #d8dee9;"
+    th = "padding:6px 8px;text-align:center;font-size:11px;color:#fff;"
+    # --- Encabezado de 3 niveles ---
+    head = '<thead>'
+    # Nivel 1: Sucursal + Cajas (rowspan 3) + Banco (colspan productos*4)
+    head += (f'<tr style="background:#1f3a5f;">'
+             f'<th rowspan="3" style="{th}{bf}text-align:left;">Sucursal</th>'
+             f'<th rowspan="3" style="{th}{bf}">Cajas</th>')
+    for bank, prods in banks:
+        head += f'<th colspan="{len(prods) * 4}" style="{th}{bf}background:#16324f;">{bank}</th>'
+    head += '</tr>'
+    # Nivel 2: Productos
+    head += '<tr style="background:#2c5378;">'
+    for bank, prods in banks:
+        for p in prods:
+            head += f'<th colspan="4" style="{th}{bf}background:#2c5378;">{p}</th>'
+    head += '</tr>'
+    # Nivel 3: Fases (Rec/Conf/Test/Prod)
+    head += '<tr style="background:#3a6491;">'
+    for bank, prods in banks:
+        for p in prods:
+            for _full, short in _SEG_PHASES:
+                head += f'<th style="{th}{bf}background:#3a6491;font-weight:600;">{short}</th>'
+    head += '</tr></thead>'
+
+    total_cols = 2 + sum(len(prods) for _b, prods in banks) * 4
+
+    # --- Cuerpo: bandas por RIF + filas por tienda ---
+    body = '<tbody>'
+    last_rif = None
+    for row in rows:
+        if row["rif_label"] != last_rif:
+            last_rif = row["rif_label"]
+            body += (f'<tr><td colspan="{total_cols}" style="padding:6px 10px;{bf}'
+                     f'background:#e8eef5;color:#1f3a5f;font-weight:700;font-size:12px;">{last_rif}</td></tr>')
+        cells = ''
+        rmatrix = row["matrix"] or {}
+        for bank, prods in banks:
+            for p in prods:
+                phdata = ((rmatrix.get(bank) or {}).get(p)) or {}
+                for full, _short in _SEG_PHASES:
+                    val, kind = _phase_cell_value(phdata.get(full))
+                    color = '#16a34a' if kind == 'done' else '#d97706' if kind == 'progress' else '#9ca3af'
+                    weight = '700' if kind in ('done', 'progress') else '400'
+                    cells += f'<td style="padding:5px 6px;{bf}text-align:center;font-size:11px;color:{color};font-weight:{weight};">{val}</td>'
+        body += (f'<tr><td style="padding:5px 8px;{bf}font-size:11px;color:#334155;">{row["name"]}</td>'
+                 f'<td style="padding:5px 8px;{bf}text-align:center;font-size:11px;font-weight:600;color:#1f3a5f;">{row["boxes"] or "—"}</td>'
+                 f'{cells}</tr>')
+    body += '</tbody>'
+
+    scope = f' · Banco: {bank_filter}' if bank_filter else ' · Todos los bancos'
+    caption = (f'<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:600;color:#475569;margin:6px 0 4px;">'
+               f'Matriz de Seguimiento Evolutiva{scope}</div>')
+    return (caption + '<div style="overflow-x:auto;">'
+            '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;min-width:600px;">'
+            + head + body + '</table></div>')
+
+
 
 
 
@@ -694,6 +816,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Matriz_MultiRif_Avance": _build_multirif_distribution_html(project, with_progress=True),
         "Matriz_Avance_Proyecto": _build_avance_matrix_html(project),
         "Matriz_Avance_Proyecto_Con_Fecha": _build_avance_matrix_html(project, with_dates=True),
+        "Matriz_Seguimiento_Evolutiva": _build_seguimiento_evolutiva_html(project),
         "Patrocinador": patrocinador,
         "Lista_VTID": lista_vtid,
         "Modelo_Seriales_Equipos": modelo_seriales_html,

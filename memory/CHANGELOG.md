@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Nueva variable {Matriz_Seguimiento_Evolutiva} (matriz multinivel modular por banco)
+
+- **Requerimiento:** variable global de reporte bidimensional: eje vertical = RIF → Tienda/Sucursal (+ columna Cajas); eje horizontal = Banco → Producto → Fases (Rec/Conf/Test/Prod) con % de avance por fase. **Modular por banco**: al Cliente muestra todos los bancos; al enviar a un Banco específico elimina los bloques del resto (confidencialidad interbancaria). Basada en 3 modelos Excel aportados (single / multi-tienda / multi-RIF).
+- **Backend (`services/project_template_vars.py`):** nuevos `_build_seguimiento_evolutiva_html(project, bank_filter=None)`, `_seg_banks_products` (banco→productos desde `implementation_matrix`, filtrable por banco case-insensitive) y `_seg_rows` (filas RIF/tienda/cajas para multirif/multistore/single). Reutiliza `_phase_cell_value` y las fases canónicas (Recibido/Configurado/Testeado/En Producción → Rec/Conf/Test/Prod). Encabezado de 3 niveles (Banco / Producto / Fases), bandas por RIF, % con semáforo de color. Registrada en `resolve_project_template_vars` (versión completa).
+- **Modularidad (`routes/projects.py` · `_resolve_notification_email`):** en las ramas `bank` y `bank_client` (donde se conoce `bank_name`) se **sobreescribe** `Matriz_Seguimiento_Evolutiva` con la versión filtrada al banco destinatario. Aplica en preview (`/preview-notification`) y envío (`/send-notification`).
+- **Catálogo + frontend:** registrada en el catálogo de variables (`/projects/{id}/template-variables`), excluida de los mapas simples (es HTML grande), añadida a `other_actions_config.py`, `templateVariables.js` (+ mini-preview hover), `EmailTemplatesEditor.jsx` (4 listas), `RichTextEditor.jsx` (ejemplo) y `projectConstants.js` (ALL_TOKENS).
+- **QA (self-test directo, cubre los 5 criterios):** AC1 jerarquía vertical (bandas por RIF + tiendas + cajas exactas); AC2 % por fase reflejan la matriz (40%/100%); AC3 envío a Cliente muestra los 3 bancos; AC4 envío a "Banco B" elimina por completo los bloques de A y C, conservando RIF/tiendas/cajas; filtro case-insensitive; funciona en single/multistore/multirif. Render sobre proyecto real multirif OK; variable presente en el catálogo vía API; frontend compila.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
 ## 2026-06 — Nueva función: Calendario Laboral + Motor de Días Hábiles (SLAs/Proyectos)
 
 - **Requerimiento:** sustituir el conteo de días naturales por **días hábiles** (excluye sáb/dom + feriados parametrizados) de forma transversal en el panel de Proyectos y el motor SLA. Decisiones del usuario: 1a=días completos (sin horas); 2a=inicio cuenta como día 1; 3b=permitir feriados recurrentes anuales; 4a=gestión solo Admin; ubicado en **Configuración > Calendario Laboral**.

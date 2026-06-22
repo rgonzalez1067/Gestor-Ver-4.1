@@ -39,6 +39,7 @@ _PROJECT_STATUS_VARS = [
     "Nombre_Implementador", "Correo_Implementador",
     "Matriz_Bancos_Productos", "Matriz_Sucursales",
     "Matriz_Avance_Proyecto", "Matriz_Avance_Proyecto_Con_Fecha",
+    "Matriz_Seguimiento_Evolutiva",
     "usuario_ejecutor", "fecha_sistema",
 ]
 
