@@ -1,5 +1,17 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Nueva función: Calendario Laboral + Motor de Días Hábiles (SLAs/Proyectos)
+
+- **Requerimiento:** sustituir el conteo de días naturales por **días hábiles** (excluye sáb/dom + feriados parametrizados) de forma transversal en el panel de Proyectos y el motor SLA. Decisiones del usuario: 1a=días completos (sin horas); 2a=inicio cuenta como día 1; 3b=permitir feriados recurrentes anuales; 4a=gestión solo Admin; ubicado en **Configuración > Calendario Laboral**.
+- **Backend — motor (`services/business_calendar.py`):** `get_holiday_sets()` (caché 30s; sets de fechas específicas 'YYYY-MM-DD' y recurrentes 'MM-DD'), `is_business_day()`, `business_days_between(start,end)` (cuenta el intervalo (start, end] — excluye el día de inicio), `add_business_days(start,n)` (n-ésimo día hábil, inclusivo). `invalidate_holidays_cache()` al crear/eliminar.
+- **Backend — CRUD (`routes/calendar.py`, prefijo `/api/calendar`):** `GET /calendar/holidays` (cualquier autenticado), `POST /calendar/holidays` y `DELETE /calendar/holidays/{id}` (**solo Admin** vía `_require_admin`). Unicidad: 409 si la fecha específica ya existe o si ya hay un recurrente con el mismo MM-DD; 400 si la fecha es inválida. Colección `holidays`. Registrado en `server.py` (no mapeado en ROUTE_MODULE_MAP → el handler aplica el admin-only).
+- **Integración SLA (`services/project_sla_engine.py`):** `evaluate_project` ahora cuenta días hábiles (`business_days_between`); `run_sla_evaluation` carga los feriados una sola vez por corrida. El estado "Configurado en espera del Cliente" sigue pausado (no entra al semáforo).
+- **Integración Panel (`routes/projects.py`):** `GET /projects` inyecta `business_days_in_state` por proyecto (días hábiles desde `stage_entered_at`). El frontend (`pages/Projects.jsx`) usa ese valor en el semáforo SLA con etiqueta "Nd háb." (antes calculaba días naturales en el cliente).
+- **Frontend — UI:** nueva página `pages/WorkCalendarConfig.jsx` (ruta `/settings/work-calendar`): formulario (fecha + descripción + switch "Cada año" + Guardar) y grilla cronológica con badge Único/Recurrente y eliminar con confirmación. Tarjeta `work-calendar-card` en `Settings.jsx`.
+- **QA:** pytest del testing_agent `tests/test_iteration126_calendar_holidays.py` **14/14 PASS** (list admin/no-admin/unauth, create específico, 409 duplicado específico, recurrente, 409 duplicado recurrente, 400 fecha inválida, RBAC POST/DELETE 403 no-admin, unauth 401, delete admin, 404, business_days_in_state en /projects). Validación directa del motor: **AC#2** (Vie→Lun = 1 día hábil) y **AC#3 crítica** (SLA 3 días hábiles, inicio lunes con martes feriado → vence viernes, elapsed=3). Smoke test UI: página y panel renderizan con etiquetas "d háb.".
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.** La colección `holidays` queda vacía (datos de prueba revertidos); el Admin debe cargar los feriados reales tras desplegar.
+
+
 ## 2026-06 — Fix: imágenes pegadas en plantillas llegaban rotas al correo (ahora CID inline)
 
 - **Síntoma (reportado por el usuario, con captura):** las imágenes insertadas en una plantilla se veían en Vista Previa pero llegaban **rotas** ("image.png" con ícono roto) en el correo recibido (Outlook/Gmail).

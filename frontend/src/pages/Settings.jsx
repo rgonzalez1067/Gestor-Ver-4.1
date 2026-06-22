@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi, DatabaseBackup, PenLine } from 'lucide-react';
+import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi, DatabaseBackup, PenLine, CalendarDays } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import { ContingencyAttachmentsExport } from '../components/ContingencyAttachmentsExport';
@@ -795,6 +795,36 @@ export const Settings = () => {
             </div>
             );
           })()}
+
+          {/* Calendario Laboral — días festivos (días hábiles en SLAs/Proyectos) */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="work-calendar-card">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <CalendarDays size={20} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 font-manrope">
+                    Calendario Laboral
+                  </h2>
+                  <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+                    Administra los <strong>días festivos</strong> no laborables. El seguimiento de
+                    proyectos y los <strong>SLAs</strong> contarán solo días hábiles, descontando
+                    automáticamente fines de semana y los feriados aquí registrados.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate('/settings/work-calendar')}
+                variant="outline"
+                className="flex-shrink-0"
+                data-testid="open-work-calendar-btn"
+              >
+                Configurar
+                <ChevronRight size={16} className="ml-1" />
+              </Button>
+            </div>
+          </div>
 
           {/* Notificaciones Push Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="notifications-config-card">

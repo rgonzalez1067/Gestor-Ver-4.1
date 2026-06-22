@@ -827,11 +827,9 @@ const Projects = () => {
                       const { w, d } = _th(stageKey);
                       return days >= d ? 'bg-red-500' : days >= w ? 'bg-yellow-500' : 'bg-emerald-500';
                     };
-                    const _enteredDays = (...candidates) => {
-                      const ref = candidates.find(Boolean);
-                      const refDate = ref ? new Date(ref) : now;
-                      return Math.floor((now - refDate) / (1000 * 60 * 60 * 24));
-                    };
+                    // Días HÁBILES en el estado actual, calculados por el backend
+                    // (excluye fines de semana y festivos del Calendario Laboral).
+                    const _bizDays = Number(project.business_days_in_state ?? 0);
 
                     if (isSuspended) {
                       slaColor = 'bg-slate-400';
@@ -840,19 +838,19 @@ const Projects = () => {
                       slaColor = 'bg-blue-500';
                       slaLabel = project.status;
                     } else if (!project.assigned_to_name) {
-                      // Etapa A: Sin asignar — desde que entró al estado actual
-                      slaDays = _enteredDays(project.status_changed_at, project.sent_to_implementation_at, project.created_at);
-                      slaLabel = `Sin asignar · ${slaDays}d`;
+                      // Etapa A: Sin asignar
+                      slaDays = _bizDays;
+                      slaLabel = `Sin asignar · ${slaDays}d háb.`;
                       slaColor = _color(slaDays, 'por_asignar');
                     } else if (!project.ticket_number) {
                       // Etapa B: Asignado sin desbloquear
-                      slaDays = _enteredDays(project.status_changed_at, project.assigned_at, project.created_at);
-                      slaLabel = `Pendiente desbloqueo · ${slaDays}d`;
+                      slaDays = _bizDays;
+                      slaLabel = `Pendiente desbloqueo · ${slaDays}d háb.`;
                       slaColor = _color(slaDays, 'asignado');
                     } else {
-                      // Etapa C: Desbloqueado / En Gestión — desde que entró al estado actual
-                      slaDays = _enteredDays(project.status_changed_at, project.unblocked_at, project.assigned_at, project.created_at);
-                      slaLabel = `En gestión · ${slaDays}d`;
+                      // Etapa C: Desbloqueado / En Gestión
+                      slaDays = _bizDays;
+                      slaLabel = `En gestión · ${slaDays}d háb.`;
                       slaColor = _color(slaDays, 'en_gestion');
                     }
                     

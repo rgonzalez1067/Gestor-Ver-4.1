@@ -131,9 +131,11 @@ def compute_color(days: int, thresholds: dict) -> str:
     return "green"
 
 
-async def evaluate_project(project: dict, config: dict, now: Optional[datetime] = None) -> Optional[dict]:
+async def evaluate_project(project: dict, config: dict, now: Optional[datetime] = None, holiday_sets: Optional[tuple] = None) -> Optional[dict]:
     """Devuelve {stage, days, color, thresholds} o None si el proyecto no aplica
-    (estados terminales/pausados no llevan semáforo de tiempos)."""
+    (estados terminales/pausados no llevan semáforo de tiempos).
+
+    `days` se cuenta en DÍAS HÁBILES (excluye fines de semana y festivos)."""
     now = now or datetime.now(timezone.utc)
     status = project.get("status")
     stage = STATUS_TO_STAGE.get(status)
@@ -142,7 +144,12 @@ async def evaluate_project(project: dict, config: dict, now: Optional[datetime] 
     entered = stage_entered_at(project)
     if not entered:
         return None
-    days = max((now - entered).days, 0)
+    if holiday_sets is None:
+        from services.business_calendar import get_holiday_sets
+        holiday_sets = await get_holiday_sets()
+    specific, recurring = holiday_sets
+    from services.business_calendar import business_days_between
+    days = business_days_between(entered.date(), now.date(), specific, recurring)
     thresholds = (config.get("stages") or {}).get(stage, DEFAULT_THRESHOLDS[stage])
     color = compute_color(days, thresholds)
     return {"stage": stage, "days": days, "color": color, "thresholds": thresholds}
@@ -252,11 +259,13 @@ async def run_sla_evaluation(force_dispatch: bool = False) -> dict:
     en las transiciones Verde→Amarillo y Amarillo→Rojo."""
     now = datetime.now(timezone.utc)
     config = await get_sla_config()
+    from services.business_calendar import get_holiday_sets
+    holiday_sets = await get_holiday_sets()
     evaluated, transitions, dispatched = 0, 0, 0
 
     cursor = db.projects.find({"status": {"$in": ACTIVE_STATUSES}}, {"_id": 0})
     async for project in cursor:
-        res = await evaluate_project(project, config, now)
+        res = await evaluate_project(project, config, now, holiday_sets)
         if not res:
             continue
         evaluated += 1

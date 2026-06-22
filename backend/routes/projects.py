@@ -178,10 +178,18 @@ async def get_projects(authorization: Optional[str] = Header(None)):
     # Iter39: inyectar pvv_count para que la lista pueda mostrarlo / ordenarlo
     # sin un GET adicional por proyecto.
     from services.project_pvv import compute_project_pvv, compute_project_metrics
+    from services.business_calendar import get_holiday_sets, business_days_between
+    from services.project_sla_engine import stage_entered_at
+    specific, recurring = await get_holiday_sets()
+    today = datetime.now(timezone.utc).date()
     for p in projects:
         p["pvv_count"] = compute_project_pvv(p)
         # Iter: métricas del Mini Tablero de Avance Operativo (físico + PVV).
         p["operational_metrics"] = compute_project_metrics(p)
+        # Días HÁBILES transcurridos en el estado actual (excluye fines de semana
+        # y festivos). Fuente única para el semáforo SLA del panel.
+        entered = stage_entered_at(p)
+        p["business_days_in_state"] = business_days_between(entered.date(), today, specific, recurring) if entered else 0
     return projects
 
 

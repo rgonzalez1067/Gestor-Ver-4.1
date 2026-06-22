@@ -16,6 +16,7 @@ import InvoicedExitsReport from './pages/InvoicedExitsReport';
 import { ClientTemplatesConfig } from './pages/ClientTemplatesConfig';
 import { EmailFooterConfig } from './pages/EmailFooterConfig';
 import { EmailSendersConfig } from './pages/EmailSendersConfig';
+import { WorkCalendarConfig } from './pages/WorkCalendarConfig';
 import { CommercialCategories } from './pages/CommercialCategories';
 import { NotificationConfig } from './pages/NotificationConfig';
 import ActionNotificationsConfig from './pages/ActionNotificationsConfig';
@@ -210,6 +211,11 @@ function AppRouter() {
       <Route path="/settings/email-senders" element={
         <ProtectedRoute>
           <EmailSendersConfig />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings/work-calendar" element={
+        <ProtectedRoute>
+          <WorkCalendarConfig />
         </ProtectedRoute>
       } />
       <Route path="/commercial-categories" element={

@@ -53,6 +53,7 @@ from routes.project_reports import router as project_reports_router
 from routes.sponsor_reports import router as sponsor_reports_router
 from routes.direct_projects import router as direct_projects_router
 from routes.project_sla import router as project_sla_router
+from routes.calendar import router as calendar_router
 from routes.inbox import router as inbox_router
 from routes.connected_users import router as connected_users_router
 from routes.other_actions_config import router as other_actions_router
@@ -309,6 +310,7 @@ api_router.include_router(project_reports_router)
 api_router.include_router(sponsor_reports_router)
 api_router.include_router(direct_projects_router)
 api_router.include_router(project_sla_router)
+api_router.include_router(calendar_router)
 
 app.include_router(api_router)
 
