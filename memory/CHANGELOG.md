@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — {Matriz_Seguimiento_Evolutiva} V3: cabeceras limpias + Fase I–IV + leyenda
+
+- **Limpieza de textos:** eliminadas las palabras estáticas "BLOQUE" y "PRODUCTO" de los encabezados (el título del banco ahora es solo su nombre).
+- **Cabecera de 2 niveles:** nombre del producto una sola vez como cabecera fusionada `colspan=4` sobre sus 4 fases; debajo, 4 columnas fijas etiquetadas **Fase I, Fase II, Fase III, Fase IV** (mapeadas a Recibido/Configurado/Testeado/En Producción).
+- **Leyenda operativa** al pie de cada tabla de banco (alineada a la izquierda): "Estatus de las Fases: Fase I = Recibido | Fase II = Configurado | Fase III = Testeado | Fase IV = En Producción".
+- **Celda intacta:** se mantiene `% avance / Cajas Estimadas / Cajas Recibidas`. Segmentación modular por banco sin cambios.
+- **Frontend:** previews (`templateVariables.js`, `RichTextEditor.jsx`) actualizados al layout V3.
+- **QA (self-test):** sin "BLOQUE"/"PRODUCTO"; producto con `colspan=4`; exactamente 4 columnas Fase I–IV por producto (8 headers para 2 productos); celda `100% / 5 / 5` y `40% / 5 / 2`; leyenda con equivalencias exactas. Frontend compila.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
 ## 2026-06 — {Matriz_Seguimiento_Evolutiva} V2: bloques verticales por banco + celda con cajas
 
 - **Cambio de arquitectura:** se reemplazó la tabla horizontal única (bancos como columnas adyacentes) por **tablas independientes apiladas verticalmente, una por banco** (`<div>` con título "BLOQUE: {Banco}"). Cada tabla: eje vertical = RIF → Tiendas; columnas = Producto×Fase con encabezado "PRODUCTO: {producto} (Fase {fase})".

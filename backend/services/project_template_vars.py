@@ -605,12 +605,15 @@ def _build_seguimiento_evolutiva_html(project: dict, bank_filter: str = None) ->
         cols = [(p, full) for p in prods for full, _short in _SEG_PHASES]
         total_cols = 1 + len(cols)
 
-        # Encabezado: "Estructura del Cliente" + "PRODUCTO: X (Fase Y)"
+        # Encabezado de 2 niveles: producto (colspan 4) + Fase I..IV
         head = ('<thead><tr style="background:#1f3a5f;color:#fff;">'
-                f'<th style="padding:7px 10px;{bd}text-align:left;font-size:11px;min-width:170px;">Estructura del Cliente</th>')
-        for p, full in cols:
-            head += (f'<th style="padding:7px 9px;{bd}text-align:center;font-size:11px;font-weight:600;">'
-                     f'PRODUCTO: {p}<br/><span style="font-weight:400;opacity:.85;">(Fase {full})</span></th>')
+                f'<th rowspan="2" style="padding:7px 10px;{bd}text-align:left;font-size:11px;min-width:170px;vertical-align:middle;">Estructura del Cliente</th>')
+        for p in prods:
+            head += (f'<th colspan="4" style="padding:7px 9px;{bd}text-align:center;font-size:12px;font-weight:700;">{p}</th>')
+        head += '</tr><tr style="background:#2c5378;color:#fff;">'
+        for p in prods:
+            for fl in ("Fase I", "Fase II", "Fase III", "Fase IV"):
+                head += (f'<th style="padding:6px 8px;{bd}text-align:center;font-size:11px;font-weight:600;">{fl}</th>')
         head += '</tr></thead>'
 
         # Cuerpo: banda RIF + filas de tienda.
@@ -632,14 +635,19 @@ def _build_seguimiento_evolutiva_html(project: dict, bank_filter: str = None) ->
                      f'<span style="color:#94a3b8;">└─</span> {row["name"]}</td>{cells}</tr>')
         body += '</tbody>'
 
+        legend = ('<div style="font-family:Arial,sans-serif;font-size:10.5px;color:#64748b;'
+                  'margin:4px 0 0;text-align:left;"><strong>Estatus de las Fases:</strong> '
+                  'Fase I = Recibido &nbsp;|&nbsp; Fase II = Configurado &nbsp;|&nbsp; '
+                  'Fase III = Testeado &nbsp;|&nbsp; Fase IV = En Producción</div>')
+
         blocks.append(
             f'<div style="margin:0 0 18px;">'
             f'<div style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#16324f;'
             f'background:#dbeafe;padding:7px 12px;border-left:4px solid #1f3a5f;border-radius:4px;margin-bottom:6px;">'
-            f'BLOQUE: {bank}</div>'
+            f'{bank}</div>'
             f'<div style="overflow-x:auto;">'
             f'<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;">'
-            f'{head}{body}</table></div></div>'
+            f'{head}{body}</table></div>{legend}</div>'
         )
 
     scope = f' · Banco: {bank_filter}' if bank_filter else ' · Todos los bancos'
