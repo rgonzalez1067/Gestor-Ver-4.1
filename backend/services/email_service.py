@@ -249,6 +249,64 @@ def _send_smtp(
     return {"status": "sent", "method": "smtp"}
 
 
+async def _embed_body_images(html: str, attachments: list) -> tuple:
+    """Convierte las imágenes del cuerpo (URLs servidas por nuestro backend o data URIs)
+    en adjuntos inline CID, para que se visualicen en cualquier cliente de correo
+    (Outlook/Gmail bloquean las imágenes remotas o no las cargan)."""
+    import re
+    import base64
+    if not html or "<img" not in html.lower():
+        return html, attachments
+    atts = list(attachments) if attachments else []
+    pattern = re.compile(r'<img\b[^>]*?\bsrc=["\']([^"\']+)["\']', re.IGNORECASE)
+    replacements = {}
+    for m in pattern.finditer(html):
+        src = m.group(1)
+        if src.startswith("cid:") or src in replacements:
+            continue
+        content = None
+        ctype = "image/png"
+        fname = "imagen.png"
+        if src.startswith("data:image/"):
+            try:
+                header, b64 = src.split(",", 1)
+                ctype = header.split(":", 1)[1].split(";", 1)[0]
+                content = base64.b64decode(b64)
+                fname = f"imagen.{ctype.split('/')[-1]}"
+            except Exception:
+                continue
+        elif "/api/projects/images/" in src:
+            try:
+                tail = src.split("/api/projects/images/", 1)[1].split("?", 1)[0]
+                file_id = tail.split(".", 1)[0]
+                rec = await db.uploaded_images.find_one({"image_id": file_id}, {"_id": 0})
+                if not rec:
+                    continue
+                from services.object_storage import get_object
+                content, ct = await asyncio.to_thread(get_object, rec["storage_path"])
+                ctype = rec.get("content_type") or ct or "image/png"
+                fname = rec.get("original_filename") or tail
+            except Exception as e:
+                logger.warning(f"[BodyImg] No se pudo incrustar imagen {src}: {e}")
+                continue
+        else:
+            continue
+        if not content:
+            continue
+        cid = f"bodyimg_{uuid.uuid4().hex[:10]}"
+        replacements[src] = cid
+        atts.append({
+            "filename": fname,
+            "content": content,
+            "content_id": cid,
+            "inline": True,
+            "content_type": ctype,
+        })
+    for src, cid in replacements.items():
+        html = html.replace(src, f"cid:{cid}")
+    return html, atts
+
+
 async def send_email(
     to: List[str],
     subject: str,
@@ -302,6 +360,13 @@ async def send_email(
                 attachments = ([inline_logo] + list(attachments)) if attachments else [inline_logo]
     except Exception as e:
         logger.warning(f"[Firma] No se pudo adjuntar el logo inline (CID): {e}")
+
+    # Imágenes del cuerpo (pegadas en plantillas) → incrustar como CID inline para que
+    # se visualicen en el correo (Outlook/Gmail bloquean o no cargan imágenes remotas).
+    try:
+        html, attachments = await _embed_body_images(html, attachments)
+    except Exception as e:
+        logger.warning(f"[BodyImg] No se pudieron incrustar las imágenes del cuerpo: {e}")
 
     email_log = {
         "email_log_id": f"eml_{uuid.uuid4().hex[:12]}",

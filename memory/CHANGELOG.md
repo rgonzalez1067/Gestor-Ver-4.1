@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Fix: imágenes pegadas en plantillas llegaban rotas al correo (ahora CID inline)
+
+- **Síntoma (reportado por el usuario, con captura):** las imágenes insertadas en una plantilla se veían en Vista Previa pero llegaban **rotas** ("image.png" con ícono roto) en el correo recibido (Outlook/Gmail).
+- **Causa raíz:** las imágenes del cuerpo se referenciaban como **URL remota** (`{REACT_APP_BACKEND_URL}/api/projects/images/{id}.ext`); los clientes de correo bloquean o no cargan imágenes remotas (mismo problema que tuvo el logo de firma, resuelto previamente con CID).
+- **Fix (`services/email_service.py`):** nuevo helper `_embed_body_images(html, attachments)` invocado en `send_email` (tras el bloque del logo de firma). Escanea los `<img src>` del cuerpo y, para imágenes hospedadas por nuestro backend (`/api/projects/images/{id}` → busca bytes en object storage vía `db.uploaded_images`) o **data URIs** base64, las adjunta como **inline CID** (`cid:bodyimg_*`) y reescribe el `src`. Funciona en SMTP (multipart/related) y Resend (disposition inline), y es **robusto entre entornos** (match por `image_id`, no por host → un template creado en preview se ve bien al enviar desde producción). IDs inexistentes se omiten sin romper el envío.
+- **Validado (self-test directo):** data URI → CID + adjunto; URL hospedada real (subida vía `/api/projects/upload-image`) → bytes recuperados de object storage + CID; ID inexistente → HTML intacto, 0 adjuntos; sin `<img>` → sin cambios. Solo afecta el correo ENVIADO (la Vista Previa sigue usando la URL remota y ya funcionaba).
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
 ## 2026-06-13 — Nueva función: carga vía Excel de la distribución Multi-RIF (Tiendas/Sucursales)
 
 - **Backend (`quotes.py`)**: 2 endpoints nuevos:
