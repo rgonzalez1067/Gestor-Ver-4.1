@@ -12,7 +12,7 @@ import requests
 import os
 from pymongo import MongoClient
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://action-key-mismatch.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://quote-pdf-stabilize.preview.emergentagent.com')
 
 # MongoDB connection for session token
 mongo_client = MongoClient('mongodb://localhost:27017')

@@ -7,7 +7,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://action-key-mismatch.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://quote-pdf-stabilize.preview.emergentagent.com')
 SESSION_TOKEN = "test_session_pdf_12345"
 
 @pytest.fixture
