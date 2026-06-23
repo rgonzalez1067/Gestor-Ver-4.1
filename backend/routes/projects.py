@@ -173,8 +173,18 @@ async def _build_project_visibility_query(user: dict) -> dict:
         pyme_ids = [u["user_id"] for u in pyme_users if u.get("user_id")]
         return {"created_by_user_id": {"$in": pyme_ids}}
 
-    if cargo == "Ejecutivo" and dept == "Ventas Corporativas":
-        return {"$or": [{"created_by_user_id": uid}, {"client_segment": "CORP"}]}
+    # Ventas Corporativas: visibilidad COLECTIVA del equipo. Cualquier miembro del
+    # departamento "Ventas Corporativas" (tolerante a variantes) ve TODOS los
+    # proyectos creados por cualquier integrante de su mismo equipo.
+    if "ventas corporativ" in dept.lower():
+        corp_users = await db.users.find(
+            {"departamento": {"$regex": "ventas corporativ", "$options": "i"}},
+            {"_id": 0, "user_id": 1}
+        ).to_list(2000)
+        corp_ids = [u["user_id"] for u in corp_users if u.get("user_id")]
+        if uid and uid not in corp_ids:
+            corp_ids.append(uid)
+        return {"created_by_user_id": {"$in": corp_ids}}
 
     if cargo == "Implementador":
         return {"assigned_to_user_id": uid}
@@ -203,6 +213,21 @@ async def get_projects(authorization: Optional[str] = Header(None)):
         # reinicia solo con acciones de interacción válidas (correo/avance matriz).
         entered = sla_reference_date(p)
         p["business_days_in_state"] = business_days_between(entered.date(), today, specific, recurring) if entered else 0
+        # Cuenta regresiva (días HÁBILES) hasta la fecha estimada de entrada en
+        # producción comprometida por el cliente. El panel muestra el aviso solo
+        # cuando faltan <= 5 días hábiles (lo decide el frontend con este valor).
+        # -1 = la fecha ya transcurrió; None = sin fecha registrada.
+        p["production_days_left"] = None
+        prod = (p.get("fecha_estimada_produccion") or "").strip()
+        if prod:
+            try:
+                prod_date = datetime.fromisoformat(prod[:10]).date()
+                if prod_date >= today:
+                    p["production_days_left"] = business_days_between(today, prod_date, specific, recurring)
+                else:
+                    p["production_days_left"] = -1
+            except Exception:
+                pass
     return projects
 
 

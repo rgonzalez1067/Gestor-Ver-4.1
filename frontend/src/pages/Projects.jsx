@@ -22,7 +22,7 @@ import { MasterEditDialog } from '../components/projects/MasterEditDialog';
 import { OperationalBoard } from '../components/projects/OperationalBoard';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar, CalendarClock, FileSpreadsheet
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -166,6 +166,7 @@ const Projects = () => {
   // Edición Maestra (Super-Admin Override)
   const [masterEditOpen, setMasterEditOpen] = useState(false);
   const [masterEditProject, setMasterEditProject] = useState(null);
+  const [fichaLoadingId, setFichaLoadingId] = useState(null);
 
   // Gestor global de Plantillas de Correo (acceso desde el maestro de Proyectos)
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -325,6 +326,23 @@ const Projects = () => {
       fetchProjects();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al eliminar');
+    }
+  };
+
+  // Acceso rápido a la Ficha Técnica desde la grilla: descarga el PDF con la
+  // sesión activa y lo abre en una pestaña nueva (no se puede abrir por URL
+  // directa porque el endpoint exige el token de autorización).
+  const viewFichaTecnica = async (project) => {
+    setFichaLoadingId(project.project_id);
+    try {
+      const res = await api.get(`/projects/${project.project_id}/ficha-tecnica`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al abrir la Ficha Técnica');
+    } finally {
+      setFichaLoadingId(null);
     }
   };
 
@@ -1036,6 +1054,18 @@ const Projects = () => {
                               data-detail-enabled={hasAssignee ? 'true' : 'false'}>
                               <Eye size={14} />
                             </Button>
+                            {/* Acceso rápido a Ficha Técnica — abre el PDF en pestaña nueva */}
+                            <Button
+                              size="sm" variant="outline"
+                              title="Ver Ficha Técnica"
+                              onClick={() => viewFichaTecnica(project)}
+                              disabled={fichaLoadingId === project.project_id}
+                              className="h-8 px-2 text-cyan-700 hover:bg-cyan-50 border-cyan-200"
+                              data-testid={`ficha-tecnica-btn-${project.project_id}`}>
+                              {fichaLoadingId === project.project_id
+                                ? <Clock size={14} className="animate-spin" />
+                                : <FileSpreadsheet size={14} />}
+                            </Button>
                             {/* Compromiso (Coord/Gerente/Admin crea/gestiona; todos leen) */}
                             {(() => {
                               const active = (project.commitments || []).filter(c => !c.completed);
@@ -1078,6 +1108,27 @@ const Projects = () => {
                       {/* Fila SLA Semáforo */}
                       <tr className="border-b border-slate-200" data-testid={`sla-row-${project.project_id}`}>
                         <td colSpan={8} className="px-4 py-1.5">
+                          {/* Aviso de cuenta regresiva de entrada en producción
+                              (solo cuando faltan <= 5 días hábiles). Fondo ámbar,
+                              nunca rojo (reservado a alertas de compromisos). */}
+                          {(() => {
+                            const dl = project.production_days_left;
+                            if (dl === null || dl === undefined || dl > 5) return null;
+                            let msg;
+                            if (dl < 0) msg = 'La fecha estimada de entrada en producción del cliente ya transcurrió.';
+                            else if (dl === 0) msg = 'Hoy es la fecha estimada de entrada en producción.';
+                            else msg = `Quedan ${dl} día${dl === 1 ? '' : 's'} para la entrada en producción prevista por el cliente.`;
+                            return (
+                              <div
+                                className="mb-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-50 border border-amber-300"
+                                data-testid={`production-countdown-${project.project_id}`}
+                                data-days-left={dl}
+                              >
+                                <CalendarClock size={15} className="text-amber-600 shrink-0" />
+                                <span className="text-xs font-bold text-amber-800">{msg}</span>
+                              </div>
+                            );
+                          })()}
                           <div className="flex items-center gap-3" title={`${slaLabel} — Avance: ${pct}%`}>
                             <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
                               <div className={`h-full rounded-full transition-all duration-500 ${isSuspended ? 'bg-slate-400 bg-[length:20px_20px] bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)]' : slaColor}`} style={{ width: `${Math.max(Math.min(pct, 100), 5)}%` }} />

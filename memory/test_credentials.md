@@ -54,6 +54,11 @@
   los endpoints `/api/projects/{id}/implementer-alerts`.
 
 
+## Ventas Corporativas — pruebas de Visibilidad Colectiva (Jun 2026)
+- Vendedor A: mmartin@megasoft.com.ve / Test1234! (user_a9f878a5c38a, Ejecutivo, Ventas Corporativas, proyectos=read)
+- Vendedor B: mposligua@megasoft.com.ve / Test1234! (user_60c7d104d330, Ejecutivo, Ventas Corporativas, proyectos=read)
+- Nota: passwords reseteados por el agente para QA. Ambos deben ver TODOS los proyectos del equipo Ventas Corporativas (37 proyectos, 3 creadores distintos). Equipo completo: esilva, ragg1008@gmail.com, mmartin, corporativos, mposligua.
+
 ## Implementador para pruebas de Aislamiento de Visibilidad (Jun 2026)
 - Email: agonzalez@megasoft.com.ve
 - Password: Test1234!
