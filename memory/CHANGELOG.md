@@ -1,5 +1,17 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Reingeniería del semáforo SLA en "En Gestión" (refresco solo por acción válida)
+
+- **Objetivo:** que el Verde del semáforo refleje atención operativa real y auditable en el estado de largo plazo "En Gestión", no la mera inactividad ni comentarios de bitácora.
+- **Motor (`project_sla_engine.py`):** nuevo `sla_reference_date(project)`. Para fases iniciales (Por asignar / Asignado) sigue usando `stage_entered_at` (se refresca con el cambio de estado). Para **"En Gestión"** usa `max(stage_entered_at, last_qualified_activity_at)` → el contador (y el color) solo se reinicia con una acción de interacción válida. `evaluate_project` y el panel (`GET /projects` → `business_days_in_state`) usan esta referencia.
+- **Disparadores que reinician a Verde (`last_qualified_activity_at = now`):**
+  - **Comunicaciones externas:** envío EXITOSO de correo a Cliente o Banco (`_send_sequential_notification`, condicionado a `status in (sent, simulated)` y target client/bank/bank_client).
+  - **Evolución operativa:** cualquier avance en la matriz de adquirencia — `PUT /matrix/phase`, `PUT /stores/{id}/matrix/phase` y `POST /matrix/batch-update`.
+- **Exclusión estricta — Bitácora:** `POST /projects/{id}/bitacora` solo hace `$push` del comentario; NO toca `last_qualified_activity_at` ni `updated_at` → un comentario manual NO limpia el semáforo (permanece Amarillo/Rojo).
+- **QA (self-test):** 4 casos del motor (En Gestión con/sin actividad, actividad más vieja que entered, fase inicial ignora actividad) ✓; end-to-end vía panel API: proyecto En Gestión con 12 días sin interacción → `business_days_in_state=8` (degradado), tras actividad calificada → `0` (Verde) ✓.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
 ## 2026-06 — Acceso a "Cotizaciones de Equipos" (caso Anderson Godoy) + herramientas de reparación
 
 - **Causa raíz:** la visibilidad del menú de Cotizaciones de Equipos NO depende del "Override de Acciones", sino de 3 condiciones del usuario: (1) `permissions['cotizaciones'] == 'edit'`, (2) grupo de menú `gestion_comercial` activo, y (3) permiso especial `cotizaciones:equipos` ("Generar Equipos y Accesorios") en sus permisos efectivos (perfil ∪ usuario). Diagnóstico de Anderson Godoy: tenía `cotizaciones='read'` y sin el flag especial → no veía el menú.
@@ -525,7 +537,7 @@ Backend ya estaba listo (sesiones previas). Esta sesión implementó el Frontend
 - `ProjectDetail.jsx`: estado `batchProduct` → `batchProducts` (array), `toggleBatchProduct`, `handleBatchBankChange` (preselecciona todos los medios del banco). Payload envía `product_names` (array) al endpoint que ya lo soporta.
 
 ### Notas
-- Las URLs de preview viejas del handoff están dormidas; URL correcta del entorno: `https://quote-pdf-stabilize.preview.emergentagent.com`.
+- Las URLs de preview viejas del handoff están dormidas; URL correcta del entorno: `https://email-templates-fix.preview.emergentagent.com`.
 - Pendiente opcional (a11y polish): agregar `<DialogDescription>` a `templates-dialog` y `batch-update-dialog`. Hydration warnings preexistentes del instrumentador (no del código).
 
 

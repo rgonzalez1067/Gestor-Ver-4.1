@@ -192,16 +192,16 @@ async def get_projects(authorization: Optional[str] = Header(None)):
     # sin un GET adicional por proyecto.
     from services.project_pvv import compute_project_pvv, compute_project_metrics
     from services.business_calendar import get_holiday_sets, business_days_between
-    from services.project_sla_engine import stage_entered_at
+    from services.project_sla_engine import sla_reference_date
     specific, recurring = await get_holiday_sets()
     today = datetime.now(timezone.utc).date()
     for p in projects:
         p["pvv_count"] = compute_project_pvv(p)
         # Iter: métricas del Mini Tablero de Avance Operativo (físico + PVV).
         p["operational_metrics"] = compute_project_metrics(p)
-        # Días HÁBILES transcurridos en el estado actual (excluye fines de semana
-        # y festivos). Fuente única para el semáforo SLA del panel.
-        entered = stage_entered_at(p)
+        # Días HÁBILES desde la referencia SLA. En 'En Gestión' la referencia se
+        # reinicia solo con acciones de interacción válidas (correo/avance matriz).
+        entered = sla_reference_date(p)
         p["business_days_in_state"] = business_days_between(entered.date(), today, specific, recurring) if entered else 0
     return projects
 
@@ -1425,6 +1425,11 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 
     update_set = {"notification_history": notification_history, "updated_at": now, "last_contact_at": now, "last_contact_by": user_name, "last_contact_target": target}
 
+    # Disparador de semáforo (En Gestión): un correo EXITOSO a Cliente o Banco es
+    # una acción de interacción válida → reinicia el contador de inactividad a Verde.
+    if target in ("client", "bank", "bank_client") and email_result.get("status") in ("sent", "simulated"):
+        update_set["last_qualified_activity_at"] = now
+
     # Primer envío al cliente desbloquea la matriz
     if target == "client" and send_count == 0:
         update_set["client_notified"] = True
@@ -1755,7 +1760,7 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
 
     await db.projects.update_one(
         {"project_id": project_id},
-        {"$set": {"implementation_matrix": matrix, "updated_at": now}}
+        {"$set": {"implementation_matrix": matrix, "updated_at": now, "last_qualified_activity_at": now}}
     )
 
     # Bitácora automática si cambió la cantidad procesada
@@ -1867,7 +1872,8 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
         {"project_id": project_id, "stores.store_id": store_id},
         {"$set": {
             "stores.$.implementation_matrix": matrix,
-            "updated_at": now
+            "updated_at": now,
+            "last_qualified_activity_at": now
         }}
     )
 
@@ -1986,7 +1992,7 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
             store_expected_total += expected
         await db.projects.update_one(
             {"project_id": project_id, "stores.store_id": sid},
-            {"$set": {"stores.$.implementation_matrix": matrix, "updated_at": now}}
+            {"$set": {"stores.$.implementation_matrix": matrix, "updated_at": now, "last_qualified_activity_at": now}}
         )
         processed_stores.append({"store_id": sid, "name": store.get("name", sid), "expected": store_expected_total})
 

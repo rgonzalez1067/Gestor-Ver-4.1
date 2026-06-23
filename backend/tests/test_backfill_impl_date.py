@@ -8,7 +8,7 @@ Valida:
 import os
 import requests
 
-API = os.environ.get("REACT_APP_BACKEND_URL", "https://quote-pdf-stabilize.preview.emergentagent.com").rstrip("/") + "/api"
+API = os.environ.get("REACT_APP_BACKEND_URL", "https://email-templates-fix.preview.emergentagent.com").rstrip("/") + "/api"
 ADMIN = {"email": "rgonzalez@megasoft.com.ve", "password": "admin123"}
 CONSULTA = {"email": "srubio@megasoft.com.ve", "password": "Test1234!"}
 

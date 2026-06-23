@@ -121,6 +121,23 @@ def stage_entered_at(project: dict) -> Optional[datetime]:
     return primary or _parse_dt(project.get("created_at"))
 
 
+def sla_reference_date(project: dict) -> Optional[datetime]:
+    """Fecha de referencia para el semáforo SLA.
+
+    - Fases iniciales (Por asignar / Asignado): se refresca con el cambio de estado
+      (usa stage_entered_at).
+    - 'En Gestión': el contador solo se reinicia con una ACCIÓN DE INTERACCIÓN VÁLIDA
+      (correo a Cliente/Banco o avance en la matriz de adquirencia), registrada en
+      `last_qualified_activity_at`. La bitácora NO reinicia el semáforo.
+    """
+    entered = stage_entered_at(project)
+    if project.get("status") == "En Gestión":
+        qualified = _parse_dt(project.get("last_qualified_activity_at"))
+        if qualified and (entered is None or qualified > entered):
+            return qualified
+    return entered
+
+
 def compute_color(days: int, thresholds: dict) -> str:
     warning = int(thresholds.get("warning_days", 2))
     delay = int(thresholds.get("delay_days", 4))
@@ -141,7 +158,7 @@ async def evaluate_project(project: dict, config: dict, now: Optional[datetime] 
     stage = STATUS_TO_STAGE.get(status)
     if not stage:
         return None
-    entered = stage_entered_at(project)
+    entered = sla_reference_date(project)
     if not entered:
         return None
     if holiday_sets is None:

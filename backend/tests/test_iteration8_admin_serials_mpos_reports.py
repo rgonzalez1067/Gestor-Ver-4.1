@@ -11,7 +11,7 @@ import requests
 import uuid
 from datetime import datetime
 
-BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or "https://quote-pdf-stabilize.preview.emergentagent.com").rstrip("/")
+BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or "https://email-templates-fix.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN = {"email": "rgonzalez@megasoft.com.ve", "password": "admin123"}
