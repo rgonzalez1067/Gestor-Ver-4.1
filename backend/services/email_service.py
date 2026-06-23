@@ -208,7 +208,11 @@ def _send_smtp(
                     content = base64.b64decode(content)
                 except Exception:
                     content = content.encode("utf-8")
-            img = MIMEImage(content)
+            _subtype = (att.get("content_type", "") or "image/png").split("/")[-1] or "png"
+            try:
+                img = MIMEImage(content, _subtype=_subtype)
+            except Exception:
+                img = MIMEImage(content, _subtype="png")
             img.add_header("Content-ID", f"<{att['content_id']}>")
             img.add_header("Content-Disposition", "inline", filename=att.get("filename", "logo"))
             related.attach(img)
@@ -275,20 +279,35 @@ async def _embed_body_images(html: str, attachments: list) -> tuple:
                 fname = f"imagen.{ctype.split('/')[-1]}"
             except Exception:
                 continue
-        elif "/api/projects/images/" in src:
-            try:
-                tail = src.split("/api/projects/images/", 1)[1].split("?", 1)[0]
-                file_id = tail.split(".", 1)[0]
-                rec = await db.uploaded_images.find_one({"image_id": file_id}, {"_id": 0})
-                if not rec:
+        elif src.startswith("http://") or src.startswith("https://"):
+            # 1) Imagen hospedada por nuestro backend → leer bytes de object storage.
+            if "/api/projects/images/" in src:
+                try:
+                    tail = src.split("/api/projects/images/", 1)[1].split("?", 1)[0]
+                    file_id = tail.split(".", 1)[0]
+                    rec = await db.uploaded_images.find_one({"image_id": file_id}, {"_id": 0})
+                    if rec:
+                        from services.object_storage import get_object
+                        content, ct = await asyncio.to_thread(get_object, rec["storage_path"])
+                        ctype = rec.get("content_type") or ct or "image/png"
+                        fname = rec.get("original_filename") or tail
+                except Exception as e:
+                    logger.warning(f"[BodyImg] storage lookup falló {src}: {e}")
+            # 2) Fallback universal: descargar los bytes de la URL (cualquier origen).
+            if content is None:
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as _cli:
+                        r = await _cli.get(src)
+                    if r.status_code == 200 and r.content:
+                        content = r.content
+                        ctype = (r.headers.get("content-type") or ctype).split(";")[0].strip() or ctype
+                        fname = (src.rsplit("/", 1)[-1].split("?", 1)[0]) or fname
+                    else:
+                        continue
+                except Exception as e:
+                    logger.warning(f"[BodyImg] descarga falló {src}: {e}")
                     continue
-                from services.object_storage import get_object
-                content, ct = await asyncio.to_thread(get_object, rec["storage_path"])
-                ctype = rec.get("content_type") or ct or "image/png"
-                fname = rec.get("original_filename") or tail
-            except Exception as e:
-                logger.warning(f"[BodyImg] No se pudo incrustar imagen {src}: {e}")
-                continue
         else:
             continue
         if not content:

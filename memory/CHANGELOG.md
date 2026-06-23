@@ -1,5 +1,12 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Fix (2): asunto con [Ticket] duplicado + refuerzo de imágenes en correos
+
+- **Bug asunto (duplicado + variable fantasma):** el flujo ad-hoc ("Otras Notificaciones") prefijaba `[Ticket N] ` aunque la plantilla del usuario ya incluyera el ticket → quedaba `[Ticket 43243] [Ticket 43243] ...`. Nuevo helper `_compose_ticket_subject(ticket, subject)` que (a) prefija el ticket SOLO si el asunto no lo contiene ya (`[Ticket N]`, `#N` o el número suelto) y (b) elimina variables fantasma `{...}` no resueltas. Aplicado en `preview-adhoc-email` (L~1599) y en el envío ad-hoc (L~2268/2283). Validado vía API: con ticket en plantilla → 1 sola vez; `{N_Proyecto}` inexistente → removido.
+- **Bug imágenes (refuerzo):** `_embed_body_images` (email_service) ahora incrusta como **CID inline** CUALQUIER imagen del cuerpo: data URIs, URLs hospedadas por el backend (object storage) y **cualquier URL externa vía httpx** (fallback de descarga, timeout 8s). Antes solo cubría data URIs y URLs `/api/projects/images/`. `MIMEImage` ahora fija el subtipo desde el content-type (evita fallos con webp/jpg). Validado: 3/3 imágenes (data URI + backend + externa) → CID + adjunto inline.
+- **⚠️ CAUSA RAÍZ PROBABLE de la persistencia:** el fix previo de imágenes CID estaba solo en PREVIEW. Si se probó en PRODUCCIÓN sin redesplegar, el bug seguía. **Ambos fixes requieren REDEPLOY a producción.**
+
+
 ## 2026-06 — Botones de Notificación de Avance (nivel Proyecto y nivel Banco)
 
 - **Botón A — "Notificación de Avance" (ámbito Proyecto):** en el toolbar de la sección "Matriz de Implementación" del detalle, ubicado entre "Actualización Masiva" y "Notificaciones a Cliente". Abre el modal estándar con `target=client` (matriz completa de todos los bancos) y su propia plantilla preferida (`client_avance`). `data-testid="notif-avance-project-btn"`.

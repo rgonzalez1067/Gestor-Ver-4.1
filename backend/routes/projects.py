@@ -123,6 +123,27 @@ NOTIFICATION_PREFIXES = [
 # Legacy mapping for backwards compatibility
 NOTIFICATION_LEVELS = NOTIFICATION_PREFIXES
 
+
+def _compose_ticket_subject(ticket, subject: str) -> str:
+    """Prefija '[Ticket N] ' al asunto SOLO si aún no lo contiene, y limpia
+    variables fantasma '{...}' que no se resolvieron.
+
+    Evita la duplicación cuando la plantilla del usuario ya incluye el ticket
+    (literal '[Ticket N]', '#N' o el número suelto)."""
+    subject = (subject or "").strip()
+    # Limpiar tokens de variables no resueltas (ej. {N_Proyecto}) que el usuario
+    # dejó en la plantilla pero no corresponden a ninguna variable válida.
+    subject = re.sub(r"\{[^{}]{0,60}\}", "", subject)
+    subject = re.sub(r"\s{2,}", " ", subject).strip()
+    if not ticket:
+        return subject
+    t = str(ticket).strip()
+    if not t:
+        return subject
+    if f"[Ticket {t}]" in subject or f"#{t}" in subject or t in subject:
+        return subject
+    return f"[Ticket {t}] {subject}"
+
 NOTIFICATION_SUBJECTS = {
     "Primer Envío": "Notificación de Implementación",
     "Primer Recordatorio": "1er Recordatorio — Implementación",
@@ -1595,8 +1616,11 @@ async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, author
         <hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | {f'Ticket: {ticket} | ' if ticket else ''}Cliente: {template_vars.get('Nombre_Cliente', project.get("client_name", ""))}</p>
     </div>"""
 
+    # No duplicar el prefijo [Ticket N] si el asunto ya lo incluye.
+    final_subject = _compose_ticket_subject(ticket, rendered_subject)
+
     return {
-        "subject": f"{ticket_label}{rendered_subject}",
+        "subject": final_subject,
         "html": html,
         "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto", "Matriz_Avance_Proyecto_Con_Fecha", "Matriz_Seguimiento_Evolutiva")},
     }
@@ -2265,7 +2289,7 @@ async def send_adhoc_email(
 
     # Construir email HTML
     message_html = _adhoc_message_to_html(message)
-    full_subject = f"{ticket_label}{subject}"
+    full_subject = subject  # se renderiza y se prefija el ticket más abajo (sin duplicar)
     # Incluir matrix_html si fue enviada (separada del conteo de caracteres)
     matrix_section = f"<hr>{matrix_html}" if matrix_html.strip() else ""
     html = f"""
@@ -2281,6 +2305,8 @@ async def send_adhoc_email(
     html = _render_vars(html, template_vars)
     html = _style_email_tables(html)
     full_subject = _render_vars(full_subject, template_vars)
+    # No duplicar el prefijo [Ticket N] si el asunto del usuario ya lo incluye.
+    full_subject = _compose_ticket_subject(ticket, full_subject)
 
     # Process base64 images → upload to storage
     html = await _replace_base64_images(html, current_user.get("user_id", "system"))
