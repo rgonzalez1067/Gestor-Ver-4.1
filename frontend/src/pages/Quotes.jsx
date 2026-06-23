@@ -2868,9 +2868,11 @@ export const Quotes = () => {
     } else {
       // No-PYME: cierra el wizard y dispara el envío. Si el usuario marcó
       // Multitienda, se incluye la lista de tiendas; si no, se envía vacío.
+      // FIX: propagar el motivo de excepción (flujo irregular) — antes se
+      // enviaba `null` y el backend rechazaba con "Debe proporcionar un motivo".
       setMultistoreDialogOpen(false);
       const storesData = isMultistore ? multistoreStores : null;
-      await handleSendToImplementation(multistoreQuoteId, null, storesData);
+      await handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, storesData);
     }
   };
 

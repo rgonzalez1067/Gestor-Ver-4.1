@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Fix: "Enviar a Implementación" en flujo irregular (No-PYME/Corp) perdía el motivo
+
+- **Síntoma:** tras documentar el motivo de la ruptura irregular y completar los modales del wizard, al finalizar el envío a Implementación de una cotización **No-PYME (Corp)** el sistema mostraba `IRREGULAR: Debe proporcionar un motivo para enviar a implementación sin pago registrado` y NO completaba el envío.
+- **Causa raíz (`pages/Quotes.jsx`):** en la rama final No-PYME del wizard de implementación, la llamada era `handleSendToImplementation(quoteId, null, storesData)` — pasaba `null` como `exceptionInfo`, por lo que el header `x-exception-reason` nunca se enviaba al backend. La rama PYME sí pasaba `multistoreExceptionInfo` (correcta).
+- **Fix:** la rama No-PYME ahora pasa `multistoreExceptionInfo` (motivo capturado en `openMultistoreDialog`), igual que la PYME.
+- **Validado:** reproducido el 422 vía API (`send-to-implementation` sin `x-exception-reason` → 422 IRREGULAR); frontend compila. El backend ya aceptaba el motivo por header; solo faltaba que el frontend lo propagara en este camino.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
 ## 2026-06 — Fix (3): asunto sin prefijo de Ticket + PRUEBA de imagen CID en envío real
 
 - **Asunto:** por pedido del usuario, se ELIMINÓ por completo el prefijo automático `[Ticket N]`. `_compose_ticket_subject` ahora solo renderiza el asunto del usuario y limpia variables fantasma `{...}` no resueltas; NO añade ningún prefijo. Verificado vía API: `"Avance de Proyecto {N_Proyecto_Real}"` → `"Avance de Proyecto"`.
