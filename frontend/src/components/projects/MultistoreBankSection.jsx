@@ -1,8 +1,8 @@
-import { Building2, Bell, CheckCircle2, Lock } from 'lucide-react';
+import { Building2, Bell, CheckCircle2, Lock, TrendingUp } from 'lucide-react';
 import { Button } from '../ui/button';
 
 // ==================== MULTISTORE: Bank Section (Read-Only) ====================
-export const MultistoreBankSection = ({ bankName, products, rollupBankData, bankExecutedLevels, onOpenNotif }) => {
+export const MultistoreBankSection = ({ bankName, products, rollupBankData, bankExecutedLevels, onOpenNotif, onOpenAvance }) => {
   return (
     <>
       <tr className="bg-blue-50 border-t-2 border-blue-200">
@@ -18,6 +18,15 @@ export const MultistoreBankSection = ({ bankName, products, rollupBankData, bank
             {bankExecutedLevels.length >= 4 ? <CheckCircle2 size={12} className="mr-1" /> : <Bell size={12} className="mr-1" />}
             Notificaciones
           </Button>
+          {onOpenAvance && (
+            <Button size="sm" variant="outline" onClick={onOpenAvance}
+              className="h-7 text-xs ml-1.5 border-sky-300 text-sky-700 hover:bg-sky-50"
+              data-testid={`notif-avance-bank-btn-${bankName}`}
+              title="Enviar avance técnico solo de este banco (Matriz de Seguimiento Evolutiva filtrada)">
+              <TrendingUp size={12} className="mr-1" />
+              Notificación Avances
+            </Button>
+          )}
         </td>
       </tr>
       {products.map(productName => {

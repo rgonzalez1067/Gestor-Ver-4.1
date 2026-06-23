@@ -16,7 +16,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark, FileDown
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark, FileDown, TrendingUp
 } from 'lucide-react';
 
 import { SingleBankSection } from '../components/projects/SingleBankSection';
@@ -500,8 +500,9 @@ const ProjectDetail = () => {
     return String(html).replace(/\{\s*Matriz_Bancos_Productos\s*\}/g, m);
   };
 
-  const openNotifDialog = async (type, bankName) => {
-    setNotifTarget({ type, bankName });
+  const openNotifDialog = async (type, bankName, prefKey) => {
+    const _prefKey = prefKey || type;
+    setNotifTarget({ type, bankName, prefKey: _prefKey });
     setAdditionalRecipientsList([]);
     setCcNewEmail('');
     setToNewEmail('');
@@ -523,7 +524,7 @@ const ProjectDetail = () => {
       setEmailTemplates(tpls);
       setNotifPreferences(prefs);
       setProjectMatrixHtml(matrixHtml);
-      const preferredId = prefs[type];
+      const preferredId = prefs[_prefKey];
       const preferred = tpls.find(t => t.template_id === preferredId) || tpls[0] || null;
       setSelectedNotifTemplateId(preferred?.template_id || '');
       setNotifBody(injectMatrix(preferred?.body_html || '', matrixHtml));
@@ -547,12 +548,13 @@ const ProjectDetail = () => {
   // Marcar la plantilla seleccionada como Preferida para el destino actual
   const markNotifTemplatePreferred = async () => {
     if (!selectedNotifTemplateId || !notifTarget) return;
+    const dest = notifTarget.prefKey || notifTarget.type;
     try {
       await api.put('/project-notification-preferences', {
-        destination: notifTarget.type,
+        destination: dest,
         template_id: selectedNotifTemplateId,
       });
-      setNotifPreferences(prev => ({ ...prev, [notifTarget.type]: selectedNotifTemplateId }));
+      setNotifPreferences(prev => ({ ...prev, [dest]: selectedNotifTemplateId }));
       toast.success('Plantilla marcada como preferida para este destino');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'No se pudo marcar como preferida');
@@ -1600,6 +1602,17 @@ const ProjectDetail = () => {
                     Actualización Masiva
                   </Button>
                 )}
+                {/* Notificación de Avance (ámbito Proyecto) — consolidado al cliente, matriz completa */}
+                <Button
+                  onClick={() => openNotifDialog('client', null, 'client_avance')}
+                  disabled={isLocked}
+                  className={`gap-2 ${isLocked ? 'bg-slate-300 cursor-not-allowed' : 'bg-sky-600 hover:bg-sky-700'} text-white`}
+                  data-testid="notif-avance-project-btn"
+                  title="Enviar al cliente el avance consolidado de todos los bancos (Matriz de Seguimiento Evolutiva completa)"
+                >
+                  <TrendingUp size={16} />
+                  Notificación de Avance
+                </Button>
                 {/* Notificación Única para proyectos Single con un solo banco */}
                 {!isMultistore && bankNames.length === 1 && (
                   <Button
@@ -1674,12 +1687,14 @@ const ProjectDetail = () => {
                           return (isMultistore || isMultiRif) ? (
                             <MultistoreBankSection key={bankName} bankName={bankName} products={products}
                               rollupBankData={rollup.bank_progress?.[bankName] || {}}
-                              bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)} />
+                              bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)}
+                              onOpenAvance={() => openNotifDialog('bank', bankName, 'bank_avance')} />
                           ) : (
                             <SingleBankSection key={bankName} bankName={bankName} products={products}
                               matrixData={matrix[bankName]} onUpdateQuantity={updateMatrixQuantity}
                               onUpdateCascade={updateMatrixCascade} onFillPhase={fillPhaseToExpected}
                               bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)}
+                              onOpenAvance={() => openNotifDialog('bank', bankName, 'bank_avance')}
                               readOnly={!canEditMatrix} expectedQty={project.box_count || project.cantidad_cajas || 0}
                               hideBankNotif={bankNames.length === 1} />
                           );

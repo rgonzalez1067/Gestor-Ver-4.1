@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Botones de Notificación de Avance (nivel Proyecto y nivel Banco)
+
+- **Botón A — "Notificación de Avance" (ámbito Proyecto):** en el toolbar de la sección "Matriz de Implementación" del detalle, ubicado entre "Actualización Masiva" y "Notificaciones a Cliente". Abre el modal estándar con `target=client` (matriz completa de todos los bancos) y su propia plantilla preferida (`client_avance`). `data-testid="notif-avance-project-btn"`.
+- **Botón B — "Notificación Avances" (ámbito Banco):** en la matriz de adquirencia, a la derecha del botón "Notificaciones" de cada banco (en `SingleBankSection` y `MultistoreBankSection`). Abre el mismo modal con `target=bank` + `bank_name` heredado (matriz filtrada a ese banco) y plantilla preferida `bank_avance`. `data-testid="notif-avance-bank-btn-{banco}"`.
+- **Reutilización total:** ambos invocan el modal existente (`openNotifDialog`, ahora con parámetro `prefKey` para la plantilla preferida); el envío usa el flujo `send-notification` actual sin cambios. `markNotifTemplatePreferred` respeta el `prefKey`.
+- **Backend (`routes/projects.py`):** `VALID_NOTIF_DESTINATIONS` += `client_avance`, `bank_avance`; `GET /project-notification-preferences` devuelve ambas claves (default = plantilla base de client/bank). El descarte modular reutiliza el override de `Matriz_Seguimiento_Evolutiva` ya existente en `_resolve_notification_email` (re-render de `custom_html` con el token filtrado).
+- **QA (self-test E2E):** preferencias incluyen client_avance/bank_avance (PUT 200); botones renderizan en el detalle (toolbar y por banco, proyecto multistore de 3 bancos); `POST /preview-notification` con `target=bank` + token `{Matriz_Seguimiento_Evolutiva}` en custom_html → **solo el bloque del banco seleccionado** (Banco de Venezuela), Bancamiga y Mercantil Panama eliminados; celda y Fase I–IV intactas. Frontend compila.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
 ## 2026-06 — {Matriz_Seguimiento_Evolutiva} V3: cabeceras limpias + Fase I–IV + leyenda
 
 - **Limpieza de textos:** eliminadas las palabras estáticas "BLOQUE" y "PRODUCTO" de los encabezados (el título del banco ahora es solo su nombre).

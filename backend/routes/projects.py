@@ -820,7 +820,7 @@ async def send_sequential_notification(
 # Mapeo destino → template_id preferido para precargar en el modal de notificaciones.
 # Se almacena en db.config (type='project_notification_preferences').
 NOTIF_PREF_DOC = {"type": "project_notification_preferences"}
-VALID_NOTIF_DESTINATIONS = ("client", "bank", "bank_client")
+VALID_NOTIF_DESTINATIONS = ("client", "bank", "bank_client", "client_avance", "bank_avance")
 
 
 async def _get_notification_template(template_id: Optional[str]) -> Optional[dict]:
@@ -845,10 +845,15 @@ async def get_notification_preferences(authorization: Optional[str] = Header(Non
     """Devuelve el template_id preferido por destino: {client, bank, bank_client}."""
     await get_current_user(authorization)
     doc = await db.config.find_one(NOTIF_PREF_DOC, {"_id": 0})
+    doc = doc or {}
     return {
-        "client": (doc or {}).get("client") or "project_notify_client",
-        "bank": (doc or {}).get("bank") or "project_notify_bank",
-        "bank_client": (doc or {}).get("bank_client") or "project_notify_bank_client",
+        "client": doc.get("client") or "project_notify_client",
+        "bank": doc.get("bank") or "project_notify_bank",
+        "bank_client": doc.get("bank_client") or "project_notify_bank_client",
+        # Notificación de Avance (consolidado al cliente / técnica por banco).
+        # Por defecto reutilizan la plantilla preferida base de client/bank.
+        "client_avance": doc.get("client_avance") or doc.get("client") or "project_notify_client",
+        "bank_avance": doc.get("bank_avance") or doc.get("bank") or "project_notify_bank",
     }
 
 

@@ -1,11 +1,11 @@
-import { Building2, Bell, CheckCircle2 } from 'lucide-react';
+import { Building2, Bell, CheckCircle2, TrendingUp } from 'lucide-react';
 import { Button } from '../ui/button';
 import { MiniPie } from './MiniPie';
 
 const PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
 
 // ==================== SINGLE BANK: Quantity-based Matrix ====================
-export const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuantity, onUpdateCascade, onFillPhase, bankExecutedLevels, onOpenNotif, readOnly, expectedQty, hideBankNotif }) => {
+export const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuantity, onUpdateCascade, onFillPhase, bankExecutedLevels, onOpenNotif, onOpenAvance, readOnly, expectedQty, hideBankNotif }) => {
   return (
     <>
       <tr className="bg-blue-50 border-t-2 border-blue-200">
@@ -19,6 +19,15 @@ export const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuan
               {bankExecutedLevels.length >= 4 ? <CheckCircle2 size={12} className="mr-1" /> : <Bell size={12} className="mr-1" />}
               Notificaciones
             </Button>
+            {onOpenAvance && (
+              <Button size="sm" variant="outline" onClick={onOpenAvance}
+                className="h-7 text-xs ml-1.5 border-sky-300 text-sky-700 hover:bg-sky-50"
+                data-testid={`notif-avance-bank-btn-${bankName}`}
+                title="Enviar avance técnico solo de este banco (Matriz de Seguimiento Evolutiva filtrada)">
+                <TrendingUp size={12} className="mr-1" />
+                Notificación Avances
+              </Button>
+            )}
           </td>
         )}
       </tr>
