@@ -1,5 +1,12 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Fix (3): asunto sin prefijo de Ticket + PRUEBA de imagen CID en envío real
+
+- **Asunto:** por pedido del usuario, se ELIMINÓ por completo el prefijo automático `[Ticket N]`. `_compose_ticket_subject` ahora solo renderiza el asunto del usuario y limpia variables fantasma `{...}` no resueltas; NO añade ningún prefijo. Verificado vía API: `"Avance de Proyecto {N_Proyecto_Real}"` → `"Avance de Proyecto"`.
+- **Imágenes (prueba definitiva end-to-end):** se ejecutó un envío REAL por `send_email` (status=sent, method=smtp) con una imagen `/api/projects/images/...` en el cuerpo; el `email_log` confirmó que el HTML enviado contiene `cid:bodyimg_xxx` y que la URL remota desapareció. → El embebido CID funciona de punta a punta EN PREVIEW.
+- **⚠️ CONCLUSIÓN:** el código está corregido y probado en PREVIEW. La persistencia del error solo se explica porque la app de PRODUCCIÓN aún no tiene estos cambios. **Requiere REDEPLOY (preview → producción).**
+
+
 ## 2026-06 — Fix (2): asunto con [Ticket] duplicado + refuerzo de imágenes en correos
 
 - **Bug asunto (duplicado + variable fantasma):** el flujo ad-hoc ("Otras Notificaciones") prefijaba `[Ticket N] ` aunque la plantilla del usuario ya incluyera el ticket → quedaba `[Ticket 43243] [Ticket 43243] ...`. Nuevo helper `_compose_ticket_subject(ticket, subject)` que (a) prefija el ticket SOLO si el asunto no lo contiene ya (`[Ticket N]`, `#N` o el número suelto) y (b) elimina variables fantasma `{...}` no resueltas. Aplicado en `preview-adhoc-email` (L~1599) y en el envío ad-hoc (L~2268/2283). Validado vía API: con ticket en plantilla → 1 sola vez; `{N_Proyecto}` inexistente → removido.

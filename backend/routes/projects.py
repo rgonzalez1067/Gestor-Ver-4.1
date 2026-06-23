@@ -125,24 +125,16 @@ NOTIFICATION_LEVELS = NOTIFICATION_PREFIXES
 
 
 def _compose_ticket_subject(ticket, subject: str) -> str:
-    """Prefija '[Ticket N] ' al asunto SOLO si aún no lo contiene, y limpia
+    """Devuelve el asunto tal como lo definió el usuario, limpiando solo las
     variables fantasma '{...}' que no se resolvieron.
 
-    Evita la duplicación cuando la plantilla del usuario ya incluye el ticket
-    (literal '[Ticket N]', '#N' o el número suelto)."""
+    NOTA: NO se agrega ningún prefijo automático (ej. '[Ticket N]'); el asunto
+    imprime únicamente las variables que el usuario seleccionó en la plantilla.
+    El parámetro `ticket` se mantiene por compatibilidad de firma."""
     subject = (subject or "").strip()
-    # Limpiar tokens de variables no resueltas (ej. {N_Proyecto}) que el usuario
-    # dejó en la plantilla pero no corresponden a ninguna variable válida.
     subject = re.sub(r"\{[^{}]{0,60}\}", "", subject)
     subject = re.sub(r"\s{2,}", " ", subject).strip()
-    if not ticket:
-        return subject
-    t = str(ticket).strip()
-    if not t:
-        return subject
-    if f"[Ticket {t}]" in subject or f"#{t}" in subject or t in subject:
-        return subject
-    return f"[Ticket {t}] {subject}"
+    return subject
 
 NOTIFICATION_SUBJECTS = {
     "Primer Envío": "Notificación de Implementación",
