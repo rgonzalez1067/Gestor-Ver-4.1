@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Acceso a "Cotizaciones de Equipos" (caso Anderson Godoy) + herramientas de reparación
+
+- **Causa raíz:** la visibilidad del menú de Cotizaciones de Equipos NO depende del "Override de Acciones", sino de 3 condiciones del usuario: (1) `permissions['cotizaciones'] == 'edit'`, (2) grupo de menú `gestion_comercial` activo, y (3) permiso especial `cotizaciones:equipos` ("Generar Equipos y Accesorios") en sus permisos efectivos (perfil ∪ usuario). Diagnóstico de Anderson Godoy: tenía `cotizaciones='read'` y sin el flag especial → no veía el menú.
+- **Solución inmediata (producción, SIN redeploy):** en AdminUsers, para el usuario: poner módulo "Cotizaciones" en "Edición" y activar el permiso especial "Generar Equipos y Accesorios". Los endpoints `PUT /admin/users/{id}/permissions` y `/special-permissions` ya existen en producción. Luego el usuario cierra sesión y vuelve a entrar.
+- **Herramientas nuevas (requieren redeploy; útiles para lotes/automatización):**
+  - Endpoint admin `POST /api/admin/users/equipment-quotes-access` (body `{identifier, apply}`): diagnostica y, con `apply:true`, repara (otorga el flag, setea cotizaciones=edit, activa el grupo; respeta el techo del perfil). Probado en preview: Anderson pasó de `would_see_menu:false` a `true`.
+  - Script standalone `scripts/fix_equipment_quotes_access.py` (dry-run por defecto, `--apply` para escribir) para entornos con acceso a shell.
+- **⚠️ Endpoint/script requieren REDEPLOY. La solución vía AdminUsers funciona ya en producción.**
+
+
 ## 2026-06 — Fix: "Enviar a Implementación" en flujo irregular (No-PYME/Corp) perdía el motivo
 
 - **Síntoma:** tras documentar el motivo de la ruptura irregular y completar los modales del wizard, al finalizar el envío a Implementación de una cotización **No-PYME (Corp)** el sistema mostraba `IRREGULAR: Debe proporcionar un motivo para enviar a implementación sin pago registrado` y NO completaba el envío.

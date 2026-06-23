@@ -754,6 +754,105 @@ async def update_special_permissions(user_id: str, body: dict, authorization: Op
     updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return {"message": "Permisos especiales actualizados", "user": updated_user}
 
+@router.post("/admin/users/equipment-quotes-access")
+async def diagnose_fix_equipment_quotes_access(body: dict, authorization: Optional[str] = Header(None)):
+    """Diagnostica (y opcionalmente repara) el acceso de un usuario al menú de
+    Cotizaciones de Equipos. Solo Admin. Ejecutable en producción desde la app.
+
+    Body: {"identifier": "<nombre o email>", "apply": false}
+    Condiciones para ver el menú:
+      1) permissions['cotizaciones'] == 'edit'
+      2) grupo de menú 'gestion_comercial' activo
+      3) 'cotizaciones:equipos' en special_permissions efectivos (perfil ∪ usuario)
+    """
+    current_user = await get_current_user(authorization)
+    if not current_user or current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores")
+
+    FLAG = "cotizaciones:equipos"
+    MODULE = "cotizaciones"
+    GROUP = "gestion_comercial"
+
+    identifier = (body.get("identifier") or "").strip()
+    apply = bool(body.get("apply"))
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Falta 'identifier' (nombre o email)")
+
+    rx = {"$regex": re.escape(identifier), "$options": "i"}
+    user = await db.users.find_one({"$or": [{"email": rx}, {"name": rx}, {"full_name": rx}]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail=f"No se encontró usuario para '{identifier}'")
+
+    role = user.get("role")
+    is_admin = role == "admin"
+    perms = user.get("permissions") or {}
+    cot_level = perms.get(MODULE, "none")
+    menu_groups = user.get("menu_groups") or {}
+    group_active = (len(menu_groups) == 0) or bool(menu_groups.get(GROUP))
+    user_sp = list(user.get("special_permissions") or [])
+    profile = None
+    profile_sp = []
+    if user.get("profile_id"):
+        profile = await db.profiles.find_one({"profile_id": user["profile_id"]}, {"_id": 0})
+        profile_sp = list((profile or {}).get("special_permissions") or [])
+    effective_sp = sorted(set(user_sp) | set(profile_sp))
+    has_equipos = is_admin or (FLAG in effective_sp)
+    can_edit = is_admin or (cot_level == "edit" and group_active)
+    visible = is_admin or (can_edit and has_equipos)
+
+    diagnosis = {
+        "user": {"user_id": user.get("user_id"), "name": user.get("name") or user.get("full_name"),
+                 "email": user.get("email"), "role": role,
+                 "profile_id": user.get("profile_id"), "profile_name": (profile or {}).get("name")},
+        "checks": {
+            "cotizaciones_level": cot_level, "needs_edit_ok": is_admin or cot_level == "edit",
+            "group_gestion_comercial_active": group_active,
+            "special_user": user_sp, "special_profile": profile_sp, "special_effective": effective_sp,
+            "has_cotizaciones_equipos": has_equipos,
+        },
+        "would_see_menu": visible,
+    }
+
+    if visible:
+        return {"status": "ok", "fixed": False,
+                "message": "El usuario ya cumple las condiciones. Pídele cerrar sesión y volver a entrar.",
+                "diagnosis": diagnosis}
+
+    planned = []
+    if not is_admin:
+        if profile and FLAG not in profile_sp:
+            planned.append("profile_add_flag")
+        if FLAG not in user_sp:
+            planned.append("user_add_flag")
+        if cot_level != "edit":
+            planned.append("set_cotizaciones_edit")
+        if menu_groups and not menu_groups.get(GROUP):
+            planned.append("activate_group")
+
+    if not apply:
+        return {"status": "needs_fix", "fixed": False, "planned_actions": planned,
+                "message": "DRY-RUN. Reenvía con apply=true para aplicar.", "diagnosis": diagnosis}
+
+    applied = []
+    if "profile_add_flag" in planned and profile:
+        await db.profiles.update_one({"profile_id": user["profile_id"]}, {"$addToSet": {"special_permissions": FLAG}})
+        applied.append("profile_add_flag")
+    if "user_add_flag" in planned:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"special_permissions": FLAG}})
+        applied.append("user_add_flag")
+    if "set_cotizaciones_edit" in planned:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {f"permissions.{MODULE}": "edit"}})
+        applied.append("set_cotizaciones_edit")
+    if "activate_group" in planned:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {f"menu_groups.{GROUP}": True}})
+        applied.append("activate_group")
+
+    return {"status": "fixed", "fixed": True, "applied_actions": applied,
+            "message": "Reparación aplicada. El usuario debe cerrar sesión y volver a entrar.",
+            "diagnosis": diagnosis}
+
+
+
 @router.put("/admin/users/{user_id}/almacen")
 async def update_almacen_asignado(user_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Asignar almacén a un usuario (solo admin)"""
