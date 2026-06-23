@@ -3,6 +3,22 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Panel de Proyectos: Cuenta regresiva de Producción + Ficha Técnica directa + Visibilidad colectiva Ventas Corporativas — Jun 2026
+
+**Requerimiento (3 partes):** (1) Cuenta regresiva de "Fecha Estimada de Entrada en Producción del cliente"; (2) botón de acceso rápido a Ficha Técnica desde la grilla; (3) visibilidad colectiva por equipo para Ventas Corporativas.
+
+**Backend (`routes/projects.py`):**
+- `GET /projects` inyecta `production_days_left` por proyecto: días HÁBILES (Calendario Laboral) entre hoy y `fecha_estimada_produccion`. `-1` = ya transcurrió; `None` = sin fecha.
+- `_build_project_visibility_query`: rama de Ventas Corporativas reescrita — match tolerante (`regex 'ventas corporativ'` case-insensitive sobre `departamento`, sin exigir `cargo=Ejecutivo`) → devuelve `created_by_user_id IN [todos los miembros del equipo Ventas Corporativas]`. Aplica tanto a la grilla (`GET /projects`) como al detalle (`GET /projects/{id}`). Resto de roles (Pyme exacto, Implementador, etc.) intactos.
+- `GET /projects/{id}/ficha-tecnica` (ya existía) genera el PDF al vuelo.
+
+**Frontend (`pages/Projects.jsx`):**
+- Banner ámbar (NO rojo) en la fila SLA (`production-countdown-<id>`) cuando `production_days_left <= 5`. Copys: `Quedan N día(s)...` / `Hoy es la fecha estimada...` / `...ya transcurrió`.
+- Botón `ficha-tecnica-btn-<id>` (icono FileSpreadsheet, cyan) en el bloque de Acciones; `viewFichaTecnica()` descarga el PDF con la sesión activa y lo abre en pestaña nueva (no se gatea por implementador asignado).
+
+**QA (testing_agent iteration_126 → backend 8/8 PASS, frontend 100%):** banner con copy/color/visibilidad correctos (oculto si >5 días); 89 botones Ficha Técnica + PDF válido; Vendedor A (mmartin) y Vendedor B (mposligua) ven el MISMO set de 37 proyectos del equipo (3 creadores distintos); regresión Implementador (Jrojas) preservada (solo sus proyectos).
+**⚠️ En PREVIEW; requiere REDEPLOY para producción.** Nota: en prod, asegurar que todos los miembros del equipo tengan `departamento = "Ventas Corporativas"`.
+
 
 
 ### Firma Institucional Global para Notificaciones {Firma_Notificacion_Global} — Jun 2026
