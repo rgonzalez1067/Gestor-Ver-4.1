@@ -1120,12 +1120,12 @@ const Projects = () => {
                             else msg = `Quedan ${dl} día${dl === 1 ? '' : 's'} para la entrada en producción prevista por el cliente.`;
                             return (
                               <div
-                                className="mb-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-50 border border-amber-300"
+                                className="mb-2 flex items-center gap-2 px-3 py-2 rounded-md bg-orange-400 border-2 border-orange-500 shadow-sm"
                                 data-testid={`production-countdown-${project.project_id}`}
                                 data-days-left={dl}
                               >
-                                <CalendarClock size={15} className="text-amber-600 shrink-0" />
-                                <span className="text-xs font-bold text-amber-800">{msg}</span>
+                                <CalendarClock size={17} className="text-black shrink-0" />
+                                <span className="text-sm font-extrabold text-black tracking-tight">{msg}</span>
                               </div>
                             );
                           })()}
