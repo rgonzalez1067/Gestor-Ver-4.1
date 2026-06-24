@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Modal Multitienda ("Enviar a Implementación"): scroll 80vh + footer fijo + balance estricto de cajas
+
+- **Layout (`QuoteModals.jsx`):** el `DialogContent` del `multistore-dialog` ahora aplica `max-h-[80vh] flex flex-col overflow-hidden` **solo** en las fases de distribución (`inherited`/`collect`); el resto de fases conservan su tamaño original (sin regresión). Header fijo (DialogHeader), lista de tiendas con scroll interno (`overflow-y-auto flex-1 min-h-0`, thead sticky) y footer fijo (`shrink-0`) con el contador y el botón de acción siempre visibles, incluso con 50+ tiendas.
+- **Contador de balance reactivo:** etiqueta "Cajas Distribuidas: [suma] / Cantidad Inicial Obligatoria: [total]" (`collect-balance-counter` / `inherited-balance-counter`, con `data-balanced`), **roja** mientras no cuadra y **verde** (emerald) cuando es exacto.
+- **Bloqueo estricto (hard block):** `confirmMultistore` y `confirmInheritedStores` (`Quotes.jsx`) bloquean el avance si `Σ cajas por tienda ≠ cantidad inicial` y muestran el toast exacto: "No se puede continuar: La cantidad de cajas distribuidas (X) no coincide con la cantidad inicial asignada al proyecto (Y). Por favor, ajuste el balance de hardware antes de enviar a implementación." Al cuadrar exacto, avanza a `pinpad_question`. El botón solo se deshabilita por problemas estructurales (0 tiendas / nombre vacío) para que el toast pueda dispararse.
+- **Backstop backend (`quote_actions.py · send-to-implementation`):** valida `Σ stores.box_count == cantidad inicial` cuando `is_multistore`; si no cuadra → HTTP 400 con el mismo mensaje (antes de generar PDF/crear proyecto). Verificado por curl: déficit (7/52) y superávit (60/52) → 400 con el mensaje, no destructivo.
+- **QA:** backend curl 2/2 (déficit + superávit). testing_agent iteration_127 → frontend: layout ≤80vh + scroll + footer fijo + contador rojo exacto verificados en vivo; toast de bloqueo y estado verde validados por revisión de código de los handlers. 0 issues.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-06 — Reingeniería del semáforo SLA en "En Gestión" (refresco solo por acción válida)
 
 - **Objetivo:** que el Verde del semáforo refleje atención operativa real y auditable en el estado de largo plazo "En Gestión", no la mera inactividad ni comentarios de bitácora.
