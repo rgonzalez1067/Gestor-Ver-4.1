@@ -622,7 +622,7 @@ export const QuoteModals = ({ ctx }) => {
 
           {/* Diálogo Multitienda + Tipo de Proyecto + Equipos */}
           <Dialog open={multistoreDialogOpen} onOpenChange={(open) => { if (!open && !multistoreSending) { setMultistoreDialogOpen(false); } }}>
-            <DialogContent className="max-w-lg" data-testid="multistore-dialog">
+            <DialogContent className={`max-w-lg ${(multistorePhase === 'inherited' || multistorePhase === 'collect') ? 'max-h-[80vh] flex flex-col overflow-hidden' : ''}`} data-testid="multistore-dialog">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Store size={20} className="text-blue-600" />
@@ -1020,8 +1020,8 @@ export const QuoteModals = ({ ctx }) => {
                   FIX Iter37 (feb 2026): la grilla ahora permite editar/agregar/eliminar tiendas
                   directamente; el botón único "Conformar Distribución" cierra la fase. */}
               {multistorePhase === 'inherited' && (
-                <div className="space-y-4 py-2" data-testid="multistore-inherited-phase">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex flex-col min-h-0 flex-1 py-2 gap-3" data-testid="multistore-inherited-phase">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 shrink-0">
                     <div className="flex items-center gap-2 mb-1">
                       <CheckCircle size={16} className="text-blue-600" />
                       <span className="text-sm font-medium text-blue-800">Distribución de sucursales detectada</span>
@@ -1031,11 +1031,11 @@ export const QuoteModals = ({ ctx }) => {
                     </p>
                   </div>
 
-                  {/* Grilla EDITABLE de sucursales heredadas */}
-                  <div className="border rounded-lg overflow-hidden">
+                  {/* Grilla EDITABLE de sucursales heredadas — con scroll interno */}
+                  <div className="border rounded-lg overflow-y-auto flex-1 min-h-0" data-testid="inherited-stores-scroll">
                     <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 border-b">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="bg-slate-100 border-b">
                           <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600 w-10">#</th>
                           <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Sucursal</th>
                           <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600 w-28">Cajas</th>
@@ -1053,132 +1053,148 @@ export const QuoteModals = ({ ctx }) => {
                           />
                         ))}
                       </tbody>
-                      <tfoot>
-                        <tr className="bg-slate-50 border-t">
-                          <td colSpan={2} className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Total:</td>
-                          <td className="px-3 py-2 text-center font-bold text-slate-900" data-testid="inherited-total">
-                            {multistoreStores.reduce((sum, s) => sum + (parseInt(s.box_count) || 0), 0)}
-                          </td>
-                          <td />
-                        </tr>
-                      </tfoot>
                     </table>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <Button
-                      type="button" variant="outline" size="sm"
-                      onClick={() => setMultistoreStores([...multistoreStores, { name: '', box_count: 1 }])}
-                      className="text-xs"
-                      data-testid="inherited-add-row-btn"
-                    >
-                      + Agregar Sucursal
-                    </Button>
-                    <p className="text-xs text-slate-500">
-                      {multistoreStores.length} sucursal(es)
-                    </p>
-                  </div>
+                  {/* Footer fijo: agregar sucursal + contador reactivo + acción */}
+                  <div className="shrink-0 space-y-2 pt-2 border-t">
+                    <div className="flex items-center justify-between">
+                      <Button
+                        type="button" variant="outline" size="sm"
+                        onClick={() => setMultistoreStores([...multistoreStores, { name: '', box_count: 1 }])}
+                        className="text-xs"
+                        data-testid="inherited-add-row-btn"
+                      >
+                        + Agregar Sucursal
+                      </Button>
+                      <p className="text-xs text-slate-500">
+                        {multistoreStores.length} sucursal(es)
+                      </p>
+                    </div>
 
-                  <div className="flex gap-3 justify-end pt-2 border-t">
-                    <Button
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={confirmInheritedStores}
-                      disabled={multistoreStores.length === 0 || multistoreStores.some(s => !s.name?.trim() || !s.box_count)}
-                      data-testid="inherited-confirm-btn"
-                    >
-                      <CheckCircle size={14} className="mr-1.5" />
-                      Conformar Distribución
-                    </Button>
+                    {(() => {
+                      const sum = multistoreStores.reduce((s, st) => s + (parseInt(st.box_count) || 0), 0);
+                      const initial = getMultistoreTotalCajas();
+                      const balanced = sum === initial;
+                      const structInvalid = multistoreStores.length === 0 || multistoreStores.some(s => !s.name?.trim() || !s.box_count);
+                      return (
+                        <>
+                          <div
+                            className={`flex items-center justify-between rounded-md px-3 py-2 text-sm font-bold border ${balanced ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-red-50 text-red-700 border-red-300'}`}
+                            data-testid="inherited-balance-counter"
+                            data-balanced={balanced ? 'true' : 'false'}
+                          >
+                            <span>Cajas Distribuidas: {sum} / Cantidad Inicial Obligatoria: {initial}</span>
+                            {balanced ? <CheckCircle size={16} className="shrink-0" /> : <AlertTriangle size={16} className="shrink-0" />}
+                          </div>
+                          <div className="flex gap-3 justify-end">
+                            <Button
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                              onClick={confirmInheritedStores}
+                              disabled={structInvalid}
+                              data-testid="inherited-confirm-btn"
+                            >
+                              <CheckCircle size={14} className="mr-1.5" />
+                              Conformar Distribución
+                            </Button>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
 
               {/* Fase 2: Recolectar tiendas */}
               {multistorePhase === 'collect' && (
-                <div className="space-y-4 py-2" data-testid="multistore-collect-phase">
+                <div className="flex flex-col min-h-0 flex-1 py-2 gap-3" data-testid="multistore-collect-phase">
                   {(() => {
                     const totalCajas = getMultistoreTotalCajas();
                     const remaining = totalCajas - multistoreAssignedBoxes;
+                    const balanced = multistoreAssignedBoxes === totalCajas;
                     return (
                       <>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 shrink-0">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-blue-800">Total de cajas en cotización:</span>
                             <span className="text-lg font-bold text-blue-900">{totalCajas}</span>
                           </div>
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-sm text-blue-700">Cajas asignadas:</span>
-                            <span className={`text-sm font-semibold ${multistoreAssignedBoxes === totalCajas ? 'text-emerald-600' : 'text-blue-700'}`}>{multistoreAssignedBoxes} / {totalCajas}</span>
-                          </div>
                           {remaining > 0 && (
                             <div className="mt-1 text-xs text-blue-600">Faltan {remaining} caja(s) por asignar</div>
                           )}
-                          {remaining === 0 && (
-                            <div className="mt-1 text-xs text-emerald-600 font-medium">Todas las cajas han sido asignadas</div>
+                        </div>
+
+                        {/* Lista de tiendas registradas — con scroll interno */}
+                        <div className="flex-1 min-h-0 overflow-y-auto" data-testid="collect-stores-scroll">
+                          {multistoreStores.length > 0 && (
+                            <div className="border rounded-lg overflow-hidden">
+                              <table className="w-full text-sm">
+                                <thead className="sticky top-0 z-10">
+                                  <tr className="bg-slate-100 border-b">
+                                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">#</th>
+                                    <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Tienda</th>
+                                    <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600">Cajas</th>
+                                    <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600 w-10"></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {multistoreStores.map((store, idx) => (
+                                    <tr key={idx} className="border-b last:border-0 hover:bg-slate-50" data-testid={`multistore-row-${idx}`}>
+                                      <td className="px-3 py-2 text-slate-500">{idx + 1}</td>
+                                      <td className="px-3 py-2 font-medium text-slate-800">{store.name}</td>
+                                      <td className="px-3 py-2 text-center text-slate-700">{store.box_count}</td>
+                                      <td className="px-3 py-2 text-center">
+                                        <button onClick={() => removeMultistoreStore(idx)} className="text-red-400 hover:text-red-600 transition-colors" data-testid={`multistore-remove-${idx}`}>
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           )}
                         </div>
 
-                        {/* Lista de tiendas registradas */}
-                        {multistoreStores.length > 0 && (
-                          <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="bg-slate-50 border-b">
-                                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">#</th>
-                                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Tienda</th>
-                                  <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600">Cajas</th>
-                                  <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600 w-10"></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {multistoreStores.map((store, idx) => (
-                                  <tr key={idx} className="border-b last:border-0 hover:bg-slate-50" data-testid={`multistore-row-${idx}`}>
-                                    <td className="px-3 py-2 text-slate-500">{idx + 1}</td>
-                                    <td className="px-3 py-2 font-medium text-slate-800">{store.name}</td>
-                                    <td className="px-3 py-2 text-center text-slate-700">{store.box_count}</td>
-                                    <td className="px-3 py-2 text-center">
-                                      <button onClick={() => removeMultistoreStore(idx)} className="text-red-400 hover:text-red-600 transition-colors" data-testid={`multistore-remove-${idx}`}>
-                                        <Trash2 size={14} />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+                        {/* Footer fijo: agregar tienda + contador reactivo + acciones */}
+                        <div className="shrink-0 space-y-2 pt-2 border-t">
+                          {remaining > 0 && (
+                            <MultistoreAddForm remaining={remaining} onAppend={appendStore} />
+                          )}
 
-                        {/* Formulario para agregar tienda */}
-                        {remaining > 0 && (
-                          <MultistoreAddForm remaining={remaining} onAppend={appendStore} />
-                        )}
-
-                        {/* Botones de acción */}
-                        <div className="flex justify-between items-center pt-3 border-t">
-                          <Button variant="ghost" size="sm" onClick={() => {
-                            // Si venimos de herencia, volver a inherited; si no, volver a ask
-                            const quote = getMultistoreQuote();
-                            const hasPrior = (quote?.branch_details || []).filter(b => b.store_name && b.quantity > 0).length > 0;
-                            if (hasPrior) {
-                              // Restaurar datos heredados y volver a fase inherited
-                              setMultistoreStores(quote.branch_details.filter(b => b.store_name && b.quantity > 0).map(b => ({ name: b.store_name, box_count: parseInt(b.quantity) || 0 })));
-                              setMultistorePhase('inherited');
-                            } else {
-                              setMultistorePhase('ask');
-                              setMultistoreStores([]);
-                            }
-                          }} data-testid="multistore-back-btn">
-                            Volver
-                          </Button>
-                          <Button
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            disabled={multistoreAssignedBoxes !== totalCajas || multistoreStores.length === 0}
-                            onClick={confirmMultistore}
-                            data-testid="multistore-confirm-btn"
+                          <div
+                            className={`flex items-center justify-between rounded-md px-3 py-2 text-sm font-bold border ${balanced ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-red-50 text-red-700 border-red-300'}`}
+                            data-testid="collect-balance-counter"
+                            data-balanced={balanced ? 'true' : 'false'}
                           >
-                            <Send size={14} className="mr-1.5" />
-                            Confirmar y Enviar ({multistoreStores.length} tienda{multistoreStores.length !== 1 ? 's' : ''})
-                          </Button>
+                            <span>Cajas Distribuidas: {multistoreAssignedBoxes} / Cantidad Inicial Obligatoria: {totalCajas}</span>
+                            {balanced ? <CheckCircle size={16} className="shrink-0" /> : <AlertTriangle size={16} className="shrink-0" />}
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              const quote = getMultistoreQuote();
+                              const hasPrior = (quote?.branch_details || []).filter(b => b.store_name && b.quantity > 0).length > 0;
+                              if (hasPrior) {
+                                setMultistoreStores(quote.branch_details.filter(b => b.store_name && b.quantity > 0).map(b => ({ name: b.store_name, box_count: parseInt(b.quantity) || 0 })));
+                                setMultistorePhase('inherited');
+                              } else {
+                                setMultistorePhase('ask');
+                                setMultistoreStores([]);
+                              }
+                            }} data-testid="multistore-back-btn">
+                              Volver
+                            </Button>
+                            <Button
+                              className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                              disabled={multistoreStores.length === 0}
+                              onClick={confirmMultistore}
+                              data-testid="multistore-confirm-btn"
+                            >
+                              <Send size={14} className="mr-1.5" />
+                              Confirmar y Enviar ({multistoreStores.length} tienda{multistoreStores.length !== 1 ? 's' : ''})
+                            </Button>
+                          </div>
                         </div>
                       </>
                     );

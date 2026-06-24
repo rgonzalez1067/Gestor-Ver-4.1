@@ -1542,6 +1542,24 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
     quote["client_name"] = client_name
     quote["client_rif"] = client.get('rif', 'N/A') if client else 'N/A'
 
+    # Validación de balance de cajas (Multitienda): la sumatoria de cajas por
+    # sucursal debe coincidir EXACTAMENTE con la cantidad inicial del proyecto.
+    if body and body.is_multistore and body.stores:
+        def _quote_initial_cajas(q):
+            cc = q.get("cantidad_cajas")
+            if cc:
+                return int(cc)
+            return max([int(s.get("cantidad_cajas") or 0) for s in (q.get("services") or [])] or [0])
+        initial_cajas = _quote_initial_cajas(quote)
+        distributed = sum(int(s.get("box_count") or 0) for s in body.stores)
+        if initial_cajas and distributed != initial_cajas:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"No se puede continuar: La cantidad de cajas distribuidas ({distributed}) "
+                        f"no coincide con la cantidad inicial asignada al proyecto ({initial_cajas}). "
+                        f"Por favor, ajuste el balance de hardware antes de enviar a implementación.")
+            )
+
     # Generar PDF de Ficha Técnica de Implementación
     from services.implementation_pdf import generate_implementation_pdf
     contacts = client.get('contacts', []) if client else []

@@ -3122,6 +3122,13 @@ export const Quotes = () => {
 
   // Confirmar herencia de datos previos (Escenario A - Sí)
   const confirmInheritedStores = async () => {
+    // Bloqueo estricto de balance: la sumatoria por sucursal debe coincidir
+    // exactamente con la cantidad inicial del proyecto antes de avanzar.
+    const totalCajas = getMultistoreTotalCajas();
+    if (multistoreAssignedBoxes !== totalCajas) {
+      toast.error(`No se puede continuar: La cantidad de cajas distribuidas (${multistoreAssignedBoxes}) no coincide con la cantidad inicial asignada al proyecto (${totalCajas}). Por favor, ajuste el balance de hardware antes de enviar a implementación.`);
+      return;
+    }
     setIsMultistore(true);
     setMultistorePhase('pinpad_question');
   };
@@ -3152,7 +3159,7 @@ export const Quotes = () => {
   const confirmMultistore = async () => {
     const totalCajas = getMultistoreTotalCajas();
     if (isMultistore && multistoreAssignedBoxes !== totalCajas) {
-      toast.error(`Debe asignar exactamente ${totalCajas} caja(s). Asignadas: ${multistoreAssignedBoxes}`);
+      toast.error(`No se puede continuar: La cantidad de cajas distribuidas (${multistoreAssignedBoxes}) no coincide con la cantidad inicial asignada al proyecto (${totalCajas}). Por favor, ajuste el balance de hardware antes de enviar a implementación.`);
       return;
     }
     // Avanzar al Paso 1 (Pinpad question), no enviar aún.
