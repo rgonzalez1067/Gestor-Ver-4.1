@@ -152,6 +152,67 @@ const MultistoreAddForm = memo(function MultistoreAddForm({ remaining, onAppend 
   );
 });
 
+// Barra de carga por Excel para la distribución Multitienda (Nombre Sucursal | Cajas).
+// Descarga la plantilla y reemplaza la distribución manual con la del archivo.
+const MultistoreExcelBar = memo(function MultistoreExcelBar({ totalBoxes, onLoaded }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+
+  const downloadTemplate = async () => {
+    try {
+      const res = await api.get('/quotes/multistore/excel-template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url; a.download = 'plantilla_distribucion_multitienda.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error('No se pudo descargar la plantilla');
+    }
+  };
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (inputRef.current) inputRef.current.value = '';
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.xlsx')) { toast.error('El archivo debe ser .xlsx (use la plantilla)'); return; }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      if (totalBoxes != null) fd.append('total_boxes', String(totalBoxes));
+      const res = await api.post('/quotes/multistore/parse-excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const data = res.data || {};
+      if (!data.ok || (data.errors || []).length > 0) {
+        const first = (data.errors || []).slice(0, 4).map(er => `Fila ${er.row}: ${(er.messages || []).join(' ')}`).join('  •  ');
+        toast.error(`El Excel tiene ${data.errors?.length || 0} error(es). ${first}`);
+        return;
+      }
+      onLoaded(data.stores || []);
+      (data.warnings || []).forEach(w => toast.warning(w));
+      toast.success(`Distribución cargada: ${data.summary?.total_stores || 0} tienda(s), ${data.summary?.total_boxes || 0} caja(s).`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'No se pudo procesar el Excel');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 rounded-md bg-slate-50 border border-slate-200 px-2.5 py-2" data-testid="multistore-excel-bar">
+      <span className="text-xs text-slate-500 mr-auto">Cargar por Excel (opcional)</span>
+      <Button type="button" variant="outline" size="sm" className="text-xs h-7" onClick={downloadTemplate} data-testid="multistore-excel-template-btn">
+        Plantilla
+      </Button>
+      <Button type="button" variant="outline" size="sm" className="text-xs h-7" disabled={busy} onClick={() => inputRef.current?.click()} data-testid="multistore-excel-upload-btn">
+        {busy ? 'Procesando…' : 'Cargar Excel'}
+      </Button>
+      <input ref={inputRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} data-testid="multistore-excel-input" />
+    </div>
+  );
+});
+
+
 export const QuoteModals = ({ ctx }) => {
   const {
     // PDF Preview
@@ -1031,6 +1092,11 @@ export const QuoteModals = ({ ctx }) => {
                     </p>
                   </div>
 
+                  <MultistoreExcelBar
+                    totalBoxes={getMultistoreTotalCajas()}
+                    onLoaded={(stores) => setMultistoreStores(stores)}
+                  />
+
                   {/* Grilla EDITABLE de sucursales heredadas — con scroll interno */}
                   <div className="border rounded-lg overflow-y-auto flex-1 min-h-0" data-testid="inherited-stores-scroll">
                     <table className="w-full text-sm">
@@ -1123,6 +1189,11 @@ export const QuoteModals = ({ ctx }) => {
                             <div className="mt-1 text-xs text-blue-600">Faltan {remaining} caja(s) por asignar</div>
                           )}
                         </div>
+
+                          <MultistoreExcelBar
+                            totalBoxes={totalCajas}
+                            onLoaded={(stores) => setMultistoreStores(stores)}
+                          />
 
                         {/* Lista de tiendas registradas — con scroll interno */}
                         <div className="flex-1 min-h-0 overflow-y-auto" data-testid="collect-stores-scroll">

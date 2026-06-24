@@ -2720,3 +2720,159 @@ async def multirif_parse_excel(
         "warnings": warnings,
         "summary": summary,
     }
+
+
+@router.get("/quotes/multistore/excel-template")
+async def multistore_excel_template(authorization: Optional[str] = Header(None)):
+    """Plantilla .xlsx para cargar la distribución Multitienda simple
+    (una fila por tienda: Nombre Sucursal | Cajas) + hoja de Instrucciones."""
+    await get_current_user(authorization)
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Distribucion"
+    headers = ["Nombre Sucursal", "Cajas"]
+    ws.append(headers)
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="2C3E50")
+        cell.alignment = Alignment(horizontal="center")
+    ws.column_dimensions['A'].width = 40
+    ws.column_dimensions['B'].width = 12
+    ws.append(["Sucursal Centro", 4])
+    ws.append(["Sucursal Este", 2])
+    ws.append(["Sede Norte", 4])
+
+    ins = wb.create_sheet("Instrucciones")
+    lines = [
+        "INSTRUCCIONES — Carga de Distribución Multitienda (Tiendas/Sucursales)",
+        "",
+        "1) Complete la hoja 'Distribucion' con UNA FILA POR SUCURSAL.",
+        "2) Columnas obligatorias (no cambie los encabezados de la fila 1):",
+        "     • Nombre Sucursal: nombre de la tienda/sucursal (no puede repetirse).",
+        "     • Cajas: cantidad de cajas (PDV) de esa sucursal. Entero mayor a 0.",
+        "3) Al cargar, la distribución del Excel REEMPLAZA la del modal.",
+        "4) La SUMA de cajas de todas las sucursales debe coincidir EXACTAMENTE con la",
+        "   cantidad inicial del proyecto; si no, no podrá avanzar (ajuste el balance).",
+        "",
+        "ERRORES QUE SE REPORTAN (con número de fila):",
+        "   • Nombre de sucursal vacío o Cajas inválidas (no numérico / ≤ 0).",
+        "   • Sucursal duplicada.",
+        "   • Faltan columnas obligatorias / archivo vacío o ilegible.",
+        "",
+        "Sugerencia: borre las filas de ejemplo antes de cargar su archivo real.",
+    ]
+    for i, t in enumerate(lines, 1):
+        ins.cell(row=i, column=1, value=t)
+    ins.column_dimensions['A'].width = 110
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=plantilla_distribucion_multitienda.xlsx"},
+    )
+
+
+@router.post("/quotes/multistore/parse-excel")
+async def multistore_parse_excel(
+    file: UploadFile = File(...),
+    total_boxes: Optional[int] = Form(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Parsea el Excel de distribución Multitienda simple (Nombre Sucursal | Cajas)
+    y devuelve la lista de tiendas + reporte de errores/advertencias. No persiste nada."""
+    await get_current_user(authorization)
+
+    fname = (file.filename or "").lower()
+    if not fname.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un Excel (.xlsx). Use la plantilla.")
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Asegúrese de que sea un .xlsx válido (no .xls ni .csv).")
+
+    ws = wb["Distribucion"] if "Distribucion" in wb.sheetnames else wb[wb.sheetnames[0]]
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows or len(rows) < 1:
+        raise HTTPException(status_code=400, detail="La hoja de datos está vacía.")
+
+    header = [_mr_norm_header(h) for h in rows[0]]
+
+    def _find_col(*names):
+        for n in names:
+            if n in header:
+                return header.index(n)
+        return None
+
+    ci_suc = _find_col("nombresucursal", "sucursal", "tienda", "nombretienda", "nombre")
+    ci_caj = _find_col("cajas", "cantidad", "cajassucursal", "cantidadcajas", "pdv")
+
+    missing = []
+    if ci_suc is None:
+        missing.append("Nombre Sucursal")
+    if ci_caj is None:
+        missing.append("Cajas")
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Faltan columnas obligatorias en la fila 1: {', '.join(missing)}. Descargue y use la plantilla.",
+        )
+
+    errors = []
+    warnings = []
+    stores = []
+    seen = {}
+    total = 0
+
+    for ridx, row in enumerate(rows[1:], start=2):
+        if row is None or all((v is None or str(v).strip() == "") for v in row):
+            continue
+        suc_raw = row[ci_suc] if ci_suc < len(row) else None
+        caj_raw = row[ci_caj] if ci_caj < len(row) else None
+        suc_s = str(suc_raw).strip() if suc_raw is not None else ""
+
+        row_errs = []
+        if not suc_s:
+            row_errs.append("Nombre Sucursal vacío.")
+        boxes = None
+        try:
+            boxes = int(float(caj_raw))
+        except (TypeError, ValueError):
+            boxes = None
+        if boxes is None or boxes <= 0:
+            row_errs.append(f"Cajas inválidas ('{caj_raw}'): debe ser un número entero mayor a 0.")
+
+        if row_errs:
+            errors.append({"row": ridx, "sucursal": suc_s, "messages": row_errs})
+            continue
+
+        skey = suc_s.lower()
+        if skey in seen:
+            errors.append({"row": ridx, "sucursal": suc_s, "messages": [f"Sucursal duplicada (ya aparece en la fila {seen[skey]})."]})
+            continue
+        seen[skey] = ridx
+        stores.append({"name": suc_s, "box_count": boxes})
+        total += boxes
+
+    if total_boxes is not None and total != int(total_boxes):
+        diff = total - int(total_boxes)
+        estado = "excede" if diff > 0 else "falta"
+        warnings.append(
+            f"El total de cajas del Excel ({total}) no coincide con la cantidad inicial del proyecto "
+            f"({int(total_boxes)}); {estado} {abs(diff)} caja(s). Ajuste el balance antes de avanzar."
+        )
+
+    summary = {"total_stores": len(stores), "total_boxes": total, "rows_with_errors": len(errors)}
+    return {"ok": len(errors) == 0, "stores": stores, "errors": errors, "warnings": warnings, "summary": summary}

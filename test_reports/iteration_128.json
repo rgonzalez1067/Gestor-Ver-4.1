@@ -1,0 +1,55 @@
+{
+  "summary": "Frontend-only validation of the Excel-upload bar in the Multitienda modal on /quotes 'Enviar a Implementación'. Logged in as admin and drove the full UI path to the collect-phase on COT-2026-06-039-PYME (quo_07dc95aace99, 52 cajas, status=Enviada → irregular path): login → /quotes → scroll-load → quote-actions kebab → 'Enviar a Implementación' → exception modal (motivo + fecha) → email 'Personalizar Comunicación' Continuar → multistore-yes-btn → collect-phase. Verified the new MultistoreExcelBar with three Playwright file-upload scenarios (valid / mismatch / invalid). All 4 requested checks PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/tmp/multistore_valid.xlsx",
+    "/tmp/multistore_mismatch.xlsx",
+    "/tmp/multistore_invalid.xlsx"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MultistoreExcelBar (QuoteModals.jsx L157-213) is correctly mounted in BOTH 'inherited' (L1095) and 'collect' (L1193) phases with onLoaded={(stores)=>setMultistoreStores(stores)}, which atomically replaces the manual distribution. The downstream reactive balance counter (data-balanced + bg-red-50/emerald-50) reacts instantly. Good.",
+    "On invalid Excel (data.ok=false OR errors[].length>0) the handler returns early BEFORE onLoaded(), so the prior multistoreStores stays intact — confirmed in UI: after invalid upload the previous rows (Centro=20, Este=10) and counter (30/52, red) remained unchanged. Correct.",
+    "Hard-block toast text in Quotes.confirmMultistore matches the request literally: 'No se puede continuar: La cantidad de cajas distribuidas (30) no coincide con la cantidad inicial asignada al proyecto (52). Por favor, ajuste el balance de hardware antes de enviar a implementación.' Confirmed end-to-end.",
+    "Warning toast on partial mismatch ('El total de cajas del Excel (30) no coincide con la cantidad inicial del proyecto (52); falta 22 caja(s). Ajuste el balance antes de avanzar.') is correctly emitted via data.warnings — backend already returns the warning; the bar surfaces it but still loads the rows so the user can edit. Good UX.",
+    "Existing console warnings (DialogContent without Description / Sidebar <span> wrapper inside <tbody>) are pre-existing hydration warnings unrelated to this iteration. Pre-existing; not in scope.",
+    "Inherited-phase Excel bar was NOT exercised live because this quote has no prior branch_details, so the modal lands in 'collect'. Inherited rendering verified by code inspection: same MultistoreExcelBar component, same onLoaded handler, same inherited-balance-counter wiring (data-balanced toggling identical). No behavioural divergence between phases."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request — already verified via curl)", "frontend": "100% (4/4 explicit checks PASS)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Generated 3 ephemeral .xlsx fixtures in /tmp using openpyxl (valid sum=52, mismatch sum=30, invalid rows). Multi-store flow was aborted before the final 'Confirmar y Enviar' send → no quote state persisted (exception not written).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Excel bar lives at data-testid='multistore-excel-bar' inside both [data-testid=multistore-collect-phase] AND [data-testid=multistore-inherited-phase]. Hidden file input is [data-testid=multistore-excel-input] — use page.set_input_files on it (the visible 'Cargar Excel' button only triggers the native picker). After upload: success toast + the row count + collect-balance-counter / inherited-balance-counter update with data-balanced ∈ {'true','false'}. On invalid xlsx the handler returns early and the previous distribution is preserved (confirmed via inner_text equality before/after). Path to reach collect-phase on quo_07dc95aace99: scroll the /quotes table (40 iterations of window.scrollTo bottom is enough), then kebab → 'Enviar a Implementación' → fill textarea + input[type=date] → exception-confirm-btn → Continuar → multistore-yes-btn. Do NOT proceed beyond pinpad-question or the exception will persist.",
+  "evidence": {
+    "test_A_valid_sum_52": {
+      "counter_text": "Cajas Distribuidas: 52 / Cantidad Inicial Obligatoria: 52",
+      "data_balanced": "true",
+      "rows_rendered": 2,
+      "upload_toast": "Distribución cargada: 2 tienda(s), 52 caja(s).",
+      "confirm_advanced_to_pinpad_question": true
+    },
+    "test_B_mismatch_sum_30": {
+      "counter_text": "Cajas Distribuidas: 30 / Cantidad Inicial Obligatoria: 52",
+      "data_balanced": "false",
+      "warning_toast_on_upload": "El total de cajas del Excel (30) no coincide con la cantidad inicial del proyecto (52); falta 22 caja(s). Ajuste el balance antes de avanzar.",
+      "hard_block_toast_on_confirm": "No se puede continuar: La cantidad de cajas distribuidas (30) no coincide con la cantidad inicial asignada al proyecto (52). Por favor, ajuste el balance de hardware antes de enviar a implementación.",
+      "did_not_advance": true,
+      "collect_phase_still_visible": true
+    },
+    "test_C_invalid_xlsx": {
+      "error_toast": "El Excel tiene 2 error(es). Fila 2: Nombre Sucursal vacío.  •  Fila 3: Cajas inválidas ('abc'): debe ser un número entero mayor a 0.",
+      "distribution_replaced": false,
+      "rows_text_unchanged": true,
+      "counter_unchanged_30_52_false": true
+    },
+    "inherited_phase": "Not reachable on this quote (no prior branch_details). Verified by code inspection that the same MultistoreExcelBar + inherited-balance-counter + onLoaded=setMultistoreStores wiring is rendered (QuoteModals.jsx L1095, L1148-1155)."
+  },
+  "rca of the issue": "n/a — verification task, no bug. Implementation matches all 4 requirements: (1) Excel bar present in both collect & inherited phases with the 3 expected data-testids; (2) Upload replaces manual list and the balance counter reactively turns green/data-balanced=true when sum matches; (3) Mismatch keeps counter red and confirm fires the exact Spanish hard-block toast without advancing; (4) Invalid xlsx surfaces per-row error toast and does NOT replace the existing distribution."
+}
