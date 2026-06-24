@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Modal Multitienda ("Enviar a Implementación"): carga por Excel SIMPLIFICADA (reutiliza el formato estándar de "Detalle de Sucursales")
+
+- **Simplificación pedida por el usuario:** la carga por Excel del modal multitienda ahora reutiliza el MISMO componente/lógica y formato que el botón "Detalle de Sucursales" del cotizador (`BranchDetailPanel.jsx`): parseo 100% en el navegador con la librería `xlsx`, plantilla estándar **`plantilla_tiendas.xlsx`** (hoja "Tiendas", columnas **Nombre Tienda | Cantidad de Cajas**), reemplazo total de la distribución, validaciones mínimas (ignora filas con cantidad inválida con una advertencia). Así el archivo es estándar y reutilizable en cualquier paso.
+- **`QuoteModals.jsx`:** `MultistoreExcelBar` reescrito (sin backend) → botones `Plantilla` (genera `plantilla_tiendas.xlsx` con `XLSX.writeFile`) y `Excel` (lee con `FileReader`/`XLSX.read`, mapea a `{name, box_count}`, `onLoaded` reemplaza `multistoreStores`). El contador de balance y el bloqueo estricto siguen aplicando igual sobre la distribución cargada.
+- **Backend:** eliminados los endpoints `GET/POST /quotes/multistore/excel-template|parse-excel` que se habían agregado (ya no se usan; la carga es cliente).
+- **QA (self-test E2E preview):** carga del `plantilla_tiendas.xlsx` estándar (Centro 50 + Este 2 = 52) → toast "2 tienda(s) importada(s) (reemplazo total)", grilla con 2 filas, contador verde "Cajas Distribuidas: 52 / Cantidad Inicial Obligatoria: 52" (`data-balanced=true`), botón Confirmar visible. (Reemplaza la versión backend de iteration_128.)
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
 ## 2026-06 — Modal Multitienda ("Enviar a Implementación"): carga de distribución por Excel (adicional a la manual)
 
 - **Backend (`routes/quotes.py`):** 2 endpoints nuevos: `GET /quotes/multistore/excel-template` (.xlsx con hoja "Distribucion" `Nombre Sucursal | Cajas` + hoja Instrucciones) y `POST /quotes/multistore/parse-excel` (multipart `file` + `total_boxes`) que parsea con openpyxl y devuelve `{ok, stores:[{name,box_count}], errors[fila], warnings, summary}` SIN persistir. Reporta por fila: nombre vacío, cajas no numéricas/≤0, sucursal duplicada, columnas faltantes/archivo ilegible; advertencia (no bloquea) si la suma ≠ cantidad inicial.

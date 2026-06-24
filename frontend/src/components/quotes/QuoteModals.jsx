@@ -10,9 +10,10 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
-import { AlertTriangle, CheckCircle, Mail, Paperclip, Plus, Send, Store, Trash2, X, Users, Landmark } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Mail, Paperclip, Plus, Send, Store, Trash2, X, Users, Landmark, Upload } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback, memo } from 'react';
 import api from '../../utils/api';
+import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { EquipmentQuoteWizard } from '../EquipmentQuoteWizard';
 import { AnexosModal } from '../AnexosModal';
@@ -152,62 +153,83 @@ const MultistoreAddForm = memo(function MultistoreAddForm({ remaining, onAppend 
   );
 });
 
-// Barra de carga por Excel para la distribución Multitienda (Nombre Sucursal | Cajas).
-// Descarga la plantilla y reemplaza la distribución manual con la del archivo.
-const MultistoreExcelBar = memo(function MultistoreExcelBar({ totalBoxes, onLoaded }) {
+// Barra de carga por Excel para la distribución Multitienda.
+// Reutiliza el MISMO formato y lógica cliente que "Detalle de Sucursales" del
+// cotizador (xlsx en el navegador, plantilla estándar 'plantilla_tiendas.xlsx',
+// columnas Nombre Tienda | Cantidad de Cajas). Reemplaza la distribución actual.
+const MultistoreExcelBar = memo(function MultistoreExcelBar({ onLoaded }) {
   const inputRef = useRef(null);
-  const [busy, setBusy] = useState(false);
 
-  const downloadTemplate = async () => {
-    try {
-      const res = await api.get('/quotes/multistore/excel-template', { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
-      a.href = url; a.download = 'plantilla_distribucion_multitienda.xlsx';
-      document.body.appendChild(a); a.click(); a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (e) {
-      toast.error('No se pudo descargar la plantilla');
-    }
+  const downloadTemplate = () => {
+    const data = [
+      ['Nombre Tienda', 'Cantidad de Cajas'],
+      ['Sucursal Centro', 3],
+      ['Sucursal Norte', 2],
+      ['Sucursal Sur', 1],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 30 }, { wch: 18 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Tiendas');
+    XLSX.writeFile(wb, 'plantilla_tiendas.xlsx');
   };
 
-  const onFile = async (e) => {
+  const onFile = (e) => {
     const file = e.target.files?.[0];
-    if (inputRef.current) inputRef.current.value = '';
+    if (e.target) e.target.value = '';
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.xlsx')) { toast.error('El archivo debe ser .xlsx (use la plantilla)'); return; }
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      if (totalBoxes != null) fd.append('total_boxes', String(totalBoxes));
-      const res = await api.post('/quotes/multistore/parse-excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      const data = res.data || {};
-      if (!data.ok || (data.errors || []).length > 0) {
-        const first = (data.errors || []).slice(0, 4).map(er => `Fila ${er.row}: ${(er.messages || []).join(' ')}`).join('  •  ');
-        toast.error(`El Excel tiene ${data.errors?.length || 0} error(es). ${first}`);
-        return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const isHeaderRow = (row) => {
+          if (!row || row.length < 2) return true;
+          const v = row[1];
+          if (v === null || v === undefined || v === '') return true;
+          const n = parseFloat(String(v).trim().replace(',', '.'));
+          return !Number.isFinite(n) || n <= 0;
+        };
+        const startIdx = isHeaderRow(data[0]) ? 1 : 0;
+        const imported = [];
+        let invalid = 0;
+        for (let i = startIdx; i < data.length; i++) {
+          const row = data[i];
+          if (!row || row.length < 2) continue;
+          const name = String(row[0] ?? '').trim();
+          const rawQty = row[1];
+          if (!name && (rawQty === null || rawQty === undefined || rawQty === '')) continue;
+          if (!name) continue;
+          const qty = parseInt(String(rawQty).trim().replace(',', '.'));
+          if (!Number.isFinite(qty) || qty <= 0) { invalid += 1; continue; }
+          imported.push({ name, box_count: qty });
+        }
+        if (imported.length === 0) {
+          toast.error('No se encontraron datos válidos. Use columnas: Nombre Tienda | Cantidad de Cajas (numérica)');
+          return;
+        }
+        onLoaded(imported);
+        const msg = `${imported.length} tienda(s) importada(s) (reemplazo total)`;
+        if (invalid > 0) toast.warning(`${msg}. ${invalid} fila(s) ignoradas por cantidad inválida.`);
+        else toast.success(msg);
+      } catch {
+        toast.error('Error al leer el archivo');
       }
-      onLoaded(data.stores || []);
-      (data.warnings || []).forEach(w => toast.warning(w));
-      toast.success(`Distribución cargada: ${data.summary?.total_stores || 0} tienda(s), ${data.summary?.total_boxes || 0} caja(s).`);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'No se pudo procesar el Excel');
-    } finally {
-      setBusy(false);
-    }
+    };
+    reader.readAsBinaryString(file);
   };
 
   return (
     <div className="flex items-center gap-2 rounded-md bg-slate-50 border border-slate-200 px-2.5 py-2" data-testid="multistore-excel-bar">
       <span className="text-xs text-slate-500 mr-auto">Cargar por Excel (opcional)</span>
-      <Button type="button" variant="outline" size="sm" className="text-xs h-7" onClick={downloadTemplate} data-testid="multistore-excel-template-btn">
+      <Button type="button" variant="outline" size="sm" className="text-xs h-7 border-blue-300 text-blue-600" onClick={downloadTemplate} data-testid="multistore-excel-template-btn">
         Plantilla
       </Button>
-      <Button type="button" variant="outline" size="sm" className="text-xs h-7" disabled={busy} onClick={() => inputRef.current?.click()} data-testid="multistore-excel-upload-btn">
-        {busy ? 'Procesando…' : 'Cargar Excel'}
+      <Button type="button" variant="outline" size="sm" className="text-xs h-7" onClick={() => inputRef.current?.click()} data-testid="multistore-excel-upload-btn">
+        <Upload size={12} className="mr-1" />Excel
       </Button>
-      <input ref={inputRef} type="file" accept=".xlsx" className="hidden" onChange={onFile} data-testid="multistore-excel-input" />
+      <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFile} data-testid="multistore-excel-input" />
     </div>
   );
 });
@@ -1093,7 +1115,6 @@ export const QuoteModals = ({ ctx }) => {
                   </div>
 
                   <MultistoreExcelBar
-                    totalBoxes={getMultistoreTotalCajas()}
                     onLoaded={(stores) => setMultistoreStores(stores)}
                   />
 
@@ -1191,7 +1212,6 @@ export const QuoteModals = ({ ctx }) => {
                         </div>
 
                           <MultistoreExcelBar
-                            totalBoxes={totalCajas}
                             onLoaded={(stores) => setMultistoreStores(stores)}
                           />
 
