@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Modal Multitienda ("Enviar a Implementación"): carga de distribución por Excel (adicional a la manual)
+
+- **Backend (`routes/quotes.py`):** 2 endpoints nuevos: `GET /quotes/multistore/excel-template` (.xlsx con hoja "Distribucion" `Nombre Sucursal | Cajas` + hoja Instrucciones) y `POST /quotes/multistore/parse-excel` (multipart `file` + `total_boxes`) que parsea con openpyxl y devuelve `{ok, stores:[{name,box_count}], errors[fila], warnings, summary}` SIN persistir. Reporta por fila: nombre vacío, cajas no numéricas/≤0, sucursal duplicada, columnas faltantes/archivo ilegible; advertencia (no bloquea) si la suma ≠ cantidad inicial.
+- **Frontend (`QuoteModals.jsx`):** componente `MultistoreExcelBar` (`multistore-excel-bar`) con botones `Plantilla` (descarga) y `Cargar Excel` (input oculto), montado en las fases `collect` e `inherited`. Al cargar OK reemplaza `multistoreStores` (`onLoaded`), muestra toasts de éxito/advertencias y deja que el contador de balance reaccione (rojo/verde) y el bloqueo estricto aplique igual que en la carga manual. Si el Excel tiene errores, NO reemplaza la distribución previa.
+- **QA:** backend curl (template 200; válido→3 tiendas; descuadre→warning; filas inválidas→errores por fila). testing_agent iteration_128 → frontend 4/4 PASS (carga válida sum=52 → verde + avanza; descuadre sum=30 → warning + contador rojo + toast de bloqueo exacto sin avanzar; xlsx inválido → toast de error por fila sin reemplazar; fase inherited verificada por código).
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-06 — Modal Multitienda ("Enviar a Implementación"): scroll 80vh + footer fijo + balance estricto de cajas
 
 - **Layout (`QuoteModals.jsx`):** el `DialogContent` del `multistore-dialog` ahora aplica `max-h-[80vh] flex flex-col overflow-hidden` **solo** en las fases de distribución (`inherited`/`collect`); el resto de fases conservan su tamaño original (sin regresión). Header fijo (DialogHeader), lista de tiendas con scroll interno (`overflow-y-auto flex-1 min-h-0`, thead sticky) y footer fijo (`shrink-0`) con el contador y el botón de acción siempre visibles, incluso con 50+ tiendas.
