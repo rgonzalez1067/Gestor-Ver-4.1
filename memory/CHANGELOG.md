@@ -1,5 +1,17 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Multi-RIF: carga de Excel flexible (toggle "¿Los RIF a cargar serán validados?")
+
+- **UI (`MultiRifDistributionPanel.jsx`, compartido por Cotización VPOS Multi-RIF y Proyectos Directos Multi-RIF):** nuevo selector obligatorio **"¿Los RIF a cargar serán validados?"** SÍ/NO (default **SÍ**, consistente con el histórico), junto a los botones Plantilla/Cargar Excel (`multirif-validate-toggle`, `multirif-validate-yes`, `multirif-validate-no`). Por ser el mismo componente, aplica idéntico en ambas pantallas (impacto cruzado).
+- **Flujo SÍ (estándar):** sin cambios — el backend valida que cada RIF exista en clientes; si un RIF no existe, rechaza toda la carga con el error tradicional y autocompleta el Nombre Jurídico desde la BD.
+- **Flujo NO (flexible/prospección):** el backend NO consulta la tabla de clientes; acepta cualquier RIF con máscara básica alfanumérica, agrupa por RIF y deja `client_id`/`client_name` vacíos. En la grilla, esas filas muestran el RIF + badge **"No Validado"** (sin forzar la búsqueda de cliente).
+- **Backend (`routes/quotes.py · multirif_parse_excel`):** nuevo `validate_rif` (Form, default True); cuando es False omite el índice de clientes (rápido), bifurca la validación y devuelve `validated: bool` por RIF. (`routes/direct_projects.py`): `DirectMultiRifNode.validated`; la validación de creación ya no exige `client_id` cuando `validated=False` (sí exige RIF no vacío) y persiste `validated` en el nodo.
+- **Frontend gates:** `validateMultiRif` y la validación de `DirectProjectCreation.jsx` relajan el requisito de cliente cuando `r.validated === false`. La creación de cotización/proyecto tolera `client_id` vacío.
+- **QA:** backend curl → NO: 500 RIFs no registrados procesados en ~0.35s, 0 errores, `client_name` vacío, `validated=false`; SÍ: RIF inventado → `ok=false` con "no corresponde a ningún Cliente registrado". Self-test UI (/direct-projects, NO): 500 filas con badge "No Validado", toast "Distribución cargada: 500 RIF(s)", sin excepciones.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-06 — Modal Multitienda ("Enviar a Implementación"): carga por Excel SIMPLIFICADA (reutiliza el formato estándar de "Detalle de Sucursales")
 
 - **Simplificación pedida por el usuario:** la carga por Excel del modal multitienda ahora reutiliza el MISMO componente/lógica y formato que el botón "Detalle de Sucursales" del cotizador (`BranchDetailPanel.jsx`): parseo 100% en el navegador con la librería `xlsx`, plantilla estándar **`plantilla_tiendas.xlsx`** (hoja "Tiendas", columnas **Nombre Tienda | Cantidad de Cajas**), reemplazo total de la distribución, validaciones mínimas (ignora filas con cantidad inválida con una advertencia). Así el archivo es estándar y reutilizable en cualquier paso.

@@ -477,7 +477,7 @@ export default function DirectProjectCreation() {
       } else {
         let sumRifs = 0;
         dist.forEach((r, i) => {
-          if (!r.client_id) errs.push(`RIF #${i + 1}: selecciona un cliente`);
+          if (!r.client_id && r.validated !== false) errs.push(`RIF #${i + 1}: selecciona un cliente`);
           const rb = parseInt(r.boxes) || 0;
           sumRifs += rb;
           const ss = (r.stores || []).reduce((a, s) => a + (parseInt(s.boxes) || 0), 0);

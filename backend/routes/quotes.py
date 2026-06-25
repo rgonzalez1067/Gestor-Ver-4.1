@@ -2574,11 +2574,16 @@ async def multirif_excel_template(authorization: Optional[str] = Header(None)):
 async def multirif_parse_excel(
     file: UploadFile = File(...),
     global_boxes: Optional[int] = Form(None),
+    validate_rif: Optional[bool] = Form(True),
     authorization: Optional[str] = Header(None),
 ):
     """Parsea el Excel de distribución Multi-RIF y devuelve la distribución +
-    reporte detallado de errores/advertencias. No persiste nada."""
+    reporte detallado de errores/advertencias. No persiste nada.
+    Si validate_rif es False, NO valida la existencia del RIF en clientes
+    (flujo flexible para prospección): acepta cualquier RIF con máscara básica,
+    deja client_id y client_name vacíos (Nombre Jurídico 'No Validado')."""
     await get_current_user(authorization)
+    import re
 
     fname = (file.filename or "").lower()
     if not fname.endswith(".xlsx"):
@@ -2624,16 +2629,17 @@ async def multirif_parse_excel(
             detail=f"Faltan columnas obligatorias en la fila 1: {', '.join(missing)}. Descargue y use la plantilla.",
         )
 
-    # Índice de clientes por RIF normalizado (incluye variante con padding).
+    # Índice de clientes por RIF normalizado (solo si se exige validación).
     clients_by_rif = {}
-    async for c in db.clients.find({}, {"_id": 0, "client_id": 1, "rif": 1, "legal_name": 1, "fantasy_name": 1}):
-        for k in {_mr_norm_rif(c.get("rif")), _mr_norm_rif(format_rif(c.get("rif")))}:
-            if k:
-                clients_by_rif[k] = c
+    if validate_rif:
+        async for c in db.clients.find({}, {"_id": 0, "client_id": 1, "rif": 1, "legal_name": 1, "fantasy_name": 1}):
+            for k in {_mr_norm_rif(c.get("rif")), _mr_norm_rif(format_rif(c.get("rif")))}:
+                if k:
+                    clients_by_rif[k] = c
 
     errors = []
     warnings = []
-    groups = {}   # norm_rif -> {client, stores, seen}
+    groups = {}   # norm_rif -> {client_id, rif, client_name, stores, seen}
     order = []
     total_boxes = 0
 
@@ -2662,18 +2668,34 @@ async def multirif_parse_excel(
             row_errs.append(f"Cajas inválidas ('{caj_raw}'): debe ser un número entero mayor a 0.")
 
         client = None
-        if rif_s:
-            client = clients_by_rif.get(_mr_norm_rif(rif_s)) or clients_by_rif.get(_mr_norm_rif(format_rif(rif_s)))
-            if not client:
-                row_errs.append(f"El RIF '{rif_s}' no corresponde a ningún Cliente registrado en el sistema.")
+        if validate_rif:
+            # Escenario A (SÍ): el RIF debe existir en la tabla de clientes.
+            if rif_s:
+                client = clients_by_rif.get(_mr_norm_rif(rif_s)) or clients_by_rif.get(_mr_norm_rif(format_rif(rif_s)))
+                if not client:
+                    row_errs.append(f"El RIF '{rif_s}' no corresponde a ningún Cliente registrado en el sistema.")
+        else:
+            # Escenario B (NO): solo máscara básica alfanumérica (sin consultar BD).
+            if rif_s and not re.match(r'^[A-Za-z0-9][A-Za-z0-9\-\.\s]*$', rif_s):
+                row_errs.append(f"El RIF '{rif_s}' tiene un formato inválido (use solo letras, números, guiones o puntos).")
 
         if row_errs:
             errors.append({"row": ridx, "rif": rif_s, "sucursal": suc_s, "messages": row_errs})
             continue
 
-        nk = _mr_norm_rif(client.get("rif"))
+        if validate_rif:
+            nk = _mr_norm_rif(client.get("rif"))
+            cid = client["client_id"]
+            disp_rif = client.get("rif", "")
+            cname = client.get("fantasy_name") or client.get("legal_name") or ""
+        else:
+            nk = _mr_norm_rif(rif_s)
+            cid = ""
+            disp_rif = rif_s
+            cname = ""
+
         if nk not in groups:
-            groups[nk] = {"client": client, "stores": [], "seen": {}}
+            groups[nk] = {"client_id": cid, "rif": disp_rif, "client_name": cname, "stores": [], "seen": {}}
             order.append(nk)
         g = groups[nk]
         skey = suc_s.lower()
@@ -2690,11 +2712,11 @@ async def multirif_parse_excel(
     distribution = []
     for nk in order:
         g = groups[nk]
-        c = g["client"]
         distribution.append({
-            "client_id": c["client_id"],
-            "rif": c.get("rif", ""),
-            "client_name": c.get("fantasy_name") or c.get("legal_name") or "",
+            "client_id": g["client_id"],
+            "rif": g["rif"],
+            "client_name": g["client_name"],
+            "validated": bool(validate_rif),
             "boxes": sum(s["boxes"] for s in g["stores"]),
             "stores": g["stores"],
         })

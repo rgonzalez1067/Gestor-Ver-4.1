@@ -25,7 +25,7 @@ export const validateMultiRif = (dist, globalBoxes) => {
   const errors = [];
   if (!dist || dist.length === 0) errors.push('Debe agregar al menos un Cliente/RIF.');
   (dist || []).forEach((r, i) => {
-    if (!r.client_id) errors.push(`RIF #${i + 1}: seleccione un cliente.`);
+    if (!r.client_id && r.validated !== false) errors.push(`RIF #${i + 1}: seleccione un cliente.`);
     const ss = sumStores(r);
     if (ss > (parseInt(r.boxes) || 0)) {
       errors.push(`${r.client_name || 'RIF #' + (i + 1)}: las cajas de sus sucursales (${ss}) superan sus cajas asignadas (${r.boxes || 0}).`);
@@ -81,6 +81,7 @@ export const MultiRifDistributionPanel = ({ value = [], onChange, globalBoxes = 
   const [searchingIdx, setSearchingIdx] = useState(null); // índice del RIF buscando cliente
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [validateRif, setValidateRif] = useState(true);
   const fileRef = useRef(null);
 
   // Descarga la plantilla .xlsx (incluye hoja de instrucciones).
@@ -104,6 +105,7 @@ export const MultiRifDistributionPanel = ({ value = [], onChange, globalBoxes = 
     try {
       const fd = new FormData();
       fd.append('file', fileObj);
+      fd.append('validate_rif', validateRif ? 'true' : 'false');
       if (globalBoxes) fd.append('global_boxes', String(globalBoxes));
       const { data } = await api.post('/quotes/multirif/parse-excel', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -125,12 +127,24 @@ export const MultiRifDistributionPanel = ({ value = [], onChange, globalBoxes = 
 
   // Barra de acciones Excel (plantilla + cargar) reutilizada en colapsado/expandido.
   const ExcelToolbar = ({ compact }) => (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <input
         ref={fileRef} type="file" accept=".xlsx" className="hidden"
         data-testid="multirif-excel-input"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleExcel(f); e.target.value = ''; }}
       />
+      {/* Pregunta condicional obligatoria: validar RIF SÍ/NO (default SÍ) */}
+      <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1" data-testid="multirif-validate-toggle">
+        <span className="text-[11px] text-slate-600 font-medium">¿Los RIF a cargar serán validados?</span>
+        <label className="flex items-center gap-1 text-[11px] cursor-pointer" data-testid="multirif-validate-yes">
+          <input type="radio" name="multirif-validate" checked={validateRif === true} onChange={() => setValidateRif(true)} className="accent-emerald-600" />
+          <span className={validateRif ? 'font-semibold text-emerald-700' : 'text-slate-500'}>SÍ</span>
+        </label>
+        <label className="flex items-center gap-1 text-[11px] cursor-pointer" data-testid="multirif-validate-no">
+          <input type="radio" name="multirif-validate" checked={validateRif === false} onChange={() => setValidateRif(false)} className="accent-amber-600" />
+          <span className={!validateRif ? 'font-semibold text-amber-700' : 'text-slate-500'}>NO</span>
+        </label>
+      </div>
       <Button type="button" size="sm" variant="outline" onClick={downloadTemplate}
         className={`h-7 text-xs border-slate-300 text-slate-600 ${compact ? '' : ''}`} data-testid="btn-multirif-template">
         <Download size={12} className="mr-1" />Plantilla
@@ -253,14 +267,21 @@ export const MultiRifDistributionPanel = ({ value = [], onChange, globalBoxes = 
           return (
             <div key={i} className="rounded-lg border border-slate-200 bg-white p-3" data-testid={`multirif-rif-${i}`}>
               <div className="flex items-center gap-2 mb-2">
-                {searchingIdx === i || !rif.client_id ? (
+                {searchingIdx === i || (!rif.client_id && rif.validated !== false) ? (
                   <ClientSearch clients={clients}
-                    onPick={(c) => { setRif(i, { client_id: c.client_id, rif: c.rif, client_name: c.fantasy_name || c.legal_name }); setSearchingIdx(null); }}
+                    onPick={(c) => { setRif(i, { client_id: c.client_id, rif: c.rif, client_name: c.fantasy_name || c.legal_name, validated: true }); setSearchingIdx(null); }}
                     onCancel={() => setSearchingIdx(null)} />
                 ) : (
                   <button type="button" onClick={() => setSearchingIdx(i)}
                     className="flex-1 text-left text-sm font-medium text-slate-700 hover:text-indigo-600" data-testid={`multirif-rif-name-${i}`}>
-                    {rif.client_name} <span className="text-slate-400 font-normal">— {rif.rif}</span>
+                    {rif.validated === false ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-mono text-slate-700">{rif.rif}</span>
+                        <Badge variant="outline" className="border-amber-300 text-amber-700 text-[10px] py-0">No Validado</Badge>
+                      </span>
+                    ) : (
+                      <>{rif.client_name} <span className="text-slate-400 font-normal">— {rif.rif}</span></>
+                    )}
                   </button>
                 )}
                 <div className="flex items-center gap-1 shrink-0">

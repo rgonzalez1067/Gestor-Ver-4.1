@@ -83,6 +83,7 @@ class DirectMultiRifNode(BaseModel):
     client_id: Optional[str] = None
     rif: Optional[str] = None
     client_name: Optional[str] = None
+    validated: Optional[bool] = True  # False = RIF cargado sin validar (prospección)
     boxes: int = Field(ge=0)
     stores: list[DirectMultiRifStore] = Field(default_factory=list)
     boxes_grid: list[DirectProjectBox] = Field(default_factory=list)
@@ -279,8 +280,10 @@ async def create_direct_project(
             raise HTTPException(status_code=400, detail="Multi-RIF: agrega al menos un Cliente/RIF.")
         sum_rifs = 0
         for ri, rif in enumerate(dist):
-            if not (rif.client_id or "").strip():
+            if not (rif.client_id or "").strip() and rif.validated is not False:
                 raise HTTPException(status_code=400, detail=f"RIF #{ri+1}: selecciona un cliente.")
+            if rif.validated is False and not (rif.rif or "").strip():
+                raise HTTPException(status_code=400, detail=f"RIF #{ri+1}: el RIF no puede estar vacío.")
             rb = int(rif.boxes or 0)
             if rb < 1:
                 raise HTTPException(status_code=400, detail=f"RIF #{ri+1}: las cajas del RIF deben ser >= 1.")
@@ -346,6 +349,7 @@ async def create_direct_project(
                 "client_id": rif.client_id,
                 "rif": rif.rif,
                 "client_name": rif.client_name,
+                "validated": rif.validated,
                 "boxes": int(rif.boxes or 0),
                 "stores": [{"name": s.name, "boxes": int(s.boxes or 0)} for s in rif.stores],
             }
