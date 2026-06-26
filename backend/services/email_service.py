@@ -3,6 +3,7 @@ Servicio de correo electrónico con motor SMTP propio.
 Prioridad: SMTP propio > Resend (fallback) > Simulado.
 """
 import logging
+import os
 import uuid
 import smtplib
 import asyncio
@@ -253,6 +254,23 @@ def _send_smtp(
     return {"status": "sent", "method": "smtp"}
 
 
+async def _download_img_bytes(url: str, ctype_default: str, fname_default: str):
+    """Descarga los bytes de una imagen remota. Devuelve (content, ctype, fname)
+    o (None, ctype, fname) si falla (p.ej. requiere autenticación: mail.google.com)."""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as _cli:
+            r = await _cli.get(url)
+        if r.status_code == 200 and r.content and (r.headers.get("content-type", "")).lower().startswith("image"):
+            ctype = (r.headers.get("content-type") or ctype_default).split(";")[0].strip() or ctype_default
+            fname = (url.rsplit("/", 1)[-1].split("?", 1)[0]) or fname_default
+            return r.content, ctype, fname
+        logger.warning(f"[BodyImg] descarga no-imagen/{r.status_code}: {url[:80]}")
+    except Exception as e:
+        logger.warning(f"[BodyImg] descarga falló {url[:80]}: {e}")
+    return None, ctype_default, fname_default
+
+
 async def _embed_body_images(html: str, attachments: list) -> tuple:
     """Convierte las imágenes del cuerpo (URLs servidas por nuestro backend o data URIs)
     en adjuntos inline CID, para que se visualicen en cualquier cliente de correo
@@ -263,6 +281,7 @@ async def _embed_body_images(html: str, attachments: list) -> tuple:
         return html, attachments
     atts = list(attachments) if attachments else []
     pattern = re.compile(r'<img\b[^>]*?\bsrc=["\']([^"\']+)["\']', re.IGNORECASE)
+    base_url = (os.environ.get("REACT_APP_BACKEND_URL", "") or "").rstrip("/")
     replacements = {}
     for m in pattern.finditer(html):
         src = m.group(1)
@@ -271,6 +290,12 @@ async def _embed_body_images(html: str, attachments: list) -> tuple:
         content = None
         ctype = "image/png"
         fname = "imagen.png"
+        # Normaliza rutas RELATIVAS a absolutas (Conversión Forzosa): el editor o
+        # una plantilla legacy pueden guardar src="/api/projects/images/..." o
+        # "/media/...". Los clientes de correo no resuelven rutas sin dominio.
+        abs_src = src
+        if src.startswith("/") and not src.startswith("//"):
+            abs_src = f"{base_url}{src}" if base_url else src
         if src.startswith("data:image/"):
             try:
                 header, b64 = src.split(",", 1)
@@ -279,35 +304,30 @@ async def _embed_body_images(html: str, attachments: list) -> tuple:
                 fname = f"imagen.{ctype.split('/')[-1]}"
             except Exception:
                 continue
-        elif src.startswith("http://") or src.startswith("https://"):
-            # 1) Imagen hospedada por nuestro backend → leer bytes de object storage.
-            if "/api/projects/images/" in src:
-                try:
-                    tail = src.split("/api/projects/images/", 1)[1].split("?", 1)[0]
-                    file_id = tail.split(".", 1)[0]
-                    rec = await db.uploaded_images.find_one({"image_id": file_id}, {"_id": 0})
-                    if rec:
-                        from services.object_storage import get_object
-                        content, ct = await asyncio.to_thread(get_object, rec["storage_path"])
-                        ctype = rec.get("content_type") or ct or "image/png"
-                        fname = rec.get("original_filename") or tail
-                except Exception as e:
-                    logger.warning(f"[BodyImg] storage lookup falló {src}: {e}")
-            # 2) Fallback universal: descargar los bytes de la URL (cualquier origen).
+        elif "/api/projects/images/" in src:
+            # Imagen hospedada por nuestro backend (relativa o absoluta, cualquier
+            # dominio) → leer bytes directo de object storage por su image_id.
+            try:
+                tail = src.split("/api/projects/images/", 1)[1].split("?", 1)[0]
+                file_id = tail.split(".", 1)[0]
+                rec = await db.uploaded_images.find_one({"image_id": file_id}, {"_id": 0})
+                if rec:
+                    from services.object_storage import get_object
+                    content, ct = await asyncio.to_thread(get_object, rec["storage_path"])
+                    ctype = rec.get("content_type") or ct or "image/png"
+                    fname = rec.get("original_filename") or tail
+            except Exception as e:
+                logger.warning(f"[BodyImg] storage lookup falló {src}: {e}")
+            # Fallback: descargar por URL absoluta si el storage lookup no dio bytes.
+            if content is None and (abs_src.startswith("http://") or abs_src.startswith("https://")):
+                content, ctype, fname = await _download_img_bytes(abs_src, ctype, fname)
             if content is None:
-                try:
-                    import httpx
-                    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as _cli:
-                        r = await _cli.get(src)
-                    if r.status_code == 200 and r.content:
-                        content = r.content
-                        ctype = (r.headers.get("content-type") or ctype).split(";")[0].strip() or ctype
-                        fname = (src.rsplit("/", 1)[-1].split("?", 1)[0]) or fname
-                    else:
-                        continue
-                except Exception as e:
-                    logger.warning(f"[BodyImg] descarga falló {src}: {e}")
-                    continue
+                continue
+        elif abs_src.startswith("http://") or abs_src.startswith("https://"):
+            # Cualquier otro origen (incluye relativas ya absolutizadas) → descargar.
+            content, ctype, fname = await _download_img_bytes(abs_src, ctype, fname)
+            if content is None:
+                continue
         else:
             continue
         if not content:
@@ -322,7 +342,9 @@ async def _embed_body_images(html: str, attachments: list) -> tuple:
             "content_type": ctype,
         })
     for src, cid in replacements.items():
-        html = html.replace(src, f"cid:{cid}")
+        # Reemplazo acotado por comillas para evitar colisiones de substring
+        # (una ruta relativa puede ser substring de una URL absoluta equivalente).
+        html = html.replace(f'"{src}"', f'"cid:{cid}"').replace(f"'{src}'", f"'cid:{cid}'")
     return html, atts
 
 

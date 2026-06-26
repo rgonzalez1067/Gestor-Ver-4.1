@@ -340,6 +340,16 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
             }
           }
         }
+        // Sin bitmap en el portapapeles: detectar imágenes remotas NO incrustables
+        // (copiadas desde Gmail/Outlook, requieren sesión) y avisar — esas llegan
+        // rotas al destinatario. El backend solo puede incrustar nuestras imágenes,
+        // data URIs o imágenes públicas.
+        try {
+          const pastedHtml = event.clipboardData.getData && event.clipboardData.getData('text/html');
+          if (pastedHtml && /<img[^>]+src=["']https?:\/\/(mail\.google\.com|[^"']*googleusercontent\.com|[^"']*\.mail\.[^"']+|outlook\.[^"']+)/i.test(pastedHtml)) {
+            toast.warning('Las imágenes copiadas desde un correo no se pueden incrustar y llegarían rotas al cliente. Pega una captura de pantalla (Ctrl+V de la imagen) o súbela con el botón de imagen.', { duration: 8000 });
+          }
+        } catch (_e) { /* noop */ }
         return false;
       },
       // Soporte de arrastrar-y-soltar imágenes.
