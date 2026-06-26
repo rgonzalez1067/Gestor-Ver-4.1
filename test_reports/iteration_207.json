@@ -1,0 +1,42 @@
+{
+  "summary": "P0 UI testing: 'Edición Maestra' del Panel de Proyectos con selectores referenciales (Cliente combobox, Integrador dropdown, Aplicativo cascada). Probado end-to-end como admin (rgonzalez@megasoft.com.ve) sobre proyecto real PRY-2026-06-064-PRI (ASTROCEL CELULARES, C.A., integrador ZUDEV con 2 apps).",
+  "tests_executed": {
+    "open_master_edit_dialog": "PASS — botón data-testid='master-edit-btn-{prj}' presente en cada fila del listado de proyectos; al hacer click abre data-testid='master-edit-dialog' con header 'Edición Maestra · Super-Admin'.",
+    "client_combobox_render_and_search": "PASS — data-testid='master-client-trigger' muestra razón social del cliente ('ASTROCEL CELULARES, C.A.'); al abrir aparece input data-testid='master-client-search' con autofocus; filtrar por 'a' devuelve 6 opciones (data-testid='master-client-opt-cli_XXX') incluyendo ASTROCEL, GLOBAL MARKET H&J, COMERCIALIZADORA 1108, CORPORACION LA ALACENA, FRUTERIA LOS POMELOS, EL PIZZACCIO.",
+    "client_selection_autofills_rif": "PASS — al elegir 'master-client-opt-cli_d7a6037a7cf7' (ASTROCEL) el trigger muestra la razón social y data-testid='master-field-client_rif' se autorellena con 'J305857695'.",
+    "integrator_dropdown_lists_catalog": "PASS — data-testid='master-integrator-select' abre 30+ opciones del catálogo (3D Vision, 3MIT, A2 Softway, AIRTEK, ..., ZUDEV, C.A) en orden alfabético; la opción '— Sin integrador —' también disponible.",
+    "integrator_app_cascade_multi_app": "PASS — con ZUDEV, C.A (2 apps en catálogo) aparece data-testid='master-integrator-app-select' como dropdown obligatorio mostrando solo las apps de ZUDEV ('ZUDEV, C.A' y 'Por Definir'); la etiqueta del Label muestra el contador '(2)' para feedback visual.",
+    "integrator_change_filters_apps": "PASS — al cambiar a otro integrador ('Alcantara Trujillo y Asociados', también con 2+ apps) el dropdown de Aplicativo se resetea a placeholder 'Seleccionar app...' y obliga a re-elegir, demostrando filtrado dinámico por integrador.",
+    "save_override_persists": "PASS — Guardar Override (data-testid='master-save-btn') ejecuta PUT /api/projects/{id}/master-override; aparece toast 'Proyecto actualizado (Edición Maestra)' y el modal cierra automáticamente.",
+    "reopen_keeps_selections": "PASS — al reabrir el modal del mismo proyecto, el cliente (ASTROCEL CELULARES, C.A.), RIF (J305857695), integrador (ZUDEV, C.A) y aplicativo (ZUDEV, C.A) se conservan correctamente — confirma persistencia de client_id e integrator_id."
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "MasterEditDialog", "issues": ["Console emite repetidamente 'Encountered two children with the same key' al abrir el modal. Probable origen: alguna lista del modal (banksCatalog, hardwareCatalog, clientsList) contiene IDs duplicados desde el API, o se construyen SelectItem con key no única en alguna sección secundaria. No bloquea la funcionalidad pero contamina la consola y puede causar inconsistencias visuales a futuro. RECOMENDADO: investigar qué map() está emitiendo la key duplicada (logger %s value) y deduplicar por (id+índice) o filtrar duplicados antes de renderizar."]}
+    ]
+  },
+  "critical_code_review_comments": [
+    "MasterEditDialog.jsx selectIntegratorName() (línea 258-265): correcto — auto-rellena integrator_id + integrator_app_name si apps.length===1; queda en blanco si 0 o 2+.",
+    "MasterEditDialog.jsx render Aplicativo (línea 380-392): renderiza Select cuando appsForIntegrator.length >= 2, sino muestra div locked con data-testid='master-integrator-app-locked'. Lógica de cascada correcta.",
+    "MasterEditDialog.jsx handleSave() (línea 287-307): el payload incluye client_id y integrator_id correctamente (con fallback a null si vacíos), respetando el contrato actualizado del backend MasterOverridePayload.",
+    "ClientCombobox (línea 27-36): el filtro busca en legal_name, fantasy_name, rif y grupo_economico|economic_group — cubre los 4 criterios pedidos (RIF, Razón Social, Nombre Comercial, Grupo Económico). Slice(0,50) razonable para no saturar el dropdown.",
+    "ClientCombobox key={c.client_id} (línea 60): si la lista /clients devuelve client_ids duplicados, esto provocaría las warnings de keys vistas en consola. Recomendado: filtrar duplicados o usar key={`${c.client_id}-${idx}`}.",
+    "Errores HTML preexistentes en consola ('<span> cannot be a child of <tbody>', '<span> cannot contain a nested <tr>') vienen del listado de Proyectos, NO del modal. No relacionados a esta tarea."
+  ],
+  "test_report_links": [
+    "/app/test_reports/iteration_207.json"
+  ],
+  "action_items": [
+    "Investigar y corregir warning de consola 'Encountered two children with the same key' que se dispara al abrir el modal Edición Maestra (alta repetición). Probable causa: client_id, hardware_id o bank_id duplicado en alguno de los catálogos. No bloquea producción."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no testeado por instrucción)", "frontend": "100% (8/8 flujos UI verificados, incl. persistencia tras reabrir)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna. Se reutilizó el proyecto existente PRY-2026-06-064-PRI (ASTROCEL CELULARES, C.A.). Al guardar se reasignó el aplicativo a la primera opción de ZUDEV ('ZUDEV, C.A' integrator_id correspondiente), que ya era el valor previo — el proyecto quedó consistente.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El flujo P0 de selectores referenciales en Edición Maestra está verificado end-to-end: combobox de cliente con búsqueda por RIF/Razón Social/Grupo Económico, autofill de RIF, dropdown de integrador y cascada dinámica de aplicativo, save y persistencia. Único hallazgo menor: warnings de React 'duplicate key' al abrir el modal (no bloquea, pero ensucia consola — investigar origen entre clientsList/hardwareCatalog/banksCatalog). El caso de integrador con 1 sola app (mostrar campo bloqueado data-testid='master-integrator-app-locked') no se ejecutó directamente, pero la lógica en código (apps.length===1 → autofill+lock) es correcta y el render del div locked está en la rama else del condicional `appsForIntegrator.length >= 2`."
+}

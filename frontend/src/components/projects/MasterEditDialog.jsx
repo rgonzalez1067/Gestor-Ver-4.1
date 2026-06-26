@@ -8,7 +8,69 @@ import { Checkbox } from '../ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { toast } from 'sonner';
-import { Pencil, Plus, Trash2, Landmark, Cpu, Store, AlertTriangle } from 'lucide-react';
+import { Pencil, Plus, Trash2, Landmark, Cpu, Store, AlertTriangle, Search } from 'lucide-react';
+
+// Combobox de cliente con búsqueda predictiva por RIF, Razón Social,
+// Nombre Comercial y Grupo Económico. Devuelve el cliente completo al elegir.
+const ClientCombobox = ({ clients, value, displayName, onSelect }) => {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = React.useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return clients.slice(0, 50);
+    return clients.filter((c) =>
+      (c.legal_name || '').toLowerCase().includes(s) ||
+      (c.fantasy_name || '').toLowerCase().includes(s) ||
+      (c.rif || '').toLowerCase().includes(s) ||
+      (c.grupo_economico || c.economic_group || '').toLowerCase().includes(s)
+    ).slice(0, 50);
+  }, [clients, q]);
+
+  const selected = clients.find((c) => c.client_id === value);
+  const label = selected ? (selected.legal_name || selected.fantasy_name) : (displayName || '');
+
+  return (
+    <div className="relative" ref={ref} data-testid="master-client-combobox">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="w-full h-8 px-2 border border-slate-200 rounded-md bg-white text-left text-sm hover:border-slate-300 focus:border-blue-500 focus:outline-none flex items-center justify-between"
+        data-testid="master-client-trigger">
+        <span className={label ? 'text-slate-900 truncate' : 'text-slate-400'}>{label || 'Seleccionar cliente...'}</span>
+        <Search size={14} className="text-slate-400 flex-shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-72 bg-white border border-slate-200 rounded-md shadow-xl flex flex-col">
+          <div className="p-2 border-b border-slate-100">
+            <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar por RIF, Razón Social o Grupo Económico..." className="h-8 text-sm"
+              data-testid="master-client-search" />
+          </div>
+          <div className="overflow-y-auto flex-1 py-1">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-slate-400 text-center">Sin resultados</div>
+            ) : filtered.map((c) => (
+              <button key={c.client_id} type="button"
+                onClick={() => { onSelect(c); setOpen(false); setQ(''); }}
+                className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-slate-50 last:border-b-0"
+                data-testid={`master-client-opt-${c.client_id}`}>
+                <div className="font-medium text-slate-800 truncate">{c.legal_name || c.fantasy_name}</div>
+                <div className="text-xs text-slate-500 truncate">{c.rif || 'sin RIF'}{(c.grupo_economico || c.economic_group) ? ` · ${c.grupo_economico || c.economic_group}` : ''}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Catálogo oficial de estados (sincronizado con backend models.PROJECT_STATUSES).
 const PROJECT_STATUSES = ['Por asignar', 'Asignado', 'En Gestión', 'Configurado en espera del Cliente', 'Suspendido', 'Implementado parcial', 'Culminado', 'Anulado'];
@@ -101,6 +163,8 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
   const [banksCatalog, setBanksCatalog] = useState([]);
   const [hardwareCatalog, setHardwareCatalog] = useState([]);
   const [usersList, setUsersList] = useState([]);
+  const [clientsList, setClientsList] = useState([]);
+  const [integratorsList, setIntegratorsList] = useState([]);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(null);
 
@@ -111,11 +175,13 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
 
   const initForm = useCallback((p) => ({
     project_number: p.project_number || '',
+    client_id: p.client_id || '',
     client_name: p.client_name || '',
     client_rif: p.client_rif || '',
     client_sede: p.client_sede || '',
     total_usd: p.total_usd ?? '',
     total_bs: p.total_bs ?? '',
+    integrator_id: p.integrator_id || '',
     integrator_name: p.integrator_name || '',
     integrator_app_name: p.integrator_app_name || '',
     pinpad_model: p.pinpad_model || '',
@@ -140,12 +206,16 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
     setForm(initForm(project));
     (async () => {
       try {
-        const [b, h] = await Promise.all([
+        const [b, h, cl, intg] = await Promise.all([
           api.get('/banks').catch(() => ({ data: [] })),
           api.get('/hardware').catch(() => ({ data: [] })),
+          api.get('/clients').catch(() => ({ data: [] })),
+          api.get('/integrators').catch(() => ({ data: [] })),
         ]);
         setBanksCatalog(b.data || []);
         setHardwareCatalog(h.data || []);
+        setClientsList(cl.data || []);
+        setIntegratorsList(intg.data || []);
         const u = await api.get('/auth/users').catch(() => ({ data: [] }));
         const sorted = (u.data || []).slice().sort((a, c) =>
           (a.full_name || a.email || '').localeCompare(c.full_name || c.email || '', 'es', { sensitivity: 'base' })
@@ -172,6 +242,40 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
+  // Integrador → Aplicativo (cascada). Nombres únicos del catálogo; si el
+  // proyecto tiene un integrador legacy ausente del catálogo, se conserva.
+  const integratorNames = useMemo(() => {
+    const names = Array.from(new Set((integratorsList || []).map(i => i.name).filter(Boolean)));
+    if (form?.integrator_name && !names.includes(form.integrator_name)) names.unshift(form.integrator_name);
+    return names.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [integratorsList, form?.integrator_name]);
+
+  const appsForIntegrator = useMemo(() => {
+    if (!form?.integrator_name) return [];
+    return (integratorsList || []).filter(i => i.name === form.integrator_name && (i.app_name || '').trim());
+  }, [integratorsList, form?.integrator_name]);
+
+  const selectIntegratorName = (name) => {
+    const apps = (integratorsList || []).filter(i => i.name === name && (i.app_name || '').trim());
+    if (apps.length === 1) {
+      set({ integrator_name: name, integrator_id: apps[0].integrator_id, integrator_app_name: apps[0].app_name || '' });
+    } else {
+      set({ integrator_name: name, integrator_id: '', integrator_app_name: '' });
+    }
+  };
+
+  const selectIntegratorApp = (integratorId) => {
+    const apt = (integratorsList || []).find(i => i.integrator_id === integratorId);
+    set({ integrator_id: integratorId, integrator_app_name: apt?.app_name || '' });
+  };
+
+  const selectClient = (c) => set({
+    client_id: c.client_id,
+    client_name: c.legal_name || c.fantasy_name || '',
+    client_rif: c.rif || '',
+  });
+
+
   const toggleHardware = (hw) => {
     const has = form.hardware.some(x => x.hardware_id === hw.hardware_id);
     set({ hardware: has ? form.hardware.filter(x => x.hardware_id !== hw.hardware_id) : [...form.hardware, { hardware_id: hw.hardware_id, name: hw.name, type: hw.type }] });
@@ -182,11 +286,13 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
     try {
       const payload = {
         project_number: form.project_number,
+        client_id: form.client_id || null,
         client_name: form.client_name,
         client_rif: form.client_rif,
         client_sede: form.client_sede,
         total_usd: form.total_usd === '' ? null : Number(form.total_usd),
         total_bs: form.total_bs === '' ? null : Number(form.total_bs),
+        integrator_id: form.integrator_id || null,
         integrator_name: form.integrator_name,
         integrator_app_name: form.integrator_app_name,
         pinpad_model: form.pinpad_model,
@@ -235,15 +341,20 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
           <section>
             <h3 className="text-sm font-semibold text-slate-800 mb-2">Datos Generales</h3>
             <div className="grid grid-cols-2 gap-3">
+              {/* Cliente: autocompletado predictivo (integridad referencial) */}
+              <div className="col-span-2">
+                <Label className="text-xs">Cliente (Razón Social)</Label>
+                <div className="mt-1">
+                  <ClientCombobox clients={clientsList} value={form.client_id}
+                    displayName={form.client_name} onSelect={selectClient} />
+                </div>
+              </div>
               {[
                 ['project_number', 'Nro de Proyecto'],
                 ['ticket_number', 'Nro de Ticket'],
-                ['client_name', 'Cliente (Razón Social)'],
                 ['client_rif', 'RIF'],
                 ['client_sede', 'Sede'],
                 ['server_name', 'Servidor'],
-                ['integrator_name', 'Integrador'],
-                ['integrator_app_name', 'App del Integrador'],
                 ['pinpad_model', 'Modelo Pinpad'],
               ].map(([key, label]) => (
                 <div key={key}>
@@ -252,6 +363,34 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
                     className="mt-1 h-8 text-sm" data-testid={`master-field-${key}`} />
                 </div>
               ))}
+              {/* Integrador → Aplicativo (cascada con filtrado dinámico) */}
+              <div>
+                <Label className="text-xs">Integrador</Label>
+                <Select value={form.integrator_name || '__none__'}
+                  onValueChange={v => { v === '__none__' ? set({ integrator_name: '', integrator_id: '', integrator_app_name: '' }) : selectIntegratorName(v); }}>
+                  <SelectTrigger className="mt-1 h-8 text-sm" data-testid="master-integrator-select"><SelectValue placeholder="Sin integrador" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Sin integrador —</SelectItem>
+                    {integratorNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Aplicativo {form.integrator_name && <span className="text-amber-600">({appsForIntegrator.length})</span>}</Label>
+                {appsForIntegrator.length >= 2 ? (
+                  <Select value={form.integrator_id || ''} onValueChange={selectIntegratorApp}>
+                    <SelectTrigger className="mt-1 h-8 text-sm" data-testid="master-integrator-app-select"><SelectValue placeholder="Seleccionar app..." /></SelectTrigger>
+                    <SelectContent>
+                      {appsForIntegrator.map(i => <SelectItem key={i.integrator_id} value={i.integrator_id}>{i.app_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="mt-1 h-8 flex items-center px-2 rounded-md border border-slate-200 bg-slate-50 text-sm text-slate-600 truncate"
+                    data-testid="master-integrator-app-locked">
+                    {form.integrator_app_name || (!form.integrator_name ? 'Elige integrador primero' : 'Sin apps registradas')}
+                  </div>
+                )}
+              </div>
               <div>
                 <Label className="text-xs">Total USD</Label>
                 <Input type="number" value={form.total_usd} onChange={e => set({ total_usd: e.target.value })}

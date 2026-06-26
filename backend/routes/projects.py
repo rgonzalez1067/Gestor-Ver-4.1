@@ -81,11 +81,13 @@ class StoreProductsOverride(BaseModel):
 class MasterOverridePayload(BaseModel):
     # Campos escalares (texto libre)
     project_number: Optional[str] = None
+    client_id: Optional[str] = None
     client_name: Optional[str] = None
     client_rif: Optional[str] = None
     client_sede: Optional[str] = None
     total_usd: Optional[float] = None
     total_bs: Optional[float] = None
+    integrator_id: Optional[str] = None
     integrator_name: Optional[str] = None
     integrator_app_name: Optional[str] = None
     pinpad_model: Optional[str] = None
@@ -623,8 +625,8 @@ async def master_override_project(project_id: str, payload: MasterOverridePayloa
     update = {"updated_at": now, "updated_by": current_user.get("email", "")}
 
     # --- Campos escalares de texto ---
-    for f in ("project_number", "client_name", "client_rif", "client_sede",
-              "integrator_name", "integrator_app_name", "pinpad_model", "server_name"):
+    for f in ("project_number", "client_id", "client_name", "client_rif", "client_sede",
+              "integrator_id", "integrator_name", "integrator_app_name", "pinpad_model", "server_name"):
         val = getattr(payload, f)
         if val is not None:
             update[f] = val
