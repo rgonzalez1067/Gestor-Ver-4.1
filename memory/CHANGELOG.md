@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Bug Fix: imágenes en correos llegaban rotas (rutas relativas / pegadas desde Gmail)
+
+- **Causa raíz:** el cuerpo HTML guardaba rutas de imagen RELATIVAS (`/api/projects/images/...`) o data URIs que Gmail/Outlook no resuelven; además, imágenes pegadas desde Gmail quedaban como URLs autenticadas (`mail.google.com/...`) visibles solo para el autor. El `_embed_body_images` previo solo procesaba `data:`/`http(s)://` y descartaba (`else: continue`) las relativas.
+- **Backend (`services/email_service.py · _embed_body_images`):** ahora (1) normaliza rutas relativas a absolutas con `REACT_APP_BACKEND_URL`; (2) embebe como adjuntos inline **Content-ID (`cid:`)** todas las imágenes incrustables: relativas/absolutas de nuestro storage (lookup por `image_id`, cualquier dominio), `data:` base64, y remotas públicas (descarga). Nuevo helper `_download_img_bytes` (devuelve None si requiere auth/no es imagen → no rompe el envío). **Fix de colisión de substring:** el reemplazo `src→cid` ahora es acotado por comillas (`"src"`/`'src'`) para no corromper URLs absolutas que contienen la ruta relativa.
+- **Frontend (`RichTextEditor.jsx`):** el editor ya sube screenshots/archivos a nuestro storage (URL absoluta). Nuevo aviso (`toast.warning`) al pegar HTML con imágenes remotas de correo (`mail.google.com`/`googleusercontent.com`/`outlook`) indicando que llegarían rotas y que use captura o el botón de imagen.
+- **El serving `GET /projects/images/{filename}` es PÚBLICO** (sin token) — requisito de lectura pública cumplido.
+- **QA (testing_agent iteration_205, 4/4 backend PASS + revisión de código):** relativa+absoluta(dominio distinto)+data URI → 3 `cid:bodyimg_` con 3 adjuntos inline; `email_logs.html_preview` contiene `cid:bodyimg_` sin rutas relativas/data: residuales; `mail.google.com` no lanza excepción; `upload-image` devuelve URL absoluta servida públicamente. El backend embebe en TODO flujo de envío (incluye plantillas del editor de Settings que usa Textarea).
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-06 — Panel de Proyectos: filtro de Cliente ampliado (RIF + Nombre Jurídico + Grupo Económico) con typeahead
 
 - **Backend (`routes/projects.py · get_projects`):** cada proyecto se enriquece con `client_legal_name` (Razón Social) y `client_economic_group` (Grupo Económico, campo real `grupo_economico`) mediante una única consulta batch a `clients` por `client_id` ($in, indexado — sin table scans ni LIKE en servidor).
