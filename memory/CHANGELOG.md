@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Bug Fix (reincidente): imágenes pegadas DESDE Gmail llegaban rotas al cliente
+
+- **Causa raíz real:** la plantilla "Notificación de Proyecto — Cliente" tenía 5 `<img src="https://mail.google.com/mail/u/1?ui=2&ik=...&view=fimg...">` — imágenes **pegadas directamente desde un correo de Gmail**, cuyas URLs requieren la sesión de Google del autor. Ni el backend ni el destinatario pueden descargarlas → siempre llegan rotas (el autor las ve en la Vista Previa solo porque está logueado en Gmail). El fix anterior (CID) no podía recuperarlas.
+- **Backend (`email_service.py`):** nuevo `_is_mail_hosted_img()` (detecta `mail.google.com`, `googleusercontent` fimg/attid, `outlook.live/office`, `/owa/`). `_embed_body_images()` ahora: decodifica `&amp;`; para imágenes de buzón NO intenta descargar (evita latencia) y las **elimina** del HTML (`re.sub` del `<img>`) para que el destinatario no vea el ícono roto; el resto (nuestro storage, data URIs, rutas relativas→absolutas, remotas públicas) se siguen incrustando como adjuntos inline Content-ID (`cid:`).
+- **Frontend:** `RichTextEditor` advierte (`toast.warning`) al pegar imágenes copiadas desde un correo; `EmailTemplatesEditor` sube los bitmaps pegados a `/projects/upload-image` (URL absoluta de nuestro storage, que sí se incrusta).
+- **⚠️ Importante:** las 5 imágenes de Gmail de esa plantilla son IRRECUPERABLES (no tenemos sus bytes). El fix evita el ícono roto, pero para que esas imágenes APAREZCAN el usuario debe **re-agregarlas** pegando una captura de pantalla o subiéndolas con el botón de imagen (eso las guarda en nuestro storage y se renderizan).
+- **QA (testing_agent iteration_206, 4/4 pytest PASS):** plantilla real (5 imgs Gmail) → 0 `mail.google.com` tras embed; `send_email` e2e sin excepción y `email_logs.html_preview` limpio; imágenes nuestras/data/relativas → `cid:bodyimg_` inline; sin descargas innecesarias (<1s).
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-06 — Bug Fix: imágenes en correos llegaban rotas (rutas relativas / pegadas desde Gmail)
 
 - **Causa raíz:** el cuerpo HTML guardaba rutas de imagen RELATIVAS (`/api/projects/images/...`) o data URIs que Gmail/Outlook no resuelven; además, imágenes pegadas desde Gmail quedaban como URLs autenticadas (`mail.google.com/...`) visibles solo para el autor. El `_embed_body_images` previo solo procesaba `data:`/`http(s)://` y descartaba (`else: continue`) las relativas.
