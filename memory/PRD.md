@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Edición Maestra: Banco Patrocinador con cascada Procesador → Banco — Jun 2026
+**Requerimiento:** en la Edición Maestra (/projects), el campo `Banco Patrocinador` debe replicar la lógica del Cotizador: al elegir un Procesador se despliega un sub-modal con los bancos asociados a ese procesador para designar el banco final.
+**Frontend (`MasterEditDialog.jsx`):** el `Select master-sponsor-select` ahora marca los procesadores con sufijo "· Procesador"; al elegir uno (`bk.type==='Procesador'`) abre el componente reutilizable `ProcessorLinkBankModal` (`master-sponsor-processor-link-modal`) con `linkedBanks = banks con procesador===processor.name`. Al elegir el banco vinculado se setean `sponsoring_bank_name/id` + `sponsoring_processor_name` y se muestra la línea compuesta `master-sponsor-composite` ("Patrocinador: Procesador — Banco"). Banco normal → asignación directa sin sub-modal. `banksCatalog` deduplicado por name+type.
+**Backend:** sin cambios (el `master-override` ya soportaba `sponsoring_processor_name` y construía `patrocinador_label`).
+**QA:** curl (patrocinador_label="Platco — Banco Mercantil") + testing_agent iteration_208 → **frontend 100% (8/8)**. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Edición Maestra (Proyectos): selectores referenciales para Cliente, Integrador y Aplicativo — Jun 2026
 
 **Requerimiento (P0):** en el modal "Edición Maestra" (`MasterEditDialog.jsx`, /projects) convertir los inputs de texto plano de `Cliente`, `Integrador` y `Aplicativo` en selectores con integridad referencial (como en el Cotizador / Proyectos Directos). `Banco Patrocinador` ya era dropdown.

@@ -216,7 +216,7 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
           api.get('/clients').catch(() => ({ data: [] })),
           api.get('/integrators').catch(() => ({ data: [] })),
         ]);
-        setBanksCatalog(b.data || []);
+        setBanksCatalog(Array.from(new Map((b.data || []).map(x => [`${x.name}|${x.type}`, x])).values()));
         setHardwareCatalog(h.data || []);
         setClientsList(Array.from(new Map((cl.data || []).map(c => [c.client_id, c])).values()));
         setIntegratorsList(intg.data || []);
