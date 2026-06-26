@@ -1,0 +1,37 @@
+{
+  "summary": "Iter206 — Bug fix de imágenes <img src='mail.google.com/...'> que llegaban ROTAS. La solución elimina del HTML las imágenes alojadas en buzones de correo (mail.google.com / googleusercontent fimg / outlook / OWA) antes de enviar. Verificado por 4 pytest passing: (1) unit con HTML mixto rel+abs+data+gmail+googleusercontent+outlook → solo los 3 incrustables quedan como cid:bodyimg_*, las 4 de buzón se ELIMINAN; (2) plantilla REAL 'Notificación de Proyecto — Cliente' (5 <img mail.google.com>, 17009 chars) → 0 'mail.google.com' tras embed; (3) send_email e2e con esa plantilla → no rompe y email_logs.html_preview sin 'mail.google.com' ni <img de Gmail; (4) perf — solo gmail → atts=[] y < 1s (no se descarga nada). Revisión de código del frontend OK.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "test_embed_body_images_removes_mail_google_and_keeps_others_as_cid": "PASS — 3 cid únicos; HTML final sin 'mail.google.com', 'googleusercontent.com', 'outlook.live.com', '/owa/', '/api/projects/images/', 'data:image/'; 3 <img> totales (los 3 cid).",
+    "test_real_template_notif_proyecto_cliente_strips_all_mail_google": "PASS — plantilla real (5 <img> Gmail) → 0 'mail.google.com' tras embed, <img> remanentes < iniciales, ejecutado en < 5s.",
+    "test_send_email_real_template_logs_no_mail_google_in_preview": "PASS — send_email NO lanza excepción; email_logs.html_preview sin 'mail.google.com' ni src=\"https://mail.google.com.",
+    "test_embed_body_images_only_gmail_is_fast_and_empty": "PASS — 5 <img> de gmail → 0 adjuntos, 0 <img>, 0 'mail.google.com', ejecutado en < 1s (no se descarga)."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration206_remove_mail_hosted_images.py",
+    "/app/test_reports/pytest/iter206_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "email_service._is_mail_hosted_img() (línea 257-267): cubre mail.google.com, googleusercontent con view=fimg|attid=, outlook.live.com, outlook.office*, '/owa/' → correcto para los buzones más comunes.",
+    "email_service._embed_body_images() (línea 288-372): primero decodifica &amp; en src, luego clasifica por tipo; las URLs de buzón se acumulan en remove_srcs y al final se eliminan con re.sub case-insensitive del <img>. Los reemplazos a cid se hacen por comillas para evitar colisiones de substring. Correcto.",
+    "email_service.send_email() línea 432: invoca _embed_body_images() después de footer y antes de despachar. html_preview se trunca a 500 chars (línea 445) — recomendación menor: para auditoría completa podría persistirse html completo en una colección separada email_logs_full (no es bug).",
+    "Frontend RichTextEditor.jsx:349-350: regex /<img[^>]+src=[\"']https?:\\/\\/(mail\\.google\\.com|[^\"']*googleusercontent\\.com|[^\"']*\\.mail\\.[^\"']+|outlook\\.[^\"']+)/i + toast.warning con duración 8s e instrucción clara (pegar captura). Correcto.",
+    "Frontend EmailTemplatesEditor.jsx:840-852 handleBodyPaste: sube bitmaps pegados al portapapeles vía POST /projects/upload-image (multipart/form-data) e inserta <img> con la URL absoluta retornada por el backend (validado en iter205 test_upload_image_returns_absolute_url). El Textarea de plantillas no es contentEditable, así que el handler trabaja con e.clipboardData.files y construye <img> en el cursor — pegar HTML enriquecido desde Gmail como texto plano genera texto sin <img>, pero si vienen como files (Gmail web suele copiar imágenes como blobs) se sube a nuestro storage. OK."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration206_remove_mail_hosted_images.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100% (4/4 standalone)", "frontend": "Verified by code review (paste-from-clipboard not reliable in Playwright)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (no se usó login — todas las pruebas son sobre email_service in-process + db).",
+  "seed_data_creation": "Reutiliza uploaded_images.image_id=d9a6f6f6ae5d (existente). Crea y elimina 1 email_log con prefijo [TEST_iter206]. No modifica la plantilla real.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug resuelto y verificado E2E (HTML final + email_logs + plantilla real + perf). NOTA TEST-INFRA: iter205 e iter206 NO se pueden ejecutar en el MISMO pytest invocation (cada archivo define su propio _LOOP y motor lanza 'The future belongs to a different loop'). Ejecutarlos por separado: `pytest tests/test_iteration206_remove_mail_hosted_images.py`. No es bug de producto — es aislamiento de loops por archivo (documentado ya en iter205). Para una eventual refactor, mover _LOOP a un conftest.py compartido con scope='session'.",
+  "rca of the issue": "RAÍZ: la plantilla 'Notificación de Proyecto — Cliente' tiene 5 etiquetas <img src='https://mail.google.com/mail/u/1?ui=2&ik=...&view=fimg...'> que son URLs auth-gated del buzón Gmail del editor. Al enviarse el correo, ni el backend (httpx) ni el cliente final (Outlook/Gmail del destinatario, sin la cookie SID del editor) pueden descargar esa imagen → llega siempre rota ('image.png' broken icon). MITIGACIÓN aplicada por main agent: (a) _is_mail_hosted_img() detecta el patrón (mail.google.com / googleusercontent fimg|attid= / outlook.live.com / outlook.office* / /owa/), (b) _embed_body_images() NO intenta descargar esos src — los acumula en remove_srcs y al final ejecuta re.sub eliminando completamente el <img>, (c) el resto (storage propio, data URIs, rutas relativas, remotas públicas) se siguen embebiendo como adjuntos inline Content-ID, (d) el editor RichText muestra toast.warning al pegar HTML con imágenes copiadas desde un correo. REPROD: insertar plantilla real en send_email y observar antes del fix → <img> roto en email_logs; después del fix → <img> eliminado y log limpio. VERIFICACIÓN: 4/4 tests pytest passing; en particular el test sobre la plantilla real confirma 0 'mail.google.com' tras embed."
+}

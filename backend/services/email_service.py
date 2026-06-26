@@ -254,6 +254,20 @@ def _send_smtp(
     return {"status": "sent", "method": "smtp"}
 
 
+def _is_mail_hosted_img(url: str) -> bool:
+    """Detecta imágenes alojadas en un buzón de correo (requieren sesión y NO se
+    pueden descargar/incrustar): Gmail, Outlook/OWA, googleusercontent fimg."""
+    u = (url or "").lower()
+    return (
+        "mail.google.com" in u
+        or ("googleusercontent.com" in u and ("view=fimg" in u or "attid=" in u))
+        or "outlook.live.com" in u
+        or "outlook.office" in u
+        or "/owa/" in u
+    )
+
+
+
 async def _download_img_bytes(url: str, ctype_default: str, fname_default: str):
     """Descarga los bytes de una imagen remota. Devuelve (content, ctype, fname)
     o (None, ctype, fname) si falla (p.ej. requiere autenticación: mail.google.com)."""
@@ -283,32 +297,35 @@ async def _embed_body_images(html: str, attachments: list) -> tuple:
     pattern = re.compile(r'<img\b[^>]*?\bsrc=["\']([^"\']+)["\']', re.IGNORECASE)
     base_url = (os.environ.get("REACT_APP_BACKEND_URL", "") or "").rstrip("/")
     replacements = {}
+    remove_srcs = []  # imágenes remotas no incrustables (auth-gated) → se eliminan
     for m in pattern.finditer(html):
         src = m.group(1)
-        if src.startswith("cid:") or src in replacements:
+        if src.startswith("cid:") or src in replacements or src in remove_srcs:
             continue
         content = None
         ctype = "image/png"
         fname = "imagen.png"
+        # Decodifica entidades HTML del src (&amp; → &) para poder descargar/leer.
+        dec_src = src.replace("&amp;", "&").replace("&#38;", "&")
         # Normaliza rutas RELATIVAS a absolutas (Conversión Forzosa): el editor o
         # una plantilla legacy pueden guardar src="/api/projects/images/..." o
         # "/media/...". Los clientes de correo no resuelven rutas sin dominio.
-        abs_src = src
-        if src.startswith("/") and not src.startswith("//"):
-            abs_src = f"{base_url}{src}" if base_url else src
-        if src.startswith("data:image/"):
+        abs_src = dec_src
+        if dec_src.startswith("/") and not dec_src.startswith("//"):
+            abs_src = f"{base_url}{dec_src}" if base_url else dec_src
+        if dec_src.startswith("data:image/"):
             try:
-                header, b64 = src.split(",", 1)
+                header, b64 = dec_src.split(",", 1)
                 ctype = header.split(":", 1)[1].split(";", 1)[0]
                 content = base64.b64decode(b64)
                 fname = f"imagen.{ctype.split('/')[-1]}"
             except Exception:
                 continue
-        elif "/api/projects/images/" in src:
+        elif "/api/projects/images/" in dec_src:
             # Imagen hospedada por nuestro backend (relativa o absoluta, cualquier
             # dominio) → leer bytes directo de object storage por su image_id.
             try:
-                tail = src.split("/api/projects/images/", 1)[1].split("?", 1)[0]
+                tail = dec_src.split("/api/projects/images/", 1)[1].split("?", 1)[0]
                 file_id = tail.split(".", 1)[0]
                 rec = await db.uploaded_images.find_one({"image_id": file_id}, {"_id": 0})
                 if rec:
@@ -318,12 +335,16 @@ async def _embed_body_images(html: str, attachments: list) -> tuple:
                     fname = rec.get("original_filename") or tail
             except Exception as e:
                 logger.warning(f"[BodyImg] storage lookup falló {src}: {e}")
-            # Fallback: descargar por URL absoluta si el storage lookup no dio bytes.
             if content is None and (abs_src.startswith("http://") or abs_src.startswith("https://")):
                 content, ctype, fname = await _download_img_bytes(abs_src, ctype, fname)
             if content is None:
                 continue
         elif abs_src.startswith("http://") or abs_src.startswith("https://"):
+            # Imágenes autenticadas de correo (Gmail/Outlook): no se pueden obtener
+            # (requieren sesión). Marcar para eliminar el <img> sin intentar descargar.
+            if _is_mail_hosted_img(abs_src):
+                remove_srcs.append(src)
+                continue
             # Cualquier otro origen (incluye relativas ya absolutizadas) → descargar.
             content, ctype, fname = await _download_img_bytes(abs_src, ctype, fname)
             if content is None:
@@ -345,6 +366,9 @@ async def _embed_body_images(html: str, attachments: list) -> tuple:
         # Reemplazo acotado por comillas para evitar colisiones de substring
         # (una ruta relativa puede ser substring de una URL absoluta equivalente).
         html = html.replace(f'"{src}"', f'"cid:{cid}"').replace(f"'{src}'", f"'cid:{cid}'")
+    # Eliminar las etiquetas <img> de imágenes de correo no incrustables.
+    for bad in remove_srcs:
+        html = re.sub(r'<img\b[^>]*?\bsrc=["\']' + re.escape(bad) + r'["\'][^>]*>', '', html, flags=re.IGNORECASE)
     return html, atts
 
 
