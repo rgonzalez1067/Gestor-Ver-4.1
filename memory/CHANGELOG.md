@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Panel de Proyectos: filtro de Cliente ampliado (RIF + Nombre Jurídico + Grupo Económico) con typeahead
+
+- **Backend (`routes/projects.py · get_projects`):** cada proyecto se enriquece con `client_legal_name` (Razón Social) y `client_economic_group` (Grupo Económico, campo real `grupo_economico`) mediante una única consulta batch a `clients` por `client_id` ($in, indexado — sin table scans ni LIKE en servidor).
+- **Frontend (`Projects.jsx`):** el campo "Cliente" ahora es un **typeahead** (≥3 caracteres) insensible a mayúsculas y acentos (`norm()` con NFD). Sugiere Grupos Económicos (con ícono) y Clientes con formato **`[RIF] — [Nombre Jurídico] (Grupo: [Grupo])`**, derivados de los proyectos cargados (siempre con resultados reales). Seleccionar un cliente filtra por su RIF; seleccionar un grupo muestra todos los proyectos de ese Grupo. Si no hay coincidencias → "No se encontraron coincidencias para la búsqueda". El filtro de búsqueda se combina (AND) con Estado/Tipo/Patrocinador/Integrador/Fechas. Cierre del dropdown al hacer clic fuera + botón limpiar.
+- **QA:** backend curl → 103 proyectos con `client_legal_name`/`client_economic_group`; 29 con grupo (ej. "Grupo Brasero" ×6). Self-test UI: grupo "Brasero" → sugerencia + grilla filtrada; "FORUM" → cliente sugerido; "Grupo Inexistente" → leyenda de sin coincidencias.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-06 — Multi-RIF: carga de Excel flexible (toggle "¿Los RIF a cargar serán validados?")
 
 - **UI (`MultiRifDistributionPanel.jsx`, compartido por Cotización VPOS Multi-RIF y Proyectos Directos Multi-RIF):** nuevo selector obligatorio **"¿Los RIF a cargar serán validados?"** SÍ/NO (default **SÍ**, consistente con el histórico), junto a los botones Plantilla/Cargar Excel (`multirif-validate-toggle`, `multirif-validate-yes`, `multirif-validate-no`). Por ser el mismo componente, aplica idéntico en ambas pantallas (impacto cruzado).

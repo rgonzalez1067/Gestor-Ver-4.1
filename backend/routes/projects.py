@@ -205,7 +205,20 @@ async def get_projects(authorization: Optional[str] = Header(None)):
     from services.project_sla_engine import sla_reference_date
     specific, recurring = await get_holiday_sets()
     today = datetime.now(timezone.utc).date()
+    # Enriquecer con Nombre Jurídico y Grupo Económico del cliente para que el
+    # filtro de "Cliente" del panel pueda buscar por RIF, Razón Social o Grupo.
+    client_ids = list({p.get("client_id") for p in projects if p.get("client_id")})
+    clients_map = {}
+    if client_ids:
+        async for c in db.clients.find(
+            {"client_id": {"$in": client_ids}},
+            {"_id": 0, "client_id": 1, "legal_name": 1, "fantasy_name": 1, "grupo_economico": 1, "rif": 1},
+        ):
+            clients_map[c["client_id"]] = c
     for p in projects:
+        cl = clients_map.get(p.get("client_id")) or {}
+        p["client_legal_name"] = cl.get("legal_name") or p.get("client_name") or ""
+        p["client_economic_group"] = cl.get("grupo_economico") or ""
         p["pvv_count"] = compute_project_pvv(p)
         # Iter: métricas del Mini Tablero de Avance Operativo (físico + PVV).
         p["operational_metrics"] = compute_project_metrics(p)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import api from '../utils/api';
@@ -108,6 +108,10 @@ const normalizeProjectType = (qt) => {
   return t; // VPOS | MPOS | GATEWAY
 };
 
+// Normaliza texto para búsqueda insensible a mayúsculas y acentos.
+const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+
 // Opciones del filtro "Tipo de Proyecto" (label legible → valor canónico).
 const PROJECT_TYPE_FILTERS = [
   { value: 'VPOS', label: 'VPOS' },
@@ -133,6 +137,8 @@ const Projects = () => {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchBoxRef = useRef(null);
   const [statusFilter, setStatusFilter] = useState('active');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'VPOS' | 'MPOS' | 'GATEWAY' | 'LINK'
   const [sponsorFilter, setSponsorFilter] = useState('all');
@@ -246,6 +252,8 @@ const Projects = () => {
           map[c.client_id] = {
             fantasy_name: c.fantasy_name || '',
             legal_name: c.legal_name || '',
+            economic_group: c.grupo_economico || c.economic_group || '',
+            rif: c.rif || '',
           };
         }
       });
@@ -255,6 +263,15 @@ const Projects = () => {
   }, []);
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
+
+  // Cierra el typeahead de Cliente al hacer clic fuera del campo.
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) setShowSuggestions(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
 
   useEffect(() => {
     api.get('/project-sla/config')
@@ -351,17 +368,15 @@ const Projects = () => {
   // como para el set final mostrado en la grilla.
   const matchesNonStatus = (p) => {
     const sponsorLabel = getPatrocinadorLabel(p);
-    // Filtro "Cliente": consulta estrictamente sobre el Nombre de Fantasía.
+    // Filtro "Cliente": busca por Nº proyecto/ticket, Nombre de Fantasía, RIF,
+    // Nombre Jurídico (Razón Social) y Grupo Económico (insensible a acentos).
     const fantasy = clientMap[p.client_id]?.fantasy_name || p.fantasy_name || '';
-    const matchSearch = !searchTerm ||
-      p.project_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.ticket_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fantasy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.client_rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.created_by_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.integrator_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sponsorLabel?.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = norm(searchTerm);
+    const matchSearch = !searchTerm || [
+      p.project_number, p.ticket_number, fantasy, p.client_rif,
+      p.client_legal_name, p.client_economic_group,
+      p.assigned_to_name, p.created_by_name, p.integrator_name, sponsorLabel,
+    ].some(v => norm(v).includes(q));
     const matchSponsor = sponsorFilter === 'all'
       ? true
       : sponsorFilter === '__none__'
@@ -394,6 +409,42 @@ const Projects = () => {
         : statusFilter === 'in_progress'
           ? ['Asignado', 'En Gestión', 'Implementado parcial'].includes(p.status)
           : p.status === statusFilter;
+
+  // Typeahead de "Cliente": sugiere clientes (con proyectos) por RIF/Razón
+  // Social/Fantasía y Grupos Económicos. Insensible a acentos y mayúsculas.
+  const clientsWithProjects = useMemo(() => {
+    const m = new Map();
+    projects.forEach((p) => {
+      if (p.client_id && !m.has(p.client_id)) {
+        m.set(p.client_id, {
+          client_id: p.client_id,
+          rif: p.client_rif || clientMap[p.client_id]?.rif || '',
+          legal_name: p.client_legal_name || clientMap[p.client_id]?.legal_name || p.client_name || '',
+          fantasy_name: clientMap[p.client_id]?.fantasy_name || p.fantasy_name || '',
+          economic_group: p.client_economic_group || clientMap[p.client_id]?.economic_group || '',
+        });
+      }
+    });
+    return [...m.values()];
+  }, [projects, clientMap]);
+
+  const clientSuggestions = useMemo(() => {
+    const q = norm(searchTerm);
+    if (q.length < 3) return { clients: [], groups: [] };
+    const clients = clientsWithProjects.filter((c) =>
+      norm(c.rif).includes(q) || norm(c.legal_name).includes(q) ||
+      norm(c.fantasy_name).includes(q) || norm(c.economic_group).includes(q)
+    ).slice(0, 8);
+    const gmap = new Map();
+    clientsWithProjects.forEach((c) => {
+      const g = (c.economic_group || '').trim();
+      if (g && norm(g).includes(q)) gmap.set(norm(g), g);
+    });
+    return { clients, groups: [...gmap.values()].slice(0, 5) };
+  }, [searchTerm, clientsWithProjects]);
+
+  const pickSuggestion = (term) => { setSearchTerm(term); setShowSuggestions(false); };
+
 
   // Base: todos los filtros menos el estado. Final: + filtro de estado (lo que se muestra).
   const baseFiltered = projects.filter(matchesNonStatus);
@@ -597,11 +648,45 @@ const Projects = () => {
 
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <div className="relative flex-1 min-w-[240px] max-w-sm">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <Input placeholder="Buscar por ticket, proyecto, cliente, RIF, implementador o generador..."
-                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                className="pl-9" data-testid="project-search" />
+            <div className="relative flex-1 min-w-[240px] max-w-sm" ref={searchBoxRef}>
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+              <Input placeholder="Buscar por cliente, RIF, Razón Social o Grupo Económico…"
+                value={searchTerm}
+                onChange={e => { setSearchTerm(e.target.value); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+                className="pl-9" data-testid="project-search" autoComplete="off" />
+              {searchTerm && (
+                <button type="button" onClick={() => { setSearchTerm(''); setShowSuggestions(false); }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 z-10"
+                  data-testid="project-search-clear"><X size={14} /></button>
+              )}
+              {showSuggestions && norm(searchTerm).length >= 3 && (
+                <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-72 overflow-y-auto"
+                  data-testid="project-search-suggestions">
+                  {clientSuggestions.groups.map((g) => (
+                    <button key={`g-${g}`} type="button" onClick={() => pickSuggestion(g)}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 border-b border-slate-100 flex items-center gap-2"
+                      data-testid={`project-search-group-${g}`}>
+                      <Landmark size={13} className="text-indigo-500 shrink-0" />
+                      <span className="font-medium text-indigo-700">Grupo: {g}</span>
+                    </button>
+                  ))}
+                  {clientSuggestions.clients.map((c) => (
+                    <button key={c.client_id} type="button" onClick={() => pickSuggestion(c.rif || c.legal_name)}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                      data-testid={`project-search-client-${c.client_id}`}>
+                      <span className="font-mono text-slate-500">{c.rif || 'S/RIF'}</span>
+                      <span className="text-slate-700"> — {c.legal_name || c.fantasy_name}</span>
+                      {c.economic_group && <span className="text-slate-400"> (Grupo: {c.economic_group})</span>}
+                    </button>
+                  ))}
+                  {clientSuggestions.clients.length === 0 && clientSuggestions.groups.length === 0 && (
+                    <div className="px-3 py-3 text-xs text-slate-400 text-center" data-testid="project-search-no-results">
+                      No se encontraron coincidencias para la búsqueda
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Filter size={16} className="text-slate-400" />
