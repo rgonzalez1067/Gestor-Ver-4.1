@@ -8,6 +8,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { toast } from 'sonner';
+import { ProcessorLinkBankModal } from '../shared/ProcessorLinkBankModal';
 import { Pencil, Plus, Trash2, Landmark, Cpu, Store, AlertTriangle, Search } from 'lucide-react';
 
 // Combobox de cliente con búsqueda predictiva por RIF, Razón Social,
@@ -167,6 +168,8 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
   const [integratorsList, setIntegratorsList] = useState([]);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(null);
+  // Sub-modal relacional Procesador → Banco (homologado con el Cotizador).
+  const [sponsorProcessorModal, setSponsorProcessorModal] = useState({ open: false, processor: null });
 
   const isMultistore = project?.project_type === 'multistore';
 
@@ -191,6 +194,7 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
     quote_type: (p.quote_type || 'VPOS').toUpperCase(),
     sponsoring_bank_name: p.sponsoring_bank_name || '',
     sponsoring_bank_id: p.sponsoring_bank_id || '',
+    sponsoring_processor_name: p.sponsoring_processor_name || '',
     generador_user_id: p.created_by_user_id || '',
     banks_products: matrixToRows(p.implementation_matrix),
     stores_products: (p.stores || []).map(s => ({
@@ -302,6 +306,7 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
         quote_type: form.quote_type,
         sponsoring_bank_name: form.sponsoring_bank_name,
         sponsoring_bank_id: form.sponsoring_bank_id,
+        sponsoring_processor_name: form.sponsoring_processor_name || null,
         generador_user_id: form.generador_user_id || '__none__',
         hardware: form.hardware,
       };
@@ -324,6 +329,7 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
   if (!form) return null;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="master-edit-dialog">
         <DialogHeader>
@@ -426,16 +432,27 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
                 <Label className="text-xs">Banco Patrocinador</Label>
                 <Select value={form.sponsoring_bank_name || '__none__'}
                   onValueChange={v => {
-                    if (v === '__none__') { set({ sponsoring_bank_name: '', sponsoring_bank_id: '' }); return; }
+                    if (v === '__none__') { set({ sponsoring_bank_name: '', sponsoring_bank_id: '', sponsoring_processor_name: '' }); return; }
                     const bk = banksCatalog.find(b => b.name === v);
-                    set({ sponsoring_bank_name: v, sponsoring_bank_id: bk?.bank_id || '' });
+                    // Si el banco elegido es un Procesador, abrir el sub-modal para
+                    // designar el banco final vinculado (igual que en el Cotizador).
+                    if (bk && bk.type === 'Procesador') {
+                      setSponsorProcessorModal({ open: true, processor: bk });
+                      return;
+                    }
+                    set({ sponsoring_bank_name: v, sponsoring_bank_id: bk?.bank_id || '', sponsoring_processor_name: '' });
                   }}>
                   <SelectTrigger className="mt-1 h-8 text-sm" data-testid="master-sponsor-select"><SelectValue placeholder="Ninguno" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— Ninguno —</SelectItem>
-                    {banksCatalog.map(b => <SelectItem key={b.bank_id} value={b.name}>{b.name}</SelectItem>)}
+                    {banksCatalog.map(b => <SelectItem key={b.bank_id} value={b.name}>{b.name}{b.type === 'Procesador' ? ' · Procesador' : ''}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {form.sponsoring_processor_name && form.sponsoring_bank_name && (
+                  <p className="text-[11px] text-emerald-700 mt-1 font-medium" data-testid="master-sponsor-composite">
+                    Patrocinador: {form.sponsoring_processor_name} — {form.sponsoring_bank_name}
+                  </p>
+                )}
               </div>
               <div>
                 <Label className="text-xs">Generador (Vendedor)</Label>
@@ -528,5 +545,28 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Sub-modal de Asociación: Procesador → Banco vinculado (homologado con el Cotizador) */}
+    <ProcessorLinkBankModal
+      open={sponsorProcessorModal.open}
+      processor={sponsorProcessorModal.processor}
+      linkedBanks={sponsorProcessorModal.processor
+        ? banksCatalog.filter(b => b.type !== 'Procesador' && b.procesador === sponsorProcessorModal.processor.name)
+        : []}
+      onSelect={(bank) => {
+        const proc = sponsorProcessorModal.processor;
+        set({
+          sponsoring_bank_name: bank.name,
+          sponsoring_bank_id: bank.bank_id,
+          sponsoring_processor_name: proc?.name || '',
+        });
+        setSponsorProcessorModal({ open: false, processor: null });
+      }}
+      onClose={() => setSponsorProcessorModal({ open: false, processor: null })}
+      description={<>El patrocinante <strong>{sponsorProcessorModal.processor?.name}</strong> es un <strong>Procesador</strong>. Seleccione el banco que operará la transacción para consolidar el patrocinio.</>}
+      testid="master-sponsor-processor-link"
+      linkedTestid="master-sponsor-processor-linked-bank"
+    />
+    </>
   );
 };

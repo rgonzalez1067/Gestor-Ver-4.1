@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend-only validation del nuevo flujo Procesador→Banco en el modal 'Edición Maestra' de /projects (Banco Patrocinador). Probado end-to-end como admin (rgonzalez@megasoft.com.ve) sobre proyecto real PRY-2026-06-064-PRI: cascada Procesador→sub-modal→banco vinculado, línea compuesta, branch normal (sin sub-modal), save y persistencia tras reabrir. Todos los criterios del review request pasan. Único hallazgo: duplicate React keys en consola (catálogo /banks devuelve procesadores duplicados) — preexistente de iter 207, no bloquea.",
+  "tests_executed": {
+    "open_master_edit_dialog": "PASS — data-testid='master-edit-btn-{prj}' visible en 92 filas; al hacer click abre 'master-edit-dialog' con header 'Edición Maestra · Super-Admin'.",
+    "sponsor_select_processor_suffix": "PASS — data-testid='master-sponsor-select' lista 39 opciones; los procesadores muestran sufijo ' · Procesador' como en spec ('Platco · Procesador', 'Consorcio CrediCard · Procesador', 'Tranred · Procesador'). NOTA: cada procesador aparece duplicado en el catálogo (ver console keys).",
+    "processor_opens_submodal": "PASS — al seleccionar 'Platco · Procesador' NO se asigna directo: aparece data-testid='master-sponsor-processor-link-modal' con título 'Banco vinculado al Procesador' y descripción contextual ('Platco es un Procesador. Seleccione el banco que operará la transacción para consolidar el patrocinio.').",
+    "linked_banks_for_platco": "PASS — el sub-modal lista exactamente 2 botones: data-testid='master-sponsor-processor-linked-bank-<bank_id>' para 'Banco Mercantil' y 'BBVA Provincial', tal como exige el catálogo (banks con procesador==='Platco').",
+    "select_linked_bank_composes_label": "PASS — al hacer click en 'Banco Mercantil' el sub-modal se cierra (visible=False) y aparece debajo del dropdown data-testid='master-sponsor-composite' con texto EXACTO 'Patrocinador: Platco — Banco Mercantil' (em-dash). El trigger del dropdown muestra 'Banco Mercantil' como banco final.",
+    "normal_bank_no_submodal": "PASS — al seleccionar un banco NO procesador ('100% Banco') el sub-modal NO se abre (visible=False) y la línea 'master-sponsor-composite' desaparece (presente=False), confirmando que sponsoring_processor_name se limpia.",
+    "save_persists_with_toast": "PASS — re-seleccionado Platco→Banco Mercantil, click en data-testid='master-save-btn' dispara PUT /api/projects/{id}/master-override; toast sonner muestra 'Proyecto actualizado (Edición Maestra)'.",
+    "reopen_preserves_composite": "PASS — al reabrir el modal del mismo proyecto, data-testid='master-sponsor-select' muestra 'Banco Mercantil' y la línea 'master-sponsor-composite' renderiza 'Patrocinador: Platco — Banco Mercantil' — la combinación procesador+banco persiste correctamente en backend."
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "MasterEditDialog · master-sponsor-select",
+        "issues": [
+          "Catálogo /banks (banksCatalog) trae cada procesador duplicado: el dropdown muestra DOS entradas idénticas para 'Platco · Procesador', 'Consorcio CrediCard · Procesador' y 'Tranred · Procesador'. Esto genera warnings de React 'Encountered two children with the same key: Platco/Consorcio CrediCard/Tranred' al abrir el select y al re-renderizar. La key del SelectItem en línea 448 (key={b.bank_id}) es correcta — la duplicación viene de registros duplicados en MongoDB collection 'banks' (mismo name pero distintos bank_id, o el mismo registro emitido dos veces). RECOMENDADO al main agent: deduplicar banksCatalog por (name+type) en el frontend antes de renderizar el select, O purgar los duplicados en la colección de bancos. Es el mismo síntoma documentado en iter 207. Funcionalidad NO se rompe — la cascada Procesador→Banco funciona correctamente en ambas copias."
+        ]
+      }
+    ]
+  },
+  "critical_code_review_comments": [
+    "MasterEditDialog.jsx L433-450: el onValueChange del Banco Patrocinador detecta correctamente bk.type==='Procesador' y dispara setSponsorProcessorModal({open:true, processor:bk}) ANTES de hacer set(), evitando que el procesador quede asignado como banco final. Correcto.",
+    "MasterEditDialog.jsx L550-569: instancia el componente compartido ProcessorLinkBankModal con linkedBanks computado on-the-fly (banks con type !== 'Procesador' && procesador === processor.name). El onSelect rellena los 3 campos (sponsoring_bank_name, sponsoring_bank_id, sponsoring_processor_name) atómicamente. Excelente homologación con el Cotizador.",
+    "MasterEditDialog.jsx L451-455: la línea compuesta solo se muestra cuando AMBOS sponsoring_processor_name Y sponsoring_bank_name están presentes — branch normal (sin procesador) limpia correctamente sponsoring_processor_name (L443).",
+    "ProcessorLinkBankModal.jsx (componente compartido): props bien tipadas, fallback gracioso para linkedBanks vacíos (data-testid='${testid}-empty'), botones con data-testid='${linkedTestid}-${bank_id}' compatibles con el contrato del review request.",
+    "Hallazgo de catálogo (no bloquea): GET /api/banks devuelve procesadores duplicados (Platco, Consorcio CrediCard, Tranred). Ya reportado en iter 207. Acción recomendada: deduplicar en frontend O limpiar maestro de bancos en backend."
+  ],
+  "test_report_links": ["/app/test_reports/iteration_208.json"],
+  "action_items": [
+    "OPCIONAL (no bloquea): Deduplicar banksCatalog antes de renderizar master-sponsor-select para eliminar warnings de React 'duplicate key Platco/Consorcio CrediCard/Tranred'. Mejor en frontend (Array.from(new Map(banks.map(b=>[`${b.name}|${b.type}`,b])).values())) o limpiando registros duplicados en colección 'banks'."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skip por instrucción; ya validado por curl según review)", "frontend": "100% (8/8 criterios del review request)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna. Se reutilizó proyecto PRY-2026-06-064-PRI (ASTROCEL CELULARES, C.A.). Patrocinio guardado: Platco — Banco Mercantil (consistente con la prueba previa de Procesador→Banco en /direct-projects).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Cascada Procesador→Banco en Edición Maestra de /projects: 100% funcional y consistente con el flujo idéntico de /direct-projects. data-testids del review request verificados: master-sponsor-select, master-sponsor-processor-link-modal, master-sponsor-processor-linked-bank-<bank_id>, master-sponsor-composite. Persistencia OK. Warning de duplicate keys es preexistente (iter 207) y proviene del catálogo /banks; no afecta funcionalidad. Si main agent quiere silenciar consola, deduplicar banksCatalog por name+type en MasterEditDialog L219."
+}
