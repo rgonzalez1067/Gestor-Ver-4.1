@@ -56,8 +56,8 @@ const ClientCombobox = ({ clients, value, displayName, onSelect }) => {
           <div className="overflow-y-auto flex-1 py-1">
             {filtered.length === 0 ? (
               <div className="px-3 py-4 text-xs text-slate-400 text-center">Sin resultados</div>
-            ) : filtered.map((c) => (
-              <button key={c.client_id} type="button"
+            ) : filtered.map((c, idx) => (
+              <button key={`${c.client_id}-${idx}`} type="button"
                 onClick={() => { onSelect(c); setOpen(false); setQ(''); }}
                 className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-slate-50 last:border-b-0"
                 data-testid={`master-client-opt-${c.client_id}`}>
@@ -214,7 +214,7 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
         ]);
         setBanksCatalog(b.data || []);
         setHardwareCatalog(h.data || []);
-        setClientsList(cl.data || []);
+        setClientsList(Array.from(new Map((cl.data || []).map(c => [c.client_id, c])).values()));
         setIntegratorsList(intg.data || []);
         const u = await api.get('/auth/users').catch(() => ({ data: [] }));
         const sorted = (u.data || []).slice().sort((a, c) =>

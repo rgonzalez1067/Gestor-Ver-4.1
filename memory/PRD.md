@@ -3,6 +3,23 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Edición Maestra (Proyectos): selectores referenciales para Cliente, Integrador y Aplicativo — Jun 2026
+
+**Requerimiento (P0):** en el modal "Edición Maestra" (`MasterEditDialog.jsx`, /projects) convertir los inputs de texto plano de `Cliente`, `Integrador` y `Aplicativo` en selectores con integridad referencial (como en el Cotizador / Proyectos Directos). `Banco Patrocinador` ya era dropdown.
+
+**Frontend (`components/projects/MasterEditDialog.jsx`):**
+- Nuevo `ClientCombobox` (búsqueda predictiva por RIF, Razón Social, Nombre Comercial y Grupo Económico). Al elegir → set `client_id` + `client_name` (razón social) + auto-rellena `client_rif`. `clientsList` deduplicado por `client_id`.
+- `Integrador` → `<Select>` (`master-integrator-select`) contra `GET /integrators` (nombres únicos, alfabético; conserva integrador legacy si no está en catálogo).
+- `Aplicativo` → cascada filtrada por integrador: 1 app → auto-rellena y bloquea (`master-integrator-app-locked`); 2+ apps → dropdown obligatorio (`master-integrator-app-select`).
+- `handleSave` envía `client_id` e `integrator_id` (fallback null).
+
+**Backend (`routes/projects.py`):** `MasterOverridePayload` += `client_id`, `integrator_id`; el loop escalar de `master-override` los persiste.
+
+**QA:** curl E2E (persiste client_id + integrator_id, changes_count=3) + testing_agent iteration_207 → **frontend 100% (8/8 flujos)**: combobox + búsqueda + autofill RIF, dropdown integrador, cascada aplicativo multi-app, filtrado dinámico al cambiar integrador, save + persistencia tras reabrir. Fix menor: dedupe de keys/clientes para warning de consola.
+**⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ### Panel de Proyectos: Cuenta regresiva de Producción + Ficha Técnica directa + Visibilidad colectiva Ventas Corporativas — Jun 2026
 
 **Requerimiento (3 partes):** (1) Cuenta regresiva de "Fecha Estimada de Entrada en Producción del cliente"; (2) botón de acceso rápido a Ficha Técnica desde la grilla; (3) visibilidad colectiva por equipo para Ventas Corporativas.
