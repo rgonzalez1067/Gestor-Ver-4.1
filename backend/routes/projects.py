@@ -1233,8 +1233,11 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         template_vars["bank_name"] = bank_name
         template_vars["bank_products"] = ", ".join(bank_products)
         # Matriz de Seguimiento Evolutiva: filtrada al banco destinatario (confidencialidad).
-        from services.project_template_vars import _build_seguimiento_evolutiva_html
+        from services.project_template_vars import _build_seguimiento_evolutiva_html, _build_matrix_html
         template_vars["Matriz_Seguimiento_Evolutiva"] = _build_seguimiento_evolutiva_html(project, bank_filter=bank_name)
+        # Matriz de Bancos y Productos: filtrada automáticamente al banco destinatario.
+        template_vars["Matriz_Bancos_Productos"] = _build_matrix_html(
+            project.get("implementation_matrix", {}), services=project.get("services", []) or [], bank_filter=bank_name)
         if client:
             template_vars["client_rif"] = client.get("rif", client.get("tax_id", ""))
 
@@ -1284,8 +1287,11 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         template_vars["bank_name"] = bank_name
         template_vars["bank_products"] = ", ".join(bank_products)
         # Matriz de Seguimiento Evolutiva: filtrada al banco destinatario (confidencialidad).
-        from services.project_template_vars import _build_seguimiento_evolutiva_html
+        from services.project_template_vars import _build_seguimiento_evolutiva_html, _build_matrix_html
         template_vars["Matriz_Seguimiento_Evolutiva"] = _build_seguimiento_evolutiva_html(project, bank_filter=bank_name)
+        # Matriz de Bancos y Productos: filtrada automáticamente al banco destinatario.
+        template_vars["Matriz_Bancos_Productos"] = _build_matrix_html(
+            project.get("implementation_matrix", {}), services=project.get("services", []) or [], bank_filter=bank_name)
 
         # Siempre usar plantilla del DB (preferida/seleccionada o default)
         template = await _get_notification_template(override_template_id or "project_notify_bank")
@@ -1664,17 +1670,26 @@ async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, author
 
 
 @router.get("/projects/{project_id}/template-variables")
-async def get_project_template_variables(project_id: str, authorization: Optional[str] = Header(None)):
-    """Obtener las variables resueltas de un proyecto (para mostrar en el editor)."""
+async def get_project_template_variables(project_id: str, bank: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Obtener las variables resueltas de un proyecto (para mostrar en el editor).
+
+    `bank` (opcional): si se especifica, la `matrix_html` ({Matriz_Bancos_Productos})
+    se devuelve ya filtrada a ese banco — para que el editor de una notificación a
+    Banco reciba la matriz automáticamente depurada (sin borrado manual)."""
     await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
     template_vars = await resolve_project_template_vars(project)
+    matrix_html = template_vars.get("Matriz_Bancos_Productos", "")
+    if bank and (bank or "").strip():
+        from services.project_template_vars import _build_matrix_html
+        matrix_html = _build_matrix_html(
+            project.get("implementation_matrix", {}), services=project.get("services", []) or [], bank_filter=bank.strip())
     return {
         "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales", "Matriz_Avance_Proyecto", "Matriz_Avance_Proyecto_Con_Fecha", "Matriz_Seguimiento_Evolutiva")},
-        "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
+        "matrix_html": matrix_html,
         "available_tags": [
             {"key": "Nombre_Cliente", "label": "Nombre del Cliente", "source": "Clientes.razon_social"},
             {"key": "Contacto_Principal", "label": "Contacto Principal", "source": "Contactos.nombre_apellido"},

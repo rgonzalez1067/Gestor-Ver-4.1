@@ -516,7 +516,7 @@ const ProjectDetail = () => {
       const [tplRes, prefRes, varsRes] = await Promise.all([
         api.get('/email-templates?context=IMPLEMENTACION'),
         api.get('/project-notification-preferences'),
-        api.get(`/projects/${projectId}/template-variables`),
+        api.get(`/projects/${projectId}/template-variables${bankName ? `?bank=${encodeURIComponent(bankName)}` : ''}`),
       ]);
       const tpls = tplRes.data || [];
       const prefs = prefRes.data || {};
@@ -2349,7 +2349,7 @@ const ProjectDetail = () => {
                             testid="notif-body-editor"
                             minHeight={180}
                             maxHeight={340}
-                            tableRowActions={true}
+                            tableRowActions={false}
                           />
                         </div>
                       </div>
@@ -2646,7 +2646,7 @@ const ProjectDetail = () => {
                       showPreview
                       minHeight={180}
                       maxHeight={340}
-                      tableRowActions={true}
+                      tableRowActions={false}
                     />
                   </div>
                 </div>

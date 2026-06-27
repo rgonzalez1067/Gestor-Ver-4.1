@@ -16,81 +16,92 @@ from services.rif_formatter import format_rif
 logger = logging.getLogger(__name__)
 
 
-def _build_matrix_html(implementation_matrix: dict, services: list = None) -> str:
-    """Genera tabla HTML de Bancos y Productos desde implementation_matrix.
+def _build_matrix_html(implementation_matrix: dict, services: list = None, bank_filter: str = None) -> str:
+    """Genera la tabla HTML de Bancos y Productos desde implementation_matrix.
 
-    `services` (opcional): lista de servicios del proyecto/cotización original.
-    Si se provee, la columna Cantidad refleja `cantidad_cajas` real del item
-    (banco, producto) en la cotización; si no, cae a 1.
+    Homologada estéticamente con {Matriz_Seguimiento_Evolutiva}: misma paleta
+    corporativa (encabezado #1f3a5f, banda de banco #dbeafe con borde izquierdo
+    azul, bordes #d8dee9), tipografía y padding. Cada banco se renderiza como un
+    bloque independiente con su título y tabla (Producto/Servicio · Cantidad).
+
+    `services` (opcional): si se provee, la columna Cantidad refleja `cantidad_cajas`
+    real del item (banco, producto) de la cotización; si no, cae a 1.
+    `bank_filter` (opcional): si se especifica, SOLO se emite el bloque de ese banco
+    (match case-insensitive) — filtrado automático para envíos dirigidos a un Banco
+    específico (confidencialidad interbancaria), sin intervención manual.
     """
     if not implementation_matrix:
-        return "<p><em>Sin matriz de implementación definida.</em></p>"
+        return ('<p style="font-family:Arial,sans-serif;font-size:12px;color:#888;margin:6px 0;">'
+                '<em>Sin matriz de implementación definida.</em></p>')
 
     # Indexar cantidades reales por (banco, producto) desde services
     qty_lookup = {}
     if services:
         for s in services:
             if s.get("item_type") not in ("additional", None):
-                # Solo items "additional" representan productos por banco
                 continue
             bn = (s.get("bank_name") or "").strip()
             name = (s.get("item_name") or s.get("name") or "").strip()
             if not bn or not name:
                 continue
-            # Preferir cantidad_cajas; fallback a quantity
             cajas = s.get("cantidad_cajas") or s.get("quantity") or 0
             try:
                 cajas = int(cajas)
             except (TypeError, ValueError):
                 cajas = 0
             key = (bn.lower(), name.lower())
-            # Si el mismo banco/producto aparece varias veces, sumar
             qty_lookup[key] = qty_lookup.get(key, 0) + max(0, cajas)
 
-    rows = []
+    # Agrupar por banco, aplicando el filtro de banco si corresponde.
+    bf = (bank_filter or "").strip().lower()
+    from collections import OrderedDict
+    bank_products = OrderedDict()
     for bank_name, products in implementation_matrix.items():
-        for product_name in products.keys():
-            rows.append((bank_name, product_name))
+        if bf and (bank_name or "").strip().lower() != bf:
+            continue
+        prods = [p for p in (products or {}).keys()]
+        if prods:
+            bank_products[bank_name] = prods
 
-    if not rows:
-        return "<p><em>Sin productos en la matriz.</em></p>"
+    if not bank_products:
+        msg = "Sin productos asociados para el destinatario." if bank_filter else "Sin productos en la matriz."
+        return (f'<p style="font-family:Arial,sans-serif;font-size:12px;color:#888;margin:6px 0;">'
+                f'<em>{msg}</em></p>')
 
-    html = (
-        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;">'
-        '<thead>'
-        '<tr style="background:#2c3e50;color:white;">'
-        '<th style="padding:10px 12px;text-align:left;border:1px solid #ddd;">Banco</th>'
-        '<th style="padding:10px 12px;text-align:left;border:1px solid #ddd;">Producto / Servicio</th>'
-        '<th style="padding:10px 12px;text-align:center;border:1px solid #ddd;">Cantidad</th>'
-        '</tr>'
-        '</thead><tbody>'
-    )
+    bd = "border:1px solid #d8dee9;"
+    scope = f' · Banco: {bank_filter}' if bank_filter else ''
+    caption = (f'<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:600;color:#475569;margin:6px 0 8px;">'
+               f'Matriz de Bancos y Productos{scope}</div>')
 
-    # Group by bank
-    from collections import defaultdict
-    bank_products = defaultdict(list)
-    for bank, prod in rows:
-        bank_products[bank].append(prod)
-
-    row_idx = 0
+    blocks = []
     for bank_name, prods in bank_products.items():
-        for prod_name in prods:
-            bg = "#f8f9fa" if row_idx % 2 == 0 else "#ffffff"
-            # Lookup case-insensitive y trim para matchear nombres con trailing spaces
+        head = ('<thead><tr style="background:#1f3a5f;color:#fff;">'
+                f'<th style="padding:7px 10px;{bd}text-align:left;font-size:12px;font-weight:700;">Producto / Servicio</th>'
+                f'<th style="padding:7px 10px;{bd}text-align:center;font-size:12px;font-weight:700;width:120px;">Cantidad</th>'
+                '</tr></thead>')
+        body = '<tbody>'
+        for idx, prod_name in enumerate(prods):
+            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
             key = ((bank_name or "").strip().lower(), (prod_name or "").strip().lower())
             qty = qty_lookup.get(key, 0)
             qty_display = qty if qty > 0 else 1
-            html += (
-                f'<tr style="background:{bg};">'
-                f'<td style="padding:8px 12px;border:1px solid #e9ecef;">{bank_name}</td>'
-                f'<td style="padding:8px 12px;border:1px solid #e9ecef;">{prod_name}</td>'
-                f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{qty_display}</td>'
-                f'</tr>'
-            )
-            row_idx += 1
+            body += (f'<tr style="background:{bg};">'
+                     f'<td style="padding:6px 10px;{bd}font-size:11px;color:#334155;">{prod_name}</td>'
+                     f'<td style="padding:6px 10px;{bd}text-align:center;font-size:11px;color:#334155;font-weight:700;">{qty_display}</td>'
+                     f'</tr>')
+        body += '</tbody>'
 
-    html += '</tbody></table>'
-    return html
+        blocks.append(
+            f'<div style="margin:0 0 18px;">'
+            f'<div style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#16324f;'
+            f'background:#dbeafe;padding:7px 12px;border-left:4px solid #1f3a5f;border-radius:4px;margin-bottom:6px;">'
+            f'Banco: {bank_name}</div>'
+            f'<div style="overflow-x:auto;">'
+            f'<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;">'
+            f'{head}{body}</table></div></div>'
+        )
+
+    return caption + ''.join(blocks)
 
 
 def _build_vtid_list_html(vtids: list) -> str:
