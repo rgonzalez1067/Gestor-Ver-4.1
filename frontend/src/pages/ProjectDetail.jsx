@@ -492,13 +492,10 @@ const ProjectDetail = () => {
   };
 
   // ==================== SEQUENTIAL NOTIFICATIONS ====================
-  // Sustituye el token {Matriz_Bancos_Productos} por la tabla real para que sea
-  // editable dentro del editor enriquecido (edición de celdas + eliminar fila).
-  const injectMatrix = (html, matrixHtml) => {
-    const m = matrixHtml !== undefined ? matrixHtml : projectMatrixHtml;
-    if (!html || !m) return html || '';
-    return String(html).replace(/\{\s*Matriz_Bancos_Productos\s*\}/g, m);
-  };
+  // {Matriz_Bancos_Productos} se comporta como token (igual que {Matriz_Seguimiento_Evolutiva}):
+  // NO se inyecta como tabla editable. El backend la renderiza ya filtrada por banco y con el
+  // estilo corporativo en la Vista Previa y en el envío (preserva estética; sin borrado manual).
+  const injectMatrix = (html) => html || '';
 
   const openNotifDialog = async (type, bankName, prefKey) => {
     const _prefKey = prefKey || type;
