@@ -1,0 +1,42 @@
+{
+  "summary": "QA frontend de la Vista Previa por plantilla con las 5 matrices (Matriz_Bancos_Productos, Matriz_Sucursales, Matriz_Avance_Proyecto, Matriz_Avance_Proyecto_Con_Fecha, Matriz_Seguimiento_Evolutiva). Probado en los 3 puntos de entrada solicitados con admin rgonzalez@megasoft.com.ve: (1) /settings → sección 'Plantillas de Proyecto (Implementación)' → editar 'Notificacion de Proyecto — Cliente' (EmailTemplatesEditor.openPreview); (2) /clients/communications → editar 'Presentación Merchant Server' (ClientTemplatesConfig usando RichTextEditor con showPreview); (3) /integrators/communications → editar plantilla de integrador (EntityTemplatesConfig). En los 3 casos la Vista Previa renderiza las matrices con estilo corporativo (#1f3a5f, #dbeafe, #d8dee9, Arial), bandas 'Banco: Banco Mercantil' y 'Banco: Banesco' para Matriz_Bancos_Productos con columnas Producto/Servicio y Cantidad, y NO aparece ningún token literal {Matriz_*} ni placeholder '[Matriz_...]' en el HTML resultante.",
+  "tests_executed": {
+    "settings_email_template_preview": "PASS — /settings → tpl-section-toggle-project → edit-template-project_notify_client → 'Vista Previa'. El cuerpo ya contenía {Matriz_Bancos_Productos} y {Matriz_Sucursales}; se inyectaron además {Matriz_Avance_Proyecto}, {Matriz_Avance_Proyecto_Con_Fecha}, {Matriz_Seguimiento_Evolutiva}. Preview HTML (30,943 chars) contiene #1f3a5f, #dbeafe, #d8dee9, 'Banco: Banco Mercantil', 'Banco: Banesco', 'Producto / Servicio', 'Sucursal Norte', 'Avance Global'. 0 tokens literales restantes. 0 cadenas '[Matriz_...]'.",
+    "matriz_bancos_productos_blocks": "PASS — En los 3 surfaces la Matriz_Bancos_Productos muestra dos bloques por banco (Banco Mercantil con 'Tarjeta de Crédito/Débito · 2' y Banesco con 'C2P o Débito Inmediato · 1'), cada uno con su banda celeste #dbeafe, borde-izq azul #1f3a5f y tabla con encabezado azul oscuro.",
+    "client_templates_richtext_preview": "PASS — /clients/communications → editar 'Presentación Merchant Server' (RichTextEditor data-testid='cli-tpl-editor', showPreview=true). Insertados los 3 tokens vía teclado y click en 'Vista Previa'. Preview HTML (9,511 chars): contiene #1f3a5f, #dbeafe, #d8dee9, ambas bandas de banco, 'Producto / Servicio', 'Sucursales y Cajas', 'Avance Global'. 0 tokens literales.",
+    "entity_templates_richtext_preview": "PASS — /integrators/communications → editar plantilla 'Tokenizador v1.4.7' (EntityTemplatesConfig). Insertados {Matriz_Bancos_Productos}, {Matriz_Avance_Proyecto_Con_Fecha} y {Matriz_Seguimiento_Evolutiva}. Preview HTML (17,317 chars): contiene #1f3a5f, #dbeafe, ambas bandas, 'Fase I'/'Fase II' y la fecha inline '10/06/2026' debajo del % (característica diferenciadora de la variante Con_Fecha). 0 tokens literales.",
+    "no_literal_token_leftovers": "PASS — Las 3 previews verificaron 0 ocurrencias de '{Matriz_Bancos_Productos}', '{Matriz_Sucursales}', '{Matriz_Avance_Proyecto}', '{Matriz_Avance_Proyecto_Con_Fecha}' y '{Matriz_Seguimiento_Evolutiva}'. Tampoco se renderiza el fallback '[Matriz_...]' del label en ninguna preview.",
+    "corporate_style_consistency": "PASS — Las matrices renderizadas en VARIABLE_PREVIEW_HTML (consumido por EmailTemplatesEditor.openPreview vía spread) y en RichTextEditor.DEFAULT_EXAMPLE_VALUES (consumido por substituteTokens) son idénticas en colores (#1f3a5f header / #dbeafe banda / #d8dee9 bordes / Arial). Capturas adjuntas muestran homologación visual con Matriz_Seguimiento_Evolutiva."
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "ClientTemplatesConfig — Variables disponibles (cabecera)",
+        "issues": [
+          "OBSERVACIÓN (no bloquea, fuera de scope del cambio): La leyenda 'Variables disponibles' lista solo {{nombre}}, {{rif}}, {{email}}, {{contacto}}, {{direccion}}, {{telefono}}, {{nombre_comercial}} — no documenta que se aceptan tokens de matriz tipo {Matriz_*}. Aun así, el RichTextEditor (showPreview) los renderiza correctamente al insertarlos manualmente, por eso el feature funciona. Recomendado: incluir las matrices en la leyenda o desactivar showPreview de matrices si no aplican al contexto de cliente."
+        ]
+      }
+    ]
+  },
+  "critical_code_review_comments": [
+    "templateVariables.js::VARIABLE_PREVIEW_HTML: el HTML de Matriz_Bancos_Productos quedó alineado al patrón de Matriz_Seguimiento_Evolutiva (banda #dbeafe con borde-izq #1f3a5f, header de tabla #1f3a5f, bordes #d8dee9, Arial). Buena decisión que EmailTemplatesEditor.openPreview reutilice esta fuente única vía '...VARIABLE_PREVIEW_HTML' (L750-752) para evitar drift.",
+    "RichTextEditor.jsx::DEFAULT_EXAMPLE_VALUES (L195) duplica el mismo HTML inline de Matriz_Bancos_Productos. Funciona pero introduce dos fuentes de verdad para el mismo asset visual. SUGERENCIA (mejora, no bug): importar VARIABLE_PREVIEW_HTML desde './email/templateVariables' y reusar las 5 matrices, dejando DEFAULT_EXAMPLE_VALUES solo con los valores escalares. Reduciría 4-5 KB de duplicación y eliminaría riesgo de divergencia futura.",
+    "EmailTemplatesEditor.jsx::openPreview L807-810: hace replace por todas las variables del catálogo getTemplateVariables(). Si el cuerpo contiene un token de matriz que NO esté listado en la categoría del template_id, no se sustituye. En la prueba inyecté manualmente los 3 tokens extra al body y todos quedaron renderizados — esto sugiere que getTemplateVariables() para template_id='project_notify_client' sí incluye las 5 matrices. Confirmado OK.",
+    "ClientTemplatesConfig.jsx L190 'showPreview' habilitado: dado que las plantillas de cliente NO suelen usar matrices de implementación, considerar si tiene sentido mostrar bandas de banco en su preview. Si es por consistencia visual está bien; si no, podría confundir al usuario final."
+  ],
+  "test_report_links": ["/app/test_reports/iteration_211.json"],
+  "action_items": [
+    "OPCIONAL — Refactor: en RichTextEditor.jsx importar y reutilizar VARIABLE_PREVIEW_HTML de templateVariables.js para las 5 matrices (eliminar duplicación de HTML inline ~4-5 KB).",
+    "OPCIONAL UX — Documentar en ClientTemplatesConfig / EntityTemplatesConfig que se aceptan tokens {Matriz_*} si esa es la intención (la cabecera 'Variables disponibles' solo lista variables de cliente)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skip por instrucción)", "frontend": "100% (3/3 surfaces validados, 5/5 matrices renderizadas con estilo corporativo, 0 tokens literales filtrados)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "No se persistieron cambios. Las plantillas modificadas en memoria (inyección de tokens) se descartaron al cerrar el diálogo sin guardar.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Selectores clave para retest: en /settings → data-testid='tpl-section-toggle-project' (acordeón) → data-testid='edit-template-project_notify_client' → botón 'Vista Previa' (texto). En /clients/communications → svg.lucide-pencil del card → data-testid='cli-tpl-editor' (RichTextEditor) → botón 'Vista Previa'. En /integrators/communications → mismo patrón pencil + ProseMirror + 'Vista Previa'. El diálogo de preview es identificable por d.innerText.includes('Vista Previa del Correo'). Fuentes únicas de HTML de ejemplo: VARIABLE_PREVIEW_HTML en /app/frontend/src/components/email/templateVariables.js y DEFAULT_EXAMPLE_VALUES en /app/frontend/src/components/RichTextEditor.jsx (ambos en sync visual a la fecha de esta iter)."
+}
