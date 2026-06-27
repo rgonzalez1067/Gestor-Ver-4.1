@@ -97,7 +97,7 @@ def _build_matrix_html(implementation_matrix: dict, services: list = None, bank_
             f'background:#dbeafe;padding:7px 12px;border-left:4px solid #1f3a5f;border-radius:4px;margin-bottom:6px;">'
             f'Banco: {bank_name}</div>'
             f'<div style="overflow-x:auto;">'
-            f'<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;">'
+            f'<table style="border-collapse:collapse;width:auto;max-width:100%;font-family:Arial,sans-serif;">'
             f'{head}{body}</table></div></div>'
         )
 
@@ -252,10 +252,10 @@ def _build_stores_matrix_html(stores: list, fallback_name: str = "Sede Principal
     caption = ('<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:600;color:#475569;margin:6px 0 8px;">'
                'Sucursales y Cajas</div>')
     html = (
-        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;">'
+        '<table style="border-collapse:collapse;width:auto;max-width:100%;font-family:Arial,sans-serif;">'
         '<thead><tr style="background:#1f3a5f;color:#fff;">'
         f'<th style="padding:7px 10px;{bd}text-align:left;font-size:12px;font-weight:700;">Sucursal</th>'
-        f'<th style="padding:7px 10px;{bd}text-align:center;font-size:12px;font-weight:700;width:160px;">Cantidad de Cajas</th>'
+        f'<th style="padding:7px 10px;{bd}text-align:center;font-size:12px;font-weight:700;width:130px;">Cantidad de Cajas</th>'
         '</tr></thead><tbody>'
     )
     total = 0

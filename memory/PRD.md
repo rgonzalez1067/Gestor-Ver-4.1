@@ -3,6 +3,9 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Ajuste compacto: primera columna de {Matriz_Bancos_Productos} y {Matriz_Sucursales} — Jun 2026
+Las tablas pasaron de `width:100%` a `width:auto;max-width:100%` (backend `_build_matrix_html`/`_build_stores_matrix_html` + samples en `templateVariables.js` y `RichTextEditor.jsx`) para que la primera columna se ajuste al contenido y se vea más compacta (Sucursales: Cantidad 160px→130px). Sin tocar las matrices de Avance/Seguimiento. Verificado por render directo + compila. ⚠️ PREVIEW; requiere REDEPLOY.
+
 ### Vista Previa por plantilla en Configuración con TODAS las matrices estilizadas — Jun 2026
 **Mejora:** que la Vista Previa de plantillas en Configuración (sin abrir un proyecto) renderice todas las matrices con datos de ejemplo y el estilo corporativo. La Vista Previa ya existía en los 3 editores (EmailTemplatesEditor con `openPreview`; ClientTemplatesConfig y EntityTemplatesConfig vía `RichTextEditor showPreview`).
 **Cambios:** se actualizaron los HTML de ejemplo de las 4 matrices (Bancos_Productos, Sucursales, Avance_Proyecto y _Con_Fecha) al estilo corporativo (`#1f3a5f`/`#dbeafe`/`#d8dee9`/Arial) en `components/email/templateVariables.js::VARIABLE_PREVIEW_HTML` y en `RichTextEditor.jsx::DEFAULT_EXAMPLE_VALUES`; se agregó el sample faltante de `Matriz_Bancos_Productos` (bloques por banco) en DEFAULT_EXAMPLE_VALUES. Seguimiento_Evolutiva ya estaba corporativo.
