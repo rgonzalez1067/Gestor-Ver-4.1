@@ -84,8 +84,20 @@ export const MultiRifTree = ({ project, canEditMatrix, onUpdateStoreQuantity, on
                 <div className="flex items-center gap-2 min-w-0">
                   {isOpen ? <ChevronDown size={16} className="text-slate-400 shrink-0" /> : <ChevronRight size={16} className="text-slate-400 shrink-0" />}
                   <Building2 size={16} className="text-indigo-500 shrink-0" />
-                  <span className="font-semibold text-sm text-slate-800 truncate">{rif.client_name}</span>
-                  <span className="text-xs text-slate-400 shrink-0">— {rif.rif} · {stores.length} suc. · {rif.box_count} caja(s)</span>
+                  <span className="font-mono font-semibold text-sm text-slate-700 shrink-0" data-testid={`multirif-rif-code-${rif.rif_id}`}>{rif.rif}</span>
+                  {(rif.legal_name || rif.fantasy_name) ? (
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {rif.legal_name && (
+                        <span className="text-sm text-slate-800 truncate max-w-[260px]" title={rif.legal_name} data-testid={`multirif-rif-legal-${rif.rif_id}`}>{rif.legal_name}</span>
+                      )}
+                      {rif.fantasy_name && (
+                        <span className="text-xs text-indigo-600 truncate shrink-0 max-w-[180px]" title={rif.fantasy_name} data-testid={`multirif-rif-fantasy-${rif.rif_id}`}>· {rif.fantasy_name}</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 shrink-0" data-testid={`multirif-rif-novalidado-${rif.rif_id}`}>No Validado</span>
+                  )}
+                  <span className="text-xs text-slate-400 shrink-0">· {stores.length} suc. · {rif.box_count} caja(s)</span>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${pctChipClass(rifPct)}`} data-testid={`multirif-rif-pct-${rif.rif_id}`}>{rifPct}%</span>
                   {rifPct >= 100 && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />}
                 </div>

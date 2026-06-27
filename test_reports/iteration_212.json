@@ -1,0 +1,30 @@
+{
+  "summary": "QA frontend del árbol 'Seguimiento Multi-RIF · 3 Niveles' (componente MultiRifTree) tras el cambio que muestra Razón Social y Nombre de Fantasía junto al RIF. Probado con admin rgonzalez@megasoft.com.ve en los dos proyectos solicitados: VALIDADO (prj_161cfe54e13b) y NO-VALIDADO (prj_6bbec868acb0). Verificado el orden visual exacto (RIF → Razón Social → · Fantasía → · N suc. · N caja(s)), los data-testid requeridos, el badge 'No Validado' cuando el RIF carece de client_id, el truncamiento con ellipsis (max-w-[260px] / max-w-[180px]) y la funcionalidad de expandir/colapsar del nodo RIF.",
+  "tests_executed": {
+    "validated_project_prj_161cfe54e13b": "PASS — 3 RIFs renderizados con orden y datos correctos. RIF[rif_ad704e44]: code='J506485842', legal='INVERSIONES HALE 444, C.A.' (multirif-rif-legal-rif_ad704e44), fantasy='· Carbon' (multirif-rif-fantasy-rif_ad704e44). RIF[rif_dbe5c29b]: code='J501546010', legal='INVERSIONES SALUS 7 C.A.', fantasy='· Brasero El Marqúez'. RIF[rif_5fb16510]: code='J507060810', legal='INVERSIONES SJB 777 C.A.', fantasy='· Barako'. El sufijo '· N suc. · N caja(s)' (p.ej. '· 3 suc. · 12 caja(s)') aparece a continuación, junto con el chip % y la barra de progreso. Captura confirma: 'J506485842 INVERSIONES HALE 444, C.A. · Carbon · 3 suc. · 12 caja(s) 0%'.",
+    "not_validated_project_prj_6bbec868acb0": "PASS — 5 RIFs renderizados con badge 'No Validado' (multirif-rif-novalidado-<rif_id>) en lugar de Razón Social/Fantasía. Verificados rif_8ac79807 (J-506485843), rif_e395902f (J-506485842), rif_cfb947b2 (J-501546013), rif_cbeda787 (J-501546010), rif_4b05da3d (J-507060810). Estructura de la tarjeta intacta: code + badge ámbar 'No Validado' + '· N suc. · N caja(s)' + chip % + barra. legal/fantasy son null (no se renderizan).",
+    "ellipsis_truncation": "PASS — Visual: el texto de Razón Social usa truncate + max-w-[260px] (data-testid multirif-rif-legal) y el de Fantasía truncate + max-w-[180px] (multirif-rif-fantasy). En el proyecto validado 'INVERSIONES HALE 444, C.A.' y 'Brasero El Marqúez' caben completos en una sola línea sin romper el layout horizontal del nodo. El atributo title=<nombre completo> sirve como tooltip si se trunca.",
+    "expand_collapse": "PASS — Click en multirif-rif-toggle-<rif_id> del primer RIF expande el nodo y muestra 3 store nodes (multirif-store-node-*). El chip de % (multirif-rif-pct-<rif_id>) muestra '0%' correctamente. Estructura del padre se mantiene tras toggle.",
+    "data_testid_coverage": "PASS — Todos los data-testid requeridos por el QA están presentes: multirif-rif-legal-<rif_id>, multirif-rif-fantasy-<rif_id>, multirif-rif-novalidado-<rif_id>, además de multirif-rif-code-, multirif-rif-toggle-, multirif-rif-pct-, multirif-rif-node-, multirif-store-node-, multirif-store-toggle-, multirif-store-matrix-, multirif-global-node, multirif-section."
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "critical_code_review_comments": [
+    "MultiRifTree.jsx L88-99: lógica `(rif.legal_name || rif.fantasy_name) ? render-names : render-noValidado` es correcta y simétrica con el contrato del backend (vacíos cuando no hay client_id). Buen uso de truncate + max-w + title=<nombre> para evitar desbordes en nombres largos.",
+    "MultiRifTree.jsx L94: el prefijo '· ' del fantasy está hardcodeado dentro del span (`· {rif.fantasy_name}`). Esto provoca que el texto recuperado por testid sea '· Carbon' en vez de 'Carbon'. Funcionalmente OK (el QA solicitó '· Fantasía'), pero si en el futuro alguien quiere usar el contenido del span para otro contexto (e.g. tooltip / aria-label limpio), conviene mover el separador a un nodo hermano. SUGERENCIA, no bug.",
+    "Hidratación HTML (NO relacionado con este cambio, fuera de scope): la consola del navegador emite warnings 'span cannot be a child of tr/tbody/th' provenientes de ProjectDetail.jsx L1666-1679 y MultistoreBankSection L8 (la matriz de implementación). No afecta MultiRifTree pero conviene limpiar en un ticket aparte para evitar ruido en producción y posibles errores de hidratación con SSR."
+  ],
+  "test_report_links": ["/app/test_reports/iteration_212.json"],
+  "action_items": [],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skip por instrucción)", "frontend": "100% (2/2 proyectos OK, 3/3 RIFs validados con legal+fantasy correctos, 5/5 RIFs no-validados con badge 'No Validado', expand/colapse OK)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "No se crearon datos. Se usaron los proyectos existentes prj_161cfe54e13b (validado) y prj_6bbec868acb0 (no validado).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Para retest del árbol Multi-RIF usar /projects/<id> y data-testid: multirif-rif-node-<rif_id>, multirif-rif-code-<rif_id>, multirif-rif-legal-<rif_id>, multirif-rif-fantasy-<rif_id>, multirif-rif-novalidado-<rif_id>, multirif-rif-toggle-<rif_id>. El backend rellena rif.legal_name / rif.fantasy_name solo cuando rif.client_id está presente (validado vía routes/projects.py::get_project). El badge 'No Validado' usa color amber (bg-amber-100 text-amber-700). Nota: el texto del span fantasy incluye el separador '· ' prefijado dentro del nodo."
+}

@@ -296,6 +296,25 @@ async def get_project(project_id: str, authorization: Optional[str] = Header(Non
     # "Total de Terminales Virtuales" del Resumen Ejecutivo.
     from services.project_pvv import compute_project_pvv
     project["pvv_count"] = compute_project_pvv(project)
+    # MultiRIF: enriquecer cada RIF con Razón Social (legal_name) y Nombre de
+    # Fantasía (fantasy_name) del cliente VALIDADO (vía client_id). Si el RIF no
+    # fue validado (sin client_id) se dejan vacíos para que la UI muestre
+    # "No Validado". Aplica por igual a matrices originadas en Cotización o en
+    # Proyecto Directo, ya que ambos canales persisten client_id en cada RIF.
+    rifs = project.get("rifs") or []
+    if rifs:
+        rif_client_ids = list({r.get("client_id") for r in rifs if r.get("client_id")})
+        rif_clients = {}
+        if rif_client_ids:
+            async for c in db.clients.find(
+                {"client_id": {"$in": rif_client_ids}},
+                {"_id": 0, "client_id": 1, "legal_name": 1, "fantasy_name": 1},
+            ):
+                rif_clients[c["client_id"]] = c
+        for r in rifs:
+            c = rif_clients.get(r.get("client_id")) or {}
+            r["legal_name"] = c.get("legal_name") or ""
+            r["fantasy_name"] = c.get("fantasy_name") or ""
     return project
 
 
