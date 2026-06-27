@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Razón Social y Nombre de Fantasía junto al RIF en Seguimiento Multi-RIF — Jun 2026
+**Requerimiento:** mostrar Razón Social (legal_name) y Nombre de Fantasía (fantasy_name) junto al RIF en el árbol "Seguimiento Multi-RIF · 3 Niveles" (`MultiRifTree`), manteniendo el diseño de tarjeta. Orden: RIF → Razón Social → Nombre de Fantasía → meta. Sólo cuando el RIF fue validado (tiene client_id); si no, badge "No Validado". Aplica a proyectos de Cotización y Proyecto Directo.
+**Backend (`routes/projects.py::get_project`):** enriquece cada `rif` con `legal_name`/`fantasy_name` buscando el cliente por `client_id` (read-time; funciona para proyectos existentes y ambos canales, ya que los dos persisten client_id en cada RIF validado).
+**Frontend (`MultiRifTree.jsx`):** el nodo RIF muestra `rif.rif` (mono) → `legal_name` (truncate max-w-260) → `· fantasy_name` (indigo, truncate max-w-180) o badge ámbar "No Validado"; tooltips con nombre completo; meta `· N suc · N caja(s)` después.
+**QA:** curl (validado=prj_161cfe54e13b llena nombres; no-validado=prj_6bbec868acb0 vacío) + testing_agent iteration_212 → **frontend 100% (2/2 proyectos)**. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Ajuste compacto: primera columna de {Matriz_Bancos_Productos} y {Matriz_Sucursales} — Jun 2026
 Las tablas pasaron de `width:100%` a `width:auto;max-width:100%` (backend `_build_matrix_html`/`_build_stores_matrix_html` + samples en `templateVariables.js` y `RichTextEditor.jsx`) para que la primera columna se ajuste al contenido y se vea más compacta (Sucursales: Cantidad 160px→130px). Sin tocar las matrices de Avance/Seguimiento. Verificado por render directo + compila. ⚠️ PREVIEW; requiere REDEPLOY.
 
