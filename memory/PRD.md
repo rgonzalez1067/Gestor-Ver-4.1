@@ -3,6 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### {Matriz_Bancos_Productos}: homologación estética + filtrado automático por banco — Jun 2026
+**Requerimiento:** que `{Matriz_Bancos_Productos}` replique el funcionamiento nativo de `{Matriz_Seguimiento_Evolutiva}`: (A) mismo estilo corporativo, (B) filtrado automático por banco destinatario en backend, (C) eliminar el borrado manual fila-por-fila del editor.
+**Backend (`services/project_template_vars.py::_build_matrix_html`):** reescrita con estética corporativa (caption, banda de banco `#dbeafe` con borde izquierdo `#1f3a5f`, encabezado `#1f3a5f`, bordes `#d8dee9`, Arial) + param `bank_filter` (agrupa por banco, filtra case-insensitive).
+**Backend (`routes/projects.py`):** `_resolve_notification_email` sobreescribe `Matriz_Bancos_Productos` con `bank_filter=bank_name` para targets `bank` y `bank_client` (cliente recibe matriz completa). `GET /projects/{id}/template-variables?bank=` devuelve matrix_html filtrada. Preview y envío renderizan el token vía `_render_vars` con `template_vars` ya filtrado.
+**Frontend (`ProjectDetail.jsx`):** `{Matriz_Bancos_Productos}` ahora es **token** (igual que Seguimiento Evolutiva) — `injectMatrix` es passthrough, ya NO se inyecta tabla editable (Tiptap stripeaba estilos). Editores de notificación con `tableRowActions={false}` (sin papelera por fila).
+**QA:** curl (preview banco = solo BBVA con #1f3a5f/#dbeafe; cliente = 4 bancos) + testing_agent iteration_209/210 → **frontend 100% (7/7)**: token literal en editor, 0 botones de borrado, Vista Previa filtrada+estilizada por banco, matriz completa para cliente, consistencia visual con Seguimiento Evolutiva. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Edición Maestra: Banco Patrocinador con cascada Procesador → Banco — Jun 2026
 **Requerimiento:** en la Edición Maestra (/projects), el campo `Banco Patrocinador` debe replicar la lógica del Cotizador: al elegir un Procesador se despliega un sub-modal con los bancos asociados a ese procesador para designar el banco final.
 **Frontend (`MasterEditDialog.jsx`):** el `Select master-sponsor-select` ahora marca los procesadores con sufijo "· Procesador"; al elegir uno (`bk.type==='Procesador'`) abre el componente reutilizable `ProcessorLinkBankModal` (`master-sponsor-processor-link-modal`) con `linkedBanks = banks con procesador===processor.name`. Al elegir el banco vinculado se setean `sponsoring_bank_name/id` + `sponsoring_processor_name` y se muestra la línea compuesta `master-sponsor-composite` ("Patrocinador: Procesador — Banco"). Banco normal → asignación directa sin sub-modal. `banksCatalog` deduplicado por name+type.
