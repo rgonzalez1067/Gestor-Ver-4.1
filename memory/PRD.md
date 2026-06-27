@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Estética corporativa homologada en {Matriz_Sucursales} y {Matriz_Avance_Proyecto}(_Con_Fecha) — Jun 2026
+**Requerimiento:** aplicar la misma estética corporativa de {Matriz_Seguimiento_Evolutiva}/{Matriz_Bancos_Productos} a estas variables para uniformar las tablas de los correos institucionales.
+**Backend (`services/project_template_vars.py`):** `_build_stores_matrix_html` (Matriz_Sucursales) → caption "Sucursales y Cajas" + encabezado `#1f3a5f`, bordes `#d8dee9`, fila Total `#e8eef5`/`#1f3a5f`, Arial. `_avance_phase_table` (Matriz_Avance_Proyecto y _Con_Fecha) → encabezado `#1f3a5f`, bordes `#d8dee9`, banda de banco `#e8eef5`; se conserva el KPI "Avance Global" (`#f0f6ff`) y los colores de avance por celda (verde/ámbar/gris). Sin cambios de lógica/datos.
+**Frontend (`RichTextEditor.jsx`):** muestras del selector de variables (Matriz_Sucursales, Matriz_Avance_Proyecto, _Con_Fecha) actualizadas al nuevo estilo.
+**QA:** render directo verificado (estilos `#1f3a5f`/`#d8dee9` presentes, sin el viejo `#2c3e50`) + pytest test_matrix_and_patrocinador 7/7 + compila. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### {Matriz_Bancos_Productos}: homologación estética + filtrado automático por banco — Jun 2026
 **Requerimiento:** que `{Matriz_Bancos_Productos}` replique el funcionamiento nativo de `{Matriz_Seguimiento_Evolutiva}`: (A) mismo estilo corporativo, (B) filtrado automático por banco destinatario en backend, (C) eliminar el borrado manual fila-por-fila del editor.
 **Backend (`services/project_template_vars.py::_build_matrix_html`):** reescrita con estética corporativa (caption, banda de banco `#dbeafe` con borde izquierdo `#1f3a5f`, encabezado `#1f3a5f`, bordes `#d8dee9`, Arial) + param `bank_filter` (agrupa por banco, filtra case-insensitive).

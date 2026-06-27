@@ -245,37 +245,41 @@ def _build_stores_matrix_html(stores: list, fallback_name: str = "Sede Principal
         rows.append((fallback_name or "Sede Principal", fallback_cajas))
 
     if not rows:
-        return "<p><em>Sin sucursales definidas.</em></p>"
+        return ('<p style="font-family:Arial,sans-serif;font-size:12px;color:#888;margin:6px 0;">'
+                '<em>Sin sucursales definidas.</em></p>')
 
+    bd = "border:1px solid #d8dee9;"
+    caption = ('<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:600;color:#475569;margin:6px 0 8px;">'
+               'Sucursales y Cajas</div>')
     html = (
-        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;">'
-        '<thead><tr style="background:#2c3e50;color:white;">'
-        '<th style="padding:10px 12px;text-align:left;border:1px solid #ddd;">Sucursal</th>'
-        '<th style="padding:10px 12px;text-align:center;border:1px solid #ddd;">Cantidad de Cajas</th>'
+        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;">'
+        '<thead><tr style="background:#1f3a5f;color:#fff;">'
+        f'<th style="padding:7px 10px;{bd}text-align:left;font-size:12px;font-weight:700;">Sucursal</th>'
+        f'<th style="padding:7px 10px;{bd}text-align:center;font-size:12px;font-weight:700;width:160px;">Cantidad de Cajas</th>'
         '</tr></thead><tbody>'
     )
     total = 0
     for idx, (name, cajas) in enumerate(rows):
-        bg = "#f8f9fa" if idx % 2 == 0 else "#ffffff"
+        bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
         try:
             total += int(cajas)
         except (TypeError, ValueError):
             pass
         html += (
             f'<tr style="background:{bg};">'
-            f'<td style="padding:8px 12px;border:1px solid #e9ecef;">{name}</td>'
-            f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{cajas}</td>'
+            f'<td style="padding:6px 10px;{bd}font-size:11px;color:#334155;">{name}</td>'
+            f'<td style="padding:6px 10px;{bd}text-align:center;font-size:11px;color:#334155;font-weight:700;">{cajas}</td>'
             f'</tr>'
         )
     if len(rows) > 1:
         html += (
-            '<tr style="background:#eef2f7;font-weight:bold;">'
-            '<td style="padding:8px 12px;border:1px solid #e9ecef;">Total</td>'
-            f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{total}</td>'
+            '<tr style="background:#e8eef5;font-weight:700;color:#1f3a5f;">'
+            f'<td style="padding:6px 10px;{bd}font-size:11px;">Total</td>'
+            f'<td style="padding:6px 10px;{bd}text-align:center;font-size:11px;">{total}</td>'
             '</tr>'
         )
     html += '</tbody></table>'
-    return html
+    return caption + html
 
 
 # Fases canónicas de implementación por sucursal (deben coincidir con STORE_PHASES del frontend).
@@ -411,19 +415,20 @@ def _avance_phase_table(matrix: dict, with_dates: bool = False) -> str:
     phases = _MULTIRIF_STORE_PHASES
     if not matrix:
         return '<p style="font-family:Arial,sans-serif;font-size:12px;color:#888;margin:2px 0 10px;"><em>Sin matriz de implementación.</em></p>'
+    bd = "border:1px solid #d8dee9;"
     th_phases = ''.join(
-        f'<th style="padding:8px 10px;border:1px solid #ddd;text-align:center;">{p}</th>' for p in phases
+        f'<th style="padding:7px 9px;{bd}text-align:center;font-size:11px;font-weight:700;">{p}</th>' for p in phases
     )
     html = (
-        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;margin:4px 0 12px;">'
-        '<thead><tr style="background:#2c3e50;color:white;">'
-        '<th style="padding:8px 10px;border:1px solid #ddd;text-align:left;">Banco / Producto</th>'
+        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;margin:4px 0 12px;">'
+        '<thead><tr style="background:#1f3a5f;color:#fff;">'
+        f'<th style="padding:7px 10px;{bd}text-align:left;font-size:12px;font-weight:700;">Banco / Producto</th>'
         f'{th_phases}</tr></thead><tbody>'
     )
     for bank, products in matrix.items():
         html += (
-            f'<tr style="background:#e8eef5;color:#1f3a5f;font-weight:bold;">'
-            f'<td colspan="{len(phases) + 1}" style="padding:6px 10px;border:1px solid #e9ecef;">Banco: {bank}</td></tr>'
+            f'<tr style="background:#e8eef5;color:#1f3a5f;font-weight:700;">'
+            f'<td colspan="{len(phases) + 1}" style="padding:6px 10px;{bd}font-size:12px;">Banco: {bank}</td></tr>'
         )
         for product, phdata in (products or {}).items():
             cells = ''
@@ -440,10 +445,10 @@ def _avance_phase_table(matrix: dict, with_dates: bool = False) -> str:
                             f'<div style="font-size:10px;color:#64748b;font-weight:400;margin-top:2px;">{ds}</div>'
                         )
                 cells += (
-                    f'<td style="padding:6px 10px;border:1px solid #e9ecef;text-align:center;'
+                    f'<td style="padding:6px 9px;{bd}text-align:center;font-size:11px;'
                     f'color:{color};font-weight:{weight};">{val}{date_html}</td>'
                 )
-            html += f'<tr><td style="padding:6px 10px 6px 22px;border:1px solid #e9ecef;">{product}</td>{cells}</tr>'
+            html += f'<tr><td style="padding:6px 10px 6px 22px;{bd}font-size:11px;color:#334155;">{product}</td>{cells}</tr>'
     html += '</tbody></table>'
     return html
 
