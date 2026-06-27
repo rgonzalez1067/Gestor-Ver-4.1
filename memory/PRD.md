@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Vista Previa por plantilla en Configuración con TODAS las matrices estilizadas — Jun 2026
+**Mejora:** que la Vista Previa de plantillas en Configuración (sin abrir un proyecto) renderice todas las matrices con datos de ejemplo y el estilo corporativo. La Vista Previa ya existía en los 3 editores (EmailTemplatesEditor con `openPreview`; ClientTemplatesConfig y EntityTemplatesConfig vía `RichTextEditor showPreview`).
+**Cambios:** se actualizaron los HTML de ejemplo de las 4 matrices (Bancos_Productos, Sucursales, Avance_Proyecto y _Con_Fecha) al estilo corporativo (`#1f3a5f`/`#dbeafe`/`#d8dee9`/Arial) en `components/email/templateVariables.js::VARIABLE_PREVIEW_HTML` y en `RichTextEditor.jsx::DEFAULT_EXAMPLE_VALUES`; se agregó el sample faltante de `Matriz_Bancos_Productos` (bloques por banco) en DEFAULT_EXAMPLE_VALUES. Seguimiento_Evolutiva ya estaba corporativo.
+**QA:** testing_agent iteration_211 → **frontend 100% (3/3 pantallas, 5/5 matrices)**, 0 tokens literales filtrados, homologación visual confirmada.
+**Backlog (opcional):** DRY — reutilizar `VARIABLE_PREVIEW_HTML` dentro de `RichTextEditor` para evitar dos fuentes del mismo HTML de muestra (riesgo de divergencia futura). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Estética corporativa homologada en {Matriz_Sucursales} y {Matriz_Avance_Proyecto}(_Con_Fecha) — Jun 2026
 **Requerimiento:** aplicar la misma estética corporativa de {Matriz_Seguimiento_Evolutiva}/{Matriz_Bancos_Productos} a estas variables para uniformar las tablas de los correos institucionales.
 **Backend (`services/project_template_vars.py`):** `_build_stores_matrix_html` (Matriz_Sucursales) → caption "Sucursales y Cajas" + encabezado `#1f3a5f`, bordes `#d8dee9`, fila Total `#e8eef5`/`#1f3a5f`, Arial. `_avance_phase_table` (Matriz_Avance_Proyecto y _Con_Fecha) → encabezado `#1f3a5f`, bordes `#d8dee9`, banda de banco `#e8eef5`; se conserva el KPI "Avance Global" (`#f0f6ff`) y los colores de avance por celda (verde/ámbar/gris). Sin cambios de lógica/datos.
