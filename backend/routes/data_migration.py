@@ -276,6 +276,8 @@ async def import_preview(
 
     to_update = [k for k in incoming_keys if k in existing_keys]
     to_create = [k for k in incoming_keys if k not in existing_keys]
+    total_existing = await db[cfg["collection"]].count_documents({})
+    to_delete_count = max(0, total_existing - len(to_update))
 
     return {
         "module": module,
@@ -288,6 +290,8 @@ async def import_preview(
         "duplicates_in_file": duplicates_in_file,
         "to_create_count": len(to_create),
         "to_update_count": len(to_update),
+        "to_delete_count": to_delete_count,
+        "existing_count": total_existing,
         "to_create_sample": to_create[:5],
         "to_update_sample": to_update[:5],
     }
@@ -295,12 +299,15 @@ async def import_preview(
 
 # ==================== IMPORT: APPLY ====================
 
-async def _apply_upsert_docs(collection_name: str, key: str, docs: list, user: dict, sanitize_users: bool = False):
+async def _apply_upsert_docs(collection_name: str, key: str, docs: list, user: dict, sanitize_users: bool = False, replace: bool = False):
     """Upsert idempotente de una lista de documentos por su id natural.
-    Devuelve (inserted, updated, skipped, errors)."""
+    Si replace=True, además ELIMINA de la colección los documentos cuyo id no
+    está en el respaldo (réplica exacta del backup). Por seguridad, en la
+    colección 'users' nunca se elimina al usuario que ejecuta la importación.
+    Devuelve (inserted, updated, skipped, errors, deleted)."""
     collection = db[collection_name]
     now_iso = datetime.now(timezone.utc).isoformat()
-    inserted = updated = skipped = 0
+    inserted = updated = skipped = deleted = 0
     errors = []
 
     incoming_keys = [d[key] for d in docs if isinstance(d, dict) and d.get(key)]
@@ -342,13 +349,24 @@ async def _apply_upsert_docs(collection_name: str, key: str, docs: list, user: d
             skipped += 1
             errors.append({"key": d.get(key), "error": str(e)})
 
-    return inserted, updated, skipped, errors
+    # Réplica exacta: eliminar los registros que NO vienen en el respaldo.
+    if replace:
+        keep = set(incoming_keys)
+        if collection_name == "users" and user.get("user_id"):
+            keep.add(user.get("user_id"))  # nunca borrar al admin que importa
+        del_res = await collection.delete_many({key: {"$nin": list(keep)}})
+        deleted = del_res.deleted_count
+
+    return inserted, updated, skipped, errors, deleted
 
 
-async def _apply_import_payload(module: str, payload: dict, user: dict) -> dict:
+async def _apply_import_payload(module: str, payload: dict, user: dict, mode: str = "upsert") -> dict:
     """Aplica un payload de import para un módulo (simple o multi-colección user-permissions).
-    Hace upsert idempotente y registra bitácora. Devuelve un dict-resumen."""
+    mode='upsert' (por defecto): agrega/actualiza sin borrar.
+    mode='replace' (réplica exacta): además elimina los registros que NO están en el respaldo,
+    dejando la colección idéntica al backup. Registra bitácora. Devuelve un dict-resumen."""
     now_iso = datetime.now(timezone.utc).isoformat()
+    replace = (mode == "replace")
 
     # --- Módulo virtual multi-colección: Permisos de Usuarios (users + profiles) ---
     if module == USER_PERMISSIONS_MODULE:
@@ -358,29 +376,32 @@ async def _apply_import_payload(module: str, payload: dict, user: dict) -> dict:
                 detail=f"El archivo es del módulo '{payload.get('module')}', pero se está importando en '{module}'.",
             )
         cols = payload.get("collections") or {}
-        total_inserted = total_updated = total_skipped = 0
+        total_inserted = total_updated = total_skipped = total_deleted = 0
         breakdown = {}
         all_errors = []
         # Perfiles primero, luego usuarios (mantiene la relación profile_id consistente)
         for cname, ckey in USER_PERMISSIONS_COLLECTIONS:
             block = cols.get(cname) or {}
             cdocs = block.get("documents") or []
-            ins, upd, skp, errs = await _apply_upsert_docs(
-                cname, ckey, cdocs, user, sanitize_users=(cname == "users")
+            ins, upd, skp, errs, dele = await _apply_upsert_docs(
+                cname, ckey, cdocs, user, sanitize_users=(cname == "users"), replace=replace
             )
-            breakdown[cname] = {"inserted": ins, "updated": upd, "skipped": skp}
+            breakdown[cname] = {"inserted": ins, "updated": upd, "skipped": skp, "deleted": dele}
             total_inserted += ins
             total_updated += upd
             total_skipped += skp
+            total_deleted += dele
             all_errors.extend(errs)
 
         await db.bitacora.insert_one({
             "action": "data_migration_import",
             "module": module,
+            "mode": mode,
             "breakdown": breakdown,
             "inserted": total_inserted,
             "updated": total_updated,
             "skipped": total_skipped,
+            "deleted": total_deleted,
             "source_exported_at": payload.get("exported_at"),
             "source_exported_by": payload.get("exported_by"),
             "executed_by": user.get("email"),
@@ -391,31 +412,36 @@ async def _apply_import_payload(module: str, payload: dict, user: dict) -> dict:
         return {
             "module": module,
             "multi": True,
+            "mode": mode,
             "breakdown": breakdown,
             "inserted": total_inserted,
             "updated": total_updated,
             "skipped": total_skipped,
+            "deleted": total_deleted,
             "errors": all_errors[:20],
             "message": (
                 f"Permisos de Usuarios importados: {total_inserted} creado(s), "
-                f"{total_updated} actualizado(s), {total_skipped} omitido(s)."
+                f"{total_updated} actualizado(s), {total_skipped} omitido(s)"
+                + (f", {total_deleted} eliminado(s)." if replace else ".")
             ),
         }
 
     cfg = _get_module_or_404(module)
     docs = _validate_payload(payload, cfg, module)
 
-    inserted, updated, skipped, errors = await _apply_upsert_docs(
-        cfg["collection"], cfg["key"], docs, user, sanitize_users=(module == "users")
+    inserted, updated, skipped, errors, deleted = await _apply_upsert_docs(
+        cfg["collection"], cfg["key"], docs, user, sanitize_users=(module == "users"), replace=replace
     )
 
     await db.bitacora.insert_one({
         "action": "data_migration_import",
         "module": module,
         "collection": cfg["collection"],
+        "mode": mode,
         "inserted": inserted,
         "updated": updated,
         "skipped": skipped,
+        "deleted": deleted,
         "source_exported_at": payload.get("exported_at"),
         "source_exported_by": payload.get("exported_by"),
         "executed_by": user.get("email"),
@@ -426,11 +452,16 @@ async def _apply_import_payload(module: str, payload: dict, user: dict) -> dict:
     return {
         "module": module,
         "collection": cfg["collection"],
+        "mode": mode,
         "inserted": inserted,
         "updated": updated,
         "skipped": skipped,
+        "deleted": deleted,
         "errors": errors[:20],
-        "message": f"Migración completada: {inserted} creado(s), {updated} actualizado(s), {skipped} omitido(s).",
+        "message": (
+            f"Migración completada: {inserted} creado(s), {updated} actualizado(s), {skipped} omitido(s)"
+            + (f", {deleted} eliminado(s)." if replace else ".")
+        ),
     }
 
 
@@ -438,13 +469,15 @@ async def _apply_import_payload(module: str, payload: dict, user: dict) -> dict:
 async def import_apply(
     module: str,
     file: UploadFile = File(...),
+    mode: str = Form("upsert"),
     authorization: Optional[str] = Header(None),
 ):
-    """Aplica el import: hace upsert de cada documento por su id natural.
+    """Aplica el import. mode='upsert' agrega/actualiza; mode='replace' deja la
+    colección idéntica al respaldo (borra lo que no está en el backup).
     Conserva created_at original al actualizar; refresca updated_at."""
     user = await _require_admin(authorization)
     payload = await _read_payload(file)
-    return await _apply_import_payload(module, payload, user)
+    return await _apply_import_payload(module, payload, user, mode=mode)
 
 
 # =====================================================================
@@ -583,10 +616,12 @@ async def backup_center_import_preview_zip(
 @router.post("/admin/backup-center/import-zip")
 async def backup_center_import_zip(
     file: UploadFile = File(...),
+    mode: str = Form("upsert"),
     authorization: Optional[str] = Header(None),
 ):
     """Importación masiva: restaura TODAS las entidades contenidas en un ZIP de
-    respaldo, aplicando upsert idempotente por cada {module}.json encontrado."""
+    respaldo. mode='upsert' agrega/actualiza; mode='replace' deja cada entidad
+    idéntica al respaldo (réplica exacta, borra lo que no está en el backup)."""
     user = await _require_admin(authorization)
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Debe subir un archivo .zip de respaldo")
@@ -609,12 +644,13 @@ async def backup_center_import_zip(
             for module, name in entries:
                 try:
                     payload = json.loads(zf.read(name).decode("utf-8"))
-                    res = await _apply_import_payload(module, payload, user)
+                    res = await _apply_import_payload(module, payload, user, mode=mode)
                     results.append({
                         "module": module,
                         "inserted": res.get("inserted", 0),
                         "updated": res.get("updated", 0),
                         "skipped": res.get("skipped", 0),
+                        "deleted": res.get("deleted", 0),
                     })
                 except HTTPException as he:
                     errors.append({"module": module, "error": he.detail})
@@ -629,13 +665,16 @@ async def backup_center_import_zip(
     total_inserted = sum(r["inserted"] for r in results)
     total_updated = sum(r["updated"] for r in results)
     total_skipped = sum(r["skipped"] for r in results)
+    total_deleted = sum(r.get("deleted", 0) for r in results)
 
     await db.bitacora.insert_one({
         "action": "backup_center_import_zip",
+        "mode": mode,
         "modules": [r["module"] for r in results],
         "inserted": total_inserted,
         "updated": total_updated,
         "skipped": total_skipped,
+        "deleted": total_deleted,
         "errors": errors,
         "executed_by": user.get("email"),
         "executed_at": datetime.now(timezone.utc).isoformat(),
@@ -647,9 +686,11 @@ async def backup_center_import_zip(
         "total_inserted": total_inserted,
         "total_updated": total_updated,
         "total_skipped": total_skipped,
+        "total_deleted": total_deleted,
         "message": (
             f"Importación masiva completada: {len(results)} entidad(es), "
-            f"{total_inserted} creado(s), {total_updated} actualizado(s), {total_skipped} omitido(s)."
+            f"{total_inserted} creado(s), {total_updated} actualizado(s), {total_skipped} omitido(s)"
+            + (f", {total_deleted} eliminado(s)." if mode == "replace" else ".")
             + (f" {len(errors)} con error." if errors else "")
         ),
     }

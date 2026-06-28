@@ -1,0 +1,32 @@
+{
+  "summary": "Validation of new 'Reemplazo total (réplica exacta)' mode in Centro de Respaldos (backend + frontend). Backend pytest (4/4 PASS): import-preview now returns to_delete_count & existing_count; mode=replace on inventory-movements correctly deletes the 2 docs missing from a trimmed payload (151 -> 149, deleted=2); subsequent upsert with the full export restores the collection (149 -> 151, deleted=0); default mode (no Form field) defaults to upsert and never deletes; backup-center/import-zip also accepts mode and works in upsert with 0 deletions. Inventory-movements count finished back to original 151 (NO data loss). Frontend Playwright (PASS): /settings/backup-center loads; ImportDialog exposes data-testid 'import-replace-mode-checkbox', and after uploading the same JSON the preview shows 'A eliminar (no están en el respaldo): 0' (safe scenario); applying produces success toast '0 creado(s), 151 actualizado(s)' and the dialog closes. BulkImportDialog (data-testid 'bulk-import-dialog') exposes 'bulk-replace-mode-checkbox' and toggles correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "BackupCenter table", "issues": ["React hydration warnings: <span data-ve-dynamic='true' style={display:contents}> rendered between <tbody> and <tr> (visual-edit instrumentation injecting span as child of tbody). Pre-existing, not caused by this change; same warning was already documented in iteration_212. Suggest filtering data-ve-dynamic wrappers around <tr> rows."]}
+    ]
+  },
+  "critical_code_review_comments": [
+    "data_migration.py::_apply_upsert_docs (L302-360): protección del admin actual al borrar 'users' via user_id es correcta, pero solo cubre la colección 'users'. Si en el futuro 'replace' se permite sobre user-permissions (que toca users+profiles), revisar que el profile_id del admin también se preserve para no romper la sesión. NO-BLOCKER en este flujo porque user-permissions usa la rama multi-colección y ya invoca sanitize_users=True solo en users.",
+    "ImportDialog (BackupCenter.jsx L283): el toast solo añade ', X eliminado(s)' cuando data.deleted > 0. Con archivo idéntico (deleted=0) el texto 'eliminado(s)' NO aparece, lo cual es semánticamente correcto pero contradice ligeramente la nota del problem statement que sugería que el toast 'incluye eliminado(s)'. Comportamiento actual es preferible (no mostrar contadores en 0). Solo aclaración para evitar interpretaciones.",
+    "BackupCenter.jsx L302: el copy del párrafo del ImportDialog sigue diciendo solo 'upsert' aún cuando exista la opción de reemplazo total más abajo. Cosmético — podría mencionar ambos modos para reducir confusión del usuario.",
+    "Hidratación HTML (pre-existente, fuera de scope): wrapper <span data-ve-dynamic> rodeando <tr> dentro de <tbody> genera warnings de React en la consola al cargar /settings/backup-center. Mismo issue reportado en iteración 212; pendiente de un ticket aparte."
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_backup_center_replace_mode.py",
+    "/app/test_reports/pytest/backup_center_replace.xml"
+  ],
+  "action_items": [],
+  "updated_files": [
+    "/app/backend/tests/test_backup_center_replace_mode.py"
+  ],
+  "success_rate": {"backend": "100% (4/4 pytest)", "frontend": "100% (ImportDialog + BulkImportDialog testids + 'A eliminar' visible + apply OK)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "No se sembraron datos. Se usó la colección real inventory_movements (151 docs). Antes de pruebas destructivas se guardó snapshot full export en /tmp/inventory-movements-backup.json y, tras cada prueba, se re-importó en mode=upsert para restaurar el conteo a 151 (verificado via import-preview existing_count == 151).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El test pytest /app/backend/tests/test_backup_center_replace_mode.py es autónomo y seguro: hace export full, recorta 2 docs, prueba replace (deleted=2), restaura con upsert, prueba default-mode y backup-center/import-zip. Reusable para regresión del Centro de Respaldos. Para UI usar /settings/backup-center y data-testids: import-row-<module>, import-restore-dialog, import-replace-mode-checkbox, import-preview-summary, import-apply-btn, bulk-import-dialog, bulk-replace-mode-checkbox, bulk-import-cancel-btn. NUNCA probar replace sobre 'user-permissions' desde la UI: podría afectar usuarios/perfiles.",
+  "rca of the issue": "El bug original (Preview no replicaba Producción) se debía a que el flujo siempre usaba upsert (solo crea/actualiza, nunca borra). El fix introduce un parámetro 'mode' (Form field) en /admin/migration/{module}/import-apply y /admin/backup-center/import-zip; cuando mode='replace', _apply_upsert_docs ejecuta collection.delete_many({key: {$nin: incoming_keys}}) tras el upsert, dejando la colección idéntica al respaldo. _apply_upsert_docs protege al admin actual de borrarse a sí mismo (keep.add(user.user_id) si collection == 'users'). El preview ahora reporta to_delete_count (=existing - to_update) y existing_count, lo que permite al frontend renderizar 'A eliminar' y al usuario validar antes de aplicar. Tests confirman: 151→149 (replace borra 2) y 149→151 (upsert restaura). Comportamiento exacto solicitado por el usuario verificado."
+}

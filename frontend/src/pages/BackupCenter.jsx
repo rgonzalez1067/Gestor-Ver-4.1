@@ -242,8 +242,9 @@ function ImportDialog({ entity, onClose, onDone, fileRef }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [replaceMode, setReplaceMode] = useState(false);
 
-  useEffect(() => { setFile(null); setPreview(null); setBusy(false); }, [entity]);
+  useEffect(() => { setFile(null); setPreview(null); setBusy(false); setReplaceMode(false); }, [entity]);
 
   if (!entity) return null;
 
@@ -275,10 +276,11 @@ function ImportDialog({ entity, onClose, onDone, fileRef }) {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('mode', replaceMode ? 'replace' : 'upsert');
       const { data } = await api.post(`/admin/migration/${entity.module}/import-apply`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      toast.success(`${entity.label}: ${data.inserted} creado(s), ${data.updated} actualizado(s)${data.skipped ? `, ${data.skipped} omitido(s)` : ''}`);
+      toast.success(`${entity.label}: ${data.inserted} creado(s), ${data.updated} actualizado(s)${data.deleted ? `, ${data.deleted} eliminado(s)` : ''}${data.skipped ? `, ${data.skipped} omitido(s)` : ''}`);
       onDone?.();
       onClose();
     } catch (err) {
@@ -318,12 +320,23 @@ function ImportDialog({ entity, onClose, onDone, fileRef }) {
               <ul className="text-slate-600 space-y-0.5">
                 <li>A crear: <strong className="text-emerald-600">{preview.to_create_count}</strong></li>
                 <li>A actualizar: <strong className="text-blue-600">{preview.to_update_count}</strong></li>
+                {replaceMode && (
+                  <li>A eliminar (no están en el respaldo): <strong className="text-red-600">{preview.to_delete_count ?? 0}</strong></li>
+                )}
                 {preview.exported_at && (
                   <li className="text-xs text-slate-400 mt-1">Respaldo del: {new Date(preview.exported_at).toLocaleString()}</li>
                 )}
               </ul>
             </div>
           )}
+
+          <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5 cursor-pointer hover:bg-slate-50" data-testid="import-replace-mode-label">
+            <Checkbox checked={replaceMode} onCheckedChange={(v) => setReplaceMode(!!v)} data-testid="import-replace-mode-checkbox" className="mt-0.5" />
+            <span className="text-xs text-slate-600">
+              <strong className="text-slate-800">Reemplazo total (réplica exacta)</strong><br />
+              Deja <strong>{entity.label}</strong> idéntico al respaldo: además de crear/actualizar, <strong className="text-red-600">elimina</strong> los registros que no estén en el archivo. Úsalo para que este entorno quede exactamente igual al de origen.
+            </span>
+          </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy} data-testid="import-cancel-btn">Cancelar</Button>
@@ -346,8 +359,9 @@ function BulkImportDialog({ open, onClose, onDone, zipRef }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [replaceMode, setReplaceMode] = useState(false);
 
-  useEffect(() => { if (!open) { setFile(null); setPreview(null); setBusy(false); } }, [open]);
+  useEffect(() => { if (!open) { setFile(null); setPreview(null); setBusy(false); setReplaceMode(false); } }, [open]);
 
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
@@ -377,6 +391,7 @@ function BulkImportDialog({ open, onClose, onDone, zipRef }) {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('mode', replaceMode ? 'replace' : 'upsert');
       const { data } = await api.post('/admin/backup-center/import-zip', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -437,6 +452,14 @@ function BulkImportDialog({ open, onClose, onDone, zipRef }) {
               )}
             </div>
           )}
+
+          <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5 cursor-pointer hover:bg-slate-50" data-testid="bulk-replace-mode-label">
+            <Checkbox checked={replaceMode} onCheckedChange={(v) => setReplaceMode(!!v)} data-testid="bulk-replace-mode-checkbox" className="mt-0.5" />
+            <span className="text-xs text-slate-600">
+              <strong className="text-slate-800">Reemplazo total (réplica exacta)</strong><br />
+              Deja cada entidad idéntica al respaldo: además de crear/actualizar, <strong className="text-red-600">elimina</strong> los registros que no estén en el archivo. Úsalo para clonar exactamente el entorno de origen.
+            </span>
+          </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy} data-testid="bulk-import-cancel-btn">Cancelar</Button>
