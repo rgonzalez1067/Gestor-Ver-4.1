@@ -63,6 +63,21 @@ MODULES = {
         "key": "movement_id",
         "label": "Movimientos de Inventario",
     },
+    "inventory-warehouses": {
+        "collection": "warehouses",
+        "key": "warehouse_id",
+        "label": "Almacenes (Inventario)",
+    },
+    "inventory-serial-assignments": {
+        "collection": "serial_assignments",
+        "key": "assignment_id",
+        "label": "Asignación de Seriales (Inventario)",
+    },
+    "inventory-movement-audits": {
+        "collection": "inventory_movement_audits",
+        "key": "audit_id",
+        "label": "Auditoría de Movimientos (Inventario)",
+    },
     "clients": {
         "collection": "clients",
         "key": "client_id",
@@ -493,6 +508,9 @@ BACKUP_CENTER_ENTITIES = [
     {"module": "hardware", "label": "Bienes y Servicios"},
     {"module": "commercial-categories", "label": "Categoría Comercial"},
     {"module": "inventory-movements", "label": "Inventarios"},
+    {"module": "inventory-warehouses", "label": "Almacenes (Inventario)"},
+    {"module": "inventory-serial-assignments", "label": "Asignación de Seriales (Inventario)"},
+    {"module": "inventory-movement-audits", "label": "Auditoría de Movimientos (Inventario)"},
     {"module": "taller-equipos", "label": "Equipos en Reparación"},
     {"module": USER_PERMISSIONS_MODULE, "label": "Permisos de Usuarios"},
     {"module": "integrators", "label": "Integradores"},

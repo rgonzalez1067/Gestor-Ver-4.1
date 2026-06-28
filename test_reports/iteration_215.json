@@ -1,0 +1,43 @@
+{
+  "summary": "Iter215 — Validación de las 3 nuevas entidades de Inventario en el Centro de Respaldos (inventory-warehouses, inventory-serial-assignments, inventory-movement-audits). Pruebas backend con pytest (11/11 PASSED) cubren listado de entidades, export individual, preview/apply idempotente (upsert), export-zip + preview-zip + import-zip incluyendo las 3 nuevas, y replace reversible (delete=1 → restore via upsert) en inventory-warehouses. Pruebas frontend (/settings → 'Centro de Respaldos' → ruta /settings/backup-center) confirman que las 3 filas aparecen con sus conteos correctos (Almacenes=2, Seriales=6, Auditoría=3), con botones Exportar e Importar/Restaurar, y que el botón Respaldo Total (1 clic) sigue presente. NO DESTRUCTIVO: conteos finales preservados — warehouses=2, serial_assignments=6, audits=3, inventory_movements=130 (verificado vía GET /api/admin/backup-center/entities).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/settings — tarjeta 'Centro de Respaldos'",
+        "issues": [
+          "Texto desactualizado: el badge dice '9 entidades · JSON · upsert idempotente' pero el centro ahora gestiona 12 entidades (la propia grilla del Backup Center muestra '0 de 12 entidad(es) seleccionada(s)'). Archivo: /app/frontend/src/pages/Settings.jsx línea 977. Sugerencia: actualizar a '12 entidades · JSON · upsert idempotente' o usar el conteo dinámico que ya devuelve /api/admin/backup-center/entities.",
+          "El párrafo descriptivo (líneas 972-974 de Settings.jsx) lista las entidades incluidas y NO menciona las 3 nuevas de Inventario (Almacenes, Asignación de Seriales, Auditoría de Movimientos). Conviene añadirlas para que el usuario sepa que la restauración del Archivo de Inventarios queda completa."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backup_center_inventory_entities.py",
+    "/app/test_reports/pytest/iter215_results.xml"
+  ],
+  "action_items": [
+    "(Cosmético) Actualizar /app/frontend/src/pages/Settings.jsx línea 977: cambiar '9 entidades' por '12 entidades' (o conteo dinámico). Idealmente actualizar también el párrafo de descripción (lín. 972-974) para incluir las 3 nuevas entidades de Inventario: Almacenes, Asignación de Seriales, Auditoría de Movimientos.",
+    "Ningún cambio requerido en backend: los 3 endpoints export/preview/apply y los flujos ZIP funcionan correctamente para las 3 nuevas entidades."
+  ],
+  "critical_code_review_comments": [
+    "BackupCenter.jsx ya recibe la lista de entidades dinámicamente desde /admin/backup-center/entities, por lo que las 3 nuevas aparecen automáticamente — buen diseño.",
+    "data_migration.py: el orden de import en backup_center_import_zip ordena USER_PERMISSIONS_MODULE de último (correcto). Las 3 entidades nuevas de inventario son independientes entre sí y el orden alfabético del sort actual es adecuado.",
+    "Riesgo conceptual (NO BLOQUEANTE): la integridad referencial entre inventory_movements (warehouse_id) y warehouses no se valida en preview ni en apply. Si un usuario importa solo movements sin warehouses (o viceversa), el frontend de Inventario podría quedar inconsistente. El fix actual mitiga esto agregando las 3 entidades al Backup Center; sería ideal documentar en la UI que para restaurar 'Inventario completo' se requiere seleccionar las 4 entidades (movements + warehouses + serial-assignments + audits) o agruparlas con un toggle 'Inventario completo'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backup_center_inventory_entities.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login devuelve 'session_token', NO 'token'/'access_token')",
+  "seed_data_creation": "Ninguna. Todo el testing es no destructivo: cualquier export/import se hizo en mode=upsert contra el mismo archivo, y la única prueba de replace destructivo (1 doc menos en warehouses) fue restaurada inmediatamente con upsert del export completo. Conteos finales verificados: warehouses=2, serial_assignments=6, inventory_movement_audits=3, inventory_movements=130.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Las 3 nuevas entidades del Backup Center están operativas en backend y UI. Los conteos canónicos para verificar idempotencia: warehouses=2, serial_assignments=6, inventory_movement_audits=3, inventory_movements=130. Login admin devuelve session_token (no token). El badge en Settings.jsx aún dice '9 entidades' — pendiente actualizar a 12.",
+  "rca of the issue": "N/A — esta iteración valida un fix ya aplicado por E1. El bug original (restauración del Archivo de Inventarios incompleta) se debía a que el Centro de Respaldos solo cubría inventory_movements; al restaurar quedaban huérfanos los warehouse_id porque warehouses no se respaldaba. El fix añadió 3 entidades (warehouses, serial_assignments, inventory_movement_audits) a MODULES y BACKUP_CENTER_ENTITIES, reusando los flujos genéricos export/import/replace. Verificado: las 3 entidades exportan, importan, se incluyen en el ZIP, y el replace destructivo es reversible. Pendiente cosmético: el card de Settings sigue mostrando '9 entidades'."
+}
