@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Centro de Respaldos: "Respaldo Total" (1 clic) + Historial de auditoría — Jun 2026
+**Mejora:** botón "Respaldo Total (1 clic)" que exporta TODAS las entidades en un ZIP sin seleccionar nada, y una sección "Historial de Respaldos y Restauraciones" (auditoría con acción, entidad(es), resultado, usuario y fecha).
+**Backend (`routes/data_migration.py`):** nuevo `GET /admin/backup-center/history` (lee bitácora: exports/imports JSON y ZIP, ordena desc, máx 60; mapea módulos→etiquetas, kind export/import, scope entidad/masivo, mode, conteos). Los exports/imports ya registraban bitácora.
+**Frontend (`BackupCenter.jsx`):** `handleExportAll` (export-zip de todas), tabla de historial con badges (verde=Respaldo, azul=Restaurar, rojo=réplica), botón "Actualizar"; se refresca tras cada export/import.
+**QA:** testing_agent iteration_214 → **frontend 100%** (Respaldo Total descarga ZIP 9 entidades + toast; historial 60 filas con usuario/fecha; refresco; colores de badge). Backend curl 200. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Centro de Respaldos: modo "Reemplazo total (réplica exacta)" — Jun 2026
 **Bug reportado:** al restaurar un respaldo de Producción en Preview "no importaba ningún registro" aunque el mensaje decía que sí. **Causa raíz:** el import solo hacía *upsert* (crear/actualizar, nunca borrar), por lo que el entorno destino no quedaba idéntico al respaldo (el usuario esperaba una réplica exacta).
 **Fix (`routes/data_migration.py`):** nuevo parámetro `mode` (Form) en `import-apply` y `backup-center/import-zip`. `mode='replace'` ejecuta `delete_many({key: {$nin: incoming}})` tras el upsert (réplica exacta), protegiendo al admin que importa en la colección `users`. `import-preview` ahora devuelve `to_delete_count` y `existing_count`.

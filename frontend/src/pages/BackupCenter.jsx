@@ -52,7 +52,7 @@ export default function BackupCenter() {
     try {
       const { data } = await api.get('/admin/backup-center/history');
       setHistory(data.history || []);
-    } catch { /* historial es secundario; no bloquear la página */ }
+    } catch (err) { console.warn('No se pudo cargar el historial de respaldos:', err?.message); }
   }, []);
 
   useEffect(() => { loadEntities(); loadHistory(); }, [loadEntities, loadHistory]);
@@ -294,7 +294,7 @@ export default function BackupCenter() {
                       <td className="px-2 py-2.5 text-slate-700 max-w-[260px] truncate" title={h.modules_label}>{h.modules_label}</td>
                       <td className="px-2 py-2.5 text-xs text-slate-500">
                         {h.kind === 'export'
-                          ? `${h.count || (h.scope === 'masivo' ? h.modules_count + ' entidades' : 0)} reg.`
+                          ? (h.scope === 'masivo' ? `${h.modules_count} entidades` : `${h.count || 0} reg.`)
                           : `+${h.inserted} / ~${h.updated}${h.deleted ? ` / -${h.deleted}` : ''}${h.errors ? ` · ${h.errors} err` : ''}`}
                       </td>
                       <td className="px-2 py-2.5 text-slate-600 truncate max-w-[180px]" title={h.executed_by}>{h.executed_by}</td>
