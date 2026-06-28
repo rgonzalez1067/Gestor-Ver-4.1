@@ -558,6 +558,50 @@ async def backup_center_export_zip(payload: dict, authorization: Optional[str] =
     )
 
 
+@router.get("/admin/backup-center/history")
+async def backup_center_history(authorization: Optional[str] = Header(None)):
+    """Historial de respaldos/restauraciones (auditoría): exportaciones e
+    importaciones realizadas en el Centro de Respaldos, con fecha y usuario."""
+    await _require_admin(authorization)
+    actions = [
+        "data_migration_export", "data_migration_import",
+        "backup_center_export_zip", "backup_center_import_zip",
+    ]
+    label_map = {e["module"]: e["label"] for e in BACKUP_CENTER_ENTITIES}
+    rows = await db.bitacora.find(
+        {"action": {"$in": actions}}, {"_id": 0}
+    ).sort("executed_at", -1).limit(60).to_list(None)
+
+    history = []
+    for r in rows:
+        action = r.get("action", "")
+        is_export = "export" in action
+        is_zip = "zip" in action
+        mods = r.get("modules")
+        if mods:
+            modules_label = ", ".join(label_map.get(m, m) for m in mods)
+        else:
+            modules_label = label_map.get(r.get("module"), r.get("module") or "—")
+        history.append({
+            "action": action,
+            "kind": "export" if is_export else "import",
+            "scope": "masivo" if is_zip else "entidad",
+            "mode": r.get("mode"),
+            "modules_label": modules_label,
+            "modules_count": len(mods) if mods else 1,
+            "inserted": r.get("inserted", 0),
+            "updated": r.get("updated", 0),
+            "deleted": r.get("deleted", 0),
+            "skipped": r.get("skipped", 0),
+            "count": r.get("count", 0),
+            "executed_by": r.get("executed_by") or r.get("executed_by_name") or "—",
+            "executed_at": r.get("executed_at"),
+            "errors": len(r.get("errors") or []),
+        })
+    return {"history": history, "total": len(history)}
+
+
+
 def _module_from_zip_entry(name: str) -> Optional[str]:
     """Deriva el slug del módulo desde el nombre del archivo dentro del ZIP.
     Ignora _manifest.json, carpetas y archivos no-JSON."""

@@ -32,6 +32,7 @@ export default function BackupCenter() {
   const [busyZip, setBusyZip] = useState(false);
   const [importTarget, setImportTarget] = useState(null); // entity row
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [history, setHistory] = useState([]);
   const fileRef = useRef(null);
   const zipRef = useRef(null);
 
@@ -47,7 +48,14 @@ export default function BackupCenter() {
     }
   }, []);
 
-  useEffect(() => { loadEntities(); }, [loadEntities]);
+  const loadHistory = useCallback(async () => {
+    try {
+      const { data } = await api.get('/admin/backup-center/history');
+      setHistory(data.history || []);
+    } catch { /* historial es secundario; no bloquear la página */ }
+  }, []);
+
+  useEffect(() => { loadEntities(); loadHistory(); }, [loadEntities, loadHistory]);
 
   const allSelected = entities.length > 0 && selected.size === entities.length;
   const someSelected = selected.size > 0 && !allSelected;
@@ -68,8 +76,29 @@ export default function BackupCenter() {
       const res = await api.get(`/admin/migration/${entity.module}/export`, { responseType: 'blob' });
       downloadBlob(res.data, `${entity.module}_export_${tsNow()}.json`, 'application/json');
       toast.success(`${entity.label} exportado correctamente`);
+      loadHistory();
     } catch (err) {
       toast.error(`Error al exportar ${entity.label}: ${err.response?.data?.detail || err.message}`);
+    }
+  };
+
+  const handleExportAll = async () => {
+    if (entities.length === 0) return;
+    setBusyZip(true);
+    try {
+      const allMods = entities.map((e) => e.module);
+      const res = await api.post(
+        '/admin/backup-center/export-zip',
+        { modules: allMods },
+        { responseType: 'blob' },
+      );
+      downloadBlob(res.data, `respaldo_total_${tsNow()}.zip`, 'application/zip');
+      toast.success(`Respaldo TOTAL generado: ${allMods.length} entidad(es) en un ZIP`);
+      loadHistory();
+    } catch (err) {
+      toast.error(`Error en el respaldo total: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setBusyZip(false);
     }
   };
 
@@ -87,6 +116,7 @@ export default function BackupCenter() {
       );
       downloadBlob(res.data, `backup_center_${tsNow()}.zip`, 'application/zip');
       toast.success(`Respaldo de ${selected.size} entidad(es) generado en ZIP`);
+      loadHistory();
     } catch (err) {
       toast.error(`Error en la exportación masiva: ${err.response?.data?.detail || err.message}`);
     } finally {
@@ -133,6 +163,16 @@ export default function BackupCenter() {
             {selected.size} de {entities.length} entidad(es) seleccionada(s)
           </p>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportAll}
+              disabled={busyZip || entities.length === 0}
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              data-testid="export-all-btn"
+            >
+              {busyZip ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <DatabaseBackup size={16} className="mr-1.5" />}
+              Respaldo Total (1 clic)
+            </Button>
             <Button
               variant="outline"
               onClick={() => setBulkImportOpen(true)}
@@ -219,19 +259,67 @@ export default function BackupCenter() {
             </tbody>
           </table>
         </div>
+
+        {/* Historial de respaldos / restauraciones (auditoría) */}
+        <div className="mt-8" data-testid="backup-history-section">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Historial de Respaldos y Restauraciones</h2>
+            <button onClick={loadHistory} className="text-xs text-indigo-600 hover:text-indigo-800" data-testid="backup-history-refresh">Actualizar</button>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            {history.length === 0 ? (
+              <p className="text-sm text-slate-400 px-4 py-6 text-center" data-testid="backup-history-empty">
+                Aún no hay actividad registrada. Las exportaciones e importaciones aparecerán aquí.
+              </p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wide">
+                    <th className="px-4 py-2.5 text-left font-semibold">Acción</th>
+                    <th className="px-2 py-2.5 text-left font-semibold">Entidad(es)</th>
+                    <th className="px-2 py-2.5 text-left font-semibold w-44">Resultado</th>
+                    <th className="px-2 py-2.5 text-left font-semibold w-48">Usuario</th>
+                    <th className="px-4 py-2.5 text-left font-semibold w-40">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h, i) => (
+                    <tr key={i} className="border-b border-slate-100 last:border-0" data-testid={`backup-history-row-${i}`}>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${h.kind === 'export' ? 'bg-emerald-100 text-emerald-700' : (h.mode === 'replace' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700')}`}>
+                          {h.kind === 'export' ? 'Respaldo' : (h.mode === 'replace' ? 'Restaurar (réplica)' : 'Restaurar')}
+                          {h.scope === 'masivo' ? ' · masivo' : ''}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2.5 text-slate-700 max-w-[260px] truncate" title={h.modules_label}>{h.modules_label}</td>
+                      <td className="px-2 py-2.5 text-xs text-slate-500">
+                        {h.kind === 'export'
+                          ? `${h.count || (h.scope === 'masivo' ? h.modules_count + ' entidades' : 0)} reg.`
+                          : `+${h.inserted} / ~${h.updated}${h.deleted ? ` / -${h.deleted}` : ''}${h.errors ? ` · ${h.errors} err` : ''}`}
+                      </td>
+                      <td className="px-2 py-2.5 text-slate-600 truncate max-w-[180px]" title={h.executed_by}>{h.executed_by}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500">{h.executed_at ? new Date(h.executed_at).toLocaleString() : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
       </div>
 
       <ImportDialog
         entity={importTarget}
         onClose={() => setImportTarget(null)}
-        onDone={loadEntities}
+        onDone={() => { loadEntities(); loadHistory(); }}
         fileRef={fileRef}
       />
 
       <BulkImportDialog
         open={bulkImportOpen}
         onClose={() => setBulkImportOpen(false)}
-        onDone={loadEntities}
+        onDone={() => { loadEntities(); loadHistory(); }}
         zipRef={zipRef}
       />
     </div>

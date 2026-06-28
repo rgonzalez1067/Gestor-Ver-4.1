@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only QA of Backup Center improvements (Respaldo Total 1-click + Historial de auditoría). Logged in as admin (rgonzalez@megasoft.com.ve / admin123) and validated /settings/backup-center. ALL acceptance criteria passed: (1) 'Respaldo Total (1 clic)' button [data-testid=export-all-btn] present and on click downloads respaldo_total_<ts>.zip (187,205 bytes) without requiring any selection, and shows success toast 'Respaldo TOTAL generado: 9 entidad(es)...'; (2) Section [data-testid=backup-history-section] renders a 5-column table (Acción, Entidad(es), Resultado, Usuario, Fecha) populated with 60 audit rows, each with data-testid backup-history-row-<i>; (3) After the click, history was refreshed and the new row at the top showed 'Respaldo · masivo', 9 entidades listadas, executed_by=rgonzalez@megasoft.com.ve and a current date (6/28/2026, 3:28:28 PM); the 'Actualizar' button [data-testid=backup-history-refresh] is present and reloads the list; (4) Badge colors are correct: Respaldo => emerald-100/emerald-700 (verde), Restaurar => blue (azul), Restaurar (réplica) => red (rojo). Entry from /settings shows 'Centro de Respaldos' anchor. The /settings route is the canonical path; direct GET /backup-center is NOT registered (router only mounts /settings/backup-center) — minor copy mismatch vs. the problem statement.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "BackupCenter table (and Dashboard / Settings tables)", "issues": ["Pre-existing React hydration warnings: <span data-ve-dynamic='true' style={display:contents}> wrapper rendered between <tbody> and <tr> by visual-edit instrumentation. Same issue already documented in iteration_212 and iteration_213, NOT caused by this change. Suggest filtering data-ve-dynamic wrappers when the parent is <tbody>."]}
+    ]
+  },
+  "critical_code_review_comments": [
+    "Routing: App.js only registers '/settings/backup-center'. The problem statement and toast guidance reference '/backup-center' as an alternative direct path; visiting it produces a React Router 'No routes matched' warning. Either add a redirect Route path='/backup-center' -> '/settings/backup-center' or update the docs/labels.",
+    "BackupCenter.jsx L25 tsNow() helper produces a confusing filename suffix (e.g. 'respaldo_total_2026-06-2815282.zip'). The slice(0,19).replace(/[:T]/g,'').slice(0,15) collapses the hour/minute/second separators making the timestamp hard to read. Cosmetic — suggest formatting as YYYYMMDD_HHMMSS.",
+    "BackupCenter.jsx L297: when h.scope === 'masivo' the Resultado column shows '<modules_count> entidades reg.' — the word 'reg.' is misleading for a bulk export (it's entidades, not registros). Suggest dropping ' reg.' for masivo or showing total record count separately.",
+    "BackupCenter.jsx L51 loadHistory() swallows errors silently ('historial es secundario'). At minimum log the error to console.warn so QA / support can diagnose stale/empty history without backend logs."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Add a Route alias '/backup-center' -> '/settings/backup-center' to satisfy the documented direct URL.",
+    "(Optional cosmetic) Improve ZIP filename timestamp formatting and 'masivo' resultado label."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (per request)", "frontend": "100% (export-all download + toast + history row + badge colors + refresh button all verified)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguno. Solo se ejecutó una exportación (no destructiva). El historial real ya tenía 60 entradas antes y después (la nueva entrada empuja la última fuera de la ventana de 60 que devuelve el backend).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Ruta canónica: /settings/backup-center. data-testids relevantes: backup-center-page, export-all-btn, backup-history-section, backup-history-refresh, backup-history-row-<i>, backup-row-<module>, export-row-<module>, import-row-<module>, import-zip-btn, export-selected-btn, select-all-checkbox, row-checkbox-<module>, import-restore-dialog, import-replace-mode-checkbox, import-apply-btn, bulk-import-dialog, bulk-replace-mode-checkbox. El historial backend devuelve 60 filas máx; tras un nuevo respaldo, row[0] es el más reciente (orden DESC por executed_at). Para evitar tocar datos, usar SOLO 'Respaldo Total' (exportación pura) — NO usar Restaurar/Replace en QA salvo con respaldo previo."
+}
