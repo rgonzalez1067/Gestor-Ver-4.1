@@ -3,6 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug resuelto — Restauración de Inventario incompleta (faltaban Almacenes/Seriales) — Jun 2026
+**Reporte:** "la restauración del Archivo de Inventarios no funciona" (el resumen decía "A actualizar: 130" pero el inventario no se reproducía). **Causa raíz:** el Centro de Respaldos solo respaldaba `inventory_movements`; la pantalla de Inventario depende también de `warehouses` (almacenes), `serial_assignments` y la auditoría. Al restaurar solo los movimientos, los `warehouse_id` quedaban huérfanos y el stock no se veía.
+**Fix (`routes/data_migration.py`):** se agregaron 3 entidades al Centro de Respaldos (MODULES + BACKUP_CENTER_ENTITIES), reusando los flujos genéricos export/import/replace: `inventory-warehouses` (Almacenes, key warehouse_id), `inventory-serial-assignments` (key assignment_id), `inventory-movement-audits` (key audit_id). El "Respaldo Total" y el ZIP ahora las incluyen, por lo que un restore total reproduce el inventario completo con IDs consistentes.
+**Frontend:** la grilla se llena dinámicamente desde `/entities` (las nuevas aparecen solas); se actualizó el copy del card en `Settings.jsx` (12 entidades, menciona Inventario completo + modo réplica).
+**QA:** testing_agent iteration_215 → **backend 100% (11/11 pytest)** + **frontend 100%** (3 filas nuevas con conteos, Respaldo Total, replace reversible). Sin pérdida de datos. Test: `tests/test_backup_center_inventory_entities.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+**Recomendación al usuario:** para clonar el inventario entre entornos, usar "Respaldo Total" en origen y restaurar el ZIP en destino con "Reemplazo total" (incluye almacenes+movimientos+seriales).
+
+
 ### Centro de Respaldos: "Respaldo Total" (1 clic) + Historial de auditoría — Jun 2026
 **Mejora:** botón "Respaldo Total (1 clic)" que exporta TODAS las entidades en un ZIP sin seleccionar nada, y una sección "Historial de Respaldos y Restauraciones" (auditoría con acción, entidad(es), resultado, usuario y fecha).
 **Backend (`routes/data_migration.py`):** nuevo `GET /admin/backup-center/history` (lee bitácora: exports/imports JSON y ZIP, ordena desc, máx 60; mapea módulos→etiquetas, kind export/import, scope entidad/masivo, mode, conteos). Los exports/imports ya registraban bitácora.

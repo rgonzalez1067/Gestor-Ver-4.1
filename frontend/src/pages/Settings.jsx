@@ -970,11 +970,13 @@ export const Settings = () => {
                     </h2>
                     <p className="text-sm text-slate-600 max-w-2xl">
                       Exporta (Backup) e importa (Restauración) de forma centralizada los datos maestros:
-                      Clientes, Bancos, Medios de Pago, Bienes y Servicios, Categoría Comercial, Inventarios,
-                      Equipos en Reparación, Permisos de Usuarios e Integradores. Exportación masiva en ZIP.
+                      Clientes, Bancos, Medios de Pago, Bienes y Servicios, Categoría Comercial, Inventarios
+                      (Movimientos, Almacenes, Asignación de Seriales y Auditoría), Equipos en Reparación,
+                      Permisos de Usuarios e Integradores. Exportación masiva en ZIP y modo "Reemplazo total"
+                      para dejar un entorno idéntico al respaldo.
                     </p>
                     <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
-                      9 entidades · JSON · upsert idempotente
+                      12 entidades · JSON · upsert / réplica
                     </Badge>
                   </div>
                 </div>
