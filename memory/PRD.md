@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Centro de Respaldos: modo "Reemplazo total (réplica exacta)" — Jun 2026
+**Bug reportado:** al restaurar un respaldo de Producción en Preview "no importaba ningún registro" aunque el mensaje decía que sí. **Causa raíz:** el import solo hacía *upsert* (crear/actualizar, nunca borrar), por lo que el entorno destino no quedaba idéntico al respaldo (el usuario esperaba una réplica exacta).
+**Fix (`routes/data_migration.py`):** nuevo parámetro `mode` (Form) en `import-apply` y `backup-center/import-zip`. `mode='replace'` ejecuta `delete_many({key: {$nin: incoming}})` tras el upsert (réplica exacta), protegiendo al admin que importa en la colección `users`. `import-preview` ahora devuelve `to_delete_count` y `existing_count`.
+**Frontend (`BackupCenter.jsx`):** checkbox "Reemplazo total (réplica exacta)" en el diálogo por entidad (`import-replace-mode-checkbox`) y en el ZIP masivo (`bulk-replace-mode-checkbox`); el resumen muestra "A eliminar"; el toast reporta eliminados. Default sigue siendo upsert (no destructivo).
+**QA:** testing_agent iteration_213 → **backend 100% (4/4 pytest)** (151→149 replace borra 2; 149→151 upsert restaura; default no borra; ZIP acepta mode) + **frontend 100%** (checkboxes, "A eliminar", apply OK). Sin pérdida de datos. Test reusable: `tests/test_backup_center_replace_mode.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Razón Social y Nombre de Fantasía junto al RIF en Seguimiento Multi-RIF — Jun 2026
 **Requerimiento:** mostrar Razón Social (legal_name) y Nombre de Fantasía (fantasy_name) junto al RIF en el árbol "Seguimiento Multi-RIF · 3 Niveles" (`MultiRifTree`), manteniendo el diseño de tarjeta. Orden: RIF → Razón Social → Nombre de Fantasía → meta. Sólo cuando el RIF fue validado (tiene client_id); si no, badge "No Validado". Aplica a proyectos de Cotización y Proyecto Directo.
 **Backend (`routes/projects.py::get_project`):** enriquece cada `rif` con `legal_name`/`fantasy_name` buscando el cliente por `client_id` (read-time; funciona para proyectos existentes y ambos canales, ya que los dos persisten client_id en cada RIF validado).

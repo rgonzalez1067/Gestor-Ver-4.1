@@ -299,7 +299,8 @@ function ImportDialog({ entity, onClose, onDone, fileRef }) {
         <div className="space-y-3 min-w-0">
           <p className="text-sm text-slate-600">
             Suba el archivo de respaldo <strong>.json</strong> de <strong>{entity.label}</strong>.
-            Los registros existentes se actualizarán y los nuevos se crearán (upsert).
+            Por defecto se actualizan los existentes y se crean los nuevos (upsert). Para dejar este
+            entorno <strong>idéntico al respaldo</strong>, active "Reemplazo total" abajo.
           </p>
           <input ref={fileRef} type="file" accept=".json" onChange={handleFile} className="hidden" />
           <Button
@@ -417,7 +418,8 @@ function BulkImportDialog({ open, onClose, onDone, zipRef }) {
         <div className="space-y-3 min-w-0">
           <p className="text-sm text-slate-600">
             Suba el archivo <strong>.zip</strong> de respaldo (generado por "Ejecutar Exportación
-            Seleccionados"). Se restaurarán todas las entidades contenidas mediante upsert idempotente.
+            Seleccionados"). Por defecto se restauran todas las entidades mediante upsert. Para clonar
+            exactamente el entorno de origen, active "Reemplazo total" abajo.
           </p>
           <input ref={zipRef} type="file" accept=".zip" onChange={handleFile} className="hidden" />
           <Button
