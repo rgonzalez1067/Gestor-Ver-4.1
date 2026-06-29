@@ -10,8 +10,10 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 - `services/pdf_report.py`: + helper `build_csv` (UTF-8 BOM).
 - `routes/services.py::export_services_pdf` y `routes/hardware.py::export_hardware_pdf` migrados a `build_corporate_pdf` (banks.py ya estaba migrado). Excel de hardware ya funcionaba.
 - `routes/commercial_categories.py`: nuevos `GET /commercial-categories/export/{pdf,excel,csv}` (helper `_categories_export_rows`).
+- `routes/dashboard.py::export_clients_pdf` (Tabla de Clientes, `/clients/export/pdf`): migrado de reportlab plano a `build_corporate_pdf` (faltaban logo/encabezado/orientación). title='Clientes', col_ratios=[1.4,2.6,2,1.2,2].
 **Fix frontend (`CommercialCategories.jsx`):** dropdown "Exportar" (PDF/Excel/CSV) con `cc-export-btn`, `cc-export-pdf-btn`, `cc-export-excel-btn`, `cc-export-csv-btn`; handler `exportFile(format)` con descarga blob.
-**QA:** curl → los 7 endpoints HTTP 200 con firma válida (banks/services/hardware PDF, hardware xlsx, categorías pdf/xlsx/csv). Screenshot UI: dropdown visible con 3 opciones. ⚠️ PREVIEW; requiere REDEPLOY.
+**QA:** testing_agent iteration_220 → **backend 100% (11/11 pytest)**. Clientes PDF: 200, %PDF, 95KB, logo `/Image` embebido + título 'Clientes' + 'Helvetica-Bold' (header). Regresión OK en los 7 endpoints (banks/services/hardware PDF, hardware xlsx, categorías pdf/xlsx/csv). ⚠️ PREVIEW; requiere REDEPLOY.
+
 
 
 
