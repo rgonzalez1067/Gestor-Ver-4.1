@@ -3,7 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Reporte de Carga de Proyectos: columna "% Avance" junto al Estado — Jun 2026
+### Panel de Proyectos: Tooltip de "Resumen de Carga" por Implementador (HoverCard) — Jun 2026
+**Requerimiento:** al pasar el cursor sobre el nombre del implementador en la grilla de /projects, mostrar un popover flotante (HoverCard, 300ms de retraso, cierre limpio) con 4 métricas: Proyectos activos, Cajas pendientes, PVV pendientes y % Global de Avance. Estrategia A (carga bajo demanda).
+**Backend (`routes/projects.py`):** nuevo `GET /projects/implementers/{user_id}/workload-summary` → consulta solo los proyectos del implementador, filtra ACTIVOS (status ∉ {Culminado, Anulado}) y devuelve `{projects_count, cajas_pendientes (= asignadas−configuradas), pvv_pendientes (= asignados−configurados), avance_global (promedio %)}`. Usa `compute_project_metrics` + `_calculate_rollup_progress/_calculate_single_progress`. Resiliente: id inexistente → todo en 0, sin 500.
+**Frontend (`components/projects/ImplementerWorkloadHover.jsx` + `pages/Projects.jsx`):** HoverCard (Radix, openDelay=300, closeDelay=80) con fetch on-open cacheado por fila; encabezado degradado indigo/violeta, 4 métricas con íconos lucide + barra de avance. "Sin asignar" → texto plano sin hover. testids: `implementer-name-<id>`, `workload-popover-<id>`, `workload-loading`, `workload-avance`.
+**QA:** testing_agent iteration_221 → **backend 100% (4/4 pytest)** (shape, resiliencia ceros, auth, precisión projects_count) + **frontend 100%** (90 triggers, popover on-hover con las 4 etiquetas + barra, fetch 200, cierre limpio, caché en re-hover, Sin asignar sin popover). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** agregar el % de avance de cada proyecto en el Reporte de Carga (`GET /projects/reports/workload-pdf`), al lado del Estado.
 **Fix (`routes/projects.py::projects_workload_pdf`):** la proyección ahora incluye `stores`/`is_multistore`; en el pre-cálculo por proyecto se computa `_avance` = `global_progress` (vía `_calculate_rollup_progress` si hay tiendas, si no `_calculate_single_progress`) y se renderiza la celda `_avance_html` con código de color (verde ≥100%, ámbar >0%, gris 0%). Se agregó la columna "% Avance" (col `c-avance`, 7%) entre "Estado" y "Días háb." en ambos modos de agrupación (`implementer` y `type`); anchos de columnas rebalanceados.
 **QA:** curl → ambos modos HTTP 200, PDF válido; extracción confirma los valores `%` por fila (0%, 100%, …). ⚠️ PREVIEW; requiere REDEPLOY.
