@@ -3874,3 +3874,12 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Verificado por testing_agent (iter218, 100% backend + frontend): default=4 filas clasificadas, toggle→271; wizard nuevo integrador exige Responsable y bloquea creación; flujos existentes lo dejan opcional. Sin residuos de prueba.
 - NOTA: cambios de backend (models.py/routes); requieren RE-DESPLEGAR para surtir efecto en PRODUCCIÓN.
 
+
+**Bugfix: mensaje personalizado en notificación de Nuevo Proyecto de Integración · 2026-06-29:**
+- Síntomas: (1) el campo "Comentarios adicionales" del modal "Notificar Nuevo Proyecto" colapsaba el servidor al superar ~50 chars y bloqueaba el envío; (2) el mensaje no llegaba al correo del destinatario.
+- Causa raíz: el mensaje viajaba en un HEADER HTTP (`x-custom-message`), que se rompe con saltos de línea/acentos (error 500) y, en la plantilla activa de BD (que usa `{Firma_Notificacion_Global}` pero NO `{comentarios_personalizados}`), nunca se inyectaba → se perdía.
+- Fix backend (routes/integrators.py): el endpoint `notify-new-project` ahora recibe `NotifyProjectPayload` (custom_message, additional_recipients) en BODY JSON (fallback a headers legacy); valida `len>300` → HTTP 400 "El mensaje no puede exceder los 300 caracteres". Construye `info_block` con título en negrita "Información adicional:" + mensaje (html.escape). Inyección garantizada vía nuevo parámetro `prepend_signature_html` de `dispatch_other_action` (other_actions_engine.py), que antepone el bloque al valor de `{Firma_Notificacion_Global}` → queda justo encima de la firma. También setea `comentarios_personalizados=info_block` para plantillas legacy.
+- Fix frontend (Integrators.jsx): textarea con `maxLength=300` + `slice(0,300)` + contador "N / 300" (rojo al llegar a 300); `sendNewProjectNotification` envía el body JSON.
+- Verificado: testing_agent iter219 backend 4/4 (250 chars+acentos+\n→200; 350→400 controlado); render directo confirma "Información adicional" inmediatamente antes de la firma; self-test UI: modal abre, pega 350→trunca a 300, contador "300/300" en rojo. Integrador de prueba eliminado.
+- NOTA: cambios de backend; requieren RE-DESPLEGAR para PRODUCCIÓN.
+
