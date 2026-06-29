@@ -3859,3 +3859,10 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Añadido toggle "Solo Activos / Ver Todos" en la barra de filtros (data-testid=`toggle-show-all`) que controla `show_all` del API. Por defecto oculta proyectos Cerrados.
 - Verificado E2E (screenshot/playwright): 270 filas renderizan con etiquetas de alcance (NUEVO INTEGRADOR azul); cerrar proyecto lo retira de la vista activa; al activar "Ver Todos" reaparece con etiqueta CERRADO. Proyecto de prueba (int_a54da953c960) restaurado tras la validación.
 
+
+**Bugfix: etiqueta "NUEVO INTEGRADOR" contaminaba registros legacy · 2026-06-29:**
+- Síntoma (reportado por usuario): TODOS los ~269 integradores mostraban el badge azul "NUEVO INTEGRADOR", mezclando registros existentes/legacy con los verdaderos nuevos.
+- Causa raíz (hallada por testing_agent, iter216): los modelos Pydantic `Integrator.project_scope` e `IntegratorCreate.project_scope` (models.py L406/L430) tenían default `"new"`. Como GET /api/integrators usa `response_model=List[Integrator]`, FastAPI inyectaba `project_scope="new"` en cada doc legacy sin el campo, derrotando el guard del frontend.
+- Fix: cambiado el default de ambos modelos a `None`. El POST /integrators ya clasifica el scope explícitamente (routes L154), así que crear nuevos integradores sigue asignando 'new'. Frontend: fallback de scopeMeta sin label para legacy; filtro de Alcance estricto `(intg.project_scope||'') !== filterScope` + opción "Nuevos Componentes".
+- Verificado (curl + testing_agent iter217, 100%): API devuelve 268 null + 1 expansion; la grilla renderiza solo 1 badge (AMPLIACIÓN, Corporación XETUX), 268 legacy sin etiqueta; filtros Nuevos=0/Componentes=0/Ampliados=1; toggle Ver Todos OK.
+
