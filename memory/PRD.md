@@ -3852,3 +3852,10 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Fix: agregado `MODULE_CATALOG_READ_GRANTS` en el middleware — los módulos de creación (proyectos_directos, cotizaciones, proyectos) otorgan READ (GET) implícito sobre los catálogos que necesitan consultar: clientes, bancos, integradores, dispositivos, medios_pago. Solo aplica a GET (la escritura sigue bloqueada). 
 - Validado E2E (curl) con perfil reproducido (pd=edit, catálogos=none): GET /hardware,/banks,/integrators,/clients,/services → 200; POST /banks → 403 (read-only OK); GET módulo no-catálogo → no concedido; POST /direct-projects → 422 (módulo propio OK). Perfil de prueba restaurado tras validar.
 - NOTA: el fix es backend; surte efecto al RE-DESPLEGAR. Password de Jrojas@megasoft.com.ve reseteado a Test1234! (hash previo desactualizado) — ver test_credentials.md.
+
+**Refactor Integradores — Frontend (cierre de tarea) · 2026-06-29:**
+- Completado el frontend de la Refactorización del Módulo Integradores (backend ya estaba listo: clasificación auto new/component/expansion, init certs "P", contactos, endpoint /close).
+- Fix bloqueante: el ícono `Lock` se usaba en el botón "Cerrar Proyecto" pero NO estaba importado → la página de Integradores crasheaba al renderizar filas activas. Agregado a los imports de lucide-react (junto con Eye/EyeOff).
+- Añadido toggle "Solo Activos / Ver Todos" en la barra de filtros (data-testid=`toggle-show-all`) que controla `show_all` del API. Por defecto oculta proyectos Cerrados.
+- Verificado E2E (screenshot/playwright): 270 filas renderizan con etiquetas de alcance (NUEVO INTEGRADOR azul); cerrar proyecto lo retira de la vista activa; al activar "Ver Todos" reaparece con etiqueta CERRADO. Proyecto de prueba (int_a54da953c960) restaurado tras la validación.
+

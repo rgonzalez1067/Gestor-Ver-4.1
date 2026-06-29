@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Calendar } from '../components/ui/calendar';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout, Lock, Eye, EyeOff } from 'lucide-react';
 import { EntityEmailDialog } from '../components/EntityEmailDialog';
 import PurgeIntegratorsDialog from '../components/PurgeIntegratorsDialog';
 import api from '../utils/api';
@@ -1235,6 +1235,17 @@ export const Integrators = () => {
                   <SelectItem value="expansion">Proyectos Ampliados</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant={showAll ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowAll(v => !v)}
+                className={`h-9 text-xs ${showAll ? 'bg-slate-700 hover:bg-slate-800 text-white' : 'border-slate-300 text-slate-600'}`}
+                data-testid="toggle-show-all"
+                title={showAll ? 'Ocultar proyectos cerrados' : 'Mostrar también los proyectos cerrados'}
+              >
+                {showAll ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}
+                {showAll ? 'Ver Todos' : 'Solo Activos'}
+              </Button>
               {(filterStatus || filterType || filterIntType || filterModality || filterGestor || filterScope || searchTerm) && (
                 <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setFilterStatus('all'); setFilterType('all'); setFilterIntType('all'); setFilterModality('all'); setFilterGestor('all'); setFilterScope('all'); setSearchTerm(''); }} data-testid="clear-filters-btn">Limpiar</Button>
               )}
