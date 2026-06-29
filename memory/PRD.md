@@ -3,7 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Panel de Proyectos: Tooltip de "Resumen de Carga" por Implementador (HoverCard) — Jun 2026
+### Tooltip de Carga por Implementador: fix "no se ve para algunos" + Asignadas/Pendientes — Jun 2026
+**Reporte:** para algunos implementadores el resumen no se podía ver; y solicitud de mostrar Cajas/PVV **Asignadas y Pendientes** (antes solo Pendientes).
+**Causa raíz (bug):** el endpoint consultaba solo por `assigned_to_user_id`; proyectos legacy/huérfanos con user_id ausente o desactualizado no resolvían el resumen.
+**Fix backend (`routes/projects.py::implementer_workload_summary`):** acepta `?name=` y hace **fallback por `assigned_to_name`** cuando el user_id es placeholder (`_`,`none`,`null`,`undefined`) o no devuelve proyectos. Respuesta ampliada: `projects_count, cajas_asignadas, cajas_pendientes, pvv_asignados, pvv_pendientes, avance_global`.
+**Frontend (`ImplementerWorkloadHover.jsx`):** pasa `name` al fetch; `DualMetric` muestra Cajas (Asig./Pend.) y PVV (Asig./Pend.) + % avance con barra. testids `workload-cajas-asignadas/-pendientes`, `workload-pvv-asignados/-pendientes`.
+**QA:** testing_agent iteration_222 → **backend 100% (7/7)** (shape, equivalencia fallback-por-nombre vs user_id, placeholders, resiliencia ceros, **todos** los implementadores devuelven 200, pend ≤ asig) + **frontend 100%**. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** al pasar el cursor sobre el nombre del implementador en la grilla de /projects, mostrar un popover flotante (HoverCard, 300ms de retraso, cierre limpio) con 4 métricas: Proyectos activos, Cajas pendientes, PVV pendientes y % Global de Avance. Estrategia A (carga bajo demanda).
 **Backend (`routes/projects.py`):** nuevo `GET /projects/implementers/{user_id}/workload-summary` → consulta solo los proyectos del implementador, filtra ACTIVOS (status ∉ {Culminado, Anulado}) y devuelve `{projects_count, cajas_pendientes (= asignadas−configuradas), pvv_pendientes (= asignados−configurados), avance_global (promedio %)}`. Usa `compute_project_metrics` + `_calculate_rollup_progress/_calculate_single_progress`. Resiliente: id inexistente → todo en 0, sin 500.
 **Frontend (`components/projects/ImplementerWorkloadHover.jsx` + `pages/Projects.jsx`):** HoverCard (Radix, openDelay=300, closeDelay=80) con fetch on-open cacheado por fila; encabezado degradado indigo/violeta, 4 métricas con íconos lucide + barra de avance. "Sin asignar" → texto plano sin hover. testids: `implementer-name-<id>`, `workload-popover-<id>`, `workload-loading`, `workload-avance`.
