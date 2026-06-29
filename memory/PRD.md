@@ -3866,3 +3866,11 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Fix: cambiado el default de ambos modelos a `None`. El POST /integrators ya clasifica el scope explícitamente (routes L154), así que crear nuevos integradores sigue asignando 'new'. Frontend: fallback de scopeMeta sin label para legacy; filtro de Alcance estricto `(intg.project_scope||'') !== filterScope` + opción "Nuevos Componentes".
 - Verificado (curl + testing_agent iter217, 100%): API devuelve 268 null + 1 expansion; la grilla renderiza solo 1 badge (AMPLIACIÓN, Corporación XETUX), 268 legacy sin etiqueta; filtros Nuevos=0/Componentes=0/Ampliados=1; toggle Ver Todos OK.
 
+
+**Ajustes Integradores: Responsable obligatorio + vista por defecto clasificada · 2026-06-29:**
+- (1) Captura del Responsable por parte del Integrador (Nombre, Email, Teléfono) en el wizard de "Nuevo Proyecto de Integración", almacenado como `contacts[0]`. OBLIGATORIO al dar de alta un Integrador NUEVO (validación en handleWizardSubmit para integratorMode==='new'); OPCIONAL (etiquetado "(opcional)") en flujos de integrador existente (Nuevo Tipo y Ampliación), pero siempre disponible. Helper `renderResponsibleContact({required})` + `setRespContact`.
+- Backend: `ExpandPayload` ahora acepta `contacts: Optional[List[dict]]`; el endpoint `/integrators/{id}/expand` fusiona el contacto del responsable (dedupe por email). El POST /integrators ya propagaba contacts a las filas del mismo integrador.
+- (2) Vista por defecto de /integrators ahora muestra SOLO proyectos clasificados (project_scope ∈ new/component/expansion); registros legacy (scope null) y Cerrados quedan ocultos. El toggle (data-testid=toggle-show-all) alterna "Solo Proyectos" ↔ "Ver Todos" (incluye histórico sin clasificar y cerrados). Filtro frontend en `filteredIntegrators` con `CLASSIFIED_SCOPES`.
+- Verificado por testing_agent (iter218, 100% backend + frontend): default=4 filas clasificadas, toggle→271; wizard nuevo integrador exige Responsable y bloquea creación; flujos existentes lo dejan opcional. Sin residuos de prueba.
+- NOTA: cambios de backend (models.py/routes); requieren RE-DESPLEGAR para surtir efecto en PRODUCCIÓN.
+
