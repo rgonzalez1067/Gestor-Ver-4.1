@@ -41,6 +41,7 @@ async def dispatch_other_action(
     executive_user_id: Optional[str] = None,
     extra_cc: Optional[list] = None,
     project: Optional[dict] = None,
+    prepend_signature_html: Optional[str] = None,
 ) -> dict:
     """Despacha la acción según la config dinámica. Ver reglas en el docstring
     del módulo.
@@ -51,6 +52,11 @@ async def dispatch_other_action(
 
     `project`: documento del proyecto que detona el evento. Necesario para resolver
     el destinatario dinámico "Usuario Implementador" (type='project_implementer').
+
+    `prepend_signature_html`: bloque HTML opcional que se inserta INMEDIATAMENTE
+    encima de la firma institucional ({Firma_Notificacion_Global}). Útil para
+    garantizar que un mensaje personalizado quede justo antes de la firma,
+    independientemente de si la plantilla referencia o no su variable propia.
     """
     extra_cc = [e for e in (extra_cc or []) if e and isinstance(e, str) and '@' in e]
     cfg = await get_config(action_id)
@@ -128,9 +134,15 @@ async def dispatch_other_action(
         # con los datos reales del operador en sesión.
         from services.signature import build_signature_html
         if current_user:
-            template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
+            sig_html = await build_signature_html(current_user)
         elif "Firma_Notificacion_Global" not in template_vars:
-            template_vars["Firma_Notificacion_Global"] = await build_signature_html(None)
+            sig_html = await build_signature_html(None)
+        else:
+            sig_html = template_vars["Firma_Notificacion_Global"]
+        # Inserta el bloque (p.ej. "Información adicional") justo encima de la firma.
+        if prepend_signature_html:
+            sig_html = prepend_signature_html + sig_html
+        template_vars["Firma_Notificacion_Global"] = sig_html
 
         subject = _render(tpl.get("subject", ""), template_vars) or fallback_subject
         body = _render(tpl.get("body_html", "") or tpl.get("body", ""), template_vars)

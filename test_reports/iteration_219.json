@@ -1,0 +1,30 @@
+{
+  "summary": "Iter219 BUG FIX QA: Integradores - 'Comentarios adicionales' del modal 'Notificar Nuevo Proyecto'. (1) Limite ampliado 50->300 chars con envio en BODY JSON (no headers); (2) inyeccion del mensaje en el correo con titulo en negrita 'Informacion adicional:' justo encima de la firma. BACKEND: 4/4 pytest PASS - POST /api/integrators/int_37e69d627065/notify-new-project con custom_message=250 chars (acentos aeiou y \\n) -> 200 + email_log.status='sent'; con 350 chars -> 400 'El mensaje no puede exceder los 300 caracteres' (no 500); dispatch_other_action acepta prepend_signature_html. FRONTEND: Codigo verificado correcto (maxLength=300, onChange slice(0,300), counter 'N / 300' con text-red-500 al llegar a 300, payload BODY {custom_message,additional_recipients}). El email-notify-modal NO se pudo abrir end-to-end via UI sin crear un integrador residual (la unica via es tras crear/ampliar via wizard, y la consigna pide no dejar datos). Por error abrimos un modal diferente (Comunicacion a Integrador via notify-int_xxx) que NO es el modal del fix. Recomendado: main agent puede self-test la UI creando un integrador temporal y eliminandolo.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators table", "issues": ["Pre-existente: warnings de hidratacion React por data-ve-dynamic envolviendo <tr>/<span> dentro de <tbody> - instruido a ignorar."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_integrators_iter219_notify.py",
+    "/app/test_reports/pytest/iter219_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/integrators.py mantiene fallback de headers legacy (x_custom_message, x_additional_recipients): correcto para compatibilidad. Considera log warning si se usan los headers.",
+    "email_logs.html_preview esta truncado a 500 chars; como el info_block aparece al final (sobre la firma), no se puede verificar la inyeccion via html_preview almacenado. La validacion de posicion (idx 3154 < firma idx 3304) fue hecha por render directo del dev agent.",
+    "El bloque info_block se inyecta tanto via prepend_signature_html (asegura ubicacion encima de la firma) como via variable {comentarios_personalizados}; la plantilla activa no usa esa variable, pero la doble inyeccion es defensiva por si una plantilla legacy la referencia. OK.",
+    "Integrators.jsx ya supera 2195 lineas (pre-existente). Recomendable extraer el EmailNotifyModal a subcomponente."
+  ],
+  "updated_files": ["/app/backend/tests/test_integrators_iter219_notify.py"],
+  "success_rate": {"backend": "100%", "frontend": "code-review-only"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguno persistido. Los 4 tests backend disparan notificaciones reales (SMTP) sobre el integrador existente int_37e69d627065 (Corporacion XETUX), registrando en db.email_logs y db.bitacora; no se crean ni se eliminan integradores.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests reutilizables en backend/tests/test_integrators_iter219_notify.py (requiere env vars REACT_APP_BACKEND_URL, MONGO_URL, DB_NAME). Para abrir el modal 'email-notify-modal' en la UI hay que crear o ampliar un proyecto via wizard (create-integrator-btn) - se abre automaticamente tras submit del wizard. Los data-testids existen y son: email-notify-modal, email-custom-message, email-custom-message-counter, email-add-recipient-input, email-add-recipient-btn, email-send-btn, email-skip-btn. Counter format: 'N / 300', clase text-red-500 + font-semibold cuando length>=300. Truncado automatico via onChange.target.value.slice(0,300).",
+  "rca of the issue": "Bug RCA original (resuelto por main agent): (1) el mensaje viajaba en HTTP Header (x_custom_message) - los headers HTTP no permiten saltos de linea sin escape y pueden romper con acentos/UTF-8 dependiendo del servidor, ademas tienen limite efectivo bajo (~50 bytes en el cliente segun reporte). Fix: mover a body JSON con Pydantic NotifyProjectPayload + validacion server-side de 300 chars. (2) el mensaje no llegaba al correo porque la plantilla activa (template_id=new_integration_project) NO referencia la variable {comentarios_personalizados}. Fix: extender services.other_actions_engine.dispatch_other_action con kwarg prepend_signature_html que se antepone literalmente al valor de {Firma_Notificacion_Global} - el bloque queda asi inmediatamente encima de la firma, garantizado independientemente de la plantilla."
+}

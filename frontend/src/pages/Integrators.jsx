@@ -255,10 +255,13 @@ export const Integrators = () => {
     }
     setEmailSending(true);
     try {
-      const headers = {};
-      if (emailCustomMessage.trim()) headers['x-custom-message'] = emailCustomMessage.trim();
-      if (emailRecipientsList.length > 0) headers['x-additional-recipients'] = emailRecipientsList.join(',');
-      const res = await api.post(`/integrators/${emailNotifyIntegrator.integrator_id}/notify-new-project`, {}, { headers });
+      // Enviar en el BODY (no en headers): los headers HTTP rompen con saltos de
+      // línea/acentos y truncaban el mensaje. El body soporta hasta 300 chars.
+      const payload = {
+        custom_message: (emailCustomMessage || '').trim().slice(0, 300),
+        additional_recipients: emailRecipientsList.join(','),
+      };
+      const res = await api.post(`/integrators/${emailNotifyIntegrator.integrator_id}/notify-new-project`, payload);
       toast.success(res.data.message || 'Notificacion enviada');
       setEmailNotifyOpen(false);
     } catch (error) {
@@ -2103,11 +2106,15 @@ export const Integrators = () => {
               <Textarea
                 placeholder="Agregue informacion adicional para el Gerente de Implementacion..."
                 value={emailCustomMessage}
-                onChange={(e) => setEmailCustomMessage(e.target.value)}
+                onChange={(e) => setEmailCustomMessage(e.target.value.slice(0, 300))}
+                maxLength={300}
                 rows={3}
                 className="mt-1"
                 data-testid="email-custom-message"
               />
+              <p className={`text-[11px] mt-1 text-right ${emailCustomMessage.length >= 300 ? 'text-red-500 font-semibold' : 'text-slate-400'}`} data-testid="email-custom-message-counter">
+                {emailCustomMessage.length} / 300
+              </p>
             </div>
             <div>
               <Label className="text-sm font-medium">Enviar copia a (CC)</Label>

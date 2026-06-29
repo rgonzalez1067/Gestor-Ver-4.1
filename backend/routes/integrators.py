@@ -1525,16 +1525,32 @@ async def import_integrators(
 
 
 
+class NotifyProjectPayload(BaseModel):
+    custom_message: Optional[str] = None
+    additional_recipients: Optional[str] = None
+
+
 @router.post("/integrators/{integrator_id}/notify-new-project")
 async def notify_new_integration_project(
     integrator_id: str,
+    payload: Optional[NotifyProjectPayload] = None,
     authorization: Optional[str] = Header(None),
     x_custom_message: Optional[str] = Header(None),
     x_additional_recipients: Optional[str] = Header(None)
 ):
     """Envía notificación de nuevo proyecto de integración al Gerente de Implementación"""
     current_user = await get_current_user(authorization)
-    
+
+    # El mensaje personalizado y los CC ahora viajan en el BODY (los headers HTTP
+    # rompían con saltos de línea/acentos y truncaban el texto). Se mantiene
+    # compatibilidad con los headers legacy por si algún cliente antiguo los usa.
+    payload = payload or NotifyProjectPayload()
+    custom_message = (payload.custom_message if payload.custom_message is not None else x_custom_message) or ""
+    custom_message = custom_message.strip()
+    if len(custom_message) > 300:
+        raise HTTPException(status_code=400, detail="El mensaje no puede exceder los 300 caracteres")
+    additional_recipients = (payload.additional_recipients if payload.additional_recipients is not None else x_additional_recipients) or ""
+
     integrator = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
     if not integrator:
         raise HTTPException(status_code=404, detail="Integrador no encontrado")
@@ -1554,10 +1570,19 @@ async def notify_new_integration_project(
         'PG': 'PG — Payment Gateway', 'MP': 'MP — Android (Mobile POS)', 'TK': 'TK — Tokenizador'
     }
     
-    # Construir comentarios personalizados HTML
-    comentarios_html = ""
-    if x_custom_message:
-        comentarios_html = f'<div style="background:#f0f9ff;border-left:4px solid #3b82f6;padding:12px 16px;margin:16px 0;"><h4 style="color:#1e40af;margin:0 0 8px 0;">Informacion Adicional</h4><p style="color:#334155;margin:0;">{x_custom_message}</p></div>'
+    # Bloque "Información adicional:" — se inyecta SIEMPRE justo encima de la firma
+    # institucional (ver prepend_signature_html), independientemente de si la
+    # plantilla referencia o no la variable {comentarios_personalizados}.
+    import html as _html
+    info_block = ""
+    if custom_message:
+        safe_msg = _html.escape(custom_message)
+        info_block = (
+            '<div style="margin:18px 0 8px 0;padding-top:12px;border-top:1px solid #e2e8f0;">'
+            '<p style="font-weight:bold;color:#1e293b;margin:0 0 4px 0;">Información adicional:</p>'
+            f'<p style="color:#334155;margin:0;white-space:pre-wrap;">{safe_msg}</p>'
+            '</div>'
+        )
     
     # Variables de la plantilla (incluye aliases para compatibilidad con plantillas editadas)
     variables = {
@@ -1571,7 +1596,7 @@ async def notify_new_integration_project(
         "nombre_responsable": first_contact.get("name", "No asignado"),
         "email_responsable": first_contact.get("email", "No asignado"),
         "telefono_responsable": first_contact.get("phone", "No asignado"),
-        "comentarios_personalizados": comentarios_html,
+        "comentarios_personalizados": info_block,
         "usuario_creador": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
         "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
         "fecha_sistema": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
@@ -1582,13 +1607,13 @@ async def notify_new_integration_project(
 
     # Correo Adicional Eventual: CC volátil para este envío específico. Se toma
     # del campo del proyecto (correo_eventual) y de los destinatarios ad-hoc del
-    # modal (header). No altera el correo maestro del integrador.
+    # modal (body). No altera el correo maestro del integrador.
     extra_cc: list = []
     ev = (integrator.get("correo_eventual") or "").strip()
     if ev and "@" in ev:
         extra_cc.append(ev)
-    if x_additional_recipients:
-        extra_cc += [e.strip() for e in x_additional_recipients.split(",") if e.strip() and "@" in e.strip()]
+    if additional_recipients:
+        extra_cc += [e.strip() for e in additional_recipients.split(",") if e.strip() and "@" in e.strip()]
     # Dedupe preservando orden.
     extra_cc = list(dict.fromkeys(extra_cc))
 
@@ -1599,6 +1624,7 @@ async def notify_new_integration_project(
             "new_integration_project", variables, current_user=current_user,
             fallback_subject=f"Nuevo Proyecto de Integracion — {integrator.get('name','')}",
             extra_cc=extra_cc,
+            prepend_signature_html=info_block or None,
         )
         if _dyn.get("dispatched"):
             # Auditoría en la bitácora del proyecto (correo eventual incluido).
