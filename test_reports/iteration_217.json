@@ -1,0 +1,36 @@
+{
+  "summary": "RETEST of the 'NUEVO INTEGRADOR' badge contamination bug in /integrators. BUG IS NOW FIXED end-to-end. After main agent changed Pydantic default for Integrator.project_scope and IntegratorCreate.project_scope from 'new' to None in /app/backend/models.py, the GET /api/integrators API now returns 268 legacy records with project_scope=null + 1 record with project_scope='expansion' (verified via curl). UI confirms: 269 rows render in the table, but only 1 scope-tag badge is present (data-testid=scope-tag-int_37e69d627065, text='AMPLIACIÓN', orange) belonging to 'Corporación XETUX'. The other 268 legacy rows render NO scope badge. The 'Alcance' filter is strict and consistent: 'Proyectos Nuevos'=0 rows, 'Nuevos Componentes'=0 rows, 'Proyectos Ampliados'=1 row (the XETUX expansion). Toggle 'Solo Activos / Ver Todos' switches label correctly (Solo Activos ↔ Ver Todos) and the page loads without runtime errors. The only console noise is the pre-existing React hydration warning caused by the platform's visual-edit <span data-ve-dynamic> wrapper between <tbody> and <tr>, which is unrelated to this bug and was already documented in iterations 212-216.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/integrators (and /dashboard) table rows",
+        "issues": [
+          "Pre-existing hydration warning: <span data-ve-dynamic='true' style='display:contents'> wrapper rendered between <tbody> and <tr> by the platform visual-edit instrumentation. Not introduced by this fix; previously reported in iterations 212-216."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Silence the pre-existing React hydration warning by stripping the data-ve-dynamic <span> wrappers that land between <tbody> and <tr> across the app."
+  ],
+  "critical_code_review_comments": [
+    "Fix at /app/backend/models.py is correct: Optional[str] = None for project_scope on both IntegratorCreate (L406) and Integrator (L430). Create endpoint still classifies scope explicitly (routes/integrators.py:154) so create-new flow continues to assign 'new'.",
+    "Consider adding response_model_exclude_none=True or an explicit serializer guard on GET /api/integrators to keep legacy data immune to future default drift.",
+    "Filter logic in Integrators.jsx (line ~776) uses `(intg.project_scope || '') !== filterScope`. With backend now returning null for legacy, this correctly excludes legacy from the three explicit scope filters."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend-only request)", "frontend": "100% — all 5 acceptance checks pass"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Read-only verification against existing data. A throwaway POST /api/integrators attempt (via curl) returned the same response shape but with null fields (likely missing required fields), and the subsequent DELETE returned 404; nothing was created in the DB. The UI create wizard was opened to step 1 only and then cancelled — no record was created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug closed end-to-end. Ground truth in DB and API after fix: total=269 integrators, 268 with project_scope=null (no badge), 1 with project_scope='expansion' (id=int_37e69d627065, name='Corporación XETUX', orange AMPLIACIÓN badge). Default '/integrators' view label on toggle is 'Solo Activos' (current state shows all because no records are status=Cerrado in current data, so toggling to Ver Todos shows the same 269). data-testids used: integrators-page, integrator-row-{id}, scope-tag-{id}, closed-tag-{id}, filter-scope (a radix BUTTON Select — option labels: Todos / Proyectos Nuevos / Nuevos Componentes / Proyectos Ampliados), toggle-show-all, create-integrator-btn, wizard-name-search, wizard-register-new-btn. The create wizard has 2 steps (Identificación → Naturaleza del Proyecto) — full create flow not exercised in UI in this iteration; previous iterations and code review at routes/integrators.py:149-154 confirm it still assigns project_scope='new'.",
+  "rca_of_the_issue": "PREVIOUS RCA (iteration_216): Pydantic Optional[str] = 'new' default on Integrator.project_scope coerced legacy MongoDB docs (which lacked the field) to project_scope='new' during response_model serialization. FIX APPLIED by main agent: changed default to None on both IntegratorCreate (L406) and Integrator (L430). VERIFICATION (this iteration): curl GET /api/integrators?show_all=true returns Counter({None: 268, 'expansion': 1}); UI renders only 1 scope-tag badge across 269 rows; all three explicit Alcance filters (new/component/expansion) return the correct row counts (0/0/1)."
+}

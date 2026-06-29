@@ -403,7 +403,8 @@ class IntegratorCreate(BaseModel):
     correo_eventual: Optional[str] = None
     # Alcance del proyecto: "new" (integración base/desde cero o nuevo tipo) |
     # "expansion" (ampliación de un tipo de integración ya vigente del integrador).
-    project_scope: Optional[str] = "new"
+    # Default None: los registros legacy/sin clasificar NO deben etiquetarse.
+    project_scope: Optional[str] = None
 
 class Integrator(BaseModel):
     integrator_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:12]}")
@@ -427,7 +428,7 @@ class Integrator(BaseModel):
     has_overdue_commitments: Optional[bool] = None
     assigned_at: Optional[str] = None
     assigned_by: Optional[str] = None
-    project_scope: Optional[str] = "new"
+    project_scope: Optional[str] = None
     # Campos de seguimiento operativo (ficha ampliada).
     coordinador: Optional[str] = None
     coordinador_user_id: Optional[str] = None
