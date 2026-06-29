@@ -12,21 +12,24 @@ export const ImplementerWorkloadHover = ({ userId, name, assignedAt, lastContact
   const [error, setError] = useState(false);
 
   const fetchSummary = useCallback(async (open) => {
-    if (!open || !userId || summary || loading) return;
+    if (!open || summary || loading) return;
     setLoading(true);
     setError(false);
     try {
-      const { data } = await api.get(`/projects/implementers/${userId}/workload-summary`);
+      const id = userId && String(userId).trim() ? userId : '_';
+      const { data } = await api.get(`/projects/implementers/${encodeURIComponent(id)}/workload-summary`, {
+        params: name ? { name } : undefined,
+      });
       setSummary(data);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [userId, summary, loading]);
+  }, [userId, name, summary, loading]);
 
   const Metric = ({ icon: Icon, label, value, accent }) => (
-    <div className="flex items-center justify-between gap-3 py-1">
+    <div className="flex items-center justify-between gap-3 py-1.5">
       <span className="flex items-center gap-1.5 text-xs text-slate-600">
         <Icon size={13} className={accent} />
         {label}
@@ -34,6 +37,26 @@ export const ImplementerWorkloadHover = ({ userId, name, assignedAt, lastContact
       <span className="text-sm font-semibold text-slate-900 tabular-nums" data-testid={`workload-${label.toLowerCase().replace(/[^a-z]+/g, '-')}`}>
         {value}
       </span>
+    </div>
+  );
+
+  const DualMetric = ({ icon: Icon, label, accent, asignadas, pendientes, keyName, asignTestid }) => (
+    <div className="py-1.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-1.5 text-xs text-slate-600">
+          <Icon size={13} className={accent} />
+          {label}
+        </span>
+        <span className="flex items-center gap-2 tabular-nums">
+          <span className="text-xs text-slate-500" data-testid={asignTestid || `workload-${keyName}-asignadas`}>
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">Asig.</span> <b className="text-slate-700">{asignadas}</b>
+          </span>
+          <span className="text-slate-300">·</span>
+          <span className="text-xs text-amber-700" data-testid={`workload-${keyName}-pendientes`}>
+            <span className="text-[10px] uppercase tracking-wide text-amber-500">Pend.</span> <b>{pendientes}</b>
+          </span>
+        </span>
+      </div>
     </div>
   );
 
@@ -72,8 +95,15 @@ export const ImplementerWorkloadHover = ({ userId, name, assignedAt, lastContact
           ) : (
             <div className="divide-y divide-slate-100">
               <Metric icon={FolderKanban} label="Proyectos activos" value={summary?.projects_count ?? 0} accent="text-indigo-500" />
-              <Metric icon={Package} label="Cajas pendientes" value={summary?.cajas_pendientes ?? 0} accent="text-amber-500" />
-              <Metric icon={Activity} label="PVV pendientes" value={summary?.pvv_pendientes ?? 0} accent="text-cyan-500" />
+              <DualMetric
+                icon={Package} label="Cajas" accent="text-amber-500" keyName="cajas"
+                asignadas={summary?.cajas_asignadas ?? 0} pendientes={summary?.cajas_pendientes ?? 0}
+              />
+              <DualMetric
+                icon={Activity} label="PVV" accent="text-cyan-500" keyName="pvv"
+                asignTestid="workload-pvv-asignados"
+                asignadas={summary?.pvv_asignados ?? 0} pendientes={summary?.pvv_pendientes ?? 0}
+              />
               <div className="pt-2">
                 <div className="flex items-center justify-between gap-3">
                   <span className="flex items-center gap-1.5 text-xs text-slate-600">

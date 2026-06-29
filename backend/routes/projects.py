@@ -828,50 +828,66 @@ _CLOSED_STATUSES = {"culminado", "anulado"}
 
 
 @router.get("/projects/implementers/{user_id}/workload-summary")
-async def implementer_workload_summary(user_id: str, authorization: Optional[str] = Header(None)):
+async def implementer_workload_summary(
+    user_id: str,
+    name: Optional[str] = Query(None, description="Nombre del implementador (fallback cuando no hay user_id o es legacy/huérfano)."),
+    authorization: Optional[str] = Header(None),
+):
     """Resumen rápido de carga de un implementador (para el tooltip del Panel de Proyectos).
     Estrategia A (carga bajo demanda): consulta solo los proyectos del implementador y
-    devuelve 4 métricas sobre sus proyectos ACTIVOS/vigentes (excluye Culminado/Anulado):
+    devuelve métricas sobre sus proyectos ACTIVOS/vigentes (excluye Culminado/Anulado):
       - projects_count: cantidad de proyectos activos asignados.
-      - cajas_pendientes: Σ (cajas asignadas − cajas configuradas).
-      - pvv_pendientes: Σ (PVV asignados − PVV configurados).
+      - cajas_asignadas / cajas_pendientes (asignadas − configuradas).
+      - pvv_asignados / pvv_pendientes (asignados − configurados).
       - avance_global: promedio del % de avance de esos proyectos.
-    Resiliente: implementador sin proyectos → todo en 0.
+    Resiliente: si el user_id es vacío/placeholder o no devuelve proyectos pero llega `name`,
+    se reintenta por `assigned_to_name` (cubre proyectos legacy sin user_id). Sin proyectos → todo en 0.
     """
     await get_current_user(authorization)
 
     from services.project_pvv import compute_project_metrics
 
-    projs = await db.projects.find(
-        {"assigned_to_user_id": user_id},
-        {
-            "_id": 0, "status": 1, "quote_type": 1,
-            "cantidad_cajas": 1, "box_count": 1, "rifs": 1,
-            "implementation_matrix": 1, "stores": 1, "assigned_to_name": 1,
-        },
-    ).to_list(5000)
+    _proj = {
+        "_id": 0, "status": 1, "quote_type": 1,
+        "cantidad_cajas": 1, "box_count": 1, "rifs": 1,
+        "implementation_matrix": 1, "stores": 1, "assigned_to_name": 1,
+    }
+
+    projs = []
+    has_uid = bool(user_id) and user_id.strip().lower() not in ("_", "none", "null", "undefined")
+    if has_uid:
+        projs = await db.projects.find({"assigned_to_user_id": user_id}, _proj).to_list(5000)
+    # Fallback por nombre (legacy / user_id huérfano)
+    if not projs and name:
+        projs = await db.projects.find({"assigned_to_name": name}, _proj).to_list(5000)
 
     active = [p for p in projs if (p.get("status") or "").strip().lower() not in _CLOSED_STATUSES]
 
+    cajas_asignadas = 0
     cajas_pendientes = 0
+    pvv_asignados = 0
     pvv_pendientes = 0
     prog_sum = 0.0
     for p in active:
         m = compute_project_metrics(p)
+        cajas_asignadas += m["cajas_asignadas"]
         cajas_pendientes += max(0, m["cajas_asignadas"] - m["cajas_configuradas"])
+        pvv_asignados += m["pvv_asignados"]
         pvv_pendientes += max(0, m["pvv_asignados"] - m["pvv_configurados"])
         prog = _calculate_rollup_progress(p) if p.get("stores") else _calculate_single_progress(p)
         prog_sum += prog.get("global_progress", 0) or 0
 
     n = len(active)
     avance_global = int(round(prog_sum / n)) if n else 0
-    name = (active[0].get("assigned_to_name") if active else (projs[0].get("assigned_to_name") if projs else "")) or ""
+    resolved_name = (active[0].get("assigned_to_name") if active else (projs[0].get("assigned_to_name") if projs else "")) or (name or "")
 
     return {
         "user_id": user_id,
-        "implementer_name": name,
+        "implementer_name": resolved_name,
         "projects_count": n,
+        "cajas_asignadas": cajas_asignadas,
         "cajas_pendientes": cajas_pendientes,
+        "pvv_asignados": pvv_asignados,
         "pvv_pendientes": pvv_pendientes,
         "avance_global": avance_global,
     }

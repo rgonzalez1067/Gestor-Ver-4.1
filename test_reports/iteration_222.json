@@ -1,0 +1,55 @@
+{
+  "summary": "Iter 222 — Verified bug fix (NAME fallback) and enhancement (Cajas Asignadas/Pendientes + PVV Asignados/Pendientes) for the implementer workload tooltip on /projects. Backend: 7/7 pytest tests pass — shape/constraints, name-fallback equivalence vs user_id (Omar Jiménez: 12 proyectos, 70/70 cajas, 280/280 PVV, 4% avance), placeholder ids (_, none, null, undefined) all use the name fallback correctly, resilience to nonexistent ids returns 200 with zeros, and coverage check: EVERY one of the distinct implementers discovered from /api/projects + /api/projects/implementers/list returns 200 with valid metrics (cajas_pend ≤ cajas_asig, pvv_pend ≤ pvv_asig, 0 ≤ avance ≤ 100). Frontend: hover on implementer name opens HoverCard with 4 sections (Proyectos activos, Cajas Asig./Pend., PVV Asig./Pend., % Global de Avance with progress bar), fetches summary on open, closes cleanly on mouseleave, and 'Sin asignar' rows have no popover trigger.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Projects table (pre-existing, not introduced by this iteration)",
+        "issues": ["React hydration warnings caused by <span data-ve-dynamic='true' style='display:contents'> wrapper rendered as direct child of <tbody>/<tr> by external x-ve-dynamic instrumentation. Same noise reported in iter221; not caused by ImplementerWorkloadHover."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter222_workload_summary_fallback.py",
+    "/app/test_reports/pytest/iter222_workload.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Bug fix correctly placed: implementer_workload_summary now does a 2nd lookup by assigned_to_name when user_id is empty/placeholder OR returns no projects — covers legacy/orphan projects whose assigned_to_user_id is missing or stale (which is exactly what produced the original 'para algunos implementadores no se puede ver el resumen').",
+    "Enhancement is consistent: cajas_pendientes = max(0, cajas_asignadas - cajas_configuradas) summed across active projects, same pattern as PVV. Confirmed via API: Omar -> cajas_asig 70 / cajas_pend 70 / pvv_asig 280 / pvv_pend 280 / 12 proyectos / 4% avance. Constraint pend ≤ asig holds for every implementer in DB.",
+    "Fixed a minor testid mismatch in ImplementerWorkloadHover.jsx: the spec required data-testid='workload-pvv-asignados' (masculine, to match JSON key pvv_asignados), but the DualMetric component was emitting 'workload-pvv-asignadas' (feminine) for both Cajas and PVV. Added an optional asignTestid prop and used it for PVV; Cajas testid unchanged. Pure attribute change, no behavior impact.",
+    "routes/projects.py is ~4088 lines — still exceeds the 700-line guideline (out of scope for this iteration, flagged again).",
+    "ImplementerWorkloadHover.jsx caches summary per row instance. With the name fallback now active, two different rows owned by the same implementer still each issue their own fetch. A module-level Map keyed by (userId||name) would dedupe across rows; minor perf nicety, not a bug."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter222_workload_summary_fallback.py (new)",
+    "/app/frontend/src/components/projects/ImplementerWorkloadHover.jsx (testid attribute fix: workload-pvv-asignados)"
+  ],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100%" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin). Login returns 'session_token' used as Bearer.",
+  "seed_data_creation": "None. Read-only verification only.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Endpoint GET /api/projects/implementers/{user_id}/workload-summary now accepts optional ?name= and falls back to assigned_to_name when user_id is placeholder ('_','none','null','undefined') or returns no projects. Frontend testids on the popover: workload-popover-<projectId>, workload-proyectos-activos, workload-cajas-asignadas, workload-cajas-pendientes, workload-pvv-asignados (FIXED — was 'asignadas'), workload-pvv-pendientes, workload-avance, workload-loading, workload-error. Known implementers: user_3cc63615f2c0 (Omar Jiménez, currently 12 active proj / 70 cajas asig+pend / 280 pvv asig+pend / 4% avance), user_a8e3874291c8 (Jhonatan Rojas, 2 active / 34 cajas / 196 pvv / 15% avance). Implementer column renders 90 hover triggers on /projects in current preview state. 'Sin asignar' rows render plain text with no HoverCard wrapper.",
+  "verification_details": {
+    "backend_tests": {
+      "test_shape_and_constraints_omar": "PASS",
+      "test_name_fallback_equals_user_id_for_omar": "PASS — totals identical: 12 proj / 70 / 70 / 280 / 280 / 4%",
+      "test_name_fallback_also_with_placeholders": "PASS — _, none, null, undefined all hit name fallback",
+      "test_resilience_nonexistent_id_and_name": "PASS — all zeros, HTTP 200",
+      "test_resilience_unknown_id_no_name": "PASS",
+      "test_every_implementer_returns_200": "PASS — 0 failures across all discovered implementers",
+      "test_constraints_for_all_implementers": "PASS — pend ≤ asig holds everywhere; avance ∈ [0,100]"
+    },
+    "frontend": {
+      "triggers_found": 90,
+      "popover_opens_on_hover": true,
+      "all_required_testids_present": ["workload-popover-<pid>", "workload-proyectos-activos", "workload-cajas-asignadas", "workload-cajas-pendientes", "workload-pvv-asignados", "workload-pvv-pendientes", "workload-avance"],
+      "progress_bar_width_matches_avance": "15% for Jhonatan",
+      "closes_on_mouseleave": true,
+      "sin_asignar_no_hover": true
+    }
+  }
+}
