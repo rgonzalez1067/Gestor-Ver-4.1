@@ -1,0 +1,53 @@
+{
+  "summary": "Iter 221 — Implementer Workload Summary tooltip (Panel de Proyectos) tested end-to-end. Backend endpoint GET /api/projects/implementers/{user_id}/workload-summary verified for shape, resilience (zeros for nonexistent id), auth requirement, and data precision (projects_count matches active projects only). Frontend hover tooltip on /projects verified: 90 triggers render, popover opens on hover with 4 labeled metrics + progress bar, fetch happens on open (200 OK), popover closes on mouseleave, caching works (no refetch on re-hover same name), and 'Sin asignar' is plain text without hover trigger.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Projects table (pre-existing, not introduced by Iter221)",
+        "issues": [
+          "React hydration warnings: <span data-ve-dynamic=\"true\" style=\"display:contents\"> wrapper is rendered as a direct child of <tbody>/<tr>, which is invalid HTML and causes hydration noise. This belongs to an external instrumentation wrapper (x-ve-dynamic), not to ImplementerWorkloadHover, but it pollutes the console on the Projects page."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter221_implementer_workload_summary.py",
+    "/app/test_reports/pytest/iter221_workload.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ImplementerWorkloadHover.jsx: clean, small (~100 lines), uses HoverCard with openDelay=300 / closeDelay=80, fetches on open, caches via local state (per-instance — each row has its own ImplementerWorkloadHover so cache is per-trigger, not per-user-id globally). If perf becomes a concern (e.g. opening the same user across rows), a module-level Map keyed by userId would avoid repeat network calls across different rows for the same implementer. Current per-instance cache still prevents re-fetch on re-hovering the SAME row (verified).",
+    "Backend implementer_workload_summary uses cajas_pendientes = max(0, cajas_asignadas - cajas_configuradas) per project then sums — symmetric with PVV. Returns int 0 for nonexistent users (no 404), which matches the requested resilience contract for the tooltip use-case.",
+    "routes/projects.py is ~4072 lines — exceeds the 700-line guideline; consider splitting (out of scope for this iteration)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter221_implementer_workload_summary.py (new)"
+  ],
+  "success_rate": { "backend": "100% (4/4)", "frontend": "100%" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin). Login returns 'session_token' used as Bearer.",
+  "seed_data_creation": "None. Read-only verification only.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Endpoint live at GET /api/projects/implementers/{user_id}/workload-summary. Known implementers: user_3cc63615f2c0 (Omar — 12 active projects in seed but smaller count in current preview state), user_a8e3874291c8 (Jhonatan Rojas — 2 active, 34 cajas pend, 196 PVV pend, 15% avance at test time). Frontend Projects grid renders 90 implementer-name triggers, each with data-testid=implementer-name-<projectId>; popover testid=workload-popover-<projectId>; loading testid=workload-loading; values testids: workload-proyectos-activos, workload-cajas-pendientes, workload-pvv-pendientes, workload-avance. 'Sin asignar' cells render as plain text (no HoverCard wrapper).",
+  "verification_details": {
+    "backend": {
+      "shape_test": "PASS — all 6 keys present, ints non-negative, avance_global in [0,100]",
+      "resilience_test": "PASS — nonexistent-id-xyz → 200, all zeros, implementer_name=''",
+      "auth_test": "PASS — unauthenticated returns 401/403",
+      "precision_test": "PASS — projects_count equals count of /api/projects with assigned_to_user_id==target AND status NOT IN {culminado, anulado}"
+    },
+    "frontend": {
+      "triggers_found": 90,
+      "popover_opens_on_hover": true,
+      "network_call_on_open": "GET /api/projects/implementers/user_a8e3874291c8/workload-summary → 200",
+      "four_labels_visible": ["Proyectos activos", "Cajas pendientes", "PVV pendientes", "% Global de Avance"],
+      "progress_bar_width": "15%",
+      "closes_on_mouseleave": true,
+      "caching_works_on_rehover": true,
+      "sin_asignar_no_hover": true
+    }
+  }
+}

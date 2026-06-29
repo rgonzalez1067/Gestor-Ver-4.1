@@ -20,6 +20,7 @@ import { WorkloadReportFiltersModal } from '../components/WorkloadReportFiltersM
 import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
 import { MasterEditDialog } from '../components/projects/MasterEditDialog';
 import { OperationalBoard } from '../components/projects/OperationalBoard';
+import { ImplementerWorkloadHover } from '../components/projects/ImplementerWorkloadHover';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
   FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar, CalendarClock, FileSpreadsheet
@@ -1086,17 +1087,13 @@ const Projects = () => {
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">
                           {project.assigned_to_name ? (
-                            <div>
-                              <span>{project.assigned_to_name}</span>
-                              {project.assigned_at && (
-                                <p className="text-[10px] text-slate-400 mt-0.5">Asignado: {new Date(project.assigned_at).toLocaleDateString('es-VE')}</p>
-                              )}
-                              {project.last_contact_at && (
-                                <p className="text-[10px] text-emerald-600 mt-0.5" data-testid={`last-contact-${project.project_id}`}>
-                                  Último contacto: {new Date(project.last_contact_at).toLocaleDateString('es-VE')}
-                                </p>
-                              )}
-                            </div>
+                            <ImplementerWorkloadHover
+                              userId={project.assigned_to_user_id}
+                              name={project.assigned_to_name}
+                              assignedAt={project.assigned_at}
+                              lastContactAt={project.last_contact_at}
+                              projectId={project.project_id}
+                            />
                           ) : <span className="text-slate-400 italic">Sin asignar</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600" data-testid={`project-generator-${project.project_id}`}>
