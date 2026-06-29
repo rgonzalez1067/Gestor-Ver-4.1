@@ -364,11 +364,16 @@ export const Integrators = () => {
       if (formData.correo_eventual && !EMAIL_RE.test(formData.correo_eventual.trim())) {
         toast.error('El Correo Adicional Eventual tiene un formato inválido'); return;
       }
+      const rc = (formData.contacts && formData.contacts[0]) || {};
+      if (rc.email && !EMAIL_RE.test(rc.email.trim())) {
+        toast.error('El email del Responsable tiene un formato inválido'); return;
+      }
       setWizardSaving(true);
       try {
         const res = await api.post(`/integrators/${expandTargetId}/expand`, {
           productos_certificar: (formData.productos_certificar || '').trim(),
           correo_eventual: (formData.correo_eventual || '').trim(),
+          contacts: (rc.name || rc.email || rc.phone) ? [rc] : [],
         });
         toast.success('Proyecto de Ampliación registrado');
         setDialogOpen(false); resetForm(); fetchData();
@@ -387,6 +392,17 @@ export const Integrators = () => {
     if (!formData.integration_type) { toast.error('Selecciona el Tipo de Integración'); return; }
     if (!formData.integrator_type) { toast.error('Selecciona el Tipo de Integrador'); return; }
     if (!formData.app_name) { toast.error('Indica el Nombre del Aplicativo'); return; }
+    // Responsable del Integrador: obligatorio al dar de alta un Integrador NUEVO; opcional si ya existe.
+    const rc = (formData.contacts && formData.contacts[0]) || {};
+    const rcName = (rc.name || '').trim(), rcEmail = (rc.email || '').trim(), rcPhone = (rc.phone || '').trim();
+    if (integratorMode === 'new') {
+      if (!rcName || !rcEmail || !rcPhone) {
+        toast.error('Complete los datos del Responsable (Nombre, Email y Teléfono) — obligatorios para un Integrador nuevo'); return;
+      }
+    }
+    if (rcEmail && !EMAIL_RE.test(rcEmail)) {
+      toast.error('El email del Responsable tiene un formato inválido'); return;
+    }
     setWizardSaving(true);
     try {
       const initCerts = {};
@@ -443,6 +459,51 @@ export const Integrators = () => {
       </div>
     </div>
   );
+
+  // Datos del Responsable por parte del Integrador (Nombre · Teléfono · Email).
+  // Se almacena como el primer contacto técnico (formData.contacts[0]).
+  // `required`=true en Integrador NUEVO (obligatorio); opcional cuando ya existe.
+  const respContact = (formData.contacts && formData.contacts[0]) || { name: '', email: '', phone: '' };
+  const setRespContact = (field, value) => {
+    setFormData(prev => {
+      const contacts = [...(prev.contacts || [])];
+      if (contacts.length === 0) contacts.push({ contact_id: `ctc_${Date.now().toString(36)}`, name: '', email: '', phone: '' });
+      contacts[0] = { ...contacts[0], [field]: value };
+      return { ...prev, contacts };
+    });
+  };
+  const renderResponsibleContact = ({ required }) => (
+    <div className="border-t border-slate-200 pt-3 mt-3 space-y-2" data-testid="wizard-responsible-block">
+      <p className="text-xs font-semibold text-brand-blue-600 uppercase tracking-wider">
+        Responsable por parte del Integrador {required ? '*' : <span className="text-slate-400 normal-case font-normal">(opcional)</span>}
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <Label>Nombre del Responsable {required && '*'}</Label>
+          <Input value={respContact.name || ''} onChange={(e) => setRespContact('name', e.target.value)} placeholder="Ej: María Rodríguez" data-testid="wizard-resp-name" />
+        </div>
+        <div>
+          <Label>Email del Responsable {required && '*'}</Label>
+          <Input
+            type="email"
+            value={respContact.email || ''}
+            onChange={(e) => setRespContact('email', e.target.value)}
+            placeholder="responsable@empresa.com"
+            data-testid="wizard-resp-email"
+            className={respContact.email && !EMAIL_RE.test(respContact.email.trim()) ? 'border-red-400 focus-visible:ring-red-400' : ''}
+          />
+          {respContact.email && !EMAIL_RE.test(respContact.email.trim()) && (
+            <p className="text-[11px] text-red-500 mt-0.5" data-testid="wizard-resp-email-error">Formato de correo inválido</p>
+          )}
+        </div>
+        <div>
+          <Label>Teléfono del Responsable {required && '*'}</Label>
+          <Input value={respContact.phone || ''} onChange={(e) => setRespContact('phone', e.target.value)} placeholder="+58 412..." data-testid="wizard-resp-phone" />
+        </div>
+      </div>
+    </div>
+  );
+
 
   const toggleCert = async (integratorId, serviceId, currentVal) => {
     const idx = CERT_CYCLE.indexOf(currentVal || 'N/A');
@@ -766,7 +827,11 @@ export const Integrators = () => {
     }
   };
 
+  const CLASSIFIED_SCOPES = ['new', 'component', 'expansion'];
   const filteredIntegrators = integrators.filter(intg => {
+    // Vista por defecto: solo proyectos clasificados (Nuevos, Componentes, Ampliaciones).
+    // El operador activa "Ver Todos" para incluir el histórico sin clasificar y cerrados.
+    if (!showAll && !CLASSIFIED_SCOPES.includes(intg.project_scope)) return false;
     if (filterIntType && filterIntType !== 'all' && intg.integration_type !== filterIntType) return false;
     if (filterModality && filterModality !== 'all' && intg.integration_modality !== filterModality) return false;
     if (filterGestor && filterGestor !== 'all' && intg.gestor !== filterGestor) return false;
@@ -1040,6 +1105,7 @@ export const Integrators = () => {
                           <div data-testid="wizard-new-integrator-fields">
                             <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Alta de Nuevo Integrador · «{formData.name}»</p>
                             {renderWizardCoreFields({ lockIntegratorType: false })}
+                            {renderResponsibleContact({ required: true })}
                           </div>
                         )}
                       </div>
@@ -1127,6 +1193,7 @@ export const Integrators = () => {
                                   ? <p className="text-[11px] text-red-500 mt-0.5" data-testid="wizard-correo-eventual-error">Formato de correo inválido (ej: usuario@dominio.com)</p>
                                   : <p className="text-[11px] text-slate-400 mt-0.5">Opcional. Recibirá una copia (CC) de la notificación de este proyecto.</p>}
                               </div>
+                              {renderResponsibleContact({ required: false })}
                             </div>
                           </div>
                         )}
@@ -1136,6 +1203,7 @@ export const Integrators = () => {
                           <div data-testid="wizard-new-type-block">
                             <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Nuevo Tipo para «{existingName}»</p>
                             {renderWizardCoreFields({ lockIntegratorType: true })}
+                            {renderResponsibleContact({ required: false })}
                           </div>
                         )}
                       </div>
@@ -1242,10 +1310,10 @@ export const Integrators = () => {
                 onClick={() => setShowAll(v => !v)}
                 className={`h-9 text-xs ${showAll ? 'bg-slate-700 hover:bg-slate-800 text-white' : 'border-slate-300 text-slate-600'}`}
                 data-testid="toggle-show-all"
-                title={showAll ? 'Ocultar proyectos cerrados' : 'Mostrar también los proyectos cerrados'}
+                title={showAll ? 'Mostrando TODOS los integradores (incluye histórico sin clasificar y cerrados). Click para ver solo los proyectos.' : 'Mostrando solo proyectos clasificados (Nuevos, Componentes y Ampliaciones). Click para ver todos.'}
               >
                 {showAll ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}
-                {showAll ? 'Ver Todos' : 'Solo Activos'}
+                {showAll ? 'Ver Todos' : 'Solo Proyectos'}
               </Button>
               {(filterStatus || filterType || filterIntType || filterModality || filterGestor || filterScope || searchTerm) && (
                 <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setFilterStatus('all'); setFilterType('all'); setFilterIntType('all'); setFilterModality('all'); setFilterGestor('all'); setFilterScope('all'); setSearchTerm(''); }} data-testid="clear-filters-btn">Limpiar</Button>

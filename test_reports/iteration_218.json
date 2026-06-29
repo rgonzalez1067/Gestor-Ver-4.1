@@ -1,0 +1,29 @@
+{
+  "summary": "Iter218 QA: Integradores - vista por defecto clasificada + responsable obligatorio/opcional. 5/5 backend tests PASS. UI E2E: default=4 filas clasificadas (XETUX/Saint AMPLIACION, Alcantara NUEVO COMPONENTE, Rafatech NUEVO INTEGRADOR); toggle 'Solo Proyectos'->'Ver Todos' aumenta a 271 filas. Wizard nuevo integrador exige Responsable (toast muestra: 'Complete los datos del Responsable (Nombre, Email y Telefono) - obligatorios para un Integrador nuevo') y bloquea creacion. Codigo confirmado: renderResponsibleContact({required:false}) imprime '(opcional)' en flujos existente/new_type y expansion (validacion solo de formato email).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators table", "issues": ["Pre-existente: warnings de hidratacion React por data-ve-dynamic envolviendo <tr> dentro de <tbody> (instruido a ignorar)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_integrators_iter218.py",
+    "/app/test_reports/pytest/iter218_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Integrators.jsx supera las 1500 lineas: convendria extraer el Wizard y los modales (Bitacora, Timeline, Summary, EmailNotify) a subcomponentes.",
+    "El backend GET /api/integrators no filtra server-side por project_scope clasificado; el filtrado clasificado vive solo en el frontend (filteredIntegrators). Si en el futuro hay paginacion server-side habria que mover esa logica al backend.",
+    "ExpandPayload acepta `contacts: List[dict]` sin Pydantic model (libre), considerar tipar contactos con Contact model para validacion consistente."
+  ],
+  "updated_files": ["/app/backend/tests/test_integrators_iter218.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Tests crean y eliminan integradores temporales 'ZZZ QA Responsable Test 218' y 'ZZZ QA Expand 218' (auto-cleanup). UI test no llego a persistir nada (validacion bloqueo creacion).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests reutilizables en backend/tests/test_integrators_iter218.py. Recordar pasar REACT_APP_BACKEND_URL como env var al ejecutar pytest (no esta en pytest config). Conteo total actual en show_all=true es ~271 integradores.",
+  "rca of the issue": "N/A - no se encontraron bugs. Implementacion correcta: (1) filteredIntegrators aplica CLASSIFIED_SCOPES=['new','component','expansion'] cuando !showAll; (2) handleWizardSubmit valida rc.name/email/phone obligatorios cuando integratorMode==='new'; (3) renderResponsibleContact({required:false}) muestra etiqueta '(opcional)' en flujos existing/new_type y expansion."
+}

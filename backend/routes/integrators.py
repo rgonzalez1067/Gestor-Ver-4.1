@@ -304,6 +304,7 @@ async def close_integrator_project(integrator_id: str, authorization: Optional[s
 class ExpandPayload(BaseModel):
     productos_certificar: Optional[str] = None
     correo_eventual: Optional[str] = None
+    contacts: Optional[List[dict]] = None
 
 
 @router.post("/integrators/{integrator_id}/expand")
@@ -330,6 +331,17 @@ async def expand_integrator_type(integrator_id: str, payload: Optional[ExpandPay
             set_data["productos_certificar"] = payload.productos_certificar
         if payload.correo_eventual is not None:
             set_data["correo_eventual"] = payload.correo_eventual
+        # Fusionar el Responsable capturado (dedupe por email) en los contactos del integrador.
+        if payload.contacts:
+            merged = list(existing.get("contacts") or [])
+            existing_emails = {(c.get("email") or "").strip().lower() for c in merged}
+            for c in payload.contacts:
+                email_key = (c.get("email") or "").strip().lower()
+                if not email_key or email_key not in existing_emails:
+                    merged.append(c)
+                    if email_key:
+                        existing_emails.add(email_key)
+            set_data["contacts"] = merged
     await db.integrators.update_one(
         {"integrator_id": integrator_id},
         {"$set": set_data},
