@@ -1,0 +1,25 @@
+{
+  "summary": "Iter220 BUG FIX QA: GET /api/clients/export/pdf migrado a build_corporate_pdf (logo + 'CRM - Gestor' + repeatRows=1 + numeracion de pagina + landscape automatico). 11/11 pytest PASS. Clients PDF: 200, content-type application/pdf, 95KB, comienza con %PDF-1.4, contiene 'Clientes' (titulo), '/Image' (logo embebido) y 'Helvetica-Bold' (encabezado). Regresion verificada para /api/banks/export/pdf, /api/services/export/pdf, /api/hardware/export/pdf, /api/hardware/export/excel, /api/commercial-categories/export/pdf, /api/commercial-categories/export/excel, /api/commercial-categories/export/csv: todos 200 con magic bytes correctos (%PDF / PK / CSV con header 'Nombre').",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_reports_iter220_clients_pdf.py",
+    "/app/test_reports/pytest/iter220_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/dashboard.py::export_clients_pdf: el import 'from services.pdf_report import build_corporate_pdf' esta dentro de la funcion (lazy). Consistente con otros endpoints; OK, no es bug.",
+    "services/pdf_report.py es limpio (168 LOC) y centraliza el estilo: buena practica DRY. Considerar tests unitarios directos sobre build_corporate_pdf (sin HTTP) para detectar regresiones de layout (landscape >=6 col, repeatRows, decorator) si en el futuro cambia el header corporativo.",
+    "El check de magic 'Clientes' en bytes del PDF asume que reportlab no comprime el flujo de texto. Funciona porque reportlab por default deja el title de metadata en claro (Info dict). Si se activa compresion total, ese check se debilitaria; el assert %PDF + tamano son los importantes.",
+    "Las rutas de export estan repartidas en routes/dashboard.py (clients), routes/services.py, routes/hardware.py, routes/commercial_categories.py, routes/banks (...). Consistencia OK: todas usan build_corporate_pdf. Recomendable agregar test de smoke unico que itere endpoints '/export/pdf' descubiertos por reflexion del router para evitar futuras regresiones.",
+    "routes/dashboard.py mide 777 LOC -- dentro de limite (<800), pero acercandose al umbral; vigilar."
+  ],
+  "updated_files": ["/app/backend/tests/test_reports_iter220_clients_pdf.py"],
+  "success_rate": {"backend": "100%", "frontend": "skipped"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (login devuelve session_token, no token).",
+  "seed_data_creation": "Ninguna. Solo lecturas (GET) sobre datos existentes.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Para autenticar con este backend, POST /api/auth/login devuelve session_token (no 'token' ni 'access_token'). El helper en /app/backend/tests/test_reports_iter220_clients_pdf.py prueba ambos. Los endpoints /export/pdf devuelven StreamingResponse con magic %PDF-1.4; /export/excel devuelve xlsx (PK\\x03\\x04); /export/csv devuelve UTF-8 con BOM y primera columna 'Nombre'. El logo corporativo se sirve desde /app/backend/uploads/notif_logo.jpg via UPLOADS_DIR. Si en el futuro se quiere validar visualmente el PDF, abrir /tmp/clientes.pdf generado por el script ad-hoc.",
+  "rca of the issue": "BUG: 'El reporte PDF de la Tabla de clientes no tiene los ajustes de Encabezado, logo y orientacion que tienen los otros reportes'. RCA: routes/dashboard.py::export_clients_pdf usaba reportlab plano (SimpleDocTemplate + Table sin onFirstPage/onLaterPages, sin Image del logo, sin landscape) mientras que el resto de endpoints (banks/services/hardware/commercial-categories) ya estaba migrado a services.pdf_report.build_corporate_pdf que aplica logo + 'CRM - Gestor' + repeatRows=1 + numeracion + landscape auto. FIX (aplicado por main agent): reemplazar el bloque legacy por build_corporate_pdf(title='Clientes', headers=['RIF','Nombre Juridico','Nombre Fantasia','Segmento','Contacto'], rows=..., col_ratios=[1.4,2.6,2,1.2,2]). VERIFICACION: GET /api/clients/export/pdf -> 200, %PDF-1.4, 95KB, contiene /Image (logo embebido), 'Helvetica-Bold' (header) y title 'Clientes'. Regresion OK en los 6 endpoints relacionados (4 PDF + 2 XLSX + 1 CSV)."
+}

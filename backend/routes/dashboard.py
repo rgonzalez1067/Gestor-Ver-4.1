@@ -745,47 +745,29 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
 @router.get("/clients/export/pdf")
 async def export_clients_pdf(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
-    
+
+    from services.pdf_report import build_corporate_pdf
+
     clients = await db.clients.find({}, {"_id": 0}).to_list(1000)
-    
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    elements = []
-    styles = getSampleStyleSheet()
-    
-    title = Paragraph("Clientes - Cotizador Merchant Server", styles['Title'])
-    elements.append(title)
-    elements.append(Spacer(1, 20))
-    
-    data = [['RIF', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento', 'Contacto']]
+    clients.sort(key=lambda c: (c.get("legal_name") or c.get("rif") or "").strip().casefold())
+
+    headers = ['RIF', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento', 'Contacto']
+    rows = []
     for c in clients:
-        contact_name = c.get('contact1', {}).get('name', 'N/A') if isinstance(c.get('contact1'), dict) else 'N/A'
-        data.append([
-            c['rif'][:15],
-            c['legal_name'][:25],
-            c['fantasy_name'][:20],
-            c.get('segment', 'N/A'),
-            contact_name[:20]
+        contact_name = c.get('contact1', {}).get('name', '') if isinstance(c.get('contact1'), dict) else ''
+        rows.append([
+            c.get('rif', ''),
+            c.get('legal_name', ''),
+            c.get('fantasy_name', ''),
+            c.get('segment', ''),
+            contact_name,
         ])
-    
-    table = Table(data, colWidths=[1.2*inch, 2*inch, 1.5*inch, 1*inch, 1.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#00447C')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    elements.append(table)
-    
-    doc.build(elements)
-    buffer.seek(0)
-    
+
+    buffer = build_corporate_pdf(
+        title="Clientes",
+        headers=headers, rows=rows,
+        col_ratios=[1.4, 2.6, 2, 1.2, 2],
+    )
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
