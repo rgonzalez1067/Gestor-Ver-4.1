@@ -3296,8 +3296,13 @@ async def projects_workload_pdf(
             "project_type": 1, "rifs": 1,  # Multi-RIF: total de cajas vive en rifs
             "status_changed_at": 1, "sent_to_implementation_at": 1,
             "created_at": 1, "unblocked_at": 1,  # para días hábiles en estado
+            "stores": 1, "is_multistore": 1,  # para % de avance (rollup multitienda)
         },
     ).to_list(5000)
+
+    def _avance_cell_html(pct: int) -> str:
+        color = "#16a34a" if pct >= 100 else "#d97706" if pct > 0 else "#94a3b8"
+        return f'<span style="font-weight:700;color:{color};">{pct}%</span>'
 
     # Iter39: pre-calcular PVV por proyecto para no recalcular en cada uso.
     from services.project_pvv import compute_project_pvv
@@ -3313,6 +3318,13 @@ async def projects_workload_pdf(
         # Días hábiles transcurridos en el estado actual (excluye sáb/dom + feriados).
         _entered = stage_entered_at(_p)
         _p["_bdays"] = business_days_between(_entered.date(), _today, _specific, _recurring) if _entered else 0
+        # % de avance global del proyecto (rollup por tiendas si es multitienda, si no la matriz principal).
+        if _p.get("stores"):
+            _prog = _calculate_rollup_progress(_p)
+        else:
+            _prog = _calculate_single_progress(_p)
+        _p["_avance"] = int(round(_prog.get("global_progress", 0) or 0))
+        _p["_avance_html"] = _avance_cell_html(_p["_avance"])
 
     # Aplicar filtros en memoria (dataset pequeño <5k)
     def _matches(p: dict) -> bool:
@@ -3403,6 +3415,7 @@ async def projects_workload_pdf(
               <td class="num">{cajas}</td>
               <td class="num pvv">{pvv_cell}</td>
               <td class="state">{p.get('status') or '—'}</td>
+              <td class="num avance">{p.get('_avance_html', '—')}</td>
               <td class="num bdays">{p.get('_bdays', 0)}</td>
               <td>{orig_html}</td>
               <td class="date">{_format_es_date(p.get('assigned_at'))}</td>
@@ -3422,6 +3435,7 @@ async def projects_workload_pdf(
               <col class="c-cajas" />
               <col class="c-pvv" />
               <col class="c-estado" />
+              <col class="c-avance" />
               <col class="c-bdays" />
               <col class="c-orig" />
               <col class="c-fasign" />
@@ -3430,7 +3444,7 @@ async def projects_workload_pdf(
             <thead>
               <tr>
                 <th>Cliente</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
-                <th>Estado</th><th>Días háb.</th><th>Implementador Original</th>
+                <th>Estado</th><th>% Avance</th><th>Días háb.</th><th>Implementador Original</th>
                 <th>Fecha Asignación</th><th>Último Contacto</th>
               </tr>
             </thead>
@@ -3534,6 +3548,7 @@ async def projects_workload_pdf(
                   <td class="num">{cajas}</td>
                   <td class="num pvv">{pvv_cell}</td>
                   <td class="state">{p.get('status') or '—'}</td>
+                  <td class="num avance">{p.get('_avance_html', '—')}</td>
                   <td class="num bdays">{p.get('_bdays', 0)}</td>
                   <td>{impl_html}</td>
                   <td class="date">{_format_es_date(p.get('assigned_at'))}</td>
@@ -3549,12 +3564,12 @@ async def projects_workload_pdf(
               <table class="rep">
                 <colgroup>
                   <col class="c-cliente" /><col class="c-tipo" /><col class="c-cajas" /><col class="c-pvv" />
-                  <col class="c-estado" /><col class="c-bdays" /><col class="c-orig" /><col class="c-fasign" /><col class="c-ultcont" />
+                  <col class="c-estado" /><col class="c-avance" /><col class="c-bdays" /><col class="c-orig" /><col class="c-fasign" /><col class="c-ultcont" />
                 </colgroup>
                 <thead>
                   <tr>
                     <th>Cliente</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
-                    <th>Estado</th><th>Días háb.</th><th>Implementador</th>
+                    <th>Estado</th><th>% Avance</th><th>Días háb.</th><th>Implementador</th>
                     <th>Fecha Asignación</th><th>Último Contacto</th>
                   </tr>
                 </thead>
@@ -3632,13 +3647,14 @@ async def projects_workload_pdf(
       .group-head .count {{ font-size: 10px; color: #4338ca; font-weight: 600; }}
       table.rep {{ width: 100%; border-collapse: collapse; margin-top: 6px; table-layout: fixed; }}
       /* Anchos fijos por columna para que TODAS las tablas (por implementador) queden alineadas */
-      table.rep col.c-cliente  {{ width: 18%; }}
-      table.rep col.c-tipo     {{ width: 7%; }}
+      table.rep col.c-cliente  {{ width: 16%; }}
+      table.rep col.c-tipo     {{ width: 6%; }}
       table.rep col.c-cajas    {{ width: 5%; }}
-      table.rep col.c-pvv      {{ width: 6%; }}
-      table.rep col.c-estado   {{ width: 14%; }}
-      table.rep col.c-bdays    {{ width: 7%; }}
-      table.rep col.c-orig     {{ width: 14%; }}
+      table.rep col.c-pvv      {{ width: 5%; }}
+      table.rep col.c-estado   {{ width: 11%; }}
+      table.rep col.c-avance   {{ width: 7%; }}
+      table.rep col.c-bdays    {{ width: 6%; }}
+      table.rep col.c-orig     {{ width: 13%; }}
       table.rep col.c-fasign   {{ width: 13%; }}
       table.rep col.c-ultcont  {{ width: 13%; }}
       table.rep td.pvv {{ font-weight: 700; color: #4f46e5; }}

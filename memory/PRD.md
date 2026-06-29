@@ -3,7 +3,12 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Estandarización de Reportes (PDF & Excel/CSV) — fix 500 + nuevos exports — Jun 2026
+### Reporte de Carga de Proyectos: columna "% Avance" junto al Estado — Jun 2026
+**Requerimiento:** agregar el % de avance de cada proyecto en el Reporte de Carga (`GET /projects/reports/workload-pdf`), al lado del Estado.
+**Fix (`routes/projects.py::projects_workload_pdf`):** la proyección ahora incluye `stores`/`is_multistore`; en el pre-cálculo por proyecto se computa `_avance` = `global_progress` (vía `_calculate_rollup_progress` si hay tiendas, si no `_calculate_single_progress`) y se renderiza la celda `_avance_html` con código de color (verde ≥100%, ámbar >0%, gris 0%). Se agregó la columna "% Avance" (col `c-avance`, 7%) entre "Estado" y "Días háb." en ambos modos de agrupación (`implementer` y `type`); anchos de columnas rebalanceados.
+**QA:** curl → ambos modos HTTP 200, PDF válido; extracción confirma los valores `%` por fila (0%, 100%, …). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** corregir el error 500 al exportar PDF en Medios de Pago (Services) y Bienes y Servicios (Hardware); estandarizar todos los PDF al estilo corporativo (logo, "CRM - Gestor", landscape dinámico, encabezado repetido); y agregar exportación dual a Categorías Comerciales.
 **Causa raíz del 500:** `services.py` y `hardware.py` usaban `SimpleDocTemplate`/`getSampleStyleSheet` sin importar reportlab → `NameError`.
 **Fix backend:**
