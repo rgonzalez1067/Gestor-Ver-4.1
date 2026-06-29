@@ -295,46 +295,28 @@ async def export_hardware_excel(authorization: Optional[str] = Header(None)):
 async def export_hardware_pdf(authorization: Optional[str] = Header(None)):
     """Exportar bienes y servicios a PDF"""
     await get_current_user(authorization)
-    
+
+    from services.pdf_report import build_corporate_pdf
+
     hardware_list = await db.hardware.find({}, {"_id": 0}).to_list(1000)
-    
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    elements = []
-    styles = getSampleStyleSheet()
-    
-    title = Paragraph("Bienes y Servicios - Cotizador Merchant Server", styles['Title'])
-    elements.append(title)
-    elements.append(Spacer(1, 20))
-    
-    data = [['Nombre', 'Tipo', 'Precio USD', 'Precio Bs/USD', 'Descripción']]
+    hardware_list.sort(key=lambda h: (h.get("name") or "").strip().casefold())
+
+    headers = ['Nombre', 'Tipo', 'Precio USD', 'Precio Bs/USD', 'Descripción']
+    rows = []
     for h in hardware_list:
-        data.append([
-            h.get('name', '')[:30],
+        rows.append([
+            h.get('name', ''),
             h.get('type', ''),
             f"${h.get('price_usd', 0):.2f}",
             f"${h.get('price_bs_usd', 0):.2f}",
-            (h.get('description', '') or '')[:25]
+            h.get('description', '') or '',
         ])
-    
-    table = Table(data, colWidths=[2*inch, 1*inch, 1*inch, 1*inch, 1.7*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#00447C')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    elements.append(table)
-    
-    doc.build(elements)
-    buffer.seek(0)
-    
+
+    buffer = build_corporate_pdf(
+        title="Bienes y Servicios",
+        headers=headers, rows=rows,
+        col_ratios=[2.4, 1.2, 1, 1, 3.4],
+    )
     return StreamingResponse(
         buffer,
         media_type="application/pdf",

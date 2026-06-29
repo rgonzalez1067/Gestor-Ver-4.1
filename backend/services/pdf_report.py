@@ -152,3 +152,16 @@ def build_xlsx(headers: list, rows: list, sheet_name: str = "Datos") -> io.Bytes
         df.to_excel(writer, index=False, sheet_name=safe_sheet)
     output.seek(0)
     return output
+
+
+def build_csv(headers: list, rows: list) -> io.BytesIO:
+    """Genera un CSV (UTF-8 con BOM para Excel) con encabezados + filas. Devuelve BytesIO."""
+    import csv
+    text = io.StringIO()
+    writer = csv.writer(text)
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow(["" if v is None else str(v) for v in row])
+    output = io.BytesIO(text.getvalue().encode("utf-8-sig"))
+    output.seek(0)
+    return output

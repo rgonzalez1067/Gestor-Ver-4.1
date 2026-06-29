@@ -3,6 +3,18 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Estandarización de Reportes (PDF & Excel/CSV) — fix 500 + nuevos exports — Jun 2026
+**Requerimiento:** corregir el error 500 al exportar PDF en Medios de Pago (Services) y Bienes y Servicios (Hardware); estandarizar todos los PDF al estilo corporativo (logo, "CRM - Gestor", landscape dinámico, encabezado repetido); y agregar exportación dual a Categorías Comerciales.
+**Causa raíz del 500:** `services.py` y `hardware.py` usaban `SimpleDocTemplate`/`getSampleStyleSheet` sin importar reportlab → `NameError`.
+**Fix backend:**
+- `services/pdf_report.py`: + helper `build_csv` (UTF-8 BOM).
+- `routes/services.py::export_services_pdf` y `routes/hardware.py::export_hardware_pdf` migrados a `build_corporate_pdf` (banks.py ya estaba migrado). Excel de hardware ya funcionaba.
+- `routes/commercial_categories.py`: nuevos `GET /commercial-categories/export/{pdf,excel,csv}` (helper `_categories_export_rows`).
+**Fix frontend (`CommercialCategories.jsx`):** dropdown "Exportar" (PDF/Excel/CSV) con `cc-export-btn`, `cc-export-pdf-btn`, `cc-export-excel-btn`, `cc-export-csv-btn`; handler `exportFile(format)` con descarga blob.
+**QA:** curl → los 7 endpoints HTTP 200 con firma válida (banks/services/hardware PDF, hardware xlsx, categorías pdf/xlsx/csv). Screenshot UI: dropdown visible con 3 opciones. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
+
 ### Bug resuelto — Restauración de Inventario incompleta (faltaban Almacenes/Seriales) — Jun 2026
 **Reporte:** "la restauración del Archivo de Inventarios no funciona" (el resumen decía "A actualizar: 130" pero el inventario no se reproducía). **Causa raíz:** el Centro de Respaldos solo respaldaba `inventory_movements`; la pantalla de Inventario depende también de `warehouses` (almacenes), `serial_assignments` y la auditoría. Al restaurar solo los movimientos, los `warehouse_id` quedaban huérfanos y el stock no se veía.
 **Fix (`routes/data_migration.py`):** se agregaron 3 entidades al Centro de Respaldos (MODULES + BACKUP_CENTER_ENTITIES), reusando los flujos genéricos export/import/replace: `inventory-warehouses` (Almacenes, key warehouse_id), `inventory-serial-assignments` (key assignment_id), `inventory-movement-audits` (key audit_id). El "Respaldo Total" y el ZIP ahora las incluyen, por lo que un restore total reproduce el inventario completo con IDs consistentes.

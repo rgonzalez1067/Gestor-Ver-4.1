@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Save, Tag, CheckCircle2, XCircle, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Tag, CheckCircle2, XCircle, Search, Download, FileSpreadsheet, FileText, FileDown } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -99,6 +99,26 @@ export const CommercialCategories = () => {
     }
   };
 
+  const exportFile = async (format) => {
+    const labels = { pdf: 'PDF', excel: 'Excel', csv: 'CSV' };
+    const exts = { pdf: 'pdf', excel: 'xlsx', csv: 'csv' };
+    const toastId = toast.loading(`Exportando a ${labels[format]}...`);
+    try {
+      const { data } = await api.get(`/commercial-categories/export/${format}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `categorias_comerciales_${new Date().toISOString().split('T')[0]}.${exts[format]}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`Exportado a ${labels[format]}`, { id: toastId });
+    } catch {
+      toast.error(`Error al exportar a ${labels[format]}`, { id: toastId });
+    }
+  };
+
   const q = search.trim().toLowerCase();
   const filtered = q
     ? cats.filter(c => (c.name || '').toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q))
@@ -126,6 +146,40 @@ export const CommercialCategories = () => {
                 Nueva Categoría
               </Button>
             )}
+            <div className="flex items-center gap-2">
+              <div className="relative group">
+                <Button variant="outline" data-testid="cc-export-btn">
+                  <Download size={18} className="mr-2" />
+                  Exportar
+                </Button>
+                <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <button
+                    onClick={() => exportFile('pdf')}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-lg"
+                    data-testid="cc-export-pdf-btn"
+                  >
+                    <FileText size={16} className="text-red-600" />
+                    Exportar a PDF
+                  </button>
+                  <button
+                    onClick={() => exportFile('excel')}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    data-testid="cc-export-excel-btn"
+                  >
+                    <FileSpreadsheet size={16} className="text-green-600" />
+                    Exportar a Excel
+                  </button>
+                  <button
+                    onClick={() => exportFile('csv')}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-b-lg"
+                    data-testid="cc-export-csv-btn"
+                  >
+                    <FileDown size={16} className="text-blue-600" />
+                    Exportar a CSV
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Search */}

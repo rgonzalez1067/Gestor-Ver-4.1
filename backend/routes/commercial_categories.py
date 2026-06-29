@@ -47,6 +47,70 @@ async def list_commercial_categories(
     return cats
 
 
+async def _categories_export_rows():
+    cats = await db.commercial_categories.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+    headers = ['Nombre', 'Descripción', 'Estado']
+    rows = []
+    for c in cats:
+        rows.append([
+            c.get('name', ''),
+            c.get('description', '') or '',
+            'Activa' if c.get('is_active', True) else 'Inactiva',
+        ])
+    return headers, rows
+
+
+@router.get("/commercial-categories/export/pdf")
+async def export_commercial_categories_pdf(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    from fastapi.responses import StreamingResponse
+    from services.pdf_report import build_corporate_pdf
+
+    headers, rows = await _categories_export_rows()
+    buffer = build_corporate_pdf(
+        title="Categorías Comerciales",
+        headers=headers, rows=rows,
+        col_ratios=[2.4, 4.6, 1.2],
+    )
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=categorias_comerciales.pdf"}
+    )
+
+
+@router.get("/commercial-categories/export/excel")
+async def export_commercial_categories_excel(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    from fastapi.responses import StreamingResponse
+    from services.pdf_report import build_xlsx
+
+    headers, rows = await _categories_export_rows()
+    buffer = build_xlsx(headers, rows, sheet_name="Categorías Comerciales")
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=categorias_comerciales.xlsx"}
+    )
+
+
+@router.get("/commercial-categories/export/csv")
+async def export_commercial_categories_csv(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    from fastapi.responses import StreamingResponse
+    from services.pdf_report import build_csv
+
+    headers, rows = await _categories_export_rows()
+    buffer = build_csv(headers, rows)
+    return StreamingResponse(
+        buffer,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=categorias_comerciales.csv"}
+    )
+
+
+
+
 @router.post("/commercial-categories")
 async def create_commercial_category(
     payload: CommercialCategoryCreate,

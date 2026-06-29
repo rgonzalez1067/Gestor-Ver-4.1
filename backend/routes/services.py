@@ -273,47 +273,29 @@ async def import_services(file: UploadFile = File(...), authorization: Optional[
 @router.get("/services/export/pdf")
 async def export_services_pdf(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
-    
+
+    from services.pdf_report import build_corporate_pdf
+
     services = await db.services.find({}, {"_id": 0}).to_list(1000)
-    
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    elements = []
-    styles = getSampleStyleSheet()
-    
-    title = Paragraph("Catálogo de Servicios - Cotizador Merchant Server", styles['Title'])
-    elements.append(title)
-    elements.append(Spacer(1, 20))
-    
-    data = [['Servicio', 'Tipo Corp', 'Setup Conv.', 'Mensual Conv.', 'Setup Out.', 'Mensual Out.']]
+    services.sort(key=lambda s: (s.get("name") or "").strip().casefold())
+
+    headers = ['Servicio', 'Tipo Corp', 'Setup Conv.', 'Mensual Conv.', 'Setup Out.', 'Mensual Out.']
+    rows = []
     for s in services:
-        data.append([
-            s['name'][:40],
-            s.get('tipo_corp', '')[:20],
+        rows.append([
+            s.get('name', ''),
+            s.get('tipo_corp', ''),
             f"${s.get('setup_cost_conventional', 0):.2f}",
             f"${s.get('monthly_cost_conventional', 0):.2f}",
             f"${s.get('setup_cost_outsourcing', 0):.2f}",
-            f"${s.get('monthly_cost_outsourcing', 0):.2f}"
+            f"${s.get('monthly_cost_outsourcing', 0):.2f}",
         ])
-    
-    table = Table(data, colWidths=[2.0*inch, 1.2*inch, 0.9*inch, 0.9*inch, 0.9*inch, 0.9*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#00447C')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    elements.append(table)
-    
-    doc.build(elements)
-    buffer.seek(0)
-    
+
+    buffer = build_corporate_pdf(
+        title="Medios de Pago y Servicios",
+        headers=headers, rows=rows,
+        col_ratios=[2.6, 1.4, 1, 1, 1, 1],
+    )
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
