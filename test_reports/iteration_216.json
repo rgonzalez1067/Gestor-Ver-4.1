@@ -1,0 +1,51 @@
+{
+  "summary": "Iter216 (frontend-only QA of /integrators fix for 'NUEVO INTEGRADOR' badge contamination). THE BUG IS NOT FIXED VISUALLY: 269 out of 269 records in /integrators still render a scope-tag badge (268 NUEVO INTEGRADOR + 1 AMPLIACION). Expected ~0 badges for legacy data. ROOT CAUSE FOUND BY CROSS-CHECKING DB vs API: MongoDB actually has the CORRECT state (268 legacy docs without project_scope + 1 with 'expansion'), but the FastAPI endpoint GET /api/integrators uses response_model=List[Integrator] and the Pydantic Integrator model defines project_scope with a default value of 'new' (models.py line 430). Pydantic therefore INJECTS project_scope='new' into every legacy document during response serialization, defeating the frontend guard. The frontend code in Integrators.jsx (lines 1300-1318) is correct — it only renders the badge when intg.project_scope is truthy — but it never sees a falsy value because the backend lies. Filter 'Alcance' strictness works correctly against the inflated data (expansion=1 row, component=0 rows). Toggle Solo Activos ↔ Ver Todos toggles label and reloads correctly. Lock-icon crash is gone. data-testids integrators-page / scope-tag-{id} / toggle-show-all / filter-scope / create-integrator-btn / integrator-row-{id} are all present.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/integrators (response_model=List[Integrator])",
+        "issue": "Pydantic default 'new' on Integrator.project_scope (models.py L430) and IntegratorCreate.project_scope (L406) causes the API to inject project_scope='new' into EVERY legacy document that lacks the field. DB has 268 legacy docs without project_scope, but the API returns them with project_scope='new'. This is the actual cause of the badge contamination, NOT a frontend issue.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Render scope badge in /integrators grid",
+        "issue": "Frontend guard `{!closed && scopeMeta.label && ...}` works as intended, but the backend forces project_scope='new' on legacy rows, so 268 of 269 rows render a NUEVO INTEGRADOR badge. End-user impact identical to the original reported bug.",
+        "affected_selectors": ["[data-testid^=\"scope-tag-\"]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "/integrators table rows",
+        "issues": [
+          "Pre-existing React hydration warning: <span data-ve-dynamic='true' style='display:contents'> wrapper rendered between <tbody> and <tr> by the visual-edit instrumentation. Same issue noted in iteration_212/213/214; NOT introduced by this change."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "URGENT (root cause): In /app/backend/models.py change `project_scope: Optional[str] = 'new'` to `project_scope: Optional[str] = None` on BOTH `IntegratorCreate` (L406) and `Integrator` (L430). The POST /integrators endpoint already explicitly sets the classified scope at routes/integrators.py:154, so the change does NOT break the create flow. Closed-project endpoint already sets project_scope=None explicitly (L295). After the fix, re-query GET /api/integrators and confirm 268 legacy records return project_scope=null and thus do NOT render a badge.",
+    "(Optional) Add a defensive backend guard so the GET endpoint maps missing project_scope to None before response_model validation, in case other consumers depend on the default.",
+    "(Minor cosmetic, pre-existing) Strip data-ve-dynamic <span> wrappers that land between <tbody> and <tr> to silence the React hydration warning across the app."
+  ],
+  "critical_code_review_comments": [
+    "models.py L406 & L430: A Pydantic default of 'new' for project_scope is dangerous because FastAPI's response_model coerces dicts through Integrator(**doc); any missing field gets the default. This bites every legacy doc and exactly matches the bug the user re-reported. The default MUST be None for an Optional[str] sentinel field whose semantics include 'never classified'.",
+    "routes/integrators.py L88 returns response_model=List[Integrator]; consider using response_model_exclude_none=True or remove the default to ensure legacy data flows through unmodified.",
+    "Integrators.jsx scopeMeta lookup uses `scope` (which is `closed ? 'closed' : intg.project_scope`). With backend fix in place this resolves to undefined for legacy rows and the `|| { row: 'hover:bg-slate-50', tag:'', label:'', icon:null }` fallback works correctly — verified by code reading.",
+    "Filter 'Alcance' uses strict equality `(intg.project_scope || '') !== filterScope` (L776) — this is correct AFTER the backend fix; while the backend still injects 'new' the filter is misleading because 268 rows match 'Proyectos Nuevos' even though only newly-created ones should."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend-only request)", "frontend": "Reproduction & RCA complete. Bug NOT fixed end-to-end."},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Only read queries against MongoDB and /api/integrators were performed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "DB ground truth (verified via motor query): total=269, project_scope set on 1 doc only ('expansion'), 268 docs WITHOUT project_scope. After the fix in models.py defaults, expected UI behavior: ~0 scope-tag badges in default view (only the 1 expansion if it is non-Cerrado). Use /api/integrators?show_all=true with admin token to confirm `null` values come through. data-testids: integrators-page, integrator-row-{id}, scope-tag-{id}, closed-tag-{id}, filter-scope, toggle-show-all (text toggles 'Solo Activos' ↔ 'Ver Todos'), create-integrator-btn, wizard-name-search. Login returns session_token in localStorage.",
+  "rca_of_the_issue": "ROOT CAUSE: /app/backend/models.py defines `class Integrator(BaseModel): ... project_scope: Optional[str] = 'new'` (line 430) and `class IntegratorCreate(BaseModel): ... project_scope: Optional[str] = 'new'` (line 406). The GET /api/integrators endpoint declares `response_model=List[Integrator]`, so FastAPI passes every dict returned from MongoDB through `Integrator(**doc).dict()`. For the 268 legacy docs that have no project_scope key, Pydantic substitutes the default 'new' and returns it to the client. The frontend correctly checks for truthy project_scope before rendering the colored badge — but because the API always returns 'new', the guard never trips and every row gets the blue NUEVO INTEGRADOR pill. REPRODUCTION: (1) Login as admin; GET /api/integrators?show_all=true → 269 rows, 268 with project_scope='new'. (2) Query Mongo directly with the same DB_NAME → 268 docs without the field, 1 with 'expansion'. MITIGATION: change both Pydantic defaults from 'new' to None. The create endpoint already classifies project_scope explicitly (routes/integrators.py:149-154) so the change does not affect new-integrator creation; close endpoint already sets None (L295); expansion endpoint explicitly sets 'expansion' (L324). No other consumer depends on the default."
+}

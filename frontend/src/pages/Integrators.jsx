@@ -771,9 +771,9 @@ export const Integrators = () => {
     if (filterModality && filterModality !== 'all' && intg.integration_modality !== filterModality) return false;
     if (filterGestor && filterGestor !== 'all' && intg.gestor !== filterGestor) return false;
     if (filterScope && filterScope !== 'all') {
-      // Filas heredadas (sin project_scope) cuentan como 'new' (base).
-      const scope = intg.project_scope === 'expansion' ? 'expansion' : 'new';
-      if (scope !== filterScope) return false;
+      // Estricto: solo coincide con el alcance real clasificado por el nuevo flujo.
+      // Los registros legacy (sin project_scope) NO entran en ningún alcance.
+      if ((intg.project_scope || '') !== filterScope) return false;
     }
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
@@ -1232,6 +1232,7 @@ export const Integrators = () => {
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="new">Proyectos Nuevos</SelectItem>
+                  <SelectItem value="component">Nuevos Componentes</SelectItem>
                   <SelectItem value="expansion">Proyectos Ampliados</SelectItem>
                 </SelectContent>
               </Select>
@@ -1296,13 +1297,15 @@ export const Integrators = () => {
                     <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
                   ) : filteredIntegrators.map((intg) => {
                     const closed = intg.integrator_status === 'Cerrado';
-                    const scope = closed ? 'closed' : (intg.project_scope || 'new');
-                    const scopeMeta = {
+                    // Solo los proyectos clasificados por el nuevo flujo llevan etiqueta.
+                    // Los registros legacy (sin project_scope) NO se etiquetan ni colorean.
+                    const scope = closed ? 'closed' : intg.project_scope;
+                    const scopeMeta = ({
                       new: { row: 'bg-blue-50/60 hover:bg-blue-100/60', tag: 'bg-blue-600 text-white', label: 'NUEVO INTEGRADOR', icon: <Plus size={9} /> },
                       component: { row: 'bg-emerald-50/70 hover:bg-emerald-100/70', tag: 'bg-emerald-600 text-white', label: 'NUEVO COMPONENTE', icon: <Plus size={9} /> },
                       expansion: { row: 'bg-orange-50/70 hover:bg-orange-100/70', tag: 'bg-orange-500 text-white', label: 'AMPLIACIÓN', icon: <RefreshCw size={9} /> },
                       closed: { row: 'bg-slate-50 hover:bg-slate-100', tag: '', label: '', icon: null },
-                    }[scope];
+                    })[scope] || { row: 'hover:bg-slate-50', tag: '', label: '', icon: null };
                     return (
                     <Fragment key={intg.integrator_id}>
                       <tr className={`transition-colors ${scopeMeta.row} ${closed ? 'text-slate-400' : ''}`} data-testid={`integrator-row-${intg.integrator_id}`}>
