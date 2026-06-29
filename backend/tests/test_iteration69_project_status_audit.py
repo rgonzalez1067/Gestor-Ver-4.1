@@ -15,7 +15,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://email-templates-fix.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://reports-unify.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 TARGET_PROJECT_ID = "prj_a7368898fca6"
 

@@ -699,50 +699,25 @@ async def import_banks(file: UploadFile = File(...), authorization: Optional[str
 async def export_banks_pdf(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     
+    from services.pdf_report import build_corporate_pdf, BRAND_GREEN
     banks = await db.banks.find({}, {"_id": 0}).to_list(1000)
-    
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    elements = []
-    styles = getSampleStyleSheet()
-    
-    title = Paragraph("Bancos y Entidades - Cotizador Merchant Server", styles['Title'])
-    elements.append(title)
-    elements.append(Spacer(1, 20))
-    
-    data = [['Banco', 'Tipo', 'País', 'Productos']]
+    banks.sort(key=lambda b: (b.get("name") or "").strip().casefold())
+
+    headers = ['Banco', 'Tipo', 'País', 'Productos']
+    rows = []
     for b in banks:
-        products_str = ', '.join([p['product_name'] for p in b.get('products', [])][:3])
-        if len(b.get('products', [])) > 3:
-            products_str += f" (+{len(b['products']) - 3} más)"
-        data.append([
-            b['name'][:30],
-            b['type'],
-            b['country'],
-            products_str[:40] if products_str else 'Sin productos'
-        ])
-    
-    table = Table(data, colWidths=[2*inch, 1*inch, 1.2*inch, 2.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1B7D4E')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    elements.append(table)
-    
-    doc.build(elements)
-    buffer.seek(0)
-    
+        products = b.get('products', []) or []
+        products_str = ', '.join([p.get('product_name', '') for p in products]) or 'Sin productos'
+        rows.append([b.get('name', ''), b.get('type', ''), b.get('country', ''), products_str])
+
+    buffer = build_corporate_pdf(
+        title="Bancos y Entidades",
+        headers=headers, rows=rows,
+        col_ratios=[2.2, 1, 1.2, 3.6],
+        header_color=BRAND_GREEN,
+    )
     return StreamingResponse(
-        buffer,
-        media_type="application/pdf",
+        buffer, media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=bancos.pdf"}
     )
 
