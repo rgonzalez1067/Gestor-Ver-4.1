@@ -8,6 +8,7 @@ import uuid
 import logging
 import io
 import os
+import re
 
 from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
 from models import *
@@ -88,13 +89,17 @@ async def list_integrator_products(authorization: Optional[str] = Header(None)):
 async def get_integrators(
     authorization: Optional[str] = Header(None),
     integrator_status: Optional[str] = None,
-    integrator_type: Optional[str] = None
+    integrator_type: Optional[str] = None,
+    show_all: bool = False,
 ):
     await get_current_user(authorization)
     
     query = {}
     if integrator_status:
         query['integrator_status'] = integrator_status
+    elif not show_all:
+        # Vista por defecto: solo proyectos activos (oculta los Cerrados).
+        query['integrator_status'] = {"$ne": "Cerrado"}
     if integrator_type:
         query['integrator_type'] = integrator_type
     
@@ -126,12 +131,50 @@ async def create_integrator(integrator: IntegratorCreate, authorization: Optiona
     new_integrator = Integrator(**integrator.model_dump())
     doc = new_integrator.model_dump()
 
-    # Auto-initialize certifications to N/A for all products if not provided
-    if not doc.get('certifications'):
-        doc['certifications'] = {pid: "N/A" for pid in INTEGRATOR_PRODUCT_IDS}
+    # ===== Clasificación automática del Proyecto de Integración =====
+    # Compara contra los registros existentes del mismo Integrador (por nombre):
+    #  - Sin registros previos        -> "new"       (Proyecto Nuevo / Azul)
+    #  - Existe pero tipo NUEVO        -> "component" (Nuevo Componente / Verde)
+    #  - Existe y tipo YA presente     -> "expansion" (Proyecto Ampliado / Naranja)
+    norm_name = (doc.get("name") or "").strip().lower()
+    new_type = (doc.get("integration_type") or "").strip().upper()
+    same_name_rows = []
+    if norm_name:
+        async for r in db.integrators.find(
+            {"name": {"$regex": f"^{re.escape(doc.get('name','').strip())}$", "$options": "i"}},
+            {"_id": 0, "integration_type": 1, "contacts": 1, "integrator_id": 1},
+        ):
+            same_name_rows.append(r)
 
-    # Automatización: el usuario que da de alta el Proyecto de Integración queda
-    # registrado automáticamente como "Gestor del Proyecto" (sin selección manual).
+    if not same_name_rows:
+        scope = "new"
+    else:
+        existing_types = {(r.get("integration_type") or "").strip().upper() for r in same_name_rows}
+        scope = "expansion" if new_type and new_type in existing_types else "component"
+    doc["project_scope"] = scope
+
+    # Matriz de Productos: en "new" y "component" TODOS los productos nacen "P"
+    # (Pendiente). En "expansion" se respeta lo enviado o se inicializa N/A.
+    if scope in ("new", "component"):
+        doc["certifications"] = {pid: "P" for pid in INTEGRATOR_PRODUCT_IDS}
+    elif not doc.get("certifications"):
+        doc["certifications"] = {pid: "N/A" for pid in INTEGRATOR_PRODUCT_IDS}
+
+    # Propagar el contacto capturado al maestro: se suma a la lista de contactos
+    # de todos los registros del mismo Integrador (dedupe por email).
+    incoming_contacts = doc.get("contacts") or []
+    if incoming_contacts and same_name_rows:
+        for row in same_name_rows:
+            merged = list(row.get("contacts") or [])
+            existing_emails = {(c.get("email") or "").strip().lower() for c in merged}
+            for c in incoming_contacts:
+                if (c.get("email") or "").strip().lower() not in existing_emails:
+                    merged.append(c)
+            await db.integrators.update_one(
+                {"integrator_id": row["integrator_id"]}, {"$set": {"contacts": merged}}
+            )
+
+    # Automatización: el usuario que da de alta queda como "Gestor del Proyecto".
     if current_user and not doc.get('gestor_user_id'):
         creator_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get('email', '')
         doc['gestor'] = creator_name
@@ -229,6 +272,34 @@ async def update_integrator(integrator_id: str, integrator: IntegratorCreate, au
     
     updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
     return updated
+
+
+@router.post("/integrators/{integrator_id}/close")
+async def close_integrator_project(integrator_id: str, authorization: Optional[str] = Header(None)):
+    """Cierre de Proyecto de Integración. Solo perfiles con permiso de edición.
+    Pasa el estado a 'Cerrado', elimina la etiqueta de alcance (project_scope=None)
+    para que pierda el color y salga de la vista por defecto del visor."""
+    current_user = await get_current_user(authorization)
+    role = (current_user or {}).get("role", "")
+    if role not in ("admin", "implementador", "coordinador", "gestor"):
+        raise HTTPException(status_code=403, detail="No tiene permisos para cerrar proyectos")
+
+    existing = await db.integrators.find_one({"integrator_id": integrator_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+
+    await db.integrators.update_one(
+        {"integrator_id": integrator_id},
+        {"$set": {
+            "integrator_status": "Cerrado",
+            "project_scope": None,
+            "closed_at": datetime.now(timezone.utc).isoformat(),
+            "closed_by": current_user.get("email"),
+        }},
+    )
+    updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+    return updated
+
 
 class ExpandPayload(BaseModel):
     productos_certificar: Optional[str] = None

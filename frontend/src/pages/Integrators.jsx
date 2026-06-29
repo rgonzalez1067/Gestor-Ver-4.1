@@ -82,6 +82,7 @@ export const Integrators = () => {
   const [expandedRow, setExpandedRow] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [filterType, setFilterType] = useState('');
   const [filterIntType, setFilterIntType] = useState('');
   const [filterModality, setFilterModality] = useState('');
@@ -153,13 +154,14 @@ export const Integrators = () => {
   // Purge (admin only)
   const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
 
-  useEffect(() => { fetchData(); }, [filterStatus, filterType]);
+  useEffect(() => { fetchData(); }, [filterStatus, filterType, showAll]);
 
   const fetchData = async () => {
     try {
       const params = new URLSearchParams();
       if (filterStatus && filterStatus !== 'all') params.append('integrator_status', filterStatus);
       if (filterType && filterType !== 'all') params.append('integrator_type', filterType);
+      if (showAll) params.append('show_all', 'true');
       const url = params.toString() ? `/integrators?${params}` : '/integrators';
 
       const [intRes, usersRes, servicesRes, implRes, coordRes] = await Promise.all([
@@ -722,6 +724,18 @@ export const Integrators = () => {
     }
   };
 
+  const handleCloseProject = async (integratorId) => {
+    if (!window.confirm('¿Cerrar este proyecto de integración? Pasará a estado "Cerrado", perderá su etiqueta de color y saldrá de la vista por defecto.')) return;
+    try {
+      await api.post(`/integrators/${integratorId}/close`);
+      toast.success('Proyecto cerrado correctamente');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al cerrar el proyecto');
+    }
+  };
+
+
   // Implementador assignment with confirmation step
   const requestAssignImplementador = (integratorId, userId) => {
     const intg = integrators.find(i => i.integrator_id === integratorId);
@@ -1270,24 +1284,26 @@ export const Integrators = () => {
                   {filteredIntegrators.length === 0 ? (
                     <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
                   ) : filteredIntegrators.map((intg) => {
-                    const isExpanding = intg.project_scope === 'expansion' && intg.integrator_status !== 'Certificado';
+                    const closed = intg.integrator_status === 'Cerrado';
+                    const scope = closed ? 'closed' : (intg.project_scope || 'new');
+                    const scopeMeta = {
+                      new: { row: 'bg-blue-50/60 hover:bg-blue-100/60', tag: 'bg-blue-600 text-white', label: 'NUEVO INTEGRADOR', icon: <Plus size={9} /> },
+                      component: { row: 'bg-emerald-50/70 hover:bg-emerald-100/70', tag: 'bg-emerald-600 text-white', label: 'NUEVO COMPONENTE', icon: <Plus size={9} /> },
+                      expansion: { row: 'bg-orange-50/70 hover:bg-orange-100/70', tag: 'bg-orange-500 text-white', label: 'AMPLIACIÓN', icon: <RefreshCw size={9} /> },
+                      closed: { row: 'bg-slate-50 hover:bg-slate-100', tag: '', label: '', icon: null },
+                    }[scope];
                     return (
                     <Fragment key={intg.integrator_id}>
-                      <tr className={`transition-colors ${
-                        isExpanding
-                          ? 'bg-fuchsia-50 hover:bg-fuchsia-100/70'
-                          : !intg.implementador
-                            ? 'bg-amber-50/60 hover:bg-amber-100/60'
-                            : intg.integrator_status === 'En proceso'
-                              ? 'bg-blue-50/40 hover:bg-blue-100/40'
-                              : 'hover:bg-slate-50'
-                      }`} data-testid={`integrator-row-${intg.integrator_id}`}>
+                      <tr className={`transition-colors ${scopeMeta.row} ${closed ? 'text-slate-400' : ''}`} data-testid={`integrator-row-${intg.integrator_id}`}>
                         <td className="px-3 py-2">
-                          <p className="font-medium text-slate-900 text-sm truncate" title={intg.name}>{intg.name}</p>
-                          {isExpanding && (
-                            <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-fuchsia-600 text-white" data-testid={`expansion-badge-${intg.integrator_id}`}>
-                              <RefreshCw size={9} /> AMPLIACIÓN
+                          <p className={`font-medium text-sm truncate ${closed ? 'text-slate-500' : 'text-slate-900'}`} title={intg.name}>{intg.name}</p>
+                          {!closed && scopeMeta.label && (
+                            <span className={`inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${scopeMeta.tag}`} data-testid={`scope-tag-${intg.integrator_id}`}>
+                              {scopeMeta.icon} {scopeMeta.label}
                             </span>
+                          )}
+                          {closed && (
+                            <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-500" data-testid={`closed-tag-${intg.integrator_id}`}>CERRADO</span>
                           )}
                         </td>
                         <td className="px-2 py-2 text-center">
@@ -1384,6 +1400,9 @@ export const Integrators = () => {
                               <Mail size={13} />
                             </Button>
                             {canEdit && <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>}
+                            {canEdit && intg.integrator_status !== 'Cerrado' && (
+                              <Button size="sm" variant="ghost" onClick={() => handleCloseProject(intg.integrator_id)} className="text-slate-500 hover:bg-slate-200 h-7 w-7 p-0" data-testid={`close-project-${intg.integrator_id}`} title="Cerrar Proyecto"><Lock size={13} /></Button>
+                            )}
                             {canEdit && <Button size="sm" variant="ghost" onClick={() => handleDelete(intg.integrator_id)} className="text-red-500 hover:bg-red-50 h-7 w-7 p-0" data-testid={`delete-${intg.integrator_id}`}><Trash2 size={13} /></Button>}
                           </div>
                         </td>
