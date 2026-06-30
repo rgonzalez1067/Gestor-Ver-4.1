@@ -1,0 +1,38 @@
+{
+  "summary": "Iter 224 — Verified the two integrators-import fixes via pytest (3/3 PASS). (1) _norm_name() correctly resolves accent and whitespace mismatches: CSV rows with Implementador='Rafael Gonzalez' (no accent) and Coordinador='Arnoldo Hernandez' (single space) now match DB users 'Rafael González' and 'Arnoldo  Hernandez' (double space) — all 3 rows imported with no user-match errors, and the implementador stored on the new integrator is the canonical accented 'Rafael González'. (2) Negative case still works: 'Usuario Inexistente XYZ' produces an Implementador error (normalization didn't loosen matching — pre-existing semantics retained, where Implementador errors are reported but the row is still inserted without an implementador). (3) Error cap removed: a 60-row CSV with BADTYPE/BADMOD yields exactly 120 errors returned (2 per row), error_count==len(errors)==120, success=0, skipped=60. All QATEST_ITER224_ rows cleaned up (0 leftover in Mongo).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/integrators/import", "issue": "When a row's only error is an Implementador mismatch, the integrator is still created (without implementador assignment). Skip only happens for cert/coordinador/psd/required-field/Tipo/Modalidad errors. This is pre-existing behavior, NOT introduced by this iteration's fix; flagging here because the bug spec talked about 'rejecting' rows with bad Implementador — caller should confirm whether silent insertion is desired or whether Implementador-only errors should also skip the row."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter224_integrators_import_normalization.py",
+    "/app/test_reports/pytest/iter224_integrators_import.xml"
+  ],
+  "action_items": [
+    "(Optional, out of scope for this fix) Decide whether an invalid Implementador name should ALSO skip the row (currently it only logs an error and the row is inserted with no implementador). The bug spec phrasing ('still be rejected') may imply skip; current code only reports an error."
+  ],
+  "critical_code_review_comments": [
+    "_norm_name() in routes/integrators.py is correct: lower-case → NFKD → drop combining marks → collapse whitespace. user_names / user_lookup / coordinator_lookup are all keyed by _norm_name(full) AND _norm_name(email), and the lookups at the call sites use _norm_name(gestor), _norm_name(implementador_raw), _norm_name(coordinador_raw). Symmetry between dict population and lookup confirmed.",
+    "Display name returned to the DB record uses the canonical accented value from DB (display = full or email), not the file string — verified: integrator A row's stored implementador contains 'González' even though the file said 'Gonzalez'.",
+    "ImportResult.errors is now `errors=errors` (line 1525); previously `errors[:50]`. Confirmed by 60-row test → 120 errors returned, error_count == len(errors).",
+    "routes/integrators.py is 1705 lines — far above the 700-line guideline. Recommend splitting import_integrators (~500 lines) into a separate module (e.g. integrators_import.py).",
+    "_norm_name() is locally redefined inside import_integrators; the project already imports `unicodedata` and uses `re` here — consider promoting to a shared utility (utils/text.py) so other CSV importers (clients, projects) can reuse the same normalization rule and avoid divergent matching behavior."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter224_integrators_import_normalization.py (new)"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "not tested (scope=backend only)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin). Login returns 'session_token' used as Bearer.",
+  "seed_data_creation": "Test created integrators QATEST_ITER224_A_<ts>, _B_, _C_, _NEG_ during the run. All cleaned up post-run by the autouse cleanup fixture (DELETE /api/integrators/{id} + Mongo delete_many by name prefix). Verified: 0 QATEST_ITER224_ rows remain in db.integrators.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "POST /api/integrators/import is multipart: -F file=@<csv> -F mode=upsert. Login returns 'session_token' not 'token'. Names matched via _norm_name (lower+NFKD+collapse-ws). Useful real users for tests: Rafael González (impl), Omar Jiménez (impl), Kevin Malaguera (coord, depto Implementación), 'Arnoldo  Hernandez' (coord, DB has double space). errors list is fully returned now; ImportResult.error_count == len(errors). Behavior nuance: Implementador-only mismatch logs an error but does NOT skip the row — the row inserts without an implementer; this is pre-existing.",
+  "rca_of_the_issue": "Original bugs: (1) lookup used exact lower-cased strings → 'Rafael Gonzalez' ≠ 'rafael gonzález' (accent in DB) and 'Arnoldo Hernandez' ≠ 'arnoldo  hernandez' (double space in DB.first_name). Fix: _norm_name() applied SYMMETRICALLY at lookup-table build time and at every per-row lookup (gestor/implementador/coordinador). Confirmed by self-test: 3 rows with accent-free / single-space user names import successfully and the stored display string is the canonical accented DB value. (2) backend sliced errors with errors[:50] hiding any errors past index 50 from the UI — fixed by returning the full list. Confirmed: 60 invalid rows → 120 errors returned, error_count matches len(errors)."
+}

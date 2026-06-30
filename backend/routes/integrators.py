@@ -1032,7 +1032,18 @@ async def import_integrators(
         raise HTTPException(status_code=403, detail="Solo administradores pueden importar data de integradores")
     
     import pandas as pd
-    
+    import unicodedata
+
+    def _norm_name(s):
+        """Normaliza nombres/emails para comparar: minúsculas, sin acentos/diacríticos
+        y espacios internos colapsados. Evita falsos 'usuario no existe' por tildes
+        (María vs Maria), dobles espacios o mayúsculas."""
+        s = (s or "").strip().lower()
+        s = unicodedata.normalize('NFKD', s)
+        s = ''.join(c for c in s if not unicodedata.combining(c))
+        s = re.sub(r'\s+', ' ', s)
+        return s
+
     content = await file.read()
     errors: List[ImportError] = []
     success_count = 0
@@ -1138,18 +1149,20 @@ async def import_integrators(
             full = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
             email = u.get('email', '')
             display = full if full else email
-            if full:
-                user_names.add(full.lower())
-                user_lookup[full.lower()] = {"user_id": u.get("user_id"), "display": display}
-            if email:
-                user_names.add(email.lower())
-                user_lookup[email.lower()] = {"user_id": u.get("user_id"), "display": display}
+            full_key = _norm_name(full)
+            email_key = _norm_name(email)
+            if full_key:
+                user_names.add(full_key)
+                user_lookup[full_key] = {"user_id": u.get("user_id"), "display": display}
+            if email_key:
+                user_names.add(email_key)
+                user_lookup[email_key] = {"user_id": u.get("user_id"), "display": display}
             if u.get("cargo") == "Coordinador" and u.get("departamento") == "Implementación":
                 entry = {"user_id": u.get("user_id"), "display": display}
-                if full:
-                    coordinator_lookup[full.lower()] = entry
-                if email:
-                    coordinator_lookup[email.lower()] = entry
+                if full_key:
+                    coordinator_lookup[full_key] = entry
+                if email_key:
+                    coordinator_lookup[email_key] = entry
         
         default_certs = {pid: "N/A" for pid in INTEGRATOR_PRODUCT_IDS}
 
@@ -1287,7 +1300,7 @@ async def import_integrators(
                         error_type='invalid', message=f'Fila {row_num}, Columna F (Tipo Integración): Se recibió "{integration_type}" pero solo se aceptan: {", ".join(valid_integration_types)}.',
                         suggested_action='Corrija la celda F{0}. Use exactamente: {1}.'.format(row_num, ", ".join(valid_integration_types))))
                 
-                if gestor and gestor.lower() not in user_names:
+                if gestor and _norm_name(gestor) not in user_names:
                     row_errors.append(ImportError(row=row_num, column='Gestor (Col G)', value=gestor,
                         error_type='invalid', message=f'Fila {row_num}, Columna G (Gestor): El usuario "{gestor}" no está registrado en el sistema. No se puede asignar como gestor.',
                         suggested_action='Corrija la celda G{0}. El gestor debe ser un usuario activo del sistema (nombre completo o email). Verifique en el módulo de Usuarios.'.format(row_num)))
@@ -1297,7 +1310,7 @@ async def import_integrators(
                 implementador_name = None
                 implementador_user_id = None
                 if implementador_raw:
-                    found = user_lookup.get(implementador_raw.lower())
+                    found = user_lookup.get(_norm_name(implementador_raw))
                     if found:
                         implementador_name = found["display"]
                         implementador_user_id = found["user_id"]
@@ -1318,7 +1331,7 @@ async def import_integrators(
                 coordinador_user_id = None
                 coordinador_invalid = False
                 if coordinador_raw:
-                    cfound = coordinator_lookup.get(coordinador_raw.lower())
+                    cfound = coordinator_lookup.get(_norm_name(coordinador_raw))
                     if cfound:
                         coordinador_name = cfound["display"]
                         coordinador_user_id = cfound["user_id"]
@@ -1509,7 +1522,7 @@ async def import_integrators(
             cert_updates_count=cert_updates_count,
             error_count=len(errors),
             skipped_count=skipped_count,
-            errors=errors[:50],
+            errors=errors,
             message=message
         )
         
