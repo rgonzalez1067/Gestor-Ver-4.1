@@ -1126,6 +1126,7 @@ async def import_integrators(
             'Nombre': 'name', 'nombre': 'name', 'nombre_del_integrador': 'name',
             'Tipo': 'integrator_type', 'tipo': 'integrator_type', 'tipo_de_integrador': 'integrator_type',
             'Tipo Integración': 'integration_type', 'tipo_integración': 'integration_type',
+            'Tipo de Integración': 'integration_type', 'tipo de integración': 'integration_type',
             'tipo_de_integración': 'integration_type', 'tipo_de_integracion': 'integration_type',
             'tipo_integracion': 'integration_type',
             'Aplicativo': 'app_name', 'aplicativo': 'app_name', 'nombre_del_aplicativo': 'app_name',

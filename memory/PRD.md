@@ -3,7 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Feature: Integradores — 4 campos de Contacto Principal + plantilla + tooltip — Jun 2026
+### Fix: Importación de Integradores — clave de duplicados muy restrictiva (pérdida de datos) — Jun 2026
+**Reporte:** al importar, filas con mismo Nombre+Tipo pero distinto Aplicativo/Modalidad se sobreescribían (solo quedaba una) → pérdida de datos.
+**Causa raíz:** la clave de upsert era solo `name + integration_type`; dos filas con esa combinación igual se trataban como el mismo registro.
+**Fix (`routes/integrators.py::import_integrators`):** (1) clave compuesta ampliada a `{name, integrator_type, app_name, integration_modality, integration_type}` → variaciones en C/D generan registros independientes; (2) dedup **en-archivo** con `seen_row_keys` (tupla normalizada de las 5 columnas críticas): una fila solo se omite si es 100% idéntica a otra del mismo archivo, reportándola en el log como `duplicate` ("Fila duplicada") sin fallar la carga. También se mapeó el encabezado `'Tipo de Integración'` (con tilde y "de").
+**QA:** testing_agent iteration_226 → **backend 100% (6/6)** — prueba de fuego (10 filas mismo Nombre+Tipo con C/D distintas → 10 insertadas), duplicado real (1 insertada + 1 omitida `duplicate`), regresión (válida crea, inválida rechaza, Contacto Principal persiste), integridad de contadores. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** agregar 4 campos a la entidad Integrador y exponerlos en Crear/Editar, importación masiva (plantilla+parser) y un tooltip al pasar el cursor sobre el nombre.
 **Campos (independientes del "Responsable"):** `principal_contact_name`, `principal_contact_phone`, `principal_contact_email` (valida formato email), `interface_negotiation` ("¿Estaría de acuerdo en negociar su interfaz?" — opcional, solo Sí/No).
 **Backend (`models.py`, `routes/integrators.py`):** campos añadidos a `IntegratorCreate`/`Integrator` con `field_validator` (email → 422 si inválido; negociación normaliza/valida Sí/No → 422 si otro). Export Excel + plantilla: 4 columnas nuevas AL FINAL + hoja Instrucciones. Parser de importación: `column_mapping` (variantes con/sin acento), extracción + validación (rechaza fila con email inválido o negociación fuera de Sí/No), persistencia en upsert y create.
