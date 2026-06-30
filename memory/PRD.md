@@ -3,7 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Tooltip de Carga por Implementador: fix "no se ve para algunos" + Asignadas/Pendientes — Jun 2026
+### Fix: paridad del Tooltip de Carga con el Reporte de Carga — Jun 2026
+**Reporte:** el tooltip de un implementador (ej. Yulimarys Rivas) mostraba 14 proyectos / 171 cajas / 239 PVV, pero el Reporte de Carga mostraba 18 / 205 / 290. Deben coincidir.
+**Causa raíz:** el tooltip filtraba a proyectos ACTIVOS (excluía Culminado/Anulado); el reporte cuenta TODOS los proyectos asignados con reglas específicas de cajas/PVV.
+**Fix (`routes/projects.py::implementer_workload_summary`):** ahora replica el reporte EXACTAMENTE — sin filtro de estado; `cajas_asignadas` = Σ `_project_total_cajas` solo para `quote_type ∈ {VPOS, MPOS, VPOS_MULTIRIF}` (regla `_counts_cajas`); `pvv_asignados` = Σ `compute_project_pvv` de TODOS los tipos. Pendientes = asignadas − configuradas. Frontend: etiqueta "Proyectos activos" → "Proyectos".
+**QA:** testing_agent iteration_223 → **backend 100% (6/6)** paridad numérica tooltip == reporte para Yulimarys (18/205/290) y para **todos** los implementadores; constraints OK; resiliencia/fallback OK + **frontend 100%**.
+**Nota de datos (no es bug de código):** `user_0aa6077a9fa9` tiene dos grafías de `assigned_to_name` ('Jhonatan  Rojas' con doble espacio vs 'Jonathan Rojas') en distintos proyectos → el reporte (agrupa por nombre) lo separa en 2 filas, el tooltip (agrupa por user_id) lo suma. Recomendado: normalizar `assigned_to_name` desde el `full_name` canónico del usuario. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Reporte:** para algunos implementadores el resumen no se podía ver; y solicitud de mostrar Cajas/PVV **Asignadas y Pendientes** (antes solo Pendientes).
 **Causa raíz (bug):** el endpoint consultaba solo por `assigned_to_user_id`; proyectos legacy/huérfanos con user_id ausente o desactualizado no resolvían el resumen.
 **Fix backend (`routes/projects.py::implementer_workload_summary`):** acepta `?name=` y hace **fallback por `assigned_to_name`** cuando el user_id es placeholder (`_`,`none`,`null`,`undefined`) o no devuelve proyectos. Respuesta ampliada: `projects_count, cajas_asignadas, cajas_pendientes, pvv_asignados, pvv_pendientes, avance_global`.
