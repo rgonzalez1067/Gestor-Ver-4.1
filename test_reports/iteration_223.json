@@ -1,0 +1,40 @@
+{
+  "summary": "Iter 223 — Verified NUMERIC PARITY between the implementer workload-summary tooltip endpoint and the 'Reporte de Carga y Estatus de Proyectos' (workload-pdf) per-implementer totals. Backend: 6/6 pytest pass. (1) Yulimarys Rivas spot check — tooltip returns projects_count=18, cajas_asignadas=205, pvv_asignados=290, exactly matching the report group totals (the originally reported bug 14/171/239 is fixed). (2) GENERAL PARITY across EVERY unambiguous implementer name in /api/projects — all match (projects_count, cajas_asignadas, pvv_asignados equal Nro de Proyectos / Nro de Cajas / Total PVV of the report). (3) Constraints (cajas_pend<=asig, pvv_pend<=asig, 0<=avance<=100, non-negative ints) hold for every implementer. (4) Resilience: nonexistent id+no name -> all zeros, HTTP 200; placeholder uid '_' + name returns same totals as real uid. (5) Data anomaly aggregation: one user (uid user_0aa6077a9fa9) has two name spellings on different projects ('Jhonatan  Rojas' with double space and 'Jonathan Rojas'); the tooltip aggregates these by uid while the report splits them by name string — verified that sum of report groups for that uid equals the tooltip total. Frontend: 90 implementer triggers render; hovering Yulimarys opens popover showing Proyectos 18 / Cajas Asig. 205 · Pend. 170 / PVV Asig. 290 · Pend. 239 / 45% Global. Label is 'Proyectos' (legacy 'Proyectos activos' confirmed absent). Popover closes cleanly on mouseleave.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "data hygiene (not the endpoint)", "issue": "Projects have inconsistent assigned_to_name spellings for the same user_id (e.g. user_0aa6077a9fa9 appears as both 'Jhonatan  Rojas' (double space) and 'Jonathan Rojas' across different project records). The workload-pdf report groups by name string so this user appears as two rows in the PDF; the tooltip groups by user_id so it aggregates them. Both behaviors are individually correct given their grouping rules, but they will not match per-name in this edge case. Recommended: normalize assigned_to_name when assigning projects, or run a one-shot script to backfill assigned_to_name from the user's canonical full_name keyed by assigned_to_user_id."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Projects table (pre-existing, NOT introduced by this iteration)", "issues": ["React hydration warnings: <span data-ve-dynamic='true' style='display:contents'> wrapper is rendered as a direct child of <tbody>/<tr>. Same warning reported in iter221/222; caused by external x-ve-dynamic instrumentation, not by ImplementerWorkloadHover."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter223_workload_report_parity.py",
+    "/app/test_reports/pytest/iter223_workload_parity.xml"
+  ],
+  "action_items": [
+    "(Optional, out of scope for this bug) Backfill projects.assigned_to_name from users collection keyed by assigned_to_user_id to remove the 'Jhonatan  Rojas' vs 'Jonathan Rojas' duplicate row in the workload-pdf for user_0aa6077a9fa9."
+  ],
+  "critical_code_review_comments": [
+    "Fix is correct: implementer_workload_summary now iterates ALL assigned projects (no status filter), uses _counts_cajas + _project_total_cajas for cajas_asignadas and compute_project_pvv for pvv_asignados. Matches projects_workload_pdf logic line-for-line (cajas_by_impl uses _project_total_cajas only for VPOS/MPOS/VPOS_MULTIRIF; pvv_by_impl sums compute_project_pvv for all types). Numeric parity holds for every unambiguous implementer.",
+    "cajas_pendientes = max(0, cajas_asignadas - cajas_configuradas) uses _CONFIGURED = {'culminado', 'implementado parcial'} — consistent. Constraint cajas_pend <= cajas_asig confirmed across all implementers.",
+    "Frontend label correctly changed to 'Proyectos' in ImplementerWorkloadHover.jsx; no leftover 'Proyectos activos' string. All required data-testids (workload-proyectos, workload-cajas-asignadas/pendientes, workload-pvv-asignados/pendientes, workload-avance) present.",
+    "routes/projects.py is ~4100 lines — still exceeds the 700-line guideline (out of scope, flagged again from iter221/222).",
+    "Edge case worth documenting in code: tooltip aggregates by user_id while report groups by assigned_to_name string. For users whose projects carry different name spellings, the tooltip will show a higher total than any single report row. Either accept (current) or normalize names server-side."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter223_workload_report_parity.py (new — parity tests)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin). Login returns 'session_token' used as Bearer.",
+  "seed_data_creation": "None. Read-only verification only.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Yulimarys Rivas tooltip = report = (18, 205, 290). Tooltip endpoint groups by assigned_to_user_id while report groups by assigned_to_name; both match exactly for every implementer whose assigned_to_name is consistent across projects. Known name-duplication edge case: user_0aa6077a9fa9 carries both 'Jhonatan  Rojas' (double space) and 'Jonathan Rojas' on different project rows — tooltip sums them (11/190/258), report splits (5/163/201 and 6/27/57). Frontend testids unchanged from iter222 except the metric label became 'Proyectos' (testid 'workload-proyectos' instead of 'workload-proyectos-activos').",
+  "rca_of_the_issue": "Original bug: implementer_workload_summary previously filtered by 'active' status (excluding Culminado/Anulado), while projects_workload_pdf (the report) counts ALL assigned projects with specific caja/PVV rules. For Yulimarys, tooltip showed 14/171/239 vs report 18/205/290. Fix mirrors the report exactly: NO status filter; cajas_asignadas = Σ _project_total_cajas for quote_type ∈ {VPOS, MPOS, VPOS_MULTIRIF}; pvv_asignados = Σ compute_project_pvv for ALL types. Verified per-implementer parity across the whole dataset."
+}

@@ -834,18 +834,21 @@ async def implementer_workload_summary(
     authorization: Optional[str] = Header(None),
 ):
     """Resumen rápido de carga de un implementador (para el tooltip del Panel de Proyectos).
-    Estrategia A (carga bajo demanda): consulta solo los proyectos del implementador y
-    devuelve métricas sobre sus proyectos ACTIVOS/vigentes (excluye Culminado/Anulado):
-      - projects_count: cantidad de proyectos activos asignados.
-      - cajas_asignadas / cajas_pendientes (asignadas − configuradas).
-      - pvv_asignados / pvv_pendientes (asignados − configurados).
-      - avance_global: promedio del % de avance de esos proyectos.
+    Estrategia A (carga bajo demanda). Calcula sobre el MISMO universo que el "Reporte de Carga"
+    (TODOS los proyectos asignados, sin filtrar por estado) para que los números coincidan
+    exactamente con el reporte:
+      - projects_count = Nro de Proyectos del reporte.
+      - cajas_asignadas = Σ cajas de tipos VPOS/MPOS/VPOS_MULTIRIF (= Nro de Cajas del reporte);
+        cajas_pendientes = asignadas − configuradas (configuradas solo si Culminado/Implementado parcial).
+      - pvv_asignados = Σ compute_project_pvv de TODOS los proyectos (= Total PVV del reporte);
+        pvv_pendientes = asignados − configurados (procesados en fase 'En Producción').
+      - avance_global = promedio del % de avance.
     Resiliente: si el user_id es vacío/placeholder o no devuelve proyectos pero llega `name`,
-    se reintenta por `assigned_to_name` (cubre proyectos legacy sin user_id). Sin proyectos → todo en 0.
+    se reintenta por `assigned_to_name`. Sin proyectos → todo en 0.
     """
     await get_current_user(authorization)
 
-    from services.project_pvv import compute_project_metrics
+    from services.project_pvv import compute_project_metrics, compute_project_pvv
 
     _proj = {
         "_id": 0, "status": 1, "quote_type": 1,
@@ -861,25 +864,34 @@ async def implementer_workload_summary(
     if not projs and name:
         projs = await db.projects.find({"assigned_to_name": name}, _proj).to_list(5000)
 
-    active = [p for p in projs if (p.get("status") or "").strip().lower() not in _CLOSED_STATUSES]
-
+    # Universo idéntico al "Reporte de Carga": TODOS los proyectos asignados
+    # (sin filtrar por estado), para que projects_count / cajas / PVV coincidan
+    # exactamente con el reporte (Nro de Proyectos / Nro de Cajas / Total PVV).
+    _CONFIGURED = {"culminado", "implementado parcial"}
     cajas_asignadas = 0
-    cajas_pendientes = 0
+    cajas_configuradas = 0
     pvv_asignados = 0
-    pvv_pendientes = 0
+    pvv_configurados = 0
     prog_sum = 0.0
-    for p in active:
-        m = compute_project_metrics(p)
-        cajas_asignadas += m["cajas_asignadas"]
-        cajas_pendientes += max(0, m["cajas_asignadas"] - m["cajas_configuradas"])
-        pvv_asignados += m["pvv_asignados"]
-        pvv_pendientes += max(0, m["pvv_asignados"] - m["pvv_configurados"])
+    for p in projs:
+        qt = (p.get("quote_type") or "").upper()
+        # PVV: suma de compute_project_pvv para TODOS los tipos (igual que el reporte "Total PVV").
+        pvv_asignados += compute_project_pvv(p)
+        pvv_configurados += compute_project_metrics(p)["pvv_configurados"]
+        # Cajas: solo tipos que cuentan cajas (VPOS/MPOS/VPOS_MULTIRIF), igual que el reporte "Nro de Cajas".
+        if _counts_cajas(qt):
+            cajas = _project_total_cajas(p)
+            cajas_asignadas += cajas
+            if (p.get("status") or "").strip().lower() in _CONFIGURED:
+                cajas_configuradas += cajas
         prog = _calculate_rollup_progress(p) if p.get("stores") else _calculate_single_progress(p)
         prog_sum += prog.get("global_progress", 0) or 0
 
-    n = len(active)
+    n = len(projs)
+    cajas_pendientes = max(0, cajas_asignadas - cajas_configuradas)
+    pvv_pendientes = max(0, pvv_asignados - pvv_configurados)
     avance_global = int(round(prog_sum / n)) if n else 0
-    resolved_name = (active[0].get("assigned_to_name") if active else (projs[0].get("assigned_to_name") if projs else "")) or (name or "")
+    resolved_name = (projs[0].get("assigned_to_name") if projs else "") or (name or "")
 
     return {
         "user_id": user_id,

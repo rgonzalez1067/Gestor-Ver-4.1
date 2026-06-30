@@ -94,7 +94,7 @@ export const ImplementerWorkloadHover = ({ userId, name, assignedAt, lastContact
             <p className="py-3 text-center text-sm text-rose-600" data-testid="workload-error">No se pudo cargar el resumen.</p>
           ) : (
             <div className="divide-y divide-slate-100">
-              <Metric icon={FolderKanban} label="Proyectos activos" value={summary?.projects_count ?? 0} accent="text-indigo-500" />
+              <Metric icon={FolderKanban} label="Proyectos" value={summary?.projects_count ?? 0} accent="text-indigo-500" />
               <DualMetric
                 icon={Package} label="Cajas" accent="text-amber-500" keyName="cajas"
                 asignadas={summary?.cajas_asignadas ?? 0} pendientes={summary?.cajas_pendientes ?? 0}
