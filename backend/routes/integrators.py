@@ -1061,6 +1061,10 @@ async def import_integrators(
 
     content = await file.read()
     errors: List[ImportError] = []
+    # Dedup en-archivo: una fila solo es duplicado real si coincide en su totalidad
+    # (Nombre + Tipo + Tipo de Integración + Aplicativo + Modalidad). Si difiere en
+    # Aplicativo/Modalidad/Tipo de Integración, es un registro distinto y se inserta.
+    seen_row_keys = set()
     success_count = 0
     updated_count = 0
     skipped_count = 0
@@ -1442,9 +1446,35 @@ async def import_integrators(
                 full_certs = dict(default_certs)
                 for sid, val in row_certs.items():
                     full_certs[sid] = val
-                
-                # Composite key for upsert: name + integration_type
-                composite_query = {"name": name}
+
+                # Dedup en-archivo: clave = TODAS las columnas críticas (A,B,C,D + Tipo Int.).
+                # Filas con A/B iguales pero C/D distintas son registros diferentes (NO se omiten);
+                # solo se omite una fila 100% idéntica a otra ya procesada del mismo archivo.
+                row_key = (
+                    name.strip().lower(),
+                    (integrator_type or '').strip().lower(),
+                    (integration_type or '').strip().lower(),
+                    (app_name or '').strip().lower(),
+                    (integration_modality or '').strip().lower(),
+                )
+                if row_key in seen_row_keys:
+                    errors.append(ImportError(row=row_num, column='Fila duplicada',
+                        value=name, error_type='duplicate',
+                        message=f'Fila {row_num}: Registro 100% idéntico a una fila anterior del archivo (Nombre, Tipo, Tipo de Integración, Aplicativo y Modalidad coinciden). Se omitió para evitar duplicados.',
+                        suggested_action='Si las filas deben ser distintas, modifique al menos el Aplicativo (Col C) o la Modalidad (Col D).'))
+                    skipped_count += 1
+                    continue
+                seen_row_keys.add(row_key)
+
+                # Composite key for upsert: Nombre + Tipo + Tipo de Integración + Aplicativo + Modalidad.
+                # Permite que un mismo integrador con distinto Aplicativo/Modalidad/Tipo de Integración
+                # genere registros independientes (en vez de sobrescribir uno con otro).
+                composite_query = {
+                    "name": name,
+                    "integrator_type": integrator_type,
+                    "app_name": app_name,
+                    "integration_modality": integration_modality,
+                }
                 if integration_type:
                     composite_query["integration_type"] = integration_type
                 else:

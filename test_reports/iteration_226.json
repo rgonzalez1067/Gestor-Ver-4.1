@@ -1,0 +1,33 @@
+{
+  "summary": "Backend bug-fix verification for POST /api/integrators/import dedup composite key (Nombre+Tipo+Tipo Integración+Aplicativo+Modalidad). 6/6 pytest test cases pass: PRUEBA DE FUEGO (10 rows same Nombre+Tipo but different Aplicativo/Modalidad/Tipo Int. all inserted as independent records), TRUE DUPLICATE (100% identical rows -> 1 inserted + 1 reported as error_type='duplicate' with column 'Fila duplicada', no hard-fail), regression for valid single-row import with Contacto Principal fields persisted, invalid Modalidad rejected, invalid Email Contacto Principal rejected, and counts integrity (total_processed == success+updated+skipped, error_count == len(errors)).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/integrators/import", "issue": "Header 'Tipo de Integración' (with the word 'de') is NOT mapped in column_mapping. Only 'Tipo Integración' (sin 'de') is mapped. The bug-fix comments and the duplicate message themselves say 'Tipo de Integración'. Users following the in-code wording could submit headers that get silently treated as empty integration_type, which can mask CR vs LP/PG/MP/TK differences in the composite key and incorrectly flag rows as duplicates. Recommend adding 'Tipo de Integración' / 'tipo de integración' / 'Tipo de Integracion' / 'tipo de integracion' aliases to column_mapping in /app/backend/routes/integrators.py (~line 1128)."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter226_integrators_import_dedup.py",
+    "/app/test_reports/pytest/iter226_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Add 'Tipo de Integración' header alias to column_mapping in routes/integrators.py so users can use the wording shown in the duplicate-error message verbatim."
+  ],
+  "critical_code_review_comments": [
+    "Composite upsert key (name, integrator_type, app_name, integration_modality [+integration_type or null]) is correctly applied at /app/backend/routes/integrators.py:1472-1483 and behaves as required.",
+    "In-file dedup set seen_row_keys (lowercased/stripped 5-tuple) at lines 1453-1467 correctly distinguishes 'distinct on C/D/integration_type' from 'true 100% duplicate', appends a clean ImportError with column='Fila duplicada' and error_type='duplicate', and increments skipped_count without raising.",
+    "Header alias gap (see minor backend_issues) is the only soft spot — recommended one-line fix.",
+    "Counts integrity holds across all observed test scenarios: success_count + updated_count + skipped_count == total_processed, and error_count == len(errors)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter226_integrators_import_dedup.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "n/a (backend-only per request)"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (login returns session_token).",
+  "seed_data_creation": "All test integrators are created with name prefix 'QATEST_DUP_' inside each test (UUID6 suffix). Cleanup fixture deletes them after the module runs; verified via direct DB query that 0 QATEST_DUP_* documents remain in db.integrators.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file is reusable as a regression suite for any future change to integrators import dedup/upsert. The known caveat: the import endpoint accepts header 'Tipo Integración' (no 'de') but not 'Tipo de Integración'; the helper _map_in() in the test file translates between the two so tests stay aligned with code wording.",
+  "rca of the issue": "Initial run uncovered two test-only false positives (not product bugs): (1) one composite-key 'duplicate' false-positive came from using the non-mapped header 'Tipo de Integración' which made integration_type empty for those rows, collapsing CR vs LP into the same key; fixed by using 'Tipo Integración' (sin 'de') as the actual header. (2) interface_negotiation only accepts exactly 'Sí' or 'No'; switched the regression row to 'Sí'. After these test-side adjustments, all 6 assertions pass and DB verification confirms exactly the expected number of independent records per scenario."
+}
