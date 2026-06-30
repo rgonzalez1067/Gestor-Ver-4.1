@@ -813,7 +813,9 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
         'Nro Ticket', 'Categoría', 'Fecha de Inicio del Proyecto',
         'Último contacto con el Cliente', 'Correo',
     ]
-    TAIL_HEADERS = ['Nombre del Proyecto', 'Observaciones']
+    TAIL_HEADERS = ['Nombre del Proyecto', 'Observaciones',
+                    'Nombre del Contacto Principal', 'Teléfono Contacto Principal',
+                    'Email Contacto Principal', 'Negociación de Interfaz']
 
     rows = []
     for intg in integrators:
@@ -834,6 +836,10 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
             'Correo': intg.get('email', ''),
             'Nombre del Proyecto': intg.get('project_name', ''),
             'Observaciones': intg.get('observations', ''),
+            'Nombre del Contacto Principal': intg.get('principal_contact_name', ''),
+            'Teléfono Contacto Principal': intg.get('principal_contact_phone', ''),
+            'Email Contacto Principal': intg.get('principal_contact_email', ''),
+            'Negociación de Interfaz': intg.get('interface_negotiation', ''),
         }
         certs = intg.get('certifications') or {}
         for prod in INTEGRATOR_PRODUCTS:
@@ -936,6 +942,11 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
     # Campos de seguimiento de texto libre — AL FINAL
     data['Nombre del Proyecto'] = ['Migración PG Fase 1', '', 'Integración VPOS Retail']
     data['Observaciones'] = ['Pendiente kickoff', '', 'Requiere ambiente de pruebas']
+    # Contacto Principal — 4 columnas nuevas al final
+    data['Nombre del Contacto Principal'] = ['Ana Pérez', 'Luis Díaz', '']
+    data['Teléfono Contacto Principal'] = ['+58 412-5551234', '0212-7654321', '']
+    data['Email Contacto Principal'] = ['ana.perez@techpay.com', 'luis@comercioapp.com', '']
+    data['Negociación de Interfaz'] = ['Sí', 'No', '']
 
     column_order = list(data.keys())  # garantiza el orden de columnas solicitado
     df = pd.DataFrame(data, columns=column_order)
@@ -962,6 +973,10 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Correo',                         'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
             {'Campo': 'Nombre del Proyecto',            'Descripcion': 'Nombre del proyecto (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Migración PG Fase 1'},
             {'Campo': 'Observaciones',                  'Descripcion': 'Notas/observaciones (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Pendiente kickoff'},
+            {'Campo': 'Nombre del Contacto Principal',  'Descripcion': 'Nombre del contacto principal del integrador (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Ana Pérez'},
+            {'Campo': 'Teléfono Contacto Principal',    'Descripcion': 'Teléfono del contacto principal (texto libre).', 'Obligatorio': 'No', 'Ejemplo': '+58 412-5551234'},
+            {'Campo': 'Email Contacto Principal',       'Descripcion': 'Email del contacto principal. Si se indica, debe tener formato válido (usuario@dominio.com), si no la fila se rechaza.', 'Obligatorio': 'No', 'Ejemplo': 'ana.perez@empresa.com'},
+            {'Campo': 'Negociación de Interfaz',        'Descripcion': '¿Estaría de acuerdo en negociar su interfaz? Solo acepta "Sí" o "No" (vacío permitido).', 'Obligatorio': 'No', 'Ejemplo': 'Sí'},
             {'Campo': '--- MATRIZ DE PRODUCTOS (19) ---', 'Descripcion': 'Columnas M a AE — estado de certificación por producto. Valores C / P / N/A.', 'Obligatorio': '---', 'Ejemplo': '---'},
         ]
         for prod in INTEGRATOR_PRODUCTS:
@@ -1136,6 +1151,16 @@ async def import_integrators(
             'Fecha de Inicio': 'project_start_date', 'fecha_inicio_proyecto': 'project_start_date',
             'Nombre del Proyecto': 'project_name', 'nombre del proyecto': 'project_name', 'nombre_proyecto': 'project_name',
             'Observaciones': 'observations', 'observaciones': 'observations',
+            'Nombre del Contacto Principal': 'principal_contact_name', 'nombre del contacto principal': 'principal_contact_name',
+            'nombre_del_contacto_principal': 'principal_contact_name',
+            'Teléfono Contacto Principal': 'principal_contact_phone', 'teléfono contacto principal': 'principal_contact_phone',
+            'Telefono Contacto Principal': 'principal_contact_phone', 'telefono contacto principal': 'principal_contact_phone',
+            'telefono_contacto_principal': 'principal_contact_phone',
+            'Email Contacto Principal': 'principal_contact_email', 'email contacto principal': 'principal_contact_email',
+            'Correo Contacto Principal': 'principal_contact_email', 'email_contacto_principal': 'principal_contact_email',
+            'Negociación de Interfaz': 'interface_negotiation', 'negociación de interfaz': 'interface_negotiation',
+            'Negociacion de Interfaz': 'interface_negotiation', 'negociacion de interfaz': 'interface_negotiation',
+            'negociacion_de_interfaz': 'interface_negotiation',
         }
         
         # Pre-load users and products
@@ -1364,7 +1389,33 @@ async def import_integrators(
 
                 project_name = _safe_val(row, 'project_name')
                 observations = _safe_val(row, 'observations')
-                
+
+                # Contacto Principal (4 campos nuevos)
+                principal_contact_name = _safe_val(row, 'principal_contact_name')
+                principal_contact_phone = _safe_val(row, 'principal_contact_phone')
+                principal_contact_email = _safe_val(row, 'principal_contact_email')
+                pce_invalid = False
+                if principal_contact_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", principal_contact_email):
+                    pce_invalid = True
+                    row_errors.append(ImportError(row=row_num, column='Email Contacto Principal',
+                        value=principal_contact_email, error_type='invalid',
+                        message=f'Fila {row_num}, Email Contacto Principal: "{principal_contact_email}" no tiene un formato de correo válido.',
+                        suggested_action='Corrija el correo en la fila {0}. Use el formato usuario@dominio.com o deje la celda vacía.'.format(row_num)))
+                interface_negotiation = None
+                neg_raw = _safe_val(row, 'interface_negotiation')
+                neg_invalid = False
+                if neg_raw:
+                    low = neg_raw.strip().lower()
+                    if low in ('sí', 'si', 's', 'yes', 'true', '1'):
+                        interface_negotiation = 'Sí'
+                    elif low in ('no', 'n', 'false', '0'):
+                        interface_negotiation = 'No'
+                    else:
+                        neg_invalid = True
+                        row_errors.append(ImportError(row=row_num, column='Negociación de Interfaz',
+                            value=neg_raw, error_type='invalid',
+                            message=f'Fila {row_num}, Negociación de Interfaz: Se recibió "{neg_raw}" pero solo se acepta "Sí" o "No".',
+                            suggested_action='Corrija la celda en la fila {0}. Use exactamente "Sí" o "No", o déjela vacía.'.format(row_num)))
                 # Parse certification columns
                 row_certs = {}
                 cert_has_errors = False
@@ -1383,7 +1434,7 @@ async def import_integrators(
                 
                 if row_errors:
                     errors.extend(row_errors)
-                    if cert_has_errors or coordinador_invalid or psd_invalid or not name or not app_name or integrator_type not in INTEGRATOR_TYPES or integration_modality not in INTEGRATION_MODALITIES:
+                    if cert_has_errors or coordinador_invalid or psd_invalid or pce_invalid or neg_invalid or not name or not app_name or integrator_type not in INTEGRATOR_TYPES or integration_modality not in INTEGRATION_MODALITIES:
                         skipped_count += 1
                         continue
                 
@@ -1440,6 +1491,14 @@ async def import_integrators(
                         update_data["project_name"] = project_name
                     if observations:
                         update_data["observations"] = observations
+                    if principal_contact_name:
+                        update_data["principal_contact_name"] = principal_contact_name
+                    if principal_contact_phone:
+                        update_data["principal_contact_phone"] = principal_contact_phone
+                    if principal_contact_email:
+                        update_data["principal_contact_email"] = principal_contact_email
+                    if interface_negotiation:
+                        update_data["interface_negotiation"] = interface_negotiation
                     
                     # Merge certs: existing certs as base, overlay with file data
                     if product_columns:
@@ -1474,6 +1533,10 @@ async def import_integrators(
                         project_start_date=project_start_date,
                         project_name=project_name or None,
                         observations=observations or None,
+                        principal_contact_name=principal_contact_name or None,
+                        principal_contact_phone=principal_contact_phone or None,
+                        principal_contact_email=principal_contact_email or None,
+                        interface_negotiation=interface_negotiation,
                         certifications=full_certs
                     )
                     doc = new_integrator.model_dump()

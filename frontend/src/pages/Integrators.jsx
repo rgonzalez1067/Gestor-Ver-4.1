@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import DebouncedInput from '../components/DebouncedInput';
+import { IntegratorContactHover } from '../components/integrators/IntegratorContactHover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Calendar } from '../components/ui/calendar';
@@ -100,6 +101,7 @@ export const Integrators = () => {
     name: '', integrator_type: '', integration_type: '', app_name: '',
     integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '',
     productos_certificar: '', correo_eventual: '',
+    principal_contact_name: '', principal_contact_phone: '', principal_contact_email: '', interface_negotiation: '',
     contacts: []
   });
   // Confirmación de asignación de implementador
@@ -191,6 +193,9 @@ export const Integrators = () => {
     }
     if (formData.correo_eventual && !EMAIL_RE.test(formData.correo_eventual.trim())) {
       toast.error('El Correo Adicional Eventual tiene un formato inválido'); return;
+    }
+    if (formData.principal_contact_email && !EMAIL_RE.test(formData.principal_contact_email.trim())) {
+      toast.error('El Email del Contacto Principal tiene un formato inválido (ej: contacto@dominio.com)'); return;
     }
     try {
       const payload = { ...formData };
@@ -289,13 +294,17 @@ export const Integrators = () => {
       observations: intg.observations || '',
       productos_certificar: intg.productos_certificar || '',
       correo_eventual: intg.correo_eventual || '',
+      principal_contact_name: intg.principal_contact_name || '',
+      principal_contact_phone: intg.principal_contact_phone || '',
+      principal_contact_email: intg.principal_contact_email || '',
+      interface_negotiation: intg.interface_negotiation || '',
       contacts: intg.contacts || []
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', project_start_date: '', project_name: '', observations: '', productos_certificar: '', correo_eventual: '', contacts: [] });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', project_start_date: '', project_name: '', observations: '', productos_certificar: '', correo_eventual: '', principal_contact_name: '', principal_contact_phone: '', principal_contact_email: '', interface_negotiation: '', contacts: [] });
     setEditingIntegrator(null);
     resetWizard();
   };
@@ -1031,6 +1040,58 @@ export const Integrators = () => {
                       </div>
                     </div>
 
+                    {/* Datos de Contacto Principal */}
+                    <div className="border-t border-slate-200 pt-3 mt-1">
+                      <Label className="text-sm font-semibold text-slate-700 mb-2 block">Datos de Contacto Principal</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Nombre del Contacto Principal</Label>
+                          <Input
+                            value={formData.principal_contact_name || ''}
+                            onChange={(e) => setFormData({ ...formData, principal_contact_name: e.target.value })}
+                            placeholder="Ej: Ana Pérez"
+                            data-testid="integrator-principal-contact-name"
+                          />
+                        </div>
+                        <div>
+                          <Label>Teléfono Contacto Principal</Label>
+                          <Input
+                            value={formData.principal_contact_phone || ''}
+                            onChange={(e) => setFormData({ ...formData, principal_contact_phone: e.target.value })}
+                            placeholder="+58 412-5551234"
+                            data-testid="integrator-principal-contact-phone"
+                          />
+                        </div>
+                        <div>
+                          <Label>Email Contacto Principal</Label>
+                          <Input
+                            type="email"
+                            value={formData.principal_contact_email || ''}
+                            onChange={(e) => setFormData({ ...formData, principal_contact_email: e.target.value })}
+                            placeholder="contacto@dominio.com"
+                            data-testid="integrator-principal-contact-email"
+                          />
+                          {formData.principal_contact_email && !EMAIL_RE.test(formData.principal_contact_email.trim()) && (
+                            <p className="text-[11px] text-red-500 mt-0.5" data-testid="integrator-principal-email-error">Formato de correo inválido</p>
+                          )}
+                        </div>
+                        <div>
+                          <Label>¿Estaría de acuerdo en negociar su interfaz?</Label>
+                          <Select
+                            value={formData.interface_negotiation || ''}
+                            onValueChange={(v) => setFormData({ ...formData, interface_negotiation: v === '__none__' ? '' : v })}
+                          >
+                            <SelectTrigger data-testid="integrator-interface-negotiation-select"><SelectValue placeholder="Sin definir" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Sin definir</SelectItem>
+                              <SelectItem value="Sí">Sí</SelectItem>
+                              <SelectItem value="No">No</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Contactos Técnicos */}
                     <div className="border-t border-slate-200 pt-3 mt-1">
                       <div className="flex items-center justify-between mb-2">
@@ -1381,7 +1442,9 @@ export const Integrators = () => {
                     <Fragment key={intg.integrator_id}>
                       <tr className={`transition-colors ${scopeMeta.row} ${closed ? 'text-slate-400' : ''}`} data-testid={`integrator-row-${intg.integrator_id}`}>
                         <td className="px-3 py-2">
-                          <p className={`font-medium text-sm truncate ${closed ? 'text-slate-500' : 'text-slate-900'}`} title={intg.name}>{intg.name}</p>
+                          <IntegratorContactHover integrator={intg}>
+                            <p className={`font-medium text-sm truncate cursor-default border-b border-dotted border-transparent hover:border-fuchsia-400 hover:text-fuchsia-700 transition-colors ${closed ? 'text-slate-500' : 'text-slate-900'}`} title={intg.name} data-testid={`integrator-name-${intg.integrator_id}`}>{intg.name}</p>
+                          </IntegratorContactHover>
                           {!closed && scopeMeta.label && (
                             <span className={`inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${scopeMeta.tag}`} data-testid={`scope-tag-${intg.integrator_id}`}>
                               {scopeMeta.icon} {scopeMeta.label}

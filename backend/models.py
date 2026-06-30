@@ -1,10 +1,13 @@
 """
 Modelos Pydantic y constantes de la aplicación.
 """
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import List, Optional, Literal
 from datetime import datetime, timezone
 import uuid
+import re
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # ==================== MODELS ====================
 
@@ -405,6 +408,37 @@ class IntegratorCreate(BaseModel):
     # "expansion" (ampliación de un tipo de integración ya vigente del integrador).
     # Default None: los registros legacy/sin clasificar NO deben etiquetarse.
     project_scope: Optional[str] = None
+    # Contacto Principal del integrador (perfilamiento comercial/operativo).
+    principal_contact_name: Optional[str] = None
+    principal_contact_phone: Optional[str] = None
+    principal_contact_email: Optional[str] = None
+    # "¿Estaría de acuerdo en negociar su interfaz?" — opcional, solo "Sí" / "No".
+    interface_negotiation: Optional[Literal["Sí", "No"]] = None
+
+    @field_validator("principal_contact_email")
+    @classmethod
+    def _validate_principal_email(cls, v):
+        if v is None or str(v).strip() == "":
+            return None
+        v = str(v).strip()
+        if not _EMAIL_RE.match(v):
+            raise ValueError("El Email del Contacto Principal no tiene un formato válido (ej: contacto@dominio.com)")
+        return v
+
+    @field_validator("interface_negotiation", mode="before")
+    @classmethod
+    def _normalize_negotiation(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        if s == "":
+            return None
+        low = s.lower()
+        if low in ("sí", "si", "s", "yes", "true", "1"):
+            return "Sí"
+        if low in ("no", "n", "false", "0"):
+            return "No"
+        raise ValueError('Negociación de Interfaz solo acepta "Sí" o "No"')
 
 class Integrator(BaseModel):
     integrator_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:12]}")
@@ -438,6 +472,11 @@ class Integrator(BaseModel):
     # Alcance comercial de la certificación (texto libre) y correo CC eventual.
     productos_certificar: Optional[str] = None
     correo_eventual: Optional[str] = None
+    # Contacto Principal del integrador (perfilamiento comercial/operativo).
+    principal_contact_name: Optional[str] = None
+    principal_contact_phone: Optional[str] = None
+    principal_contact_email: Optional[str] = None
+    interface_negotiation: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):

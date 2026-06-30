@@ -1,0 +1,34 @@
+{
+  "summary": "Iter 225 — Verified 4 new Contacto Principal fields on Integrator across backend (create/edit/import/template) and frontend (hover tooltip). 8/8 pytest PASS + UI smoke confirms hover popover renders Contacto/Teléfono/Email/Negocia interfaz with data from local row.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/integrators (and /dashboard)", "issues": [
+        "Pre-existing React hydration warning: <span data-ve-dynamic> wrapping <tr> inside <tbody> (visual-editor instrumentation). Not introduced by this iteration; flagging because it floods the console on the Integradores page where the new hover lives. Does NOT break the tooltip (verified visually and via DOM)."
+      ]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter225_integrator_principal_contact.py",
+    "/app/test_reports/pytest/iter225.xml"
+  ],
+  "action_items": [
+    "(Optional, pre-existing) Address the <span data-ve-dynamic> wrapping <tr>/<tbody> hydration warning in Integrators.jsx (and Dashboard) — not blocking, but pollutes console on the very page where the new feature lives."
+  ],
+  "critical_code_review_comments": [
+    "IntegratorCreate has correct field_validator: principal_contact_email rejects non-email (422), interface_negotiation normalizes 'Sí/si/yes/1/no/n/0/false' and rejects anything else (422). Validated end-to-end on POST and PUT.",
+    "routes/integrators.py export builder and template builder include the 4 new TAIL_HEADERS at the END (verified: openpyxl reads last 4 columns of 'Plantilla' sheet = ['Nombre del Contacto Principal','Teléfono Contacto Principal','Email Contacto Principal','Negociación de Interfaz']).",
+    "Import parser column_mapping covers accented and unaccented variants ('Teléfono'/'Telefono', 'Negociación'/'Negociacion'); good import created the valid row with persisted fields, rejected the bad-email row (error column='Email Contacto Principal') and the invalid-negotiation row (error column contains 'Negociación de Interfaz'). 50-row valid file imports 100%.",
+    "IntegratorContactHover.jsx is data-only (no fetch), renders correctly with the seeded data; popover testid `integrator-contact-popover-<id>` resolved and contains the expected labels and values.",
+    "routes/integrators.py remains 1700+ lines — recommend extracting the import handler into its own module (carried over from iter224)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter225_integrator_principal_contact.py (new)"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (1/1 smoke: seed→hover→popover→cleanup)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (login returns 'session_token' used as Bearer).",
+  "seed_data_creation": "Tests created QATEST_ITER225_<uuid>_A/EDIT/EDIT2/IMP_OK/BULK_00..49 + QATEST_ITER225_FE_<uuid>_SEED. All cleaned up by autouse fixture + explicit DELETE in the FE smoke. Verified 0 QATEST_ITER225_ rows remain in db.integrators.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "POST/PUT /api/integrators with principal_contact_email returns 422 for bad emails; interface_negotiation only accepts Sí/No (and case-insensitive synonyms, normalized to 'Sí'/'No'). Import .xlsx Plantilla has the 4 new columns at the very END. Import parser rejects rows whose Email Contacto Principal is malformed OR whose Negociación de Interfaz is outside {Sí,No} — those rows DO NOT insert (verified). Tooltip is in IntegratorContactHover.jsx and wraps integrator-name-<id>; popover testid is integrator-contact-popover-<id>."
+}
