@@ -3,7 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Fix: Importación de Integradores — usuarios "no existen" + tope de 50 errores — Jun 2026
+### Feature: Integradores — 4 campos de Contacto Principal + plantilla + tooltip — Jun 2026
+**Requerimiento:** agregar 4 campos a la entidad Integrador y exponerlos en Crear/Editar, importación masiva (plantilla+parser) y un tooltip al pasar el cursor sobre el nombre.
+**Campos (independientes del "Responsable"):** `principal_contact_name`, `principal_contact_phone`, `principal_contact_email` (valida formato email), `interface_negotiation` ("¿Estaría de acuerdo en negociar su interfaz?" — opcional, solo Sí/No).
+**Backend (`models.py`, `routes/integrators.py`):** campos añadidos a `IntegratorCreate`/`Integrator` con `field_validator` (email → 422 si inválido; negociación normaliza/valida Sí/No → 422 si otro). Export Excel + plantilla: 4 columnas nuevas AL FINAL + hoja Instrucciones. Parser de importación: `column_mapping` (variantes con/sin acento), extracción + validación (rechaza fila con email inválido o negociación fuera de Sí/No), persistencia en upsert y create.
+**Frontend (`Integrators.jsx` + `IntegratorContactHover.jsx`):** sección "Datos de Contacto Principal" en el form de edición (email con error inline + select Sí/No); tooltip HoverCard (datos locales, instantáneo) sobre el nombre del integrador mostrando Contacto/Teléfono/Email/"Negocia interfaz". testids: `integrator-principal-contact-*`, `integrator-interface-negotiation-select`, `integrator-name-<id>`, `integrator-contact-popover-<id>`.
+**QA:** testing_agent iteration_225 → **backend 100% (8/8)** (create/edit persisten, 422 en email/negociación inválidos, plantilla con 4 columnas al final, import puebla campos y rechaza email/negociación inválidos, 50 filas 100%) + **frontend 100%** (sección de form + tooltip). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Reporte:** al poblar la base de Integradores, filas rechazadas por "usuario no existe" pese a que los usuarios SÍ existen; y el reporte de errores solo mostraba 50.
 **Causa raíz:** (1) el matching de Gestor/Implementador/Coordinador comparaba por string en minúsculas exacto → fallaba con acentos (archivo 'Rafael Gonzalez' vs BD 'Rafael González') y espacios extra/dobles en la BD (`first_name`='Arnoldo ' → 'Arnoldo  Hernandez'); (2) el backend devolvía `errors[:50]`.
 **Fix (`routes/integrators.py::import_integrators`):** (1) helper `_norm_name()` (minúsculas + sin acentos vía `unicodedata` NFKD + colapso de espacios) aplicado **simétricamente** a los lookups (`user_lookup`/`coordinator_lookup`/`user_names`) y a los valores del archivo (gestor/implementador/coordinador); (2) `errors=errors` (sin tope). El nombre almacenado usa el valor canónico de la BD (con acentos).
