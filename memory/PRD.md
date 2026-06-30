@@ -3,7 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Fix: paridad del Tooltip de Carga con el Reporte de Carga — Jun 2026
+### Fix: Importación de Integradores — usuarios "no existen" + tope de 50 errores — Jun 2026
+**Reporte:** al poblar la base de Integradores, filas rechazadas por "usuario no existe" pese a que los usuarios SÍ existen; y el reporte de errores solo mostraba 50.
+**Causa raíz:** (1) el matching de Gestor/Implementador/Coordinador comparaba por string en minúsculas exacto → fallaba con acentos (archivo 'Rafael Gonzalez' vs BD 'Rafael González') y espacios extra/dobles en la BD (`first_name`='Arnoldo ' → 'Arnoldo  Hernandez'); (2) el backend devolvía `errors[:50]`.
+**Fix (`routes/integrators.py::import_integrators`):** (1) helper `_norm_name()` (minúsculas + sin acentos vía `unicodedata` NFKD + colapso de espacios) aplicado **simétricamente** a los lookups (`user_lookup`/`coordinator_lookup`/`user_names`) y a los valores del archivo (gestor/implementador/coordinador); (2) `errors=errors` (sin tope). El nombre almacenado usa el valor canónico de la BD (con acentos).
+**QA:** testing_agent iteration_224 → **backend 100% (3/3)** — filas con nombres sin acento/espacio simple importan OK; usuario inexistente sigue marcando error; 60 filas inválidas → 120 errores devueltos (`error_count == len(errors)`).
+**Nota:** comportamiento pre-existente — si el ÚNICO error de una fila es Implementador inválido, la fila igual se inserta sin implementador (no se omite). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Reporte:** el tooltip de un implementador (ej. Yulimarys Rivas) mostraba 14 proyectos / 171 cajas / 239 PVV, pero el Reporte de Carga mostraba 18 / 205 / 290. Deben coincidir.
 **Causa raíz:** el tooltip filtraba a proyectos ACTIVOS (excluía Culminado/Anulado); el reporte cuenta TODOS los proyectos asignados con reglas específicas de cajas/PVV.
 **Fix (`routes/projects.py::implementer_workload_summary`):** ahora replica el reporte EXACTAMENTE — sin filtro de estado; `cajas_asignadas` = Σ `_project_total_cajas` solo para `quote_type ∈ {VPOS, MPOS, VPOS_MULTIRIF}` (regla `_counts_cajas`); `pvv_asignados` = Σ `compute_project_pvv` de TODOS los tipos. Pendientes = asignadas − configuradas. Frontend: etiqueta "Proyectos activos" → "Proyectos".
