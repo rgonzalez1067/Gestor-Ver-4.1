@@ -1,0 +1,35 @@
+{
+  "summary": "Iter 227 — Backend + Frontend verification of Integrator 'Clientes Instalados' feature (installed-clients endpoint + PDF export + hover tooltip subsection). All backend cross-filter/exclusion/case-insensitive/name-match/404 tests pass; frontend hover popover renders the section with count, client rows, Exportar a PDF (triggers PDF download) and preserves Contacto Principal regression fields.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (unrelated to this feature)", "issues": ["React hydration warnings (span child of <tr>, span nested) surfaced in console on /integrators. Not caused by this feature but present in the app; suggest a follow-up review."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter227_installed_clients.py",
+    "/app/test_reports/pytest/iter227_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/integrators.py: OK — _installed_clients_for_integrator uses proper $or with $regex ^...$ (case-insensitive, escaped). Excludes _id. Raises 404 on missing integrator.",
+    "IntegratorContactHover.jsx: lazy fetch via onOpenChange; export button disabled while empty/loading — good UX. Blob download uses URL.revokeObjectURL. All required data-testid present (installed-clients-section-<id>, installed-clients-export-<id>, installed-client-row-<i>, installed-clients-empty, installed-clients-loading).",
+    "PDF endpoint uses services.pdf_report.build_corporate_pdf with 4 columns and correct title including Integrador + Aplicación. Content-Disposition attachment; filename sanitized."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter227_installed_clients.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (all popover checks + PDF download OK)"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (login returns 'session_token').",
+  "seed_data_creation": "QATEST_ prefixed data created and DELETED at end (both backend pytest cleanup and post-frontend cleanup). Verified 0 leftover integrators and 0 leftover clients with the QATEST_ prefix.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature works end-to-end. Backend endpoint GET /api/integrators/{id}/installed-clients returns {integrator_name, app_name, count, clients:[rif, legal_name, fantasy_name, condicion]}. PDF endpoint returns valid %PDF with attachment header. 404 when integrator not found. Frontend /integrators shows the popover subsection with data-testid installed-clients-section-<id>, installed-client-row-<i>, installed-clients-export-<id>. Note (unrelated): app-wide React hydration warnings visible in console; not caused by this iteration.",
+  "rca of the issue": "N/A — no bugs found. Verified: (1) client A (id-match + AppY) LISTED; (2) client B (id-match + AppZ) EXCLUDED; (3) client C (name-match with different case + case-insensitive AppY) LISTED; (4) 404 on unknown integrator; (5) PDF endpoint returns 200 with %PDF header and correct content-disposition; (6) tooltip popover on /integrators renders Contacto Principal + Clientes Instalados (count=1) + Exportar a PDF button; (7) PDF download event captured for the download filename clientes_instalados_<safe_name>.pdf.",
+  "notes_on_label_check": "During frontend test, initial 'in' string check reported False for some Spanish labels because the UI applies CSS uppercase-transform (e.g. TELÉFONO, EMAIL, CONTACTO PRINCIPAL, NEGOCIA INTERFAZ). Visually all fields render correctly (see screenshot iter227_popover.png)."
+}

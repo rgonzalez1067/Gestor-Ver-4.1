@@ -909,6 +909,82 @@ async def export_integrators_pdf(authorization: Optional[str] = Header(None)):
         headers={"Content-Disposition": "attachment; filename=integradores.pdf"}
     )
 
+async def _installed_clients_for_integrator(integrator_id: str):
+    """Devuelve (integrador, clientes) de los comercios que tengan asignados EXACTAMENTE
+    ese integrador (por id o por nombre) y esa misma Aplicación (app_name)."""
+    intg = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+    if not intg:
+        raise HTTPException(status_code=404, detail="Integrador no encontrado")
+
+    name = (intg.get("name") or "").strip()
+    app_name = (intg.get("app_name") or "").strip()
+
+    def _rx(s):
+        return {"$regex": f"^{re.escape(s)}$", "$options": "i"}
+
+    or_integrador = [{"integrador_id": integrator_id}]
+    if name:
+        or_integrador.append({"integrador_name": _rx(name)})
+
+    query = {"$and": [{"$or": or_integrador}]}
+    if app_name:
+        query["$and"].append({"aplicativo": _rx(app_name)})
+
+    clients = await db.clients.find(
+        query, {"_id": 0, "rif": 1, "legal_name": 1, "fantasy_name": 1, "condicion": 1}
+    ).to_list(2000)
+    clients.sort(key=lambda c: (c.get("legal_name") or "").strip().casefold())
+    return intg, clients
+
+
+@router.get("/integrators/{integrator_id}/installed-clients")
+async def get_installed_clients(integrator_id: str, authorization: Optional[str] = Header(None)):
+    """Listado dinámico de clientes instalados con este Integrador + Aplicación."""
+    await get_current_user(authorization)
+    intg, clients = await _installed_clients_for_integrator(integrator_id)
+    return {
+        "integrator_id": integrator_id,
+        "integrator_name": intg.get("name", ""),
+        "app_name": intg.get("app_name", ""),
+        "count": len(clients),
+        "clients": [
+            {
+                "rif": c.get("rif", ""),
+                "legal_name": c.get("legal_name", ""),
+                "fantasy_name": c.get("fantasy_name", ""),
+                "condicion": c.get("condicion", ""),
+            }
+            for c in clients
+        ],
+    }
+
+
+@router.get("/integrators/{integrator_id}/installed-clients/pdf")
+async def export_installed_clients_pdf(integrator_id: str, authorization: Optional[str] = Header(None)):
+    """PDF corporativo del listado de clientes instalados (Integrador + Aplicación)."""
+    await get_current_user(authorization)
+    from services.pdf_report import build_corporate_pdf
+
+    intg, clients = await _installed_clients_for_integrator(integrator_id)
+    name = intg.get("name", "")
+    app_name = intg.get("app_name", "")
+
+    headers = ['RIF', 'Razón Social', 'Nombre de Fantasía', 'Estatus']
+    rows = [[c.get('rif', ''), c.get('legal_name', ''), c.get('fantasy_name', ''), c.get('condicion', '')] for c in clients]
+
+    buffer = build_corporate_pdf(
+        title=f"Clientes Instalados — Integrador: {name} | Aplicación: {app_name}",
+        headers=headers, rows=rows,
+        col_ratios=[1.4, 3, 3, 1.4],
+    )
+    safe = re.sub(r'[^A-Za-z0-9_-]+', '_', f"{name}_{app_name}").strip('_') or "integrador"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=clientes_instalados_{safe}.pdf"}
+    )
+
+
 # Import template for integrators (dynamic product columns)
 @router.get("/integrators/import/template")
 async def get_integrators_import_template(authorization: Optional[str] = Header(None)):
