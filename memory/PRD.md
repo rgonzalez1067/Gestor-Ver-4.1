@@ -3,7 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Fix: Importación de Integradores — clave de duplicados muy restrictiva (pérdida de datos) — Jun 2026
+### Feature: Tooltip de Integrador — subventana "Clientes Instalados" + export PDF — Jun 2026
+**Requerimiento:** en el tooltip del nombre del integrador, agregar una subsección "Clientes Instalados" que cruce dinámicamente los clientes que usan ese mismo Integrador + Aplicación, con botón "Exportar a PDF" corporativo.
+**Backend (`routes/integrators.py`):** `_installed_clients_for_integrator(id)` consulta `db.clients` con `{$or:[{integrador_id},{integrador_name ci}], aplicativo ci}`. Endpoints: `GET /integrators/{id}/installed-clients` (JSON: integrator_name, app_name, count, clients[rif, legal_name, fantasy_name, condicion]) y `GET /integrators/{id}/installed-clients/pdf` (corporate PDF: título "Clientes Instalados — Integrador: X | Aplicación: Y", cols RIF/Razón Social/Fantasía/Estatus; 404 si no existe).
+**Frontend (`IntegratorContactHover.jsx`):** subsección con fetch on-open (Strategy A), lista scrollable + contador + botón "Exportar a PDF" (blob). Header del popover muestra "Aplicación: <app_name>". testids: `installed-clients-section-<id>`, `installed-client-row-<i>`, `installed-clients-export-<id>`, `installed-clients-empty/loading`.
+**QA:** testing_agent iteration_227 → **backend 100% (5/5)** (cross-filter: mismo integrador+AppY lista / +AppZ excluye; match por nombre ci; 404; PDF %PDF válido) + **frontend 100%** (subsección + export + regresión Contacto Principal). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Reporte:** al importar, filas con mismo Nombre+Tipo pero distinto Aplicativo/Modalidad se sobreescribían (solo quedaba una) → pérdida de datos.
 **Causa raíz:** la clave de upsert era solo `name + integration_type`; dos filas con esa combinación igual se trataban como el mismo registro.
 **Fix (`routes/integrators.py::import_integrators`):** (1) clave compuesta ampliada a `{name, integrator_type, app_name, integration_modality, integration_type}` → variaciones en C/D generan registros independientes; (2) dedup **en-archivo** con `seen_row_keys` (tupla normalizada de las 5 columnas críticas): una fila solo se omite si es 100% idéntica a otra del mismo archivo, reportándola en el log como `duplicate` ("Fila duplicada") sin fallar la carga. También se mapeó el encabezado `'Tipo de Integración'` (con tilde y "de").
