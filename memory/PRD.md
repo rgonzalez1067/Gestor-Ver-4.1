@@ -3,7 +3,16 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Feature: Tooltip de Integrador — subventana "Clientes Instalados" + export PDF — Jun 2026
+### Cierre confinado + Matriz read-only + Ambiente de Prueba + 2 Otras Acciones — Jul 2026
+**Requerimiento (multi-parte):** blindar el cierre de Proyectos de Integración, bloquear la Matriz de Productos fuera de Proyecto Activo, crear el tipo "Asignación de Ambiente de Prueba" y 2 acciones configurables de correo.
+- **P0 Bug (cierre accidental):** `update_integrator` hacía `model_dump()` y sobreescribía `project_scope`/estatus en cada edición → el proyecto perdía su badge/salía del activo. Fix: la edición preserva `project_scope`, nunca fija `Cerrado` (además el Literal de `integrator_status` no incluye 'Cerrado' → 422) ni reactiva un cerrado. El cierre ocurre solo por `POST /integrators/{id}/close`.
+- **Correo al cerrar:** `/close` despacha la acción configurable `integration_project_closed` (retorna `notification`).
+- **Matriz read-only:** `update_integrator` devuelve 403 si cambian `certifications` y el integrador no es Proyecto Activo (scope∈{new,component,expansion,test_environment} y estatus≠Cerrado). Frontend: `isActiveProject()` desactiva los botones C/P/N-A + banner `matrix-readonly-<id>`.
+- **Ambiente de Prueba:** `POST /integrators/{id}/assign-test-environment` (integrador existente, valida fechas) → `project_scope='test_environment'` + fechas. Grid: badge morado "AMBIENTE DE PRUEBA" + chip contador de días hábiles (`test_env_days_left`, campo agregado al modelo Integrator; se calcula con `business_calendar`). Wizard: opción "Asignación de Ambiente de Prueba" con picker + fechas obligatorias.
+- **Vencimiento (contador=0):** job diario `job_test_environment_expired` (08:25) despacha `test_environment_expired` una sola vez (flag `test_env_expiry_notified`). Ambas acciones editables en Configuración → Otras Acciones (destinatarios/asunto/cuerpo/variables).
+**QA:** testing_agent iteration_228 → **backend 100% (12/12)** + frontend verificado (badge morado, chip contador, wizard). Sin regresiones. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** en el tooltip del nombre del integrador, agregar una subsección "Clientes Instalados" que cruce dinámicamente los clientes que usan ese mismo Integrador + Aplicación, con botón "Exportar a PDF" corporativo.
 **Backend (`routes/integrators.py`):** `_installed_clients_for_integrator(id)` consulta `db.clients` con `{$or:[{integrador_id},{integrador_name ci}], aplicativo ci}`. Endpoints: `GET /integrators/{id}/installed-clients` (JSON: integrator_name, app_name, count, clients[rif, legal_name, fantasy_name, condicion]) y `GET /integrators/{id}/installed-clients/pdf` (corporate PDF: título "Clientes Instalados — Integrador: X | Aplicación: Y", cols RIF/Razón Social/Fantasía/Estatus; 404 si no existe).
 **Frontend (`IntegratorContactHover.jsx`):** subsección con fetch on-open (Strategy A), lista scrollable + contador + botón "Exportar a PDF" (blob). Header del popover muestra "Aplicación: <app_name>". testids: `installed-clients-section-<id>`, `installed-client-row-<i>`, `installed-clients-export-<id>`, `installed-clients-empty/loading`.
