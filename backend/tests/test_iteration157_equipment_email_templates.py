@@ -13,7 +13,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://reports-unify.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zealous-chaum-8.preview.emergentagent.com').rstrip('/')
 
 # Expected equipment template IDs
 EXPECTED_EQUIPMENT_TEMPLATES = [

@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = 'https://reports-unify.preview.emergentagent.com'
+    BASE_URL = 'https://zealous-chaum-8.preview.emergentagent.com'
 
 class TestEmailHeadersOnApprove:
     """Test x-custom-message and x-additional-recipients headers on /approve endpoint"""
