@@ -3,6 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Notificaciones: modales anchos + confirmación de envío + fechas en {Matriz_Seguimiento_Evolutiva} — Jul 2026
+**Requerimiento (3 partes):** (A) ampliar los modales de Notificaciones a 75-80% del viewport; (B) paso de confirmación antes de despachar; (C) inyectar fecha de culminación de cada fase en {Matriz_Seguimiento_Evolutiva}, homologado con {Matriz_Avance_Proyecto_Con_Fecha}.
+- **A. Ancho (`ProjectDetail.jsx` + `EmailPreviewDialog.jsx`):** los 3 modales (Notificaciones, Otras Notificaciones, Editor de Envío/Vista Previa) pasan a `w-[78vw] max-w-[78vw]` (medido: 1497.6px/1920 = 78%).
+- **B. Confirmación (`ProjectDetail.jsx`):** estado `confirmSendOpen` + `pendingSendRef` + `requestSendConfirmation(fn)`/`executePendingSend`. Los 3 botones de envío (`send-next-notif`, `send-adhoc-email-btn`, `preview-send-btn`) ahora abren un `AlertDialog` (`confirm-send-dialog`) con "¿Está seguro de que desea proceder con el envío de esta notificación?" (Cancelar/Confirmar). Cancelar conserva el modal padre; Confirmar despacha realmente.
+- **C. Fechas (`services/project_template_vars.py`):** helper `_seg_cell_has_progress` + render de celda con `_fmt_short_date(updated_at)` (dd/mm/yyyy, gris 10px) debajo del valor, en toda fase con avance/completada.
+**QA:** testing_agent iteration_229 → **frontend 100% (7/7)** (anchos 78%, confirmación en los 3 botones con Cancelar/Confirmar). Backend verificado por render directo (PRY-2026-05-002-PRI → 24 fechas en la matriz). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Clientes: Export CSV ampliado + Importación con cascada Integrador→Aplicativo — Jul 2026
 **Requerimiento:** (1) agregar al CSV de Clientes las columnas Implementador, Propietario, Integrador y Aplicativo; (2) garantizar que al importar el Aplicativo se guarde amarrado al Integrador correcto, con validación cuando el integrador tiene varios aplicativos.
 - **Export CSV (`Clients.jsx::exportToCSV`):** headers += Implementador, Propietario (ejecutivo_propietario), Integrador, Aplicativo. Se agregó BOM UTF-8 y escape de comillas.
