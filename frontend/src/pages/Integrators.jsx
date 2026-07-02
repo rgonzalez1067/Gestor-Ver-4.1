@@ -1296,7 +1296,7 @@ export const Integrators = () => {
                                 <Input
                                   value={formData.productos_certificar || ''}
                                   onChange={(e) => setFormData({ ...formData, productos_certificar: e.target.value })}
-                                  placeholder="Ej: VPOS, Link de Pago, Gateway"
+                                  placeholder="Ej: Cashea, Verif. Zelle, C2P, etc."
                                   data-testid="wizard-productos-certificar"
                                 />
                                 <p className="text-[11px] text-slate-400 mt-0.5">Texto libre. Se incrusta en el correo del Integrador vía la variable {'{Productos_Certificar_Integrador}'}.</p>

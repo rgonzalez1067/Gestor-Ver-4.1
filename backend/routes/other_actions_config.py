@@ -65,6 +65,7 @@ OTHER_ACTIONS = [
             "nombre_integrador", "tipo_integracion", "nombre_aplicativo",
             "nombre_responsable", "email_responsable", "telefono_responsable",
             "usuario_creador", "fecha_sistema",
+            "Productos_Certificar_Integrador", "Productos_nuevos",
         ],
     },
     {

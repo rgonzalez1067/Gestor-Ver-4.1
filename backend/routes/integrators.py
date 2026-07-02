@@ -1881,6 +1881,8 @@ async def notify_new_integration_project(
         # Productos a Certificar (texto libre del Proyecto de Integración).
         "Productos_Certificar_Integrador": integrator.get("productos_certificar", "") or "",
         "productos_certificar_integrador": integrator.get("productos_certificar", "") or "",
+        # Productos del nuevo proyecto (para la plantilla de creación de Nuevos Proyectos).
+        "Productos_nuevos": integrator.get("productos_certificar", "") or "",
     }
 
     # Correo Adicional Eventual: CC volátil para este envío específico. Se toma
