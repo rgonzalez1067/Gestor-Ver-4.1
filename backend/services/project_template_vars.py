@@ -600,6 +600,17 @@ def _seg_cell_v2(phase_data: dict):
     return (f"{pct}% / {expected} / {processed}", color)
 
 
+def _seg_cell_has_progress(phase_data: dict) -> bool:
+    """True si la fase tiene avance (completada o con cajas procesadas)."""
+    pd = phase_data or {}
+    if pd.get("completed"):
+        return True
+    try:
+        return int(pd.get("processed") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def _build_seguimiento_evolutiva_html(project: dict, bank_filter: str = None) -> str:
     """Variable {Matriz_Seguimiento_Evolutiva} (V2).
 
@@ -644,9 +655,16 @@ def _build_seguimiento_evolutiva_html(project: dict, bank_filter: str = None) ->
             cells = ''
             for p, full in cols:
                 phdata = ((rmatrix.get(bank) or {}).get(p)) or {}
-                val, color = _seg_cell_v2(phdata.get(full))
+                pcell = phdata.get(full)
+                val, color = _seg_cell_v2(pcell)
+                date_html = ''
+                if _seg_cell_has_progress(pcell):
+                    ds = _fmt_short_date((pcell or {}).get('updated_at'))
+                    if ds:
+                        date_html = (f'<div style="font-size:10px;color:#64748b;font-weight:400;'
+                                     f'margin-top:2px;white-space:nowrap;">{ds}</div>')
                 cells += (f'<td style="padding:6px 9px;{bd}text-align:center;font-size:11px;'
-                          f'color:{color};font-weight:700;white-space:nowrap;">{val}</td>')
+                          f'color:{color};font-weight:700;white-space:nowrap;">{val}{date_html}</td>')
             body += (f'<tr><td style="padding:6px 10px;{bd}font-size:11px;color:#334155;">'
                      f'<span style="color:#94a3b8;">└─</span> {row["name"]}</td>{cells}</tr>')
         body += '</tbody>'

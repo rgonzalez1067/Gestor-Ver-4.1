@@ -28,7 +28,7 @@ export const EmailPreviewDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="email-preview-dialog">
+      <DialogContent className="w-[78vw] max-w-[78vw] max-h-[90vh] overflow-y-auto" data-testid="email-preview-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Edit3 size={20} className="text-blue-500" />Editor de Envío Final</DialogTitle>
         </DialogHeader>

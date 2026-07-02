@@ -174,6 +174,16 @@ const ProjectDetail = () => {
   const [previewSubject, setPreviewSubject] = useState('');
   const [previewSending, setPreviewSending] = useState(false);
   const [previewContext, setPreviewContext] = useState(null); // {type: 'sequential'|'adhoc', target, bankName}
+  // Confirmación de envío (doble factor operativo) — intercepta los botones "Enviar".
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
+  const pendingSendRef = useRef(null);
+  const requestSendConfirmation = (fn) => { pendingSendRef.current = fn; setConfirmSendOpen(true); };
+  const executePendingSend = () => {
+    const fn = pendingSendRef.current;
+    pendingSendRef.current = null;
+    setConfirmSendOpen(false);
+    if (fn) fn();
+  };
   const editorRef = useRef(null);
 
   // Security Lock: ticket number
@@ -1968,7 +1978,7 @@ const ProjectDetail = () => {
         {/* ==================== NOTIFICATION DIALOG ==================== */}
         <Dialog open={notifDialogOpen} onOpenChange={setNotifDialogOpen}>
           <DialogContent
-            className={`${notifTarget?.type === 'bank_client' ? 'max-w-5xl' : 'max-w-3xl'} max-h-[90vh] overflow-y-auto`}
+            className={`w-[78vw] max-w-[78vw] max-h-[90vh] overflow-y-auto`}
             data-testid="notif-dialog"
           >
             <DialogHeader>
@@ -2401,7 +2411,7 @@ const ProjectDetail = () => {
                           <Eye size={12} className="mr-1" />{previewLoading ? '...' : 'Vista Previa'}
                         </Button>
                         <Button size="sm" className="h-8 text-xs text-white bg-blue-500 hover:bg-blue-600"
-                          disabled={!!notifSending} onClick={sendNotification}
+                          disabled={!!notifSending} onClick={() => requestSendConfirmation(sendNotification)}
                           data-testid="send-next-notif">
                           <Send size={12} className="mr-1" />{notifSending ? 'Enviando...' : 'Enviar'}
                         </Button>
@@ -2416,7 +2426,7 @@ const ProjectDetail = () => {
 
         {/* ==================== OTRAS NOTIFICACIONES DIALOG (homologado) ==================== */}
         <Dialog open={emailDialogOpen} onOpenChange={(o) => { if (!emailSending) setEmailDialogOpen(o); }}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="adhoc-email-dialog">
+          <DialogContent className="w-[78vw] max-w-[78vw] max-h-[90vh] overflow-y-auto" data-testid="adhoc-email-dialog">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><Megaphone size={20} className="text-indigo-500" />Otras Notificaciones</DialogTitle>
             </DialogHeader>
@@ -2698,7 +2708,7 @@ const ProjectDetail = () => {
                     className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50 gap-1.5" data-testid="preview-adhoc-email-btn">
                     <Eye size={14} />{previewLoading ? 'Cargando...' : 'Vista Previa'}
                   </Button>
-                  <Button size="sm" onClick={handleSendAdhocEmail}
+                  <Button size="sm" onClick={() => requestSendConfirmation(handleSendAdhocEmail)}
                     disabled={emailSending || !emailForm.subject.trim() || !emailForm.message.trim() || !emailForm.recipients.some(r => r.trim())}
                     className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white gap-1.5" data-testid="send-adhoc-email-btn">
                     <Send size={14} />{emailSending ? 'Enviando...' : 'Enviar Correo'}
@@ -2724,13 +2734,30 @@ const ProjectDetail = () => {
           previewSubject={previewSubject}
           setPreviewSubject={setPreviewSubject}
           previewSending={previewSending}
-          sendFromPreview={sendFromPreview}
+          sendFromPreview={() => requestSendConfirmation(sendFromPreview)}
           editorRef={editorRef}
           handleEditorPaste={handleEditorPaste}
           handleEditorDrop={handleEditorDrop}
           handleInsertImage={handleInsertImage}
           insertVariableInEditor={insertVariableInEditor}
         />
+
+        {/* ============ Confirmación de Envío (doble factor operativo) ============ */}
+        <AlertDialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
+          <AlertDialogContent data-testid="confirm-send-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2"><Send size={18} className="text-blue-500" />Confirmar envío de notificación</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Está seguro de que desea proceder con el envío de esta notificación? El correo se despachará a los destinatarios seleccionados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="confirm-send-cancel">Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={executePendingSend} className="bg-blue-600 hover:bg-blue-700" data-testid="confirm-send-accept">Confirmar y Enviar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
 
         {/* ================= Actualización Masiva (Batch Update) ================= */}
         <BatchUpdateModal
