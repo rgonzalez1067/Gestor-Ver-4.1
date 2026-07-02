@@ -3,6 +3,18 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Clientes: Export CSV ampliado + Importación con cascada Integrador→Aplicativo — Jul 2026
+**Requerimiento:** (1) agregar al CSV de Clientes las columnas Implementador, Propietario, Integrador y Aplicativo; (2) garantizar que al importar el Aplicativo se guarde amarrado al Integrador correcto, con validación cuando el integrador tiene varios aplicativos.
+- **Export CSV (`Clients.jsx::exportToCSV`):** headers += Implementador, Propietario (ejecutivo_propietario), Integrador, Aplicativo. Se agregó BOM UTF-8 y escape de comillas.
+- **Parser (`routes/dashboard.py::import_clients`):** el lookup de integradores ahora agrupa por nombre → lista de registros `{name, id, app_name}` (un integrador con N apps = N registros). Validación en cascada por fila:
+  - Aplicativo indicado que coincide con un app del integrador → `integrador_id` apunta al registro EXACTO de esa app.
+  - Integrador con **1 solo app** y celda Aplicativo vacía → **autocompleta** el app y su id.
+  - Integrador con **varios apps** y celda vacía → error `missing` (fila omitida) listando los apps válidos.
+  - Aplicativo indicado inválido (no está entre los apps del integrador) → error `invalid` (fila omitida) listando los apps válidos.
+  - Integrador sin apps registrados → conserva el texto libre (compat).
+**QA:** curl E2E con integradores reales multi-app (G&G Software: 2 apps) y single-app (Yummy Rides): 2 filas OK (una con match exacto de app, otra autocompletada), 2 filas rechazadas (vacío/ inválido). Verificado en BD que `integrador_id` apunta al registro correcto por app. Datos de prueba limpiados. Frontend renderiza + botón CSV presente. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Cierre confinado + Matriz read-only + Ambiente de Prueba + 2 Otras Acciones — Jul 2026
 **Requerimiento (multi-parte):** blindar el cierre de Proyectos de Integración, bloquear la Matriz de Productos fuera de Proyecto Activo, crear el tipo "Asignación de Ambiente de Prueba" y 2 acciones configurables de correo.
 - **P0 Bug (cierre accidental):** `update_integrator` hacía `model_dump()` y sobreescribía `project_scope`/estatus en cada edición → el proyecto perdía su badge/salía del activo. Fix: la edición preserva `project_scope`, nunca fija `Cerrado` (además el Literal de `integrator_status` no incluye 'Cerrado' → 422) ni reactiva un cerrado. El cierre ocurre solo por `POST /integrators/{id}/close`.

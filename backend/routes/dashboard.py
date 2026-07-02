@@ -312,10 +312,15 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             if u.get("email"):
                 implementador_lookup[u["email"].lower()] = {"name": full, "user_id": u["user_id"]}
         
-        integradores_db = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1}).to_list(1000)
-        integrador_lookup = {}
+        integradores_db = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1, "app_name": 1}).to_list(1000)
+        integrador_by_name = {}
         for intg in integradores_db:
-            integrador_lookup[intg["name"].strip().lower()] = {"name": intg["name"], "id": intg["integrator_id"]}
+            key = intg["name"].strip().lower()
+            integrador_by_name.setdefault(key, []).append({
+                "name": intg["name"],
+                "id": intg["integrator_id"],
+                "app_name": (intg.get("app_name") or "").strip(),
+            })
         
         import re as re_mod
         rif_pattern = re_mod.compile(r'^[JVGEP]-?\d{5,9}-?\d$', re_mod.IGNORECASE)
@@ -603,19 +608,43 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                             suggested_action=f'Corrija la celda Q{row_num}. Separe múltiples servicios con comas: "VPOS, MPOS". Solo se aceptan: {", ".join(valid_tipos_servicio)}.'))
                     tipo_servicio_list = [s for s in parts if s in valid_tipos_servicio]
                 
-                # === Integrador validation ===
+                # === Integrador + Aplicativo validation (cascade) ===
                 integrador_id = None
                 if integrador_name:
-                    intg_match = integrador_lookup.get(integrador_name.lower())
-                    if intg_match:
-                        integrador_name = intg_match["name"]
-                        integrador_id = intg_match["id"]
+                    intg_records = integrador_by_name.get(integrador_name.strip().lower())
+                    if intg_records:
+                        integrador_name = intg_records[0]["name"]
+                        apps = [r["app_name"] for r in intg_records if r["app_name"]]
+                        if aplicativo:
+                            match = next((r for r in intg_records if r["app_name"] and r["app_name"].lower() == aplicativo.strip().lower()), None)
+                            if match:
+                                aplicativo = match["app_name"]
+                                integrador_id = match["id"]
+                            elif apps:
+                                has_critical = True
+                                row_errors.append(ImportError(row=row_num, column=_col_ref('aplicativo'), value=aplicativo,
+                                    error_type='invalid',
+                                    message=f'Fila {row_num}, Col U (Aplicativo): "{aplicativo}" no es un aplicativo válido para el integrador "{integrador_name}".',
+                                    suggested_action=f'Corrija la celda U{row_num}. Aplicativos válidos para "{integrador_name}": {", ".join(apps)}.'))
+                            else:
+                                integrador_id = intg_records[0]["id"]
+                        else:
+                            if len(apps) == 1:
+                                aplicativo = apps[0]
+                                integrador_id = intg_records[0]["id"]
+                            elif len(apps) > 1:
+                                has_critical = True
+                                row_errors.append(ImportError(row=row_num, column=_col_ref('aplicativo'), value='(vacío)',
+                                    error_type='missing',
+                                    message=f'Fila {row_num}, Col U (Aplicativo): El integrador "{integrador_name}" tiene varios aplicativos; debe indicar cuál corresponde.',
+                                    suggested_action=f'Complete la celda U{row_num} con uno de los aplicativos válidos: {", ".join(apps)}.'))
+                            else:
+                                integrador_id = intg_records[0]["id"]
                     else:
-                        _sample_names = list(integrador_lookup.keys())[:5]
                         row_errors.append(ImportError(row=row_num, column=_col_ref('integrador_name'), value=integrador_name,
                             error_type='invalid',
-                            message=f'Fila {row_num}, Col R (Integrador): El integrador "{integrador_name}" no está registrado en el sistema.',
-                            suggested_action=f'Corrija la celda R{row_num}. Consulte la hoja "Valores Válidos" para ver los integradores disponibles. El nombre debe coincidir exactamente.'))
+                            message=f'Fila {row_num}, Col T (Integrador): El integrador "{integrador_name}" no está registrado en el sistema.',
+                            suggested_action=f'Corrija la celda T{row_num}. Consulte la hoja "Valores Válidos" para ver los integradores disponibles. El nombre debe coincidir exactamente.'))
                         integrador_name = None
                 
                 # === Contact Role validation ===

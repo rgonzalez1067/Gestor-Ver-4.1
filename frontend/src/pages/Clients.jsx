@@ -838,9 +838,11 @@ export const Clients = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['RIF', 'Sucursal', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento'];
-    const csvContent = [headers.join(','), ...clients.map(c => [
-      `"${formatRif(c.rif)}"`, `"${c.sucursal || 'Principal'}"`, `"${c.legal_name}"`, `"${c.fantasy_name}"`, `"${c.segment || ''}"`
+    const headers = ['RIF', 'Sucursal', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento', 'Implementador', 'Propietario', 'Integrador', 'Aplicativo'];
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csvContent = '\uFEFF' + [headers.join(','), ...clients.map(c => [
+      esc(formatRif(c.rif)), esc(c.sucursal || 'Principal'), esc(c.legal_name), esc(c.fantasy_name), esc(c.segment || ''),
+      esc(c.implementer_name || ''), esc(c.ejecutivo_propietario || ''), esc(c.integrador_name || ''), esc(c.aplicativo || '')
     ].join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'clientes.csv'; link.click();
