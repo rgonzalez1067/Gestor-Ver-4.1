@@ -1626,12 +1626,20 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
 
     # Push notification (evento #8 Banco notificado en proyecto)
+    # Título legible según destinatario (evita mostrar "Banco None" cuando el
+    # envío fue al cliente, que se veía como un error).
+    if target == "bank_client" and bank_name:
+        _notif_title = f"Cliente + Banco {bank_name} notificado"
+    elif target == "bank" and bank_name:
+        _notif_title = f"Banco {bank_name} notificado"
+    else:
+        _notif_title = "Cliente notificado"
     try:
         from services.notification_service import notify as _push_notify
         await _push_notify(
             event_type="bank_notified_in_project",
-            title=f"Banco {bank_name} notificado",
-            message=f"Proyecto {project.get('project_number','')} · Nivel {prefix_label} · Target: {target}",
+            title=_notif_title,
+            message=f"Proyecto {project.get('project_number','')} · Nivel {prefix_label}",
             context={
                 "assignee_user_id": project.get("assigned_to_user_id"),
                 "sede": project.get("client_sede"),

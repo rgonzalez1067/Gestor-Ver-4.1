@@ -1,0 +1,30 @@
+{
+  "summary": "Backend-only validation of cosmetic fix for push notification title in POST /api/projects/{id}/send-notification. Bug: enviar con target=client mostraba 'Banco None notificado'. Fix confirmado: 5/5 pytest cases PASS. Titulo ahora es 'Cliente notificado' (client), 'Banco {name} notificado' (bank) y 'Cliente + Banco {name} notificado' (bank_client). Message ya no contiene 'Target:'. Endpoint sigue retornando 200 con message de éxito (regresión OK).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter230_notif_title_fix.py",
+    "/app/test_reports/pytest/iter230_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/projects.py L1629-1636: la lógica correcta gestiona 'bank_client', 'bank' y default (Cliente). Cuidado con nuevos targets tipo 'bank_avance' o 'client_avance': caen al else = 'Cliente notificado'. Para 'bank_avance' (si en el futuro se implementa) el título quedaría incorrecto — considerar tratarlo como 'bank'.",
+    "El push se dispara en try/except silencioso — si notify() falla se loguea WARN y no rompe el endpoint. OK para UX pero considerar métricas para detectar fallos silenciosos en producción.",
+    "El endpoint /api/notifications/recent-activity dedup por (event_type, project_id, ts al segundo). En este test se añaden sleeps para asegurar timestamps distintos; en producción, ráfagas rápidas de envíos podrían colapsar entradas del feed global — no afecta al usuario asignado (que sí las recibe todas), solo al feed de admin."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (session_token via POST /api/auth/login).",
+  "seed_data_creation": "Se envían notificaciones reales (target=client, target=bank con banco 'Banco Mercantil', target=bank_client con 'Banco Nacional de Crédito (BNC)') sobre el proyecto prj_e86a47af1bff (PRY-2026-05-002-PRI) con to_override=qatest_iter230@example.com. Se generan entradas en bitacora del proyecto y una notificación push por cada envío. El SMTP/Resend puede intentar despachar a la dirección qatest; no se validó el resultado del email backend, solo el 200 y title/message del push (que es lo esencial del bug fix).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Para verificar el título de notificaciones push como admin, usar GET /api/notifications/recent-activity (admin/director only). Dedup por (event_type, project_id o quote_id, ts truncado a segundo) — usar sleeps entre calls para evitar colisiones. El evento se llama 'bank_notified_in_project' incluso cuando target=client (nombre heredado). Proyecto de pruebas fiable: prj_e86a47af1bff con 2 bancos en matriz.",
+  "rca of the issue": "Antes del fix, el título se construía como f'Banco {bank_name} notificado' sin importar el target. Cuando target=client, bank_name era None, resultando en literal 'Banco None notificado' visible en la campanita (UX confusa, parecía error). Fix en routes/projects.py L1629-1636 introduce ramificación por target: bank_client → 'Cliente + Banco {name} notificado'; bank → 'Banco {name} notificado'; default → 'Cliente notificado'. Adicionalmente el `message` se simplificó de incluir 'Target: {target}' a solo 'Proyecto {n} · Nivel {prefix_label}'. Verificado en vivo con 5 tests pytest sobre el entorno preview usando el session_token del admin y el feed /api/notifications/recent-activity."
+}
