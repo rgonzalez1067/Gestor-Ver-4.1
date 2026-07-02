@@ -265,6 +265,17 @@ async def update_integrator(integrator_id: str, integrator: IntegratorCreate, au
         raise HTTPException(status_code=404, detail="Integrator not found")
     
     update_data = integrator.model_dump()
+    # BLINDAJE DEL CICLO DE VIDA DEL PROYECTO:
+    # La edición de la ficha NUNCA debe alterar el estatus del proyecto ni su
+    # clasificación de alcance. El cierre ocurre EXCLUSIVAMENTE por el botón
+    # "Cerrar Proyecto" (endpoint /close). Preservamos siempre estos campos.
+    update_data["project_scope"] = existing.get("project_scope")
+    update_data.pop("closed_at", None)
+    update_data.pop("closed_by", None)
+    incoming_status = update_data.get("integrator_status")
+    if existing.get("integrator_status") == "Cerrado" or incoming_status == "Cerrado":
+        # Ni se cierra por edición, ni se reactiva un proyecto ya cerrado editando la ficha.
+        update_data["integrator_status"] = existing.get("integrator_status")
     await db.integrators.update_one(
         {"integrator_id": integrator_id},
         {"$set": update_data}
