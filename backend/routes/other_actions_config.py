@@ -116,6 +116,31 @@ OTHER_ACTIONS = [
         "description": "Se dispara (en background) cuando el operador consolida el cierre del caso y el estado se actualiza a 'Culminado', tras confirmar el modal de justificación. El comentario de cierre viaja en {Comentario_Estado}.",
         "variables": _PROJECT_STATUS_VARS,
     },
+    {
+        "id": "integration_project_closed",
+        "label": "Cierre de Proyecto de Integración",
+        "description": "Se dispara al presionar el botón 'Cerrar Proyecto' de un Proyecto de Integración (ficha del Integrador) y confirmar la acción. Notifica a los usuarios parametrizados (correo o Centro de Mensajes) según la plantilla configurada.",
+        "variables": [
+            "nombre_integrador", "Integrador", "integrator_name",
+            "nombre_aplicativo", "app_name", "tipo_integracion", "tipo_integrador",
+            "modalidad_integracion", "nombre_implementador", "Nombre_Implementador",
+            "email_implementador", "Correo_Implementador",
+            "cerrado_por", "Cerrado_Por", "usuario_ejecutor", "fecha_sistema", "Fecha_Sistema",
+        ],
+    },
+    {
+        "id": "test_environment_expired",
+        "label": "Vencimiento de Ambiente de Pruebas",
+        "description": "Se dispara automáticamente (en background) cuando el contador de días hábiles de una 'Asignación de Ambiente de Prueba' llega a cero (0), es decir, al alcanzar la Fecha Final de vigencia. Notifica a los usuarios parametrizados (correo o Centro de Mensajes) según la plantilla configurada.",
+        "variables": [
+            "nombre_integrador", "Integrador", "integrator_name",
+            "nombre_aplicativo", "app_name", "tipo_integracion", "tipo_integrador",
+            "nombre_implementador", "Nombre_Implementador", "email_implementador", "Correo_Implementador",
+            "fecha_inicio_ambiente", "Fecha_Inicio_Ambiente",
+            "fecha_fin_ambiente", "Fecha_Fin_Ambiente",
+            "usuario_ejecutor", "fecha_sistema", "Fecha_Sistema",
+        ],
+    },
 ]
 OTHER_ACTION_IDS = {a["id"] for a in OTHER_ACTIONS}
 

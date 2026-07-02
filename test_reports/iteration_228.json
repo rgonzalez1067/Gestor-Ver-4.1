@@ -1,0 +1,43 @@
+{
+  "summary": "Iter228 — Integrators lifecycle guard, Cerrar Proyecto flow, Matrix read-only guard, Asignación de Ambiente de Prueba, and Otras Acciones catalog. 12/12 backend tests PASSED. Frontend key elements verified: purple 'AMBIENTE DE PRUEBA' scope-tag, business-days countdown chip ('6 días háb.'), wizard 'Asignación de Ambiente de Prueba' option with mandatory start/end date fields, existing-integrator matching flow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators - dialog trees", "issues": ["Console warnings: <span> inside <tr> (hydration warning) and DialogContent missing Description/aria-describedby. Non-blocking accessibility/SSR hints only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter228_integrators_test_env_and_lifecycle.py",
+    "/app/test_reports/pytest/iter228_results.xml"
+  ],
+  "action_items": [
+    "(Optional/low-priority) Fix DialogContent aria-describedby warning in Integrators create dialog for accessibility.",
+    "(Optional/low-priority) Fix nested <span> inside <tr> hydration warning on the integrators grid."
+  ],
+  "critical_code_review_comments": [
+    "routes/integrators.py update_integrator correctly preserves project_scope + integrator_status. Cerrado is protected both ways (no close via edit; no reactivation via edit).",
+    "IntegratorCreate.integrator_status Literal excludes 'Cerrado' → any client PUT with 'Cerrado' fails at Pydantic layer (422). Good defense-in-depth.",
+    "close endpoint dispatches 'integration_project_closed' inside try/except and returns 'notification' key even if dispatch has no configured recipients — verified.",
+    "Matrix read-only guard: only triggers when 'certifications' key is present AND different from stored; safe against no-op payloads.",
+    "assign_test_environment stores ISO dates and unsets closed_at/closed_by, guaranteeing that a reassignment on a previously-closed integrator restores active-project state.",
+    "GET /api/integrators computes test_env_days_left via business_days_between per test-env record; returns int (verified in test).",
+    "other_actions_config catalog includes both new action IDs with label + variables (verified). Endpoint for save/upsert is PUT /api/other-actions/configs (plural) — confirmed reachable.",
+    "Integrators.jsx: isActiveProject() checks scope in (new/component/expansion/test_environment) AND status != 'Cerrado'. Both matrix-readonly banner and disabled cert buttons are gated by this predicate correctly.",
+    "File size: /app/backend/routes/integrators.py is ~1970 lines — approaching the >700-line guideline. Consider splitting into submodules (crud vs. lifecycle vs. reports)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter228_integrators_test_env_and_lifecycle.py (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "~85% (visible testids and wizard verified; matrix expansion could not be triggered via my selectors, but code paths and disabled flags are correct per source review)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123. Login returns 'session_token'.",
+  "seed_data_creation": "Ephemeral QATEST_-prefixed integrators created for tests and fully deleted at end. Verified 0 QATEST_ remain; 'Saint de Venezuela' preserved.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 12 backend tests pass. To re-verify frontend matrix-readonly banner interactively, disable 'Solo Proyectos' filter, find the closed row, and click the row's chevron/expand-row control (not the row body — that opens the contact hover popover). Existing testid for the matrix-readonly banner is 'matrix-readonly-{integrator_id}' and cert buttons use 'cert-{id}-{svc}'. Wizard test-env flow works end-to-end: existing-name match → 'Asignación de Ambiente de Prueba' → dates → 'Asignar Ambiente de Prueba' button.",
+  "rca of the issue": "N/A — no regressions or blocking bugs found."
+}

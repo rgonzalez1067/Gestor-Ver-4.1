@@ -14,6 +14,8 @@ from config import db, get_current_user, get_resend_api_key, hash_password, veri
 from models import *
 import shutil
 import csv
+
+logger = logging.getLogger("integrators")
 import base64
 
 router = APIRouter()
@@ -122,6 +124,20 @@ async def get_integrators(
         if isinstance(intg.get('created_at'), str):
             intg['created_at'] = datetime.fromisoformat(intg['created_at'])
         intg['has_overdue_commitments'] = overdue_map.get(intg['integrator_id'], False)
+
+    # Contador de días hábiles restantes para "Asignación de Ambiente de Prueba".
+    test_envs = [i for i in integrators if i.get('project_scope') == 'test_environment' and i.get('test_env_end_date')]
+    if test_envs:
+        from services.business_calendar import get_holiday_sets, business_days_between
+        from datetime import date as _date
+        _specific, _recurring = await get_holiday_sets()
+        _today = _date.today()
+        for intg in test_envs:
+            try:
+                _end = datetime.strptime(intg['test_env_end_date'][:10], "%Y-%m-%d").date()
+                intg['test_env_days_left'] = business_days_between(_today, _end, _specific, _recurring)
+            except Exception as _e:
+                intg['test_env_days_left'] = None
     return integrators
 
 @router.post("/integrators", response_model=Integrator)
@@ -276,6 +292,15 @@ async def update_integrator(integrator_id: str, integrator: IntegratorCreate, au
     if existing.get("integrator_status") == "Cerrado" or incoming_status == "Cerrado":
         # Ni se cierra por edición, ni se reactiva un proyecto ya cerrado editando la ficha.
         update_data["integrator_status"] = existing.get("integrator_status")
+    # RESTRICCIÓN DE SEGURIDAD — MATRIZ DE PRODUCTOS SOLO-LECTURA:
+    # No se permite modificar la matriz de certificaciones si el integrador NO está
+    # en fase de Proyecto Activo (scope clasificado y estatus != Cerrado).
+    incoming_certs = update_data.get("certifications")
+    if incoming_certs is not None and incoming_certs != (existing.get("certifications") or {}):
+        _scope = existing.get("project_scope")
+        _is_active = _scope in ("new", "component", "expansion", "test_environment") and existing.get("integrator_status") != "Cerrado"
+        if not _is_active:
+            raise HTTPException(status_code=403, detail="La Matriz de Productos es de solo lectura: el integrador no se encuentra en fase de Proyecto Activo.")
     await db.integrators.update_one(
         {"integrator_id": integrator_id},
         {"$set": update_data}
@@ -309,7 +334,66 @@ async def close_integrator_project(integrator_id: str, authorization: Optional[s
         }},
     )
     updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
-    return updated
+
+    # Correo automatizado de cierre (acción configurable en Otras Acciones).
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    closed_by = current_user.get("email") if current_user else ""
+    tpl_vars = {
+        "nombre_integrador": existing.get("name", ""), "Integrador": existing.get("name", ""),
+        "integrator_name": existing.get("name", ""),
+        "nombre_aplicativo": existing.get("app_name", ""), "app_name": existing.get("app_name", ""),
+        "tipo_integracion": existing.get("integration_type", ""), "tipo_integrador": existing.get("integrator_type", ""),
+        "modalidad_integracion": existing.get("integration_modality", ""),
+        "nombre_implementador": existing.get("implementador", ""), "Nombre_Implementador": existing.get("implementador", ""),
+        "cerrado_por": closed_by, "Cerrado_Por": closed_by,
+        "usuario_ejecutor": closed_by, "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+    }
+    dispatch_result = None
+    try:
+        from services.other_actions_engine import dispatch_other_action
+        dispatch_result = await dispatch_other_action(
+            "integration_project_closed", tpl_vars, current_user=current_user,
+            fallback_subject=f"Cierre de Proyecto de Integración: {existing.get('name', '')} — {existing.get('app_name', '')}",
+        )
+    except Exception as e:
+        logger.warning(f"[close] dispatch integration_project_closed falló: {e}")
+    return {"status": "ok", "integrator": updated, "notification": dispatch_result}
+
+
+class TestEnvironmentPayload(BaseModel):
+    start_date: str
+    end_date: str
+
+
+@router.post("/integrators/{integrator_id}/assign-test-environment")
+async def assign_test_environment(integrator_id: str, payload: TestEnvironmentPayload, authorization: Optional[str] = Header(None)):
+    """Asigna una 'Asignación de Ambiente de Prueba' a un Integrador EXISTENTE.
+    Marca project_scope='test_environment' con vigencia (Fecha Inicio/Fin) y lo deja
+    'En proceso' para que sea un Proyecto Activo (badge morado + contador de días hábiles)."""
+    await get_current_user(authorization)
+    existing = await db.integrators.find_one({"integrator_id": integrator_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="El Integrador no existe. El Ambiente de Prueba solo puede asignarse a un Integrador registrado.")
+    try:
+        start = datetime.strptime(payload.start_date[:10], "%Y-%m-%d").date()
+        end = datetime.strptime(payload.end_date[:10], "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido (use YYYY-MM-DD)")
+    if end < start:
+        raise HTTPException(status_code=400, detail="La Fecha Final no puede ser anterior a la Fecha de Inicio")
+    await db.integrators.update_one(
+        {"integrator_id": integrator_id},
+        {"$set": {
+            "project_scope": "test_environment",
+            "integrator_status": "En proceso",
+            "test_env_start_date": start.isoformat(),
+            "test_env_end_date": end.isoformat(),
+            "test_env_expiry_notified": False,
+            "test_env_assigned_at": datetime.now(timezone.utc).isoformat(),
+        }, "$unset": {"closed_at": "", "closed_by": ""}},
+    )
+    updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+    return {"status": "ok", "integrator": updated}
 
 
 class ExpandPayload(BaseModel):

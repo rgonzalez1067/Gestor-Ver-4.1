@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Calendar } from '../components/ui/calendar';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout, Lock, Eye, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout, Lock, Eye, EyeOff, FlaskConical } from 'lucide-react';
 import { EntityEmailDialog } from '../components/EntityEmailDialog';
 import PurgeIntegratorsDialog from '../components/PurgeIntegratorsDialog';
 import api from '../utils/api';
@@ -370,6 +370,23 @@ export const Integrators = () => {
 
   // Guarda el flujo del wizard según modo/alcance.
   const handleWizardSubmit = async () => {
+    // --- Caso: Asignación de Ambiente de Prueba (a un integrador existente) ---
+    if (integratorMode === 'existing' && scopeChoice === 'test_environment') {
+      if (!expandTargetId) { toast.error('Selecciona a qué integración existente se asigna el Ambiente de Prueba'); return; }
+      if (!formData.test_env_start_date || !formData.test_env_end_date) { toast.error('Debes indicar la Fecha de Inicio y la Fecha Final'); return; }
+      if (formData.test_env_end_date < formData.test_env_start_date) { toast.error('La Fecha Final no puede ser anterior a la Fecha de Inicio'); return; }
+      setWizardSaving(true);
+      try {
+        await api.post(`/integrators/${expandTargetId}/assign-test-environment`, {
+          start_date: formData.test_env_start_date,
+          end_date: formData.test_env_end_date,
+        });
+        toast.success('Ambiente de Prueba asignado');
+        setDialogOpen(false); resetForm(); fetchData();
+      } catch (e) { toast.error(e.response?.data?.detail || 'Error al asignar el Ambiente de Prueba'); }
+      finally { setWizardSaving(false); }
+      return;
+    }
     // --- Caso: Ampliación de un tipo vigente (actualiza la fila existente) ---
     if (integratorMode === 'existing' && scopeChoice === 'expansion') {
       if (!expandTargetId) { toast.error('Selecciona el tipo de integración a ampliar'); return; }
@@ -517,11 +534,18 @@ export const Integrators = () => {
   );
 
 
+  const isActiveProject = (intg) =>
+    !!intg && ['new', 'component', 'expansion', 'test_environment'].includes(intg.project_scope) && intg.integrator_status !== 'Cerrado';
+
   const toggleCert = async (integratorId, serviceId, currentVal) => {
     const idx = CERT_CYCLE.indexOf(currentVal || 'N/A');
     const next = CERT_CYCLE[(idx + 1) % CERT_CYCLE.length];
     const intg = integrators.find(i => i.integrator_id === integratorId);
     if (!intg) return;
+    if (!isActiveProject(intg)) {
+      toast.error('La Matriz de Productos es de solo lectura: el integrador no está en fase de Proyecto Activo.');
+      return;
+    }
     const certs = { ...(intg.certifications || {}), [serviceId]: next };
     try {
       const payload = {
@@ -839,7 +863,7 @@ export const Integrators = () => {
     }
   };
 
-  const CLASSIFIED_SCOPES = ['new', 'component', 'expansion'];
+  const CLASSIFIED_SCOPES = ['new', 'component', 'expansion', 'test_environment'];
   const filteredIntegrators = integrators.filter(intg => {
     // Vista por defecto: solo proyectos clasificados (Nuevos, Componentes, Ampliaciones).
     // El operador activa "Ver Todos" para incluir el histórico sin clasificar y cerrados.
@@ -1211,8 +1235,42 @@ export const Integrators = () => {
                               className={`px-3 py-2 rounded-md text-sm font-semibold border-2 transition ${scopeChoice === 'new_type' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'}`}>
                               Nuevo Tipo de Integración
                             </button>
+                            <button type="button" onClick={() => setScopeChoice('test_environment')} data-testid="wizard-scope-test-env"
+                              className={`px-3 py-2 rounded-md text-sm font-semibold border-2 transition ${scopeChoice === 'test_environment' ? 'bg-purple-600 text-white border-purple-700' : 'bg-white text-slate-700 border-slate-200 hover:border-purple-400'}`}>
+                              Asignación de Ambiente de Prueba
+                            </button>
                           </div>
                         </div>
+
+                        {/* Opción C: Ambiente de Prueba */}
+                        {scopeChoice === 'test_environment' && (
+                          <div data-testid="wizard-test-env-block">
+                            <Label>Selecciona la integración existente para el Ambiente de Prueba *</Label>
+                            <div className="space-y-1 mt-1">
+                              {existingRows.map((r) => (
+                                <label key={r.integrator_id} className="flex items-center gap-2 border rounded-md px-2 py-1.5 cursor-pointer hover:bg-purple-50" data-testid={`wizard-testenv-option-${r.integrator_id}`}>
+                                  <input type="radio" name="testEnvTarget" checked={expandTargetId === r.integrator_id} onChange={() => setExpandTargetId(r.integrator_id)} data-testid={`wizard-testenv-radio-${r.integrator_id}`} />
+                                  <span className="text-xs"><span className="font-bold text-indigo-700">{r.integration_type || '—'}</span> · {r.app_name} <span className="text-slate-400">({r.integration_modality || 'sin modalidad'})</span></span>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="mt-4 pt-3 border-t border-purple-200 grid grid-cols-2 gap-3">
+                              <div>
+                                <Label>Fecha de Inicio *</Label>
+                                <Input type="date" value={formData.test_env_start_date || ''}
+                                  onChange={(e) => setFormData({ ...formData, test_env_start_date: e.target.value })}
+                                  data-testid="wizard-testenv-start-date" />
+                              </div>
+                              <div>
+                                <Label>Fecha Final *</Label>
+                                <Input type="date" value={formData.test_env_end_date || ''}
+                                  onChange={(e) => setFormData({ ...formData, test_env_end_date: e.target.value })}
+                                  data-testid="wizard-testenv-end-date" />
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">El panel mostrará un contador de días hábiles restantes hasta la Fecha Final. Al llegar a 0 se dispara la acción "Vencimiento de Ambiente de Pruebas".</p>
+                          </div>
+                        )}
 
                         {/* Opción A: Ampliación */}
                         {scopeChoice === 'expansion' && (
@@ -1287,7 +1345,7 @@ export const Integrators = () => {
                         )}
                         {wizardStep === 2 && scopeChoice && (
                           <Button type="button" onClick={handleWizardSubmit} disabled={wizardSaving} className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="wizard-submit-btn">
-                            {scopeChoice === 'expansion' ? 'Guardar Ampliación' : 'Crear Nuevo Tipo'}
+                            {scopeChoice === 'expansion' ? 'Guardar Ampliación' : scopeChoice === 'test_environment' ? 'Asignar Ambiente de Prueba' : 'Crear Nuevo Tipo'}
                           </Button>
                         )}
                       </div>
@@ -1436,6 +1494,7 @@ export const Integrators = () => {
                       new: { row: 'bg-blue-50/60 hover:bg-blue-100/60', tag: 'bg-blue-600 text-white', label: 'NUEVO INTEGRADOR', icon: <Plus size={9} /> },
                       component: { row: 'bg-emerald-50/70 hover:bg-emerald-100/70', tag: 'bg-emerald-600 text-white', label: 'NUEVO COMPONENTE', icon: <Plus size={9} /> },
                       expansion: { row: 'bg-orange-50/70 hover:bg-orange-100/70', tag: 'bg-orange-500 text-white', label: 'AMPLIACIÓN', icon: <RefreshCw size={9} /> },
+                      test_environment: { row: 'bg-purple-50 hover:bg-purple-100', tag: 'bg-purple-600 text-white', label: 'AMBIENTE DE PRUEBA', icon: <FlaskConical size={9} /> },
                       closed: { row: 'bg-slate-50 hover:bg-slate-100', tag: '', label: '', icon: null },
                     })[scope] || { row: 'hover:bg-slate-50', tag: '', label: '', icon: null };
                     return (
@@ -1448,6 +1507,15 @@ export const Integrators = () => {
                           {!closed && scopeMeta.label && (
                             <span className={`inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${scopeMeta.tag}`} data-testid={`scope-tag-${intg.integrator_id}`}>
                               {scopeMeta.icon} {scopeMeta.label}
+                            </span>
+                          )}
+                          {!closed && scope === 'test_environment' && intg.test_env_days_left != null && (
+                            <span
+                              className={`inline-flex items-center gap-1 mt-0.5 ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${intg.test_env_days_left <= 0 ? 'bg-rose-600 text-white' : intg.test_env_days_left <= 2 ? 'bg-amber-500 text-white' : 'bg-purple-100 text-purple-700'}`}
+                              data-testid={`test-env-countdown-${intg.integrator_id}`}
+                              title={`Vence: ${intg.test_env_end_date || ''}`}
+                            >
+                              <Clock size={9} /> {intg.test_env_days_left <= 0 ? 'VENCIDO' : `${intg.test_env_days_left} días háb.`}
                             </span>
                           )}
                           {closed && (
@@ -1599,6 +1667,11 @@ export const Integrators = () => {
                                     {hasFilter && <span className="text-[10px] text-slate-400 ml-1">Mostrando {visible.length} de {certProducts.length}</span>}
                                   </div>
                                   <div className="overflow-x-auto">
+                                    {!isActiveProject(intg) && (
+                                      <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded bg-slate-100 border border-slate-200 text-[11px] text-slate-500" data-testid={`matrix-readonly-${intg.integrator_id}`}>
+                                        <Lock size={12} /> Matriz de solo lectura — el integrador no está en fase de Proyecto Activo.
+                                      </div>
+                                    )}
                                     <div className="flex items-start gap-0" style={{ minWidth: visible.length * 90 + 160 }}>
                                       <div className="sticky left-0 z-10 bg-slate-50 pr-2 min-w-[160px]">
                                         <div className="h-16 flex items-end pb-1"><span className="text-xs font-semibold text-slate-700">Producto</span></div>
@@ -1614,9 +1687,10 @@ export const Integrators = () => {
                                             </div>
                                             <div className="h-10 flex items-center justify-center">
                                               <button onClick={() => toggleCert(intg.integrator_id, prod.service_id, val)}
-                                                className={`px-3 py-1 rounded border text-xs font-bold transition-colors cursor-pointer ${cfg.color}`}
+                                                disabled={!isActiveProject(intg)}
+                                                className={`px-3 py-1 rounded border text-xs font-bold transition-colors ${cfg.color} ${isActiveProject(intg) ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
                                                 data-testid={`cert-${intg.integrator_id}-${prod.service_id}`}
-                                                title="Click para cambiar: P / C / N/A">{cfg.label}</button>
+                                                title={isActiveProject(intg) ? 'Click para cambiar: P / C / N/A' : 'Matriz de solo lectura (proyecto no activo)'}>{cfg.label}</button>
                                             </div>
                                           </div>
                                         );

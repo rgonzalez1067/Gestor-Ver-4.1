@@ -349,6 +349,54 @@ async def job_inbox_reminders_due() -> None:
         logger.info(f"[scheduler] inbox_reminders_due → {count} recordatorio(s) disparado(s)")
 
 
+async def job_test_environment_expired() -> None:
+    """Ambiente de Prueba vencido: al llegar a 0 días hábiles (Fecha Final alcanzada),
+    dispara UNA sola vez la acción configurable 'test_environment_expired'."""
+    from services.business_calendar import get_holiday_sets, business_days_between
+    from services.other_actions_engine import dispatch_other_action
+
+    specific, recurring = await get_holiday_sets()
+    today = date.today()
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    count = 0
+    cursor = db.integrators.find(
+        {"project_scope": "test_environment", "test_env_end_date": {"$nin": [None, ""]},
+         "test_env_expiry_notified": {"$ne": True}},
+        {"_id": 0},
+    )
+    async for i in cursor:
+        try:
+            end = datetime.strptime(str(i.get("test_env_end_date"))[:10], "%Y-%m-%d").date()
+        except Exception:
+            continue
+        if business_days_between(today, end, specific, recurring) > 0:
+            continue
+        tpl_vars = {
+            "nombre_integrador": i.get("name", ""), "Integrador": i.get("name", ""), "integrator_name": i.get("name", ""),
+            "nombre_aplicativo": i.get("app_name", ""), "app_name": i.get("app_name", ""),
+            "tipo_integracion": i.get("integration_type", ""), "tipo_integrador": i.get("integrator_type", ""),
+            "nombre_implementador": i.get("implementador", ""), "Nombre_Implementador": i.get("implementador", ""),
+            "fecha_inicio_ambiente": i.get("test_env_start_date", ""), "Fecha_Inicio_Ambiente": i.get("test_env_start_date", ""),
+            "fecha_fin_ambiente": i.get("test_env_end_date", ""), "Fecha_Fin_Ambiente": i.get("test_env_end_date", ""),
+            "usuario_ejecutor": "Sistema", "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+        }
+        try:
+            await dispatch_other_action(
+                "test_environment_expired", tpl_vars, current_user=None,
+                fallback_subject=f"Vencimiento de Ambiente de Pruebas: {i.get('name','')} — {i.get('app_name','')}",
+            )
+        except Exception as e:
+            logger.warning(f"[scheduler] test_environment_expired dispatch falló: {e}")
+            continue
+        await db.integrators.update_one(
+            {"integrator_id": i["integrator_id"]},
+            {"$set": {"test_env_expiry_notified": True, "test_env_expiry_notified_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        count += 1
+    if count:
+        logger.info(f"[scheduler] test_environment_expired → {count} aviso(s) enviado(s)")
+
+
 def start_scheduler() -> None:
     """Arranca APScheduler con los 4 jobs. Llamado desde server.py startup."""
     global scheduler
@@ -366,8 +414,10 @@ def start_scheduler() -> None:
     scheduler.add_job(job_project_sla_transitions, IntervalTrigger(minutes=30), id="project_sla_interval", replace_existing=True)
     # Recuérdame: chequeo frecuente (cada minuto) de vencimientos del Centro de Mensajes.
     scheduler.add_job(job_inbox_reminders_due, IntervalTrigger(minutes=1), id="inbox_reminders", replace_existing=True)
+    # Vencimiento de Ambiente de Pruebas: revisa diariamente los ambientes vencidos (0 días hábiles).
+    scheduler.add_job(job_test_environment_expired, CronTrigger(hour=8, minute=25), id="test_env_expired", replace_existing=True)
     scheduler.start()
-    logger.info("[scheduler] started with 5 jobs (4 daily + inbox_reminders cada 1 min)")
+    logger.info("[scheduler] started with 6 jobs (5 daily + inbox_reminders cada 1 min)")
 
 def stop_scheduler() -> None:
     global scheduler

@@ -414,6 +414,9 @@ class IntegratorCreate(BaseModel):
     principal_contact_email: Optional[str] = None
     # "¿Estaría de acuerdo en negociar su interfaz?" — opcional, solo "Sí" / "No".
     interface_negotiation: Optional[Literal["Sí", "No"]] = None
+    # Ambiente de Prueba: periodo de vigencia (fechas ISO 'YYYY-MM-DD').
+    test_env_start_date: Optional[str] = None
+    test_env_end_date: Optional[str] = None
 
     @field_validator("principal_contact_email")
     @classmethod
@@ -460,6 +463,7 @@ class Integrator(BaseModel):
     contacts: Optional[List[TechnicalContact]] = None
     integration_phase: Optional[str] = "Negociación"
     has_overdue_commitments: Optional[bool] = None
+    test_env_days_left: Optional[int] = None
     assigned_at: Optional[str] = None
     assigned_by: Optional[str] = None
     project_scope: Optional[str] = None
@@ -477,6 +481,10 @@ class Integrator(BaseModel):
     principal_contact_phone: Optional[str] = None
     principal_contact_email: Optional[str] = None
     interface_negotiation: Optional[str] = None
+    # Ambiente de Prueba: vigencia + control de notificación de vencimiento.
+    test_env_start_date: Optional[str] = None
+    test_env_end_date: Optional[str] = None
+    test_env_expiry_notified: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):
