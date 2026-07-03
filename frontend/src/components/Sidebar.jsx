@@ -79,7 +79,7 @@ const menuItems = [
         icon: FileText, label: 'Reportes Contables', isSubGroup: true,
         children: [
           { path: '/inventory/accounting-report', icon: FileText, label: 'Kardex de Activos' },
-          { path: '/inventory/asset-ledger', icon: Package, label: 'Mayor de Activos' },
+          { path: '/inventory/asset-ledger', icon: Package, label: 'Mayor de Inventarios' },
           { path: '/inventory/invoiced-exits', icon: FileText, label: 'Salidas Facturadas' },
         ]
       },

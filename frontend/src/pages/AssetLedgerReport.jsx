@@ -80,7 +80,7 @@ export const AssetLedgerReport = () => {
       try {
         const res = await api.get('/inventory/asset-ledger');
         setReportData(res.data);
-      } catch { toast.error('Error al generar reporte Mayor de Activos'); }
+      } catch { toast.error('Error al generar reporte Mayor de Inventarios'); }
       finally { setLoading(false); }
     };
     fetchReport();
@@ -103,7 +103,7 @@ export const AssetLedgerReport = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Mayor_de_Activos_PEPS.csv';
+    a.download = 'Mayor_de_Inventarios_PEPS.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -141,7 +141,7 @@ export const AssetLedgerReport = () => {
               <ArrowLeft className="w-4 h-4 mr-1" /> Volver
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Mayor de Activos</h1>
+              <h1 className="text-2xl font-bold text-slate-800">Mayor de Inventarios</h1>
               <p className="text-sm text-slate-500">Valoración PEPS (Primero en Entrar, Primero en Salir) — Moneda: Bs</p>
             </div>
           </div>
