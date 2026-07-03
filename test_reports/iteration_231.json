@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 231 — E2E validation of Link de Pago/Tokenizador PDF variant flow (link_pago_variant). Backend: 10/10 pytest cases PASS (direct generator + preview-pdf-with-template + persistence). Frontend: modal flow verified con Playwright — 'Link de Pago/Tokenizador' aparece en el selector, el modal obligatorio abre con las 3 opciones y el botón Continuar, la selección se refleja visualmente y el diálogo se cierra al Continuar.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter231_link_pago_variants.py",
+    "/app/test_reports/pytest/iter231_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/pdf_generator.py L873: `insert_idx = 4 if len(base_pages) >= 5 else max(0, len(base_pages) - 1)` — asume que el PG base tiene exactamente 5 páginas (Portada, Resumen, Setup, Recurrentes, Términos). Si en el futuro el generator produce 4 páginas (p.e. include_recurring=False) el anexo se insertaría antes de la última página (sea o no Términos). Considerar detectar la página de Términos por marca semántica en lugar de índice fijo.",
+    "El endpoint HTTP anexa además `anexo_pg.pdf` (3 páginas) al final via append_pg_static_pages, resultando en 9/9/10 páginas totales para link_pago/tokenizador/ambos. La sentencia 'Términos NUNCA se altera y queda al final' aplica a los Términos internos del generator; los términos legales anexos siempre van después. OK funcionalmente, pero conviene documentar el orden final en la especificación para evitar confusión.",
+    "Frontend: al cerrar el modal sin seleccionar ('X' o clic afuera) queda `link_pago_variant='link_pago'` como default silencioso — la spec dice que el modal es OBLIGATORIO pero UI permite escaparse sin decidir. Considerar deshabilitar cierre por outside-click / requerir Continuar explícito.",
+    "static/anexos/link_pago_anexo.pdf tiene 2 páginas físicamente aunque el generator sólo usa la 1ra (pages[0]). Recomendable dejar el archivo con 1 sola página o documentar que la 2ra se descarta a propósito, para evitar futuros bugs si alguien cambia a pages[:] o len(...) sin darse cuenta."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (modal + selector + continuar)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se crearon 3 cotizaciones LINK_PAGO con variantes link_pago/tokenizador/ambos vía POST /quotes/create-with-pdf usando el primer cliente del catálogo. teardown_class hace best-effort DELETE de cada quote_id creado. Notes con prefijo 'TEST_iter231' para trazabilidad.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Endpoint principal para validar conteo de páginas por variante: POST /api/quotes/preview-pdf-with-template (no persiste, requiere auth). El body es TemplateQuotePDFRequest con link_pago_variant='link_pago'|'tokenizador'|'ambos'. Persistencia via POST /api/quotes/create-with-pdf con link_pago_variant en el nivel raíz Y en pdf_data. Recuperar con GET /api/quotes/{id} y verificar quote.link_pago_variant. Anexos físicos en /app/backend/static/anexos/link_pago_anexo.pdf y tokenizador_anexo.pdf; se usa solo la 1ra página de cada uno. Conteos: direct generator = 6/6/7; HTTP endpoint = 9/9/10 (append_pg_static_pages agrega 3 pág de términos legales al final). Deltas invariantes: tokenizador==link_pago; ambos==link_pago+1.",
+  "rca of the issue": "No es un bug — validación de feature nueva. Implementación correcta: (1) pdf_generator._generate_link_pago() bifurca anexo_files por variante e inserta en índice 4, preservando Términos como última página; (2) rutas persisten link_pago_variant en create-with-pdf y create-quote, y lo devuelven en GET; (3) UI expone modal obligatorio con 3 opciones + Continuar; (4) al editar, el frontend precarga quoteData.link_pago_variant (verificado por code review, no ejecutado en UI pero cubierto por el test de persistencia)."
+}

@@ -1666,6 +1666,7 @@ export const Quotes = () => {
       sponsor_bank_id: quoteData.sponsor_bank_id || null,
       sponsor_processor_id: quoteData.sponsor_processor_id || null,
       quote_type: quoteData.quote_type,
+      link_pago_variant: quoteData.link_pago_variant || 'link_pago',
       pricing_model: quoteData.pricing_model,
       cantidad_cajas: quoteData.cantidad_cajas || 1,
       quote_number: quoteNumber || '',
@@ -1782,6 +1783,7 @@ export const Quotes = () => {
         client_id: quoteData.client_id,
         quote_category: 'implementation',
         quote_type: quoteData.quote_type || 'GATEWAY',
+        link_pago_variant: quoteData.link_pago_variant || 'link_pago',
         pricing_model: 'conventional',
         services: [],
         hardware: [],
@@ -3407,6 +3409,7 @@ export const Quotes = () => {
     // Los items mantienen sus valores originales de cantidad_bancos
     setQuoteData({
       quote_type: quote.quote_type || 'VPOS',
+      link_pago_variant: quote.link_pago_variant || 'link_pago',
       client_id: quote.client_id || '',
       client_segment: (quote.client_segment || 'PYME').toUpperCase(),
       pricing_model: quote.pricing_model || 'conventional',

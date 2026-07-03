@@ -76,6 +76,7 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         client_id=quote_data.client_id,
         quote_category=quote_data.quote_category or "implementation",
         quote_type=quote_data.quote_type or "VPOS",
+        link_pago_variant=quote_data.link_pago_variant or "link_pago",
         equipment_type=quote_data.equipment_type,
         pricing_model=quote_data.pricing_model or "conventional",
         services=quote_data.services,
@@ -124,6 +125,7 @@ class QuoteCreateWithPDF(BaseModel):
     client_id: Optional[str] = None
     quote_category: str = "implementation"
     quote_type: str = "VPOS"
+    link_pago_variant: str = "link_pago"  # link_pago | tokenizador | ambos (solo LINK_PAGO)
     equipment_type: Optional[str] = None
     pricing_model: str = "conventional"
     services: List[QuoteItem] = []
@@ -322,6 +324,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                     
                     pdf_request = TemplateQuotePDFRequest(
                         quote_type=data.quote_type or "GATEWAY",
+                        link_pago_variant=data.link_pago_variant or "link_pago",
                         quote_number=quote_number,
                         cliente_nombre=client.get('legal_name', client.get('fantasy_name', '')),
                         cliente_rif=client.get('rif', ''),
@@ -392,6 +395,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             client_name=client_display_name,
             quote_category=data.quote_category or "implementation",
             quote_type=data.quote_type or "VPOS",
+            link_pago_variant=data.link_pago_variant or "link_pago",
             equipment_type=data.equipment_type,
             pricing_model=data.pricing_model or "conventional",
             services=data.services,
@@ -867,6 +871,7 @@ async def generate_quote_pdf(quote_id: str, authorization: Optional[str] = Heade
 class QuoteUpdate(BaseModel):
     """Modelo para actualizar cotización existente"""
     quote_type: Optional[str] = None
+    link_pago_variant: Optional[str] = None
     client_id: Optional[str] = None
     pricing_model: Optional[str] = None
     services: Optional[List[QuoteItem]] = None
@@ -1041,6 +1046,7 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             cliente_contacto=contact_name or "",
             cliente_address=client.get("address") or "",
             quote_type=quote_type,
+            link_pago_variant=quote.get("link_pago_variant") or "link_pago",
             pricing_model=quote.get("pricing_model") or "conventional",
             cantidad_cajas=quote.get("cantidad_cajas") or 1,
             quote_number=quote_number,

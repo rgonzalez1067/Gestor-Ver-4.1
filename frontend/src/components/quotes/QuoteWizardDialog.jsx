@@ -82,6 +82,8 @@ export const QuoteWizardDialog = ({ ctx }) => {
   const [processorModal, setProcessorModal] = useState({ open: false, processor: null });
   // Patrocinio relacional de Pinpads: sub-modal análogo para "Entidad Patrocinadora".
   const [pinpadProcessorModal, setPinpadProcessorModal] = useState({ open: false, processor: null });
+  // Modal de decisión Link de Pago / Tokenizador / Ambos (control de flujo del PDF)
+  const [linkPagoModal, setLinkPagoModal] = useState(false);
 
   // Resuelve la selección de "Banco Patrocinante":
   //  - Si es Procesador → abre el sub-modal para designar el banco vinculado.
@@ -293,6 +295,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         setQuoteData({ 
                           ...quoteData, 
                           quote_type: value, 
+                          link_pago_variant: value === 'LINK_PAGO' ? (quoteData.link_pago_variant || 'link_pago') : quoteData.link_pago_variant,
                           medios_pago_items: [], 
                           pricing_model: isPGLike ? 'conventional' : (isMposLike ? 'outsourcing' : ''),
                           requires_vpn: false,
@@ -324,6 +327,10 @@ export const QuoteWizardDialog = ({ ctx }) => {
                             observacion: 'Costo Base',
                             fixed: true
                           }]);
+                        }
+                        // Link de Pago/Tokenizador: modal obligatorio de parametrización del PDF
+                        if (value === 'LINK_PAGO') {
+                          setLinkPagoModal(true);
                         }
                         // MPOS/Fast Track: auto-inicializar items con outsourcing
                         if (isMposLike) {
@@ -2461,6 +2468,49 @@ export const QuoteWizardDialog = ({ ctx }) => {
             testid="pinpad-processor-link"
             linkedTestid="pinpad-processor-linked-bank"
           />
+
+          {/* Modal de decisión: tipo de cotización Link de Pago / Tokenizador / Ambos */}
+          <Dialog open={linkPagoModal} onOpenChange={setLinkPagoModal}>
+            <DialogContent className="max-w-md" data-testid="link-pago-variant-dialog">
+              <DialogHeader>
+                <DialogTitle>¿Qué tipo de cotización desea generar?</DialogTitle>
+                <DialogDescription>
+                  Esta selección determina la estructura de tarifas del PDF final.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 py-2">
+                {[
+                  { id: 'link_pago', label: 'Link de Pago', desc: 'Tarifas de Link de Pago (5 páginas).' },
+                  { id: 'tokenizador', label: 'Tokenizador', desc: 'Reemplaza las tarifas por las del Tokenizador (5 páginas).' },
+                  { id: 'ambos', label: 'Link de Pago/Tokenizador', desc: 'Incluye ambas tablas de tarifas (6 páginas).' },
+                ].map((opt) => {
+                  const active = (quoteData.link_pago_variant || 'link_pago') === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      data-testid={`link-pago-variant-${opt.id}`}
+                      onClick={() => setQuoteData({ ...quoteData, link_pago_variant: opt.id })}
+                      className={`w-full text-left p-3 rounded-lg border transition-colors ${active ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-200 hover:border-slate-300'}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`h-4 w-4 rounded-full border flex items-center justify-center ${active ? 'border-blue-600' : 'border-slate-400'}`}>
+                          {active && <span className="h-2 w-2 rounded-full bg-blue-600" />}
+                        </span>
+                        <span className="font-medium text-slate-800 text-sm">{opt.label}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 ml-6">{opt.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={() => setLinkPagoModal(false)} className="bg-blue-600 hover:bg-blue-700" data-testid="link-pago-variant-continue">
+                  Continuar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
   );
 };

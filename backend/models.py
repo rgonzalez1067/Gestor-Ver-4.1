@@ -580,6 +580,7 @@ class QuoteCreate(BaseModel):
     client_id: str
     quote_category: str = "implementation"  # "implementation", "equipment" o "repair"
     quote_type: Optional[str] = "VPOS"  # Para implementaciones
+    link_pago_variant: Optional[str] = "link_pago"  # link_pago | tokenizador | ambos (solo LINK_PAGO)
     equipment_type: Optional[str] = None  # "Dispositivo" o "Accesorio" para equipos
     pricing_model: Optional[str] = "conventional"
     services: List[QuoteItem] = []
@@ -684,6 +685,7 @@ class Quote(BaseModel):
     client_name: Optional[str] = None  # Nombre del cliente para visualización rápida
     quote_category: str = "implementation"  # "implementation", "equipment" o "repair"
     quote_type: str = "VPOS"  # Para implementaciones
+    link_pago_variant: Optional[str] = "link_pago"  # link_pago | tokenizador | ambos (solo LINK_PAGO)
     equipment_type: Optional[str] = None  # "Dispositivo" o "Accesorio" para equipos
     pricing_model: str = "conventional"
     services: List[QuoteItem] = []

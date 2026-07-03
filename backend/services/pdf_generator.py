@@ -54,6 +54,7 @@ class TemplateQuotePDFRequest(BaseModel):
     notes: str = ""
     pricing_model: str = "conventional"
     quote_type: str = "VPOS_MPOS"
+    link_pago_variant: str = "link_pago"  # link_pago | tokenizador | ambos
     is_production_client: bool = False
     # Fast Track: items de equipos para el PDF híbrido
     ft_equipment_items: List[dict] = []  # [{name, hardware_type, quantity, unit_price_usd}]
@@ -815,10 +816,16 @@ class DynamicQuotePDFGenerator:
         return self.generate_vpos()
 
     def _generate_link_pago(self):
-        """Genera el PDF de Link de Pago: reusa el flujo de Payment Gateway,
-        modifica el subtítulo de portada y posteriormente inserta el anexo
-        estático "Link de Pago" como página 5 (antes de los Términos de la
-        Cotización). Retorna un BytesIO compatible con append_pg_static_pages.
+        """Genera el PDF de Link de Pago / Tokenizador reutilizando el flujo de
+        Payment Gateway e insertando anexos estáticos en la posición de tarifas
+        (índice 4, justo antes de los Términos de la Cotización — que NUNCA se altera).
+
+        Bifurca según self.data.link_pago_variant:
+          - 'link_pago' : inserta el anexo de tarifas de Link de Pago (pág. 5).
+          - 'tokenizador': inserta el anexo de tarifas del Tokenizador (pág. 5),
+                           reemplazando al de Link de Pago.
+          - 'ambos'     : inserta Link de Pago (pág. 5) y Tokenizador (pág. 6),
+                           dejando los Términos como última página.
         """
         # 1) Marcar bandera para que generate_pg() use el subtítulo de Link de Pago
         self._link_pago_mode = True
@@ -827,32 +834,43 @@ class DynamicQuotePDFGenerator:
         finally:
             self._link_pago_mode = False
 
-        # 2) Insertar el anexo en la posición 5 (índice 4)
+        # 2) Determinar qué anexos insertar según la variante elegida
         try:
             import os
             import io as _io
             from PyPDF2 import PdfReader, PdfWriter
 
-            anexo_path = os.path.join(
-                os.path.dirname(__file__), "..", "static", "anexos", "link_pago_anexo.pdf"
-            )
-            if not os.path.exists(anexo_path):
-                logger.warning(f"[pdf_generator] Anexo Link de Pago no encontrado: {anexo_path}")
+            anexos_dir = os.path.join(os.path.dirname(__file__), "..", "static", "anexos")
+            link_pago_path = os.path.join(anexos_dir, "link_pago_anexo.pdf")
+            tokenizador_path = os.path.join(anexos_dir, "tokenizador_anexo.pdf")
+
+            variant = (getattr(self.data, "link_pago_variant", None) or "link_pago").lower()
+            if variant == "tokenizador":
+                anexo_files = [tokenizador_path]
+            elif variant == "ambos":
+                anexo_files = [link_pago_path, tokenizador_path]
+            else:  # link_pago (default)
+                anexo_files = [link_pago_path]
+
+            # Cargar solo la 1ra página de cada anexo existente
+            anexo_pages_to_insert = []
+            for ap_path in anexo_files:
+                if not os.path.exists(ap_path):
+                    logger.warning(f"[pdf_generator] Anexo no encontrado: {ap_path}")
+                    continue
+                anexo_pages_to_insert.append(PdfReader(ap_path).pages[0])
+
+            if not anexo_pages_to_insert:
                 return pg_buffer
 
-            # PdfReader acepta BytesIO directamente
             pg_buffer.seek(0)
             base_reader = PdfReader(pg_buffer)
-            anexo_reader = PdfReader(anexo_path)
             writer = PdfWriter()
 
             base_pages = list(base_reader.pages)
             # El PDF base de PG tiene 5 páginas (Portada, Resumen, Setup, Recurrentes, Términos).
-            # Insertamos el anexo en la posición 5 (índice 4), desplazando Términos a la página 6.
-            # Solo se inyecta la 1ra página del anexo (la 2da página suele ser una hoja en blanco
-            # residual del export del documento original).
+            # Insertamos los anexos en la posición 5 (índice 4), desplazando Términos al final.
             insert_idx = 4 if len(base_pages) >= 5 else max(0, len(base_pages) - 1)
-            anexo_pages_to_insert = anexo_reader.pages[:1]
 
             for i, p in enumerate(base_pages):
                 if i == insert_idx:
@@ -869,7 +887,7 @@ class DynamicQuotePDFGenerator:
             out.seek(0)
             return out
         except Exception as e:
-            logger.error(f"[pdf_generator] Error intercalando anexo Link de Pago: {e}")
+            logger.error(f"[pdf_generator] Error intercalando anexos Link de Pago/Tokenizador: {e}")
             pg_buffer.seek(0)
             return pg_buffer
     
