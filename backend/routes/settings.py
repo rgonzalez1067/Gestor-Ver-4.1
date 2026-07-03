@@ -521,19 +521,46 @@ async def list_templates(authorization: Optional[str] = Header(None)):
 # el servidor se restauran a disco (restore_corporate_anexos) para sobrevivir redeploys.
 from pathlib import Path as _Path
 import base64 as _base64
+from config import STATIC_PDFS_DIR as _STATIC_PDFS_DIR
 
 ANEXOS_STATIC_DIR = _Path(__file__).resolve().parent.parent / "static" / "anexos"
+_ANEXO_DIRS = {"anexos": ANEXOS_STATIC_DIR, "static_pdfs": _Path(str(_STATIC_PDFS_DIR))}
 
 CORPORATE_ANEXOS = {
-    "link_pago": {"label": "Tarifas Link de Pago", "filename": "link_pago_anexo.pdf",
-                  "description": "Página de tarifas insertada en cotizaciones Link de Pago (pág. 5)."},
-    "tokenizador": {"label": "Tarifas Tokenizador", "filename": "tokenizador_anexo.pdf",
-                    "description": "Página de tarifas del Tokenizador (rutas Tokenizador y Ambos)."},
+    # --- Tarifas (motor Link de Pago / Tokenizador) ---
+    "link_pago": {"label": "Tarifas Link de Pago", "filename": "link_pago_anexo.pdf", "dir": "anexos",
+                  "category": "Tarifas", "description": "Página de tarifas insertada en cotizaciones Link de Pago (pág. 5)."},
+    "tokenizador": {"label": "Tarifas Tokenizador", "filename": "tokenizador_anexo.pdf", "dir": "anexos",
+                    "category": "Tarifas", "description": "Página de tarifas del Tokenizador (rutas Tokenizador y Ambos)."},
+    # --- Términos y Condiciones (PyME) ---
+    "terminos_pg": {"label": "Términos PG / Link de Pago (PyME)", "filename": "anexo_pg.pdf", "dir": "static_pdfs",
+                    "category": "Términos y Condiciones (PyME)", "description": "Condiciones legales para Payment Gateway y Link de Pago segmento PyME."},
+    "terminos_vpos": {"label": "Términos VPOS (PyME)", "filename": "anexo_vpos.pdf", "dir": "static_pdfs",
+                      "category": "Términos y Condiciones (PyME)", "description": "Condiciones legales para VPOS segmento PyME."},
+    # --- Términos y Condiciones (Corporativo) ---
+    "terminos_gateway_corp": {"label": "Términos Payment Gateway (Corporativo)", "filename": "anexo_gateway_corp.pdf", "dir": "static_pdfs",
+                              "category": "Términos y Condiciones (Corporativo)", "description": "Anexo corporativo que reemplaza los términos en cotizaciones PG corporativas."},
+    "terminos_link_corp": {"label": "Términos Link de Pago (Corporativo)", "filename": "anexo_link_corp.pdf", "dir": "static_pdfs",
+                           "category": "Términos y Condiciones (Corporativo)", "description": "Anexo corporativo que reemplaza los términos en cotizaciones Link de Pago corporativas."},
+    "terminos_vpos_corp": {"label": "Términos VPOS (Corporativo)", "filename": "anexo_corporativa.pdf", "dir": "static_pdfs",
+                           "category": "Términos y Condiciones (Corporativo)", "description": "Anexo corporativo para cotizaciones VPOS corporativas."},
+    # --- Condiciones de Equipos / Servicios ---
+    "cond_verifone_tbp": {"label": "Condiciones Verifone (PyME / TBP)", "filename": "condiciones_verifone_tbp.pdf", "dir": "static_pdfs",
+                          "category": "Condiciones de Equipos", "description": "Condiciones legales para equipos Verifone segmento PyME (TBP)."},
+    "cond_verifone": {"label": "Condiciones Verifone (Corporativo / LCH)", "filename": "condiciones_verifone.pdf", "dir": "static_pdfs",
+                      "category": "Condiciones de Equipos", "description": "Condiciones legales para equipos Verifone segmento Corporativo (LCH)."},
+    "cond_morefun": {"label": "Condiciones Morefun", "filename": "condiciones_morefun.pdf", "dir": "static_pdfs",
+                     "category": "Condiciones de Equipos", "description": "Condiciones legales para equipos Morefun."},
+    "cond_accesorios": {"label": "Condiciones Accesorios", "filename": "condiciones_accesorios.pdf", "dir": "static_pdfs",
+                        "category": "Condiciones de Equipos", "description": "Condiciones legales para cotizaciones de accesorios."},
+    "cond_reparaciones": {"label": "Condiciones Reparaciones", "filename": "condiciones_reparaciones.pdf", "dir": "static_pdfs",
+                          "category": "Condiciones de Equipos", "description": "Condiciones legales para cotizaciones de reparaciones."},
 }
 
 
 def _anexo_path(key: str) -> _Path:
-    return ANEXOS_STATIC_DIR / CORPORATE_ANEXOS[key]["filename"]
+    cfg = CORPORATE_ANEXOS[key]
+    return _ANEXO_DIRS[cfg.get("dir", "anexos")] / cfg["filename"]
 
 
 async def restore_corporate_anexos():
@@ -541,13 +568,14 @@ async def restore_corporate_anexos():
     Se invoca en el arranque del servidor para que las cargas hechas desde la UI
     persistan tras un redeploy (el FS del contenedor es efímero)."""
     try:
-        ANEXOS_STATIC_DIR.mkdir(parents=True, exist_ok=True)
         async for doc in db.corporate_anexos.find({}):
             key = doc.get("key")
             content_b64 = doc.get("content_b64")
             if key in CORPORATE_ANEXOS and content_b64:
                 try:
-                    _anexo_path(key).write_bytes(_base64.b64decode(content_b64))
+                    p = _anexo_path(key)
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_bytes(_base64.b64decode(content_b64))
                 except Exception as e:
                     logging.warning(f"[anexos] restore {key} failed: {e}")
     except Exception as e:
@@ -558,6 +586,7 @@ def _anexo_metadata(key: str) -> dict:
     cfg = CORPORATE_ANEXOS[key]
     path = _anexo_path(key)
     meta = {"key": key, "label": cfg["label"], "description": cfg["description"],
+            "category": cfg.get("category", "General"),
             "filename": cfg["filename"], "exists": path.exists(), "size": None, "pages": None}
     if path.exists():
         try:
@@ -608,7 +637,7 @@ async def upload_corporate_anexo(key: str, file: UploadFile = File(...), authori
         raise HTTPException(status_code=400, detail="El PDF no es válido o está dañado")
 
     # Persistir en disco
-    ANEXOS_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+    _anexo_path(key).parent.mkdir(parents=True, exist_ok=True)
     _anexo_path(key).write_bytes(content)
 
     # Persistir en Mongo (para sobrevivir redeploys)

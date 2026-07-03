@@ -3,11 +3,11 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Configuración: Gestor de Anexos Corporativos (Tarifas) — Jul 2026
-**Requerimiento:** permitir subir/actualizar desde la interfaz los anexos de tarifas (Link de Pago y Tokenizador) que el motor de PDF intercala, sin depender de un redeploy.
-- **Backend (`routes/settings.py`):** registro `CORPORATE_ANEXOS` (link_pago, tokenizador). Endpoints: `GET /config/anexos` (lista + metadatos: existe, tamaño, páginas, updated_at/by), `POST /config/anexos/{key}` (sube PDF, valida que sea PDF legible, guarda en disco + upsert Mongo `corporate_anexos` en base64), `GET /config/anexos/{key}/download`. Persistencia: `restore_corporate_anexos()` se ejecuta en el startup del servidor (`server.py`) restaurando los anexos de Mongo→disco para sobrevivir redeploys.
-- **Frontend (`Settings.jsx`):** componente `CorporateAnexosCard` con sección "Anexos Corporativos de Cotización (Tarifas)": lista cada anexo con badge de páginas, descripción, última actualización, botón Descargar y Reemplazar (upload PDF).
-**QA:** curl E2E (list, upload válido, rechazo no-PDF, persistencia en Mongo) + smoke UI (carga real → toast "Anexo actualizado" + metadatos actualizados). ⚠️ PREVIEW; requiere REDEPLOY.
+### Configuración: Gestor de Anexos Corporativos — Jul 2026
+**Alcance ampliado:** el gestor administra ahora los **12 anexos corporativos** en 4 categorías (Tarifas Link de Pago/Tokenizador; Términos PyME PG/VPOS; Términos Corporativo PG/Link/VPOS; Condiciones de Equipos Verifone TBP/LCH, Morefun, Accesorios, Reparaciones), en los directorios `static/anexos` y `static_pdfs`.
+- **Backend (`routes/settings.py`):** registro `CORPORATE_ANEXOS` dir-aware (dir + category por entrada). Endpoints `GET /config/anexos` (metadatos + category), `POST /config/anexos/{key}` (valida PDF, guarda en disco + upsert Mongo base64), `GET /config/anexos/{key}/download`. `restore_corporate_anexos()` en el startup restaura de Mongo→disco (persistencia sin redeploy).
+- **Frontend (`Settings.jsx`):** componente `CorporateAnexosCard` — sección "Anexos Corporativos de Cotización" con las 12 fichas agrupadas por categoría; cada una con badge de páginas, descripción, última actualización, botón Descargar y Reemplazar.
+**QA:** curl E2E (list de 12 con categorías, upload en `static/anexos` y `static_pdfs`, rechazo no-PDF, download, persistencia en Mongo) + smoke UI (12 filas agrupadas, carga real con toast/metadatos). ⚠️ PREVIEW; requiere REDEPLOY.
 
 
 ### Cotizaciones: Link de Pago/Tokenizador — flujo condicional + compilación PDF multi-ruta — Jul 2026
