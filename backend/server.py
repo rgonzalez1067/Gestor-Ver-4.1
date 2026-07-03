@@ -72,6 +72,11 @@ async def _on_startup():
         start_ws_dispatcher()
     except Exception as e:
         logging.warning(f"[startup] ws dispatcher failed: {e}")
+    try:
+        from routes.settings import restore_corporate_anexos
+        await restore_corporate_anexos()
+    except Exception as e:
+        logging.warning(f"[startup] restore_corporate_anexos failed: {e}")
 
 @app.on_event("shutdown")
 async def _on_shutdown():

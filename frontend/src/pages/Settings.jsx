@@ -539,6 +539,9 @@ export const Settings = () => {
           {/* Contingencia: Export Streaming de Anexos (Admin) */}
           <ContingencyAttachmentsExport />
 
+          {/* Gestor de Anexos Corporativos (Tarifas Link de Pago / Tokenizador) */}
+          <CorporateAnexosCard />
+
           {/* Configuración de Correos Section - POR SEDE */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
@@ -1196,6 +1199,128 @@ function FunnelRecalculateCard() {
           {running ? 'Procesando...' : 'Ejecutar refresco'}
           <RefreshCw size={16} className={`ml-2 ${running ? 'animate-spin' : ''}`} />
         </Button>
+      </div>
+    </div>
+  );
+}
+
+
+// ========================================================================
+// CorporateAnexosCard — Gestor para subir/actualizar los anexos de tarifas
+// (Link de Pago / Tokenizador) que el motor de PDF intercala en cotizaciones.
+// ========================================================================
+function CorporateAnexosCard() {
+  const [anexos, setAnexos] = useState([]);
+  const [uploadingKey, setUploadingKey] = useState(null);
+  const inputRefs = useRef({});
+
+  const loadAnexos = async () => {
+    try {
+      const res = await api.get('/config/anexos');
+      setAnexos(res.data?.anexos || []);
+    } catch {
+      toast.error('No se pudieron cargar los anexos corporativos');
+    }
+  };
+
+  useEffect(() => { loadAnexos(); }, []);
+
+  const uploadAnexo = async (key, fileList) => {
+    const f = fileList?.[0];
+    if (!f) return;
+    if (!f.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('El archivo debe ser un PDF');
+      return;
+    }
+    setUploadingKey(key);
+    const toastId = toast.loading('Subiendo anexo...');
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const res = await api.post(`/config/anexos/${key}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.dismiss(toastId);
+      toast.success(`Anexo actualizado (${res.data?.pages || '?'} página(s))`);
+      await loadAnexos();
+    } catch (e) {
+      toast.dismiss(toastId);
+      toast.error(e?.response?.data?.detail || 'Error al subir el anexo');
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
+  const downloadAnexo = async (key, filename) => {
+    try {
+      const res = await api.get(`/config/anexos/${key}/download`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename || `${key}.pdf`; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('No se pudo descargar el anexo');
+    }
+  };
+
+  const fmtDate = (iso) => {
+    if (!iso) return 'Nunca';
+    try { return new Date(iso).toLocaleString('es-VE'); } catch { return iso; }
+  };
+
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="corporate-anexos-section">
+      <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1 flex items-center gap-2">
+        <FileText size={24} className="text-blue-600" />
+        Anexos Corporativos de Cotización (Tarifas)
+      </h2>
+      <p className="text-slate-600 mb-4">
+        Actualiza las páginas de tarifas que se insertan en las cotizaciones <strong>Link de Pago</strong> y{' '}
+        <strong>Tokenizador</strong> sin necesidad de un nuevo despliegue. Solo archivos PDF.
+      </p>
+
+      <div className="space-y-4">
+        {anexos.map((a) => (
+          <div key={a.key} className="border border-slate-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid={`anexo-row-${a.key}`}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-slate-800 text-sm">{a.label}</span>
+                {a.exists ? (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">{a.pages || '?'} pág.</Badge>
+                ) : (
+                  <Badge className="bg-red-100 text-red-700 border-red-200">Sin archivo</Badge>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">{a.description}</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Última actualización: {fmtDate(a.updated_at)}{a.updated_by ? ` · por ${a.updated_by}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {a.exists && (
+                <Button size="sm" variant="outline" onClick={() => downloadAnexo(a.key, a.filename)} data-testid={`anexo-download-${a.key}`}>
+                  <Download size={16} className="mr-1.5" /> Descargar
+                </Button>
+              )}
+              <input
+                type="file"
+                ref={(el) => { inputRefs.current[a.key] = el; }}
+                onChange={(e) => uploadAnexo(a.key, e.target.files)}
+                accept=".pdf,application/pdf"
+                className="hidden"
+                data-testid={`anexo-file-input-${a.key}`}
+              />
+              <Button
+                size="sm"
+                onClick={() => inputRefs.current[a.key]?.click()}
+                disabled={uploadingKey === a.key}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                data-testid={`anexo-upload-${a.key}`}
+              >
+                <Upload size={16} className="mr-1.5" />
+                {uploadingKey === a.key ? 'Subiendo...' : 'Reemplazar'}
+              </Button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

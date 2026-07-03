@@ -512,3 +512,131 @@ async def list_templates(authorization: Optional[str] = Header(None)):
     
     return template_status
 
+
+
+# ==================== GESTOR DE ANEXOS CORPORATIVOS (TARIFAS PDF) ====================
+# Permite subir/actualizar desde Configuración los anexos de tarifas que el motor
+# de PDF intercala en las cotizaciones Link de Pago / Tokenizador, sin depender de
+# un redeploy. Se persisten en Mongo (base64) y se materializan en disco; al arrancar
+# el servidor se restauran a disco (restore_corporate_anexos) para sobrevivir redeploys.
+from pathlib import Path as _Path
+import base64 as _base64
+
+ANEXOS_STATIC_DIR = _Path(__file__).resolve().parent.parent / "static" / "anexos"
+
+CORPORATE_ANEXOS = {
+    "link_pago": {"label": "Tarifas Link de Pago", "filename": "link_pago_anexo.pdf",
+                  "description": "Página de tarifas insertada en cotizaciones Link de Pago (pág. 5)."},
+    "tokenizador": {"label": "Tarifas Tokenizador", "filename": "tokenizador_anexo.pdf",
+                    "description": "Página de tarifas del Tokenizador (rutas Tokenizador y Ambos)."},
+}
+
+
+def _anexo_path(key: str) -> _Path:
+    return ANEXOS_STATIC_DIR / CORPORATE_ANEXOS[key]["filename"]
+
+
+async def restore_corporate_anexos():
+    """Restaura los anexos corporativos almacenados en Mongo hacia el disco.
+    Se invoca en el arranque del servidor para que las cargas hechas desde la UI
+    persistan tras un redeploy (el FS del contenedor es efímero)."""
+    try:
+        ANEXOS_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+        async for doc in db.corporate_anexos.find({}):
+            key = doc.get("key")
+            content_b64 = doc.get("content_b64")
+            if key in CORPORATE_ANEXOS and content_b64:
+                try:
+                    _anexo_path(key).write_bytes(_base64.b64decode(content_b64))
+                except Exception as e:
+                    logging.warning(f"[anexos] restore {key} failed: {e}")
+    except Exception as e:
+        logging.warning(f"[anexos] restore_corporate_anexos failed: {e}")
+
+
+def _anexo_metadata(key: str) -> dict:
+    cfg = CORPORATE_ANEXOS[key]
+    path = _anexo_path(key)
+    meta = {"key": key, "label": cfg["label"], "description": cfg["description"],
+            "filename": cfg["filename"], "exists": path.exists(), "size": None, "pages": None}
+    if path.exists():
+        try:
+            meta["size"] = path.stat().st_size
+            from PyPDF2 import PdfReader
+            meta["pages"] = len(PdfReader(str(path)).pages)
+        except Exception:
+            pass
+    return meta
+
+
+@router.get("/config/anexos")
+async def list_corporate_anexos(authorization: Optional[str] = Header(None)):
+    """Lista los anexos corporativos gestionables y sus metadatos (incluye la fecha
+    de última actualización almacenada en Mongo)."""
+    await get_current_user(authorization)
+    items = []
+    for key in CORPORATE_ANEXOS:
+        meta = _anexo_metadata(key)
+        doc = await db.corporate_anexos.find_one({"key": key}, {"_id": 0, "updated_at": 1, "updated_by": 1})
+        meta["updated_at"] = (doc or {}).get("updated_at")
+        meta["updated_by"] = (doc or {}).get("updated_by")
+        items.append(meta)
+    return {"anexos": items}
+
+
+@router.post("/config/anexos/{key}")
+async def upload_corporate_anexo(key: str, file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Sube/reemplaza un anexo corporativo (solo PDF). Persiste en Mongo y en disco."""
+    user = await get_current_user(authorization)
+    if key not in CORPORATE_ANEXOS:
+        raise HTTPException(status_code=404, detail="Anexo no reconocido")
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".pdf") and file.content_type not in ("application/pdf", "application/octet-stream"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un PDF")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Archivo vacío")
+    # Validar que sea un PDF legible
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(io.BytesIO(content))
+        num_pages = len(reader.pages)
+        if num_pages < 1:
+            raise ValueError("PDF sin páginas")
+    except Exception:
+        raise HTTPException(status_code=400, detail="El PDF no es válido o está dañado")
+
+    # Persistir en disco
+    ANEXOS_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+    _anexo_path(key).write_bytes(content)
+
+    # Persistir en Mongo (para sobrevivir redeploys)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.corporate_anexos.update_one(
+        {"key": key},
+        {"$set": {
+            "key": key,
+            "filename": CORPORATE_ANEXOS[key]["filename"],
+            "content_b64": _base64.b64encode(content).decode("ascii"),
+            "size": len(content),
+            "pages": num_pages,
+            "updated_at": now_iso,
+            "updated_by": user.get("full_name") or user.get("email") or user.get("user_id"),
+        }},
+        upsert=True,
+    )
+    return {"success": True, "key": key, "pages": num_pages, "size": len(content), "updated_at": now_iso}
+
+
+@router.get("/config/anexos/{key}/download")
+async def download_corporate_anexo(key: str, authorization: Optional[str] = Header(None)):
+    """Descarga el anexo corporativo actual."""
+    await get_current_user(authorization)
+    if key not in CORPORATE_ANEXOS:
+        raise HTTPException(status_code=404, detail="Anexo no reconocido")
+    path = _anexo_path(key)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Anexo no disponible")
+    return FileResponse(str(path), media_type="application/pdf", filename=CORPORATE_ANEXOS[key]["filename"])
+

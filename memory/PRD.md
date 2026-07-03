@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Configuración: Gestor de Anexos Corporativos (Tarifas) — Jul 2026
+**Requerimiento:** permitir subir/actualizar desde la interfaz los anexos de tarifas (Link de Pago y Tokenizador) que el motor de PDF intercala, sin depender de un redeploy.
+- **Backend (`routes/settings.py`):** registro `CORPORATE_ANEXOS` (link_pago, tokenizador). Endpoints: `GET /config/anexos` (lista + metadatos: existe, tamaño, páginas, updated_at/by), `POST /config/anexos/{key}` (sube PDF, valida que sea PDF legible, guarda en disco + upsert Mongo `corporate_anexos` en base64), `GET /config/anexos/{key}/download`. Persistencia: `restore_corporate_anexos()` se ejecuta en el startup del servidor (`server.py`) restaurando los anexos de Mongo→disco para sobrevivir redeploys.
+- **Frontend (`Settings.jsx`):** componente `CorporateAnexosCard` con sección "Anexos Corporativos de Cotización (Tarifas)": lista cada anexo con badge de páginas, descripción, última actualización, botón Descargar y Reemplazar (upload PDF).
+**QA:** curl E2E (list, upload válido, rechazo no-PDF, persistencia en Mongo) + smoke UI (carga real → toast "Anexo actualizado" + metadatos actualizados). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Cotizaciones: Link de Pago/Tokenizador — flujo condicional + compilación PDF multi-ruta — Jul 2026
 **Requerimiento:** unificar Link de Pago y Tokenizador; renombrar el tipo, modal obligatorio de 3 vías y bifurcar la estructura del PDF.
 - **Menú/tipo (`constants.js`):** `LINK_PAGO` renombrado a **"Link de Pago/Tokenizador"**.
