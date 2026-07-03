@@ -3,6 +3,16 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Cotizaciones: Link de Pago/Tokenizador — flujo condicional + compilación PDF multi-ruta — Jul 2026
+**Requerimiento:** unificar Link de Pago y Tokenizador; renombrar el tipo, modal obligatorio de 3 vías y bifurcar la estructura del PDF.
+- **Menú/tipo (`constants.js`):** `LINK_PAGO` renombrado a **"Link de Pago/Tokenizador"**.
+- **Modal obligatorio (`QuoteWizardDialog.jsx`):** al elegir el tipo se abre `link-pago-variant-dialog` con 3 opciones (`link_pago` / `tokenizador` / `ambos`) + "Continuar". No se cierra por Esc/clic-afuera/X (solo Continuar). Al editar, precarga la variante guardada.
+- **Campo nuevo `link_pago_variant`** (link_pago|tokenizador|ambos) en `Quote`, `QuoteCreate`, `QuoteCreateWithPDF`, `QuoteUpdate`, `TemplateQuotePDFRequest`; se persiste en create-quote/create-with-pdf y se devuelve en GET; frontend lo envía en `buildTemplatePdfData` y en el payload PG.
+- **Backend PDF (`pdf_generator._generate_link_pago`):** inserta anexos en índice 4 (antes de Términos, que queda al final): link_pago→anexo Link de Pago; tokenizador→anexo Tokenizador (reemplaza); ambos→ambos anexos. Nuevo asset `static/anexos/tokenizador_anexo.pdf` (1 pág).
+- **Conteos:** generator directo = 6/6/7 (link_pago/tokenizador/ambos); vía HTTP + append_pg_static_pages = 9/9/10 (los Términos legales anexos van al final). Invariantes: tokenizador==link_pago; ambos==link_pago+1.
+**QA:** testing_agent iteration_231 → **backend 10/10, frontend 100%** (selector renombrado, modal obligatorio + 3 opciones + Continuar, persistencia). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Notificaciones: modales anchos + confirmación de envío + fechas en {Matriz_Seguimiento_Evolutiva} — Jul 2026
 **Requerimiento (3 partes):** (A) ampliar los modales de Notificaciones a 75-80% del viewport; (B) paso de confirmación antes de despachar; (C) inyectar fecha de culminación de cada fase en {Matriz_Seguimiento_Evolutiva}, homologado con {Matriz_Avance_Proyecto_Con_Fecha}.
 - **A. Ancho (`ProjectDetail.jsx` + `EmailPreviewDialog.jsx`):** los 3 modales (Notificaciones, Otras Notificaciones, Editor de Envío/Vista Previa) pasan a `w-[78vw] max-w-[78vw]` (medido: 1497.6px/1920 = 78%).

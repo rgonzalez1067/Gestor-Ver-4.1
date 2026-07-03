@@ -2470,8 +2470,13 @@ export const QuoteWizardDialog = ({ ctx }) => {
           />
 
           {/* Modal de decisión: tipo de cotización Link de Pago / Tokenizador / Ambos */}
-          <Dialog open={linkPagoModal} onOpenChange={setLinkPagoModal}>
-            <DialogContent className="max-w-md" data-testid="link-pago-variant-dialog">
+          <Dialog open={linkPagoModal} onOpenChange={(o) => { if (o) setLinkPagoModal(true); }}>
+            <DialogContent
+              className="max-w-md [&>button]:hidden"
+              onEscapeKeyDown={(e) => e.preventDefault()}
+              onInteractOutside={(e) => e.preventDefault()}
+              data-testid="link-pago-variant-dialog"
+            >
               <DialogHeader>
                 <DialogTitle>¿Qué tipo de cotización desea generar?</DialogTitle>
                 <DialogDescription>
