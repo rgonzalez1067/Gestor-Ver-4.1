@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug fix: matriz de implementación vacía al Enviar a Implementación (Link de Pago/Tokenizador) — Jul 2026
+**Reporte:** al enviar a implementación una cotización unificada Link de Pago/Tokenizador (quote_type=LINK_PAGO), el proyecto se creaba con `implementation_matrix` VACÍA, aunque la Ficha Técnica sí mostraba bancos/productos.
+- **Causa raíz (`quote_transitions.py::_create_project_from_quote`, L105):** `is_gateway` solo detectaba `quote_type=='GATEWAY'`; para LINK_PAGO la matriz se construía desde `services` (vacío en PG) en vez de `pg_setup_items`.
+- **Fix:** `is_gateway = quote_type.upper() in ('GATEWAY','LINK_PAGO')` → la matriz (y los bancos) se derivan de `pg_setup_items` para ambos tipos, ignorando banco 'N/A' (Persona Jurídica), con las 4 fases (Recibido/Configurado/Testeado/En Producción, expected:1).
+**QA:** testing_agent iteration_236 → **backend 100% (3/3)**: LINK_PAGO puebla la matriz, regresión GATEWAY intacta, coherencia matriz↔Ficha Técnica. Prerequisito del flujo: la cotización debe estar 'Pagada'. Test: `tests/test_iter236_linkpago_matrix.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Ficha Técnica: sección automática "C. Componentes adicionales" (Link de Pago / Tokenizador) — Jul 2026
 **Requerimiento:** poblar la sección "C. Componentes adicionales" de la Ficha Técnica por 2 vías: manual (Proyectos Directos con Payment Gateway) y automática (cotización unificada Link de Pago/Tokenizador al Enviar a Implementación).
 - **PDF (`services/implementation_pdf.py`):** nueva sección "C. COMPONENTES ADICIONALES" con 2 líneas (Link de Pago / Tokenizador → Si/No), renderizada solo si al menos una es Sí; `comp_offset` recorre las letras de Seriales/Resumen a D/E cuando la sección C está presente.
