@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Edit3, Send, ImagePlus, ClipboardList, RotateCcw } from 'lucide-react';
-import { useEffect } from 'react';
 import { ALL_TOKENS } from './projectConstants';
 
 // Variables de inserción rápida — HOMOLOGADO con el entorno de Cotizaciones.
@@ -21,18 +20,12 @@ export const EmailPreviewDialog = ({
   handleInsertImage, insertVariableInEditor,
   previewVersion, onRestoreTemplate,
 }) => {
-  // PERSISTENCIA DE EDICIÓN (fix pérdida de datos):
-  // El cuerpo es un contentEditable NO controlado por React. Su contenido inicial
-  // se aplica imperativamente SOLO cuando cambia `previewVersion` (al generar una
-  // nueva vista previa o al Restaurar Plantilla Base). En cualquier otro re-render
-  // (editar asunto, abrir detalles, etc.) React NO toca el innerHTML → las
-  // ediciones manuales del usuario se congelan y persisten hasta el envío.
-  useEffect(() => {
-    if (open && editorRef.current) {
-      editorRef.current.innerHTML = previewData?.html || '';
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewVersion, open]);
+  // PERSISTENCIA + RENDER CONFIABLE:
+  // `key={previewVersion}` hace que el editor se MONTE de nuevo (aplicando el HTML
+  // base vía dangerouslySetInnerHTML) SOLO cuando cambia la versión: al generar una
+  // nueva vista previa o al pulsar "Restaurar Plantilla Base". En cualquier otro
+  // re-render (editar Asunto, abrir detalles) la versión no cambia → el nodo NO se
+  // re-monta y React no re-aplica el innerHTML → las ediciones manuales persisten.
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,6 +105,7 @@ export const EmailPreviewDialog = ({
               </details>
 
               <div
+                key={previewVersion}
                 ref={editorRef}
                 contentEditable
                 suppressContentEditableWarning
@@ -119,6 +113,7 @@ export const EmailPreviewDialog = ({
                 onDrop={handleEditorDrop}
                 onDragOver={e => e.preventDefault()}
                 className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto email-render max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
+                dangerouslySetInnerHTML={{ __html: previewData?.html || '' }}
                 data-testid="preview-editable-content"
               />
               <div className="bg-amber-50 px-3 py-1.5 border-t border-amber-200">
