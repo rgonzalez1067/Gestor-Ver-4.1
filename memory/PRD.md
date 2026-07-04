@@ -3,6 +3,15 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Ficha Técnica: sección automática "C. Componentes adicionales" (Link de Pago / Tokenizador) — Jul 2026
+**Requerimiento:** poblar la sección "C. Componentes adicionales" de la Ficha Técnica por 2 vías: manual (Proyectos Directos con Payment Gateway) y automática (cotización unificada Link de Pago/Tokenizador al Enviar a Implementación).
+- **PDF (`services/implementation_pdf.py`):** nueva sección "C. COMPONENTES ADICIONALES" con 2 líneas (Link de Pago / Tokenizador → Si/No), renderizada solo si al menos una es Sí; `comp_offset` recorre las letras de Seriales/Resumen a D/E cuando la sección C está presente.
+- **Manual (`direct_projects.py` + `DirectProjectCreation.jsx`):** al elegir Payment Gateway aparecen 2 selects binarios (default No) `dp-includes-link-pago`/`dp-includes-tokenizador`; el backend arma `additional_components` en la synthetic_quote solo para GATEWAY.
+- **Automático (`quote_transitions.py`):** `_create_project_from_quote` deduce `additional_components` del `link_pago_variant` (link_pago→LDP; tokenizador→Tok; ambos→ambos) para quote_type LINK_PAGO.
+- **Regeneración (`projects.py`):** `quote_like` incluye `additional_components` (fuente: proyecto) para la Ficha Técnica de proyectos existentes.
+**QA:** testing_agent iteration_235 → **backend 100% (5/5), frontend 100%** (UI condicional + PDF manual LDP=Si/Tok=No + automático "ambos"=Si/Si + omisión y no-corrimiento cuando ambos No). Nota QA: el flujo automático real requiere que la cotización esté 'Pagada' antes de Enviar a Implementación. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug fix: Vista Previa con cuerpo vacío + regresión de persistencia — Jul 2026
 **Reporte:** al pulsar "Vista Previa" el cuerpo del editor salía vacío (percibido como pantalla en blanco). Causa raíz: un `useEffect` imperativo que aplicaba `innerHTML` fallaba por timing del ref con el portal de Radix.
 - **Fix render (`EmailPreviewDialog.jsx`):** el cuerpo se renderiza de nuevo con `dangerouslySetInnerHTML` (render nativo confiable) + null-safety (`previewData?.html || ''`).
