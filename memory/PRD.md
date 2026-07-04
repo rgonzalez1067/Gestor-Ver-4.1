@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug fix: Vista Previa con cuerpo vacío + regresión de persistencia — Jul 2026
+**Reporte:** al pulsar "Vista Previa" el cuerpo del editor salía vacío (percibido como pantalla en blanco). Causa raíz: un `useEffect` imperativo que aplicaba `innerHTML` fallaba por timing del ref con el portal de Radix.
+- **Fix render (`EmailPreviewDialog.jsx`):** el cuerpo se renderiza de nuevo con `dangerouslySetInnerHTML` (render nativo confiable) + null-safety (`previewData?.html || ''`).
+- **Fix persistencia (regresión detectada en QA):** editar el Asunto re-aplicaba el innerHTML y borraba las ediciones manuales. Solución: el div editable se extrajo a un subcomponente **memoizado** `EditableEmailBody = memo(..., (p,n)=>p.html===n.html)`, montado con `key={previewVersion}`. Escribir en el Asunto ya no re-renderiza el editor (ediciones persisten); cambiar `previewVersion` (nueva preview o "Restaurar Plantilla Base") fuerza remount con el HTML base.
+**QA:** testing_agent iteration_233 (detectó regresión) → iteration_234 → **frontend 100% (5/5)**: render con contenido, persistencia al editar Asunto/toggle variables, restaurar plantilla, formulario de origen intacto, sin crash. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Notificaciones: Destinatarios Preferidos Globales + Persistencia del editor de Vista Previa — Jul 2026
 **Requerimiento:** (1) lista única/global de destinatarios preferidos que se pre-seleccionan al abrir notificaciones; (2) que las ediciones manuales del editor WYSIWYG de Vista Previa no se borren, con botón para restaurar la plantilla base.
 - **Backend (`routes/settings.py`):** colección `preferred_recipients` (global). Endpoints `GET/POST /preferred-recipients` (POST body {email,name}) y `DELETE /preferred-recipients?email=...`.
