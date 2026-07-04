@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 232 — E2E validation de (1) Destinatarios Preferidos Globales y (2) Persistencia de edición en Vista Previa del modal de Notificaciones. TODOS los criterios ejecutaron OK: estrella marca/desmarca preferido global (POST/DELETE /preferred-recipients), pre-selección del checkbox al reabrir modal desde el proyecto, persistencia del marcador 'Modificación de Control QA' tras editar Asunto y togglear 'Variables Resueltas', botón 'Restaurar Plantilla Base' regresa la plantilla y muestra toast 'Plantilla base restaurada', y flujo de envío con confirmación funcional (POST /projects/{id}/send-notification → 200 + toast 'Cliente notificado').",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_232.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EmailPreviewDialog.jsx L30-35: el useEffect resetea el innerHTML también al abrir (open=true). Si el usuario cierra el modal por error (Cancelar o click fuera) y lo reabre, sus ediciones manuales previas se pierden aún con el mismo previewVersion (porque `open` transitó false→true). Considerar guardar el HTML editado en un ref al cerrar y restaurarlo al reabrir, o dejar claro en la UI que 'Cancelar' descarta las ediciones.",
+    "ProjectDetail.jsx L523: toggleFavorite en error hace setFavoriteEmails(favoriteEmails) — esa referencia ya fue reemplazada por next en L513, así que 'revertir' está mal (deja la lista optimista). Debería guardar el snapshot pre-cambio en una variable local antes del try/catch y usar esa al revertir.",
+    "ProjectDetail.jsx L580: setMainRecipients(preselect) solo aplica si hay ≥1 preferido y sobreescribe cualquier destinatario previo. Es OK para el flujo actual pero conviene documentar que la pre-selección de favoritos gana sobre el estado interno del modal.",
+    "routes/settings.py L677: GET /preferred-recipients no filtra ni pagina — el `to_list(5000)` es un límite defensivo pero si la lista crece considerablemente conviene devolver ordenado y con paginación.",
+    "EmailPreviewDialog.jsx: el editor contentEditable no tiene validación anti-XSS al pegar HTML arbitrario. Si algún día un usuario menos privilegiado tiene acceso, considerar sanitizar en backend antes del envío (el HTML pasa tal cual al Resend)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (3/3 endpoints: GET/POST/DELETE /preferred-recipients)", "frontend": "100% (9/9 criterios del review_request)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se creó y eliminó (en teardown) el favorito global lhernandez@krakencourier.com para validar el ciclo mark→preselect→unmark. Se envió 1 correo real de prueba (Tercer Recordatorio) al cliente KRAKEN COURIER via POST /projects/prj_e86a47af1bff/send-notification (respuesta 200). La lista `preferred_recipients` en Mongo queda vacía tras el test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Testeado sobre /projects/prj_e86a47af1bff (KRAKEN COURIER, culminado, 1 contacto cliente + 7 bancarios). El botón 'notifications-btn' abre el modal orientado a Cliente (`type=client`), donde solo aparece contacts-table-client. Para probar contacts-table-bank hay que usar 'Notificaciones' del bloque de banco o 'Notificación Avances' (data-testid notif-avance-project-btn). El toast 'marcado como preferido (global)' se muestra correctamente. Confirmar el envío requiere presionar 'Confirmar y Enviar' en confirm-send-dialog (etiqueta AlertDialog). El endpoint POST send-notification devolvió 200 y el toast se propaga con 'Cliente notificado · [Tercer Recordatorio] enviada a Cliente (sent)'. Nota: los errores de consola sobre 'span cannot be a child of tr/tbody' provienen de un wrapper `data-ve-dynamic` inyectado por la herramienta del entorno; no bloquean funcionalidad pero generan hydration warnings persistentes en Dashboard y ProjectDetail.",
+  "rca of the issue": "N/A — no se detectaron bugs. Ambas features nuevas (FAVORITOS GLOBALES + PERSISTENCIA DE EDICIÓN) están implementadas correctamente: (a) la lista global se persiste en la colección `preferred_recipients` sin filtro por usuario, y el frontend hace fetchFavorites() en cada openNotifDialog(); (b) el editor contentEditable es no-controlado, con innerHTML aplicado imperativamente solo cuando cambia previewVersion (o al abrir), lo que preserva las ediciones manuales frente a re-renders por cambio de Asunto o toggle de Variables Resueltas. El botón 'Restaurar Plantilla Base' incrementa previewVersion y dispara el reset. El HTML editado en el editor se envía tal cual como custom_html en el FormData al backend (verificado por respuesta 200 de send-notification)."
+}

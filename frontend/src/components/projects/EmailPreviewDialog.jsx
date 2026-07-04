@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Edit3, Send, ImagePlus, ClipboardList } from 'lucide-react';
+import { Edit3, Send, ImagePlus, ClipboardList, RotateCcw } from 'lucide-react';
+import { useEffect } from 'react';
 import { ALL_TOKENS } from './projectConstants';
 
 // Variables de inserción rápida — HOMOLOGADO con el entorno de Cotizaciones.
@@ -18,13 +19,20 @@ export const EmailPreviewDialog = ({
   previewSending, sendFromPreview,
   editorRef, handleEditorPaste, handleEditorDrop,
   handleInsertImage, insertVariableInEditor,
+  previewVersion, onRestoreTemplate,
 }) => {
-  // El cuerpo es un contentEditable inicializado con el HTML resuelto.
-  // `key={sourceHtml}` hace que SOLO se re-monte (recargue el contenido) cuando
-  // se genera una NUEVA vista previa. Mientras tanto, editar el Asunto NO cambia
-  // `previewData.html`, por lo que React no re-aplica el innerHTML y las
-  // ediciones manuales del cuerpo se preservan (fix de pérdida de datos).
-  const sourceHtml = previewData?.html || '';
+  // PERSISTENCIA DE EDICIÓN (fix pérdida de datos):
+  // El cuerpo es un contentEditable NO controlado por React. Su contenido inicial
+  // se aplica imperativamente SOLO cuando cambia `previewVersion` (al generar una
+  // nueva vista previa o al Restaurar Plantilla Base). En cualquier otro re-render
+  // (editar asunto, abrir detalles, etc.) React NO toca el innerHTML → las
+  // ediciones manuales del usuario se congelan y persisten hasta el envío.
+  useEffect(() => {
+    if (open && editorRef.current) {
+      editorRef.current.innerHTML = previewData?.html || '';
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewVersion, open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,6 +87,9 @@ export const EmailPreviewDialog = ({
               <div className="bg-slate-100 px-3 py-2 border-b flex items-center justify-between">
                 <p className="text-xs font-semibold text-slate-500 uppercase">Contenido Editable — Modifique antes de enviar</p>
                 <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={onRestoreTemplate} className="h-7 px-2 text-xs gap-1 text-slate-500 hover:text-amber-700" data-testid="preview-restore-template-btn">
+                    <RotateCcw size={14} />Restaurar Plantilla Base
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={handleInsertImage} className="h-7 px-2 text-xs gap-1 text-slate-600 hover:text-indigo-700" data-testid="preview-insert-image-btn">
                     <ImagePlus size={14} />Imagen
                   </Button>
@@ -101,7 +112,6 @@ export const EmailPreviewDialog = ({
               </details>
 
               <div
-                key={sourceHtml}
                 ref={editorRef}
                 contentEditable
                 suppressContentEditableWarning
@@ -109,7 +119,6 @@ export const EmailPreviewDialog = ({
                 onDrop={handleEditorDrop}
                 onDragOver={e => e.preventDefault()}
                 className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto email-render max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
-                dangerouslySetInnerHTML={{ __html: previewData.html }}
                 data-testid="preview-editable-content"
               />
               <div className="bg-amber-50 px-3 py-1.5 border-t border-amber-200">

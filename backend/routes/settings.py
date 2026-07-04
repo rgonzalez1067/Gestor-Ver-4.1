@@ -1,6 +1,6 @@
 """Route module: settings.py"""
 # ruff: noqa: F403, F405
-from fastapi import APIRouter, HTTPException, Header, Response, status, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Header, Response, status, UploadFile, File, Form, Body
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
@@ -669,3 +669,36 @@ async def download_corporate_anexo(key: str, authorization: Optional[str] = Head
         raise HTTPException(status_code=404, detail="Anexo no disponible")
     return FileResponse(str(path), media_type="application/pdf", filename=CORPORATE_ANEXOS[key]["filename"])
 
+
+
+# ==================== DESTINATARIOS PREFERIDOS GLOBALES ====================
+# Lista única y general (compartida por todos los implementadores). Se usa en el
+# modal de notificaciones para pre-seleccionar contactos automáticamente.
+@router.get("/preferred-recipients")
+async def list_preferred_recipients(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    docs = await db.preferred_recipients.find({}, {"_id": 0}).sort("email", 1).to_list(5000)
+    return docs
+
+
+@router.post("/preferred-recipients")
+async def add_preferred_recipient(payload: dict = Body(...), authorization: Optional[str] = Header(None)):
+    user = await get_current_user(authorization)
+    email = (payload.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email requerido")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.preferred_recipients.update_one(
+        {"email": email},
+        {"$set": {"email": email, "name": payload.get("name") or "", "updated_at": now_iso,
+                  "added_by": user.get("full_name") or user.get("email") or user.get("user_id")}},
+        upsert=True,
+    )
+    return {"success": True, "email": email}
+
+
+@router.delete("/preferred-recipients")
+async def remove_preferred_recipient(email: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    await db.preferred_recipients.delete_one({"email": (email or "").strip().lower()})
+    return {"success": True, "email": email}

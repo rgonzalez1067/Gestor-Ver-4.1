@@ -16,7 +16,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark, FileDown, TrendingUp
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark, FileDown, TrendingUp, Star
 } from 'lucide-react';
 
 import { SingleBankSection } from '../components/projects/SingleBankSection';
@@ -169,6 +169,11 @@ const ProjectDetail = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  // Versión de la vista previa: se incrementa al generar una nueva o al restaurar la
+  // plantilla base. El editor solo re-aplica el HTML cuando cambia (persistencia).
+  const [previewVersion, setPreviewVersion] = useState(0);
+  // Destinatarios Preferidos globales (lista única compartida por todos los implementadores)
+  const [favoriteEmails, setFavoriteEmails] = useState(new Set());
   // Destinatarios principales (TO) seleccionados manualmente para la notificación secuencial
   const [mainRecipients, setMainRecipients] = useState([]);
   const [previewSubject, setPreviewSubject] = useState('');
@@ -476,11 +481,54 @@ const ProjectDetail = () => {
     try {
       const res = await api.get(`/projects/${projectId}/suggested-contacts`);
       setSuggestedContacts(res.data || []);
+      return res.data || [];
     } catch (err) {
       console.error('Error cargando contactos:', err);
       toast.error('Error al cargar los contactos del proyecto');
       setSuggestedContacts([]);
+      return [];
     }
+  };
+
+  // Destinatarios Preferidos globales
+  const fetchFavorites = async () => {
+    try {
+      const res = await api.get('/preferred-recipients');
+      const set = new Set((res.data || []).map(f => (f.email || '').toLowerCase()));
+      setFavoriteEmails(set);
+      return set;
+    } catch (err) {
+      console.error('Error cargando preferidos:', err);
+      return new Set();
+    }
+  };
+
+  const toggleFavorite = async (email, name) => {
+    const lower = (email || '').toLowerCase();
+    if (!lower) return;
+    const isFav = favoriteEmails.has(lower);
+    // Optimista
+    const next = new Set(favoriteEmails);
+    if (isFav) { next.delete(lower); } else { next.add(lower); }
+    setFavoriteEmails(next);
+    try {
+      if (isFav) {
+        await api.delete('/preferred-recipients', { params: { email: lower } });
+        toast.success('Contacto quitado de preferidos');
+      } else {
+        await api.post('/preferred-recipients', { email: lower, name: name || '' });
+        toast.success('Contacto marcado como preferido (global)');
+      }
+    } catch (err) {
+      setFavoriteEmails(favoriteEmails); // revertir
+      toast.error('No se pudo actualizar la lista de preferidos');
+    }
+  };
+
+  // Restaurar el cuerpo del editor a la plantilla base (descarta ediciones manuales)
+  const restorePreviewTemplate = () => {
+    setPreviewVersion(v => v + 1);
+    toast.info('Plantilla base restaurada');
   };
 
   // ==================== MATRIX PHASE TOGGLES ====================
@@ -517,7 +565,20 @@ const ProjectDetail = () => {
     setResolvedRecipients([]);
     setNotifFiles([]);
     setNotifAttachMatrix(false);
-    fetchSuggestedContacts();
+    // Cargar contactos + preferidos globales y pre-seleccionar los preferidos relevantes al destino
+    (async () => {
+      const [contacts, favSet] = await Promise.all([fetchSuggestedContacts(), fetchFavorites()]);
+      const relevant = (contacts || []).filter(c => {
+        if (type === 'bank_client') return true;
+        if (type === 'client' || type === 'client_avance') return c.source === 'client';
+        if (type === 'bank' || type === 'bank_avance') return c.source === 'bank' && (!bankName || c.bank_name === bankName);
+        return true;
+      });
+      const preselect = relevant
+        .filter(c => favSet.has((c.email || '').toLowerCase()))
+        .map(c => c.email);
+      if (preselect.length > 0) setMainRecipients(preselect);
+    })();
     // Cargar Plantillas de Proyecto (Texto Enriquecido) + preferencias + matriz y precargar la preferida
     try {
       const [tplRes, prefRes, varsRes] = await Promise.all([
@@ -828,6 +889,7 @@ const ProjectDetail = () => {
       });
       setPreviewData(res.data);
       setPreviewSubject(res.data.subject || '');
+      setPreviewVersion(v => v + 1);
       setPreviewContext({ type: 'sequential', target, bankName });
       setPreviewOpen(true);
     } catch (err) { toast.error(err.response?.data?.detail || 'Error generando vista previa'); }
@@ -848,6 +910,7 @@ const ProjectDetail = () => {
       });
       setPreviewData(res.data);
       setPreviewSubject(res.data.subject || '');
+      setPreviewVersion(v => v + 1);
       setPreviewContext({ type: 'adhoc' });
       setPreviewOpen(true);
     } catch (err) { toast.error(err.response?.data?.detail || 'Error generando vista previa'); }
@@ -2057,11 +2120,13 @@ const ProjectDetail = () => {
                             <th className="px-3 py-2 text-left font-semibold">Nombre y Apellido</th>
                             <th className="px-3 py-2 text-left font-semibold">Email</th>
                             <th className="px-3 py-2 text-left font-semibold">Rol / Cargo</th>
+                            <th className="px-3 py-2 text-center font-semibold w-12">Preferido</th>
                           </tr>
                         </thead>
                         <tbody>
                           {rows.map((c, i) => {
                             const checked = mainRecipients.map(x => x.toLowerCase()).includes((c.email || '').toLowerCase());
+                            const isFav = favoriteEmails.has((c.email || '').toLowerCase());
                             return (
                               <tr
                                 key={`${prefix}-${i}`}
@@ -2085,6 +2150,17 @@ const ProjectDetail = () => {
                                 </td>
                                 <td className="px-3 py-2.5 align-middle text-slate-500 whitespace-normal break-words">
                                   {c.contact_type || '—'}
+                                </td>
+                                <td className="px-3 py-2.5 align-middle text-center">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(c.email, c.name || c.label); }}
+                                    title={isFav ? 'Quitar de preferidos (global)' : 'Marcar como preferido (global)'}
+                                    className="inline-flex items-center justify-center transition-colors"
+                                    data-testid={`contact-favorite-${prefix}-${i}`}
+                                  >
+                                    <Star size={16} className={isFav ? 'text-amber-400 fill-amber-400' : 'text-slate-300 hover:text-amber-300'} />
+                                  </button>
                                 </td>
                               </tr>
                             );
@@ -2740,6 +2816,8 @@ const ProjectDetail = () => {
           handleEditorDrop={handleEditorDrop}
           handleInsertImage={handleInsertImage}
           insertVariableInEditor={insertVariableInEditor}
+          previewVersion={previewVersion}
+          onRestoreTemplate={restorePreviewTemplate}
         />
 
         {/* ============ Confirmación de Envío (doble factor operativo) ============ */}
