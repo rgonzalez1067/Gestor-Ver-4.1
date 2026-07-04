@@ -99,10 +99,11 @@ async def _create_project_from_quote(
         if quote["sponsor_bank_name"] not in [b.get("bank_name") for b in banks]:
             banks.append({"bank_name": quote["sponsor_bank_name"]})
 
-    # Para Payment Gateway (GATEWAY): los bancos provienen de pg_setup_items
-    # (cada item lleva {concepto, banco, costo, observacion}). Se ignora 'N/A'
-    # que corresponde a items conceptuales fijos (ej. Persona Jurídica).
-    is_gateway = (quote.get("quote_type") or "").upper() == "GATEWAY"
+    # Para Payment Gateway (GATEWAY) y Link de Pago/Tokenizador (LINK_PAGO): los
+    # bancos y la matriz provienen de pg_setup_items (cada item lleva
+    # {concepto, banco, costo, observacion}). Se ignora 'N/A' que corresponde a
+    # items conceptuales fijos (ej. Persona Jurídica). LINK_PAGO es PG-like.
+    is_gateway = (quote.get("quote_type") or "").upper() in ("GATEWAY", "LINK_PAGO")
     if is_gateway:
         for it in quote.get("pg_setup_items", []) or []:
             bn = (it.get("banco") or "").strip()

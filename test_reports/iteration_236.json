@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 236 — Backend E2E validation del fix `is_gateway = quote_type in ('GATEWAY','LINK_PAGO')` en routes/quote_transitions.py::_create_project_from_quote. 3/3 pytest cases PASS: (a) LINK_PAGO puebla implementation_matrix desde pg_setup_items ignorando banco 'N/A' (Persona Jurídica); (b) regresión GATEWAY sigue construyendo la misma matriz; (c) los bancos/conceptos de la matriz coinciden con los de la Ficha Técnica PDF.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_iter236_linkpago_matrix.py",
+    "/app/test_reports/pytest/iter236_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/quote_transitions.py L106: el fix quedó correcto (`is_gateway = (quote.get('quote_type') or '').upper() in ('GATEWAY','LINK_PAGO')`), y el bloque L120-135 usa esa flag para construir la matriz desde pg_setup_items con las 4 fases y expected=1. La normalización a upper() es defensiva contra variantes 'gateway'/'link_pago'.",
+    "L106 detecta LINK_PAGO por quote_type, no por link_pago_variant. Correcto: link_pago_variant sólo indica qué anexo PDF adjuntar y no afecta la construcción de matriz (pg_setup_items ya define los bancos).",
+    "L110 y L125 filtran banco vacío y 'N/A' (case-insensitive con .upper()). El item 'Persona Jurídica' con banco='N/A' se ignora en `banks` y en `implementation_matrix` — verificado. No obstante, si algún wizard futuro guarda banco='n/a' o 'na' sin barra, sólo 'N/A' con barra es tratado como sentinela: considerar añadir 'NA' al filtro por robustez.",
+    "L94-100 vs L107-113: la deduplicación de bancos entre `services` (VPOS/MPOS) y `pg_setup_items` (PG/LINK_PAGO) se hace con dos listas comprehensivas separadas. Funciona pero es propenso a duplicación silenciosa si un mismo banco viene de ambos orígenes. En LINK_PAGO típicamente services=[], así que no hay conflicto real; documentado como no-issue.",
+    "El proyecto se crea con estado default y las 4 fases pre-pobladas con expected=1 SOLO cuando bank+concepto son válidos (línea 125 `if not bn or not name`). Un pg_setup_item sin concepto tampoco entra en la matriz; verificado indirectamente. OK."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter236_linkpago_matrix.py"],
+  "success_rate": { "backend": "100% (3/3)", "frontend": "no aplica (testing_type=backend only)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Por cada test se inserta directamente en Mongo una cotización sintética (prefijo TEST-236-*) con quote_status='Pagada' y pg_setup_items = [Persona Jurídica/N/A, Setup Banesco/Banesco, Setup BDV/Banco de Venezuela]. Se invoca POST /api/quotes/{qid}/send-to-implementation. Teardown: se borran quote + project + quotes_history por quote_id. NO se enviaron correos porque las notificaciones se ejecutan tras crear el proyecto y las aserciones/limpieza no dependen de ellas (los emails se envían al usuario admin en dev; sin impacto operativo).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fix validado end-to-end. Comportamiento verificado:\n\n1) LINK_PAGO con pg_setup_items=[{concepto:'Persona Jurídica',banco:'N/A'},{concepto:'Setup Banesco',banco:'Banesco'},{concepto:'Setup BDV',banco:'Banco de Venezuela'}] → POST /api/quotes/{qid}/send-to-implementation → project.implementation_matrix = {'Banesco': {'Setup Banesco': {Recibido/Configurado/Testeado/En Producción: {expected:1, processed:0, completed:False}}}, 'Banco de Venezuela': {'Setup BDV': {...}}}. 'N/A' está EXCLUIDO tanto de banks como de la matriz.\n\n2) Mismo input con quote_type='GATEWAY' produce matriz idéntica (regresión OK).\n\n3) Ficha Técnica PDF del proyecto (GET /api/projects/{pid}/ficha-tecnica) contiene 'Banesco', 'Banco de Venezuela', 'Setup Banesco', 'Setup BDV' — coherente con la matriz.\n\nPrerequisito para el flujo: quote_status debe ser 'Pagada' para evitar la ruta 'irregular' (que requiere x-exception-reason header). En estos tests se resolvió insertando la quote directamente con status='Pagada'. En UI real: Aprobar → Facturar → Pagar → Enviar a Implementación.\n\nTest reutilizable: /app/backend/tests/test_iter236_linkpago_matrix.py. JUnit XML: /app/test_reports/pytest/iter236_results.xml.",
+  "rca of the issue": "No aplica (validación de fix). El fix en L106 de routes/quote_transitions.py es correcto y suficiente: al normalizar quote_type con .upper() e incluir 'LINK_PAGO' en la tupla, ambos bloques posteriores (`banks` en L107-113 y `implementation_matrix` en L121-135) se ejecutan para LINK_PAGO, derivando los datos desde pg_setup_items (que es donde el wizard PG los captura) en vez de `services` (vacío para PG/LINK_PAGO). Los items con banco='N/A' (Persona Jurídica) son correctamente descartados por los filtros case-insensitive en L110 y L125."
+}
