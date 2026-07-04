@@ -2,10 +2,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Edit3, Send, ImagePlus, ClipboardList, RotateCcw } from 'lucide-react';
+import { memo } from 'react';
 import { ALL_TOKENS } from './projectConstants';
 
 // Variables de inserción rápida — HOMOLOGADO con el entorno de Cotizaciones.
 const QUICK_VARS = ALL_TOKENS.map(t => `{${t}}`);
+
+// Cuerpo editable aislado y MEMOIZADO: solo se re-renderiza cuando cambia el HTML
+// base (`html`). Así, escribir en el Asunto (que re-renderiza el padre) NO vuelve a
+// aplicar dangerouslySetInnerHTML → las ediciones manuales del usuario persisten.
+// El re-montaje para cargar HTML nuevo / restaurar plantilla se controla vía `key`
+// (previewVersion) desde el padre, que fuerza el remount ignorando el memo.
+const EditableEmailBody = memo(function EditableEmailBody({ html, editorRef, onPaste, onDrop }) {
+  return (
+    <div
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      onPaste={onPaste}
+      onDrop={onDrop}
+      onDragOver={e => e.preventDefault()}
+      className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto email-render max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
+      dangerouslySetInnerHTML={{ __html: html || '' }}
+      data-testid="preview-editable-content"
+    />
+  );
+}, (prev, next) => prev.html === next.html);
 
 /**
  * Editor final del correo antes de enviar. Permite ajustar asunto y cuerpo HTML
@@ -104,17 +126,12 @@ export const EmailPreviewDialog = ({
                 <p className="px-3 pb-1.5 text-[9px] text-indigo-400">Las variables insertadas aquí se procesan automáticamente antes del envío.</p>
               </details>
 
-              <div
+              <EditableEmailBody
                 key={previewVersion}
-                ref={editorRef}
-                contentEditable
-                suppressContentEditableWarning
+                html={previewData?.html}
+                editorRef={editorRef}
                 onPaste={handleEditorPaste}
                 onDrop={handleEditorDrop}
-                onDragOver={e => e.preventDefault()}
-                className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto email-render max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
-                dangerouslySetInnerHTML={{ __html: previewData?.html || '' }}
-                data-testid="preview-editable-content"
               />
               <div className="bg-amber-50 px-3 py-1.5 border-t border-amber-200">
                 <p className="text-[10px] text-amber-700">Los cambios realizados aquí solo afectan este envío. La plantilla base NO se modifica. Puede pegar imágenes directamente (Ctrl+V) o arrastrar archivos JPG/PNG.</p>

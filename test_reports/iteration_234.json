@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 234 — Retest frontend-only del fix MEMOIZADO `EditableEmailBody` (React.memo con comparador prev.html===next.html) en EmailPreviewDialog.jsx. RESULTADO: 5/5 TESTS PASS. El bug crítico de Iteration 233 (Test 3 PERSISTENCIA DE EDICIÓN) está RESUELTO. Todos los criterios del review_request se cumplen.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_234.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "El fix está correctamente implementado: EditableEmailBody es un subcomponente memoizado con arePropsEqual=(prev,next)=>prev.html===next.html. El padre pasa `key={previewVersion}` para forzar remount solo cuando cambia la versión (nueva preview o Restaurar Plantilla). Al escribir en Asunto, el padre re-renderiza pero el memo evita re-render del editor → dangerouslySetInnerHTML NO se re-aplica → ediciones manuales persisten. Confirmado empíricamente.",
+    "Pendientes preexistentes (no relacionados con este fix, ya reportados en iter 232/233): (a) sanitización XSS en handleEditorPaste/Drop, (b) revertir favoriteEmails en catch (ProjectDetail.jsx L523), (c) descomponer ProjectDetail.jsx (>2900 líneas) en hooks/subcomponentes, (d) warnings de hidratación 'span cannot be a child of tr' provienen del wrapper `data-ve-dynamic` de la herramienta del entorno (no del código productivo), no bloquean funcionalidad."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (skip)", "frontend": "100% (5/5 tests PASS)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (usado)",
+  "seed_data_creation": "Ninguna. No se envió correo real. Solo se abrió el modal Notificaciones en /projects/prj_e86a47af1bff, se marcó contact-checkbox-client-0, se generó preview (POST /projects/prj_e86a47af1bff/preview-notification), se editó el body/asunto en memoria y se cerró con Cancelar. Sin persistencia.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Retest del fix del memo (Iteration 234). RESULTADOS DETALLADOS:\n\nTEST 1 — RENDER (no regresión): PASS. preview-editable-content muestra el cuerpo completo (innerText=9289 chars, innerHTML=20314 chars) con 'Estimado: {Contacto_Principal} ... Matriz_Bancos_Productos ... Nombre_Cliente ...'.\n\nTEST 2 — PERSISTENCIA DE EDICIÓN (crítico, era el que fallaba): PASS. Se insertó 'MARKER123' al final del editor vía execCommand('insertText'). Luego se escribió 'XYZ' (3 chars con delay) en preview-subject-input → MARKER123 SIGUE PRESENTE en el editor (innerText contiene 'MARKER123'). Adicionalmente se abrió/cerró el <details> 'Variables Resueltas' → MARKER123 sigue presente. Node identity antes/después es el mismo (no hay remount por accidente).\n\nTEST 3 — RESTAURAR PLANTILLA: PASS. Al pulsar preview-restore-template-btn el cuerpo vuelve al HTML base (MARKER123 desaparece) y aparece toast 'Plantilla base restaurada' (Sonner). El remount vía key={previewVersion} funciona.\n\nTEST 4 — PERSISTENCIA FORMULARIO ORIGEN: PASS. Tras cerrar preview con close-preview-btn (Cancelar), el modal Notificaciones sigue abierto y contact-checkbox-client-0 continúa marcado (data-state=checked).\n\nTEST 5 — TOLERANCIA / NO-CRASH: PASS. No hubo pageerror que rompa React. Los console.error observados son preexistentes: (a) hydration warnings 'span cannot be a child of tr' del wrapper data-ve-dynamic del entorno; (b) ERR_UNKNOWN_URL_SCHEME de recursos externos (imágenes cid: del correo); (c) Radix Dialog warning 'Missing Description or aria-describedby'. Ninguno rompe la funcionalidad ni cuenta según el review_request.\n\nEl fix está correcto y el bug queda cerrado. NO se envió ningún correo real. Backend NO fue tocado.",
+  "rca of the issue": "Estado del bug tras el fix: RESUELTO. RCA de la solución aplicada por E1 (verificada en esta iteración): el memoizado `EditableEmailBody` con arePropsEqual=(prev,next)=>prev.html===next.html evita que `dangerouslySetInnerHTML` se re-aplique cuando el padre re-renderiza por cambios en `previewSubject` u otros states (toggle details). El remount necesario para cargar HTML fresco (nueva preview / Restaurar Plantilla) sigue funcionando porque se controla con `key={previewVersion}` desde el padre, y el key distinto siempre supera al memo (React desmonta/monta). Confirmado con: (1) node identity idéntica al escribir en Asunto (mismo DOM node, ediciones intactas); (2) remount efectivo tras Restaurar (marker desaparece + toast). Ningún criterio del review_request 234 quedó sin cumplir."
+}
