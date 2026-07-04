@@ -200,6 +200,9 @@ export default function DirectProjectCreation() {
     quote_type: 'VPOS',
     sede: 'PYME',
     cantidad_cajas: 1,
+    // Payment Gateway: componentes adicionales (Ficha Técnica sección C). Default No.
+    includes_link_pago: false,
+    includes_tokenizador: false,
     // Multi-RIF
     project_type: 'simple',            // 'simple' | 'multirif'
     multirif_sponsorship: 'bank',      // 'bank' | 'client' (solo multirif)
@@ -795,6 +798,8 @@ export default function DirectProjectCreation() {
                   boxes_grid: [],
                   // Cambia el filtro de integradores → la selección previa puede no ser compatible.
                   integrator_name: '', integrator_id: '', integrator_app_name: '',
+                  // Componentes adicionales solo aplican a Payment Gateway → resetear al cambiar tipo.
+                  includes_link_pago: false, includes_tokenizador: false,
                   // Gateway/Link: productos virtuales → sin cajas, multitienda ni Multi-RIF.
                   ...(pg ? { project_type: 'simple', is_multistore: false, stores: [], multirif_distribution: [], cantidad_cajas: 1 } : {}),
                 });
@@ -806,6 +811,32 @@ export default function DirectProjectCreation() {
                 </SelectContent>
               </Select>
             </div>
+            {form.quote_type === 'GATEWAY' && (
+              <>
+                <div>
+                  <Label className="text-xs">¿Incluye Link de Pago? *</Label>
+                  <Select value={form.includes_link_pago ? 'si' : 'no'}
+                          onValueChange={(v) => set({ includes_link_pago: v === 'si' })}>
+                    <SelectTrigger className="h-10" data-testid="dp-includes-link-pago"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no">No</SelectItem>
+                      <SelectItem value="si">Sí</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">¿Incluye Tokenizador? *</Label>
+                  <Select value={form.includes_tokenizador ? 'si' : 'no'}
+                          onValueChange={(v) => set({ includes_tokenizador: v === 'si' })}>
+                    <SelectTrigger className="h-10" data-testid="dp-includes-tokenizador"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no">No</SelectItem>
+                      <SelectItem value="si">Sí</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             {!isPaymentGateway && (
             <div>
               <Label className="text-xs">Cantidad de Cajas *</Label>

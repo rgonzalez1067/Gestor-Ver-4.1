@@ -405,6 +405,19 @@ async def _create_project_from_quote(
             "created_at": now.isoformat(),
         })
 
+    # Componentes adicionales (Ficha Técnica sección C):
+    # - Proyectos Directos GATEWAY → viene en quote["additional_components"].
+    # - Cotización unificada LINK_PAGO → se deduce del modal (link_pago_variant).
+    _add_comp = quote.get("additional_components")
+    if _add_comp is None and (quote.get("quote_type") or "").upper() == "LINK_PAGO":
+        _variant = (quote.get("link_pago_variant") or "link_pago").lower()
+        _add_comp = {
+            "link_pago": _variant in ("link_pago", "ambos"),
+            "tokenizador": _variant in ("tokenizador", "ambos"),
+        }
+    if _add_comp:
+        project["additional_components"] = _add_comp
+
     await db.projects.insert_one(project)
     project.pop("_id", None)
     logger.info(f"Proyecto {project_number} creado desde cotización {quote_id}")

@@ -128,6 +128,9 @@ class DirectProjectCreate(BaseModel):
     # Procesador, se designa el banco final vinculado (Procesador → Banco).
     pinpad_processor_id: Optional[str] = None
     pinpad_processor_name: Optional[str] = None
+    # Payment Gateway: componentes adicionales (Ficha Técnica → sección C)
+    includes_link_pago: bool = False
+    includes_tokenizador: bool = False
     fiscal_printer_model: Optional[str] = None
     pinpad_serials: list[DirectProjectSerial] = Field(default_factory=list)
 
@@ -402,6 +405,10 @@ async def create_direct_project(
         "sede": sede,
         "quote_category": "direct_project",  # mapeado por notification_engine._quote_to_biz_sub
         "quote_type": qtype,
+        # Componentes adicionales (solo Payment Gateway) → Ficha Técnica sección C
+        "additional_components": ({"link_pago": bool(payload.includes_link_pago),
+                                   "tokenizador": bool(payload.includes_tokenizador)}
+                                  if qtype == "GATEWAY" else None),
         "services": services,
         "pg_setup_items": pg_setup_items,
         "hardware": [],

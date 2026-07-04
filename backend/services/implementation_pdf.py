@@ -267,12 +267,29 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     elements.append(Spacer(1, 14))
 
     # ==================== 4. MODELO Y SERIALES DE EQUIPOS ====================
+    # ==================== C. COMPONENTES ADICIONALES (Payment Gateway / Link de Pago) ====================
+    # Sección automática. Se puebla vía Proyectos Directos (preguntas manuales) o vía
+    # cotización unificada Link de Pago/Tokenizador (mapeo del modal de decisión).
+    add_comp = quote.get('additional_components') or {}
+    has_add_comp = bool(add_comp.get('link_pago') or add_comp.get('tokenizador'))
+    if has_add_comp:
+        elements.append(_section_banner("C. COMPONENTES ADICIONALES", styles))
+        elements.append(Spacer(1, 6))
+        elements.append(_key_value_table([
+            ("¿El proyecto incluye el Componente Link de Pago?", "Si" if add_comp.get('link_pago') else "No"),
+            ("¿El proyecto incluye el Componente Tokenizador?", "Si" if add_comp.get('tokenizador') else "No"),
+        ], styles))
+        elements.append(Spacer(1, 14))
+    # Corrimiento de letras de secciones siguientes si se agregó "C. Componentes".
+    comp_offset = 1 if has_add_comp else 0
+    _serials_letter = chr(ord('C') + comp_offset)
+
     pinpad_serials = quote.get("pinpad_serials") or []
     equipments = quote.get("equipments") or []
     all_serials = pinpad_serials + equipments
     serials_provider_note = (quote.get("serials_provider_note") or "").strip()
     if all_serials:
-        elements.append(_section_banner("C. SERIALES DE LOS EQUIPOS", styles))
+        elements.append(_section_banner(f"{_serials_letter}. SERIALES DE LOS EQUIPOS", styles))
         elements.append(Spacer(1, 6))
         eq_data = [
             [Paragraph("<b>Modelo</b>", styles['SmallWhite']),
@@ -307,7 +324,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     elif serials_provider_note:
         # Sin seriales físicos: el ejecutivo delegó la provisión a un tercero.
         # Se imprime el mensaje descriptivo capturado en el wizard.
-        elements.append(_section_banner("C. SERIALES DE LOS EQUIPOS", styles))
+        elements.append(_section_banner(f"{_serials_letter}. SERIALES DE LOS EQUIPOS", styles))
         elements.append(Spacer(1, 6))
         note_table = Table(
             [[Paragraph(serials_provider_note, styles['SmallText'])]],
@@ -347,7 +364,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         elements.append(Spacer(1, 14))
 
     # ==================== 5. RESUMEN COMERCIAL ====================
-    section_letter = "D" if all_serials else "C"
+    section_letter = chr(ord('C') + comp_offset + (1 if all_serials else 0))
     elements.append(_section_banner(f"{section_letter}. RESUMEN COMERCIAL", styles))
     elements.append(Spacer(1, 6))
     elements.append(Paragraph("Resumen Ejecutivo", styles['BlockLabel']))
