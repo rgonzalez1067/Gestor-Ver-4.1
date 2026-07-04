@@ -3,6 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Notificaciones: Destinatarios Preferidos Globales + Persistencia del editor de Vista Previa — Jul 2026
+**Requerimiento:** (1) lista única/global de destinatarios preferidos que se pre-seleccionan al abrir notificaciones; (2) que las ediciones manuales del editor WYSIWYG de Vista Previa no se borren, con botón para restaurar la plantilla base.
+- **Backend (`routes/settings.py`):** colección `preferred_recipients` (global). Endpoints `GET/POST /preferred-recipients` (POST body {email,name}) y `DELETE /preferred-recipients?email=...`.
+- **Frontend favoritos (`ProjectDetail.jsx`):** estado `favoriteEmails`; `fetchFavorites`/`toggleFavorite`; columna "Preferido" con estrella (`contact-favorite-{prefix}-{i}`) en `renderContactsTable`. `openNotifDialog` carga favoritos y pre-selecciona los relevantes al destino (client/bank/bank_client) en `mainRecipients`.
+- **Frontend persistencia (`EmailPreviewDialog.jsx`):** el editor contentEditable pasó a NO-controlado; `useEffect([previewVersion, open])` aplica `previewData.html` al `innerHTML` SOLO cuando cambia la versión (generar nueva vista previa o restaurar) → las ediciones se congelan frente a re-renders. Botón "Restaurar Plantilla Base" (`preview-restore-template-btn`) incrementa `previewVersion`. El envío usa el `innerHTML` actual del editor. Se eliminó el `key`/`dangerouslySetInnerHTML` que causaba la pérdida.
+**QA:** testing_agent iteration_232 → **backend 100% (3/3), frontend 100% (9/9)** (marcar/desmarcar global, pre-selección al reabrir, persistencia de "Modificación de Control QA" tras editar asunto/toggle variables, restaurar plantilla, envío con edición). ⚠️ PREVIEW; requiere REDEPLOY. NOTA: el test envió 1 correo real (Tercer Recordatorio) al cliente de prueba KRAKEN.
+
+
 ### Configuración: Gestor de Anexos Corporativos — Jul 2026
 **Alcance ampliado:** el gestor administra ahora los **12 anexos corporativos** en 4 categorías (Tarifas Link de Pago/Tokenizador; Términos PyME PG/VPOS; Términos Corporativo PG/Link/VPOS; Condiciones de Equipos Verifone TBP/LCH, Morefun, Accesorios, Reparaciones), en los directorios `static/anexos` y `static_pdfs`.
 - **Backend (`routes/settings.py`):** registro `CORPORATE_ANEXOS` dir-aware (dir + category por entrada). Endpoints `GET /config/anexos` (metadatos + category), `POST /config/anexos/{key}` (valida PDF, guarda en disco + upsert Mongo base64), `GET /config/anexos/{key}/download`. `restore_corporate_anexos()` en el startup restaura de Mongo→disco (persistencia sin redeploy).
