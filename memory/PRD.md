@@ -3,6 +3,15 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug Fix: Degradación de segmento CORP→PYME en cotizaciones — Jul 2026
+**Síntoma (producción):** un usuario de Ventas Corporativas (sede='CORP') creaba cotizaciones CORP y "de pronto" aparecían como PYME, sin cambios en su perfil.
+**RCA:** el badge de la grilla se lee de `quote.client_segment` (QuotesTable.jsx L362-368). El flujo "Modificar" = `POST /quotes/{id}/duplicate` (copia el segmento vía `{**original_quote}`) + `POST /quotes/{newId}/regenerate-pdf`. `regenerate_quote_pdf` tenía `client_segment = quote.get("client_segment", "PYME")` con **fallback hardcodeado a 'PYME'**, que corrompía cotizaciones CORP al regenerar el PDF. Además `QuoteUpdate` no exponía `client_segment` y el PUT de Modificar no lo transportaba.
+**Fix (4 capas):** (a) `QuoteUpdate` += `client_segment`; (b) `update_quote` normaliza CORP/CORPORATIVO/CORPORATE→CORP y descarta valores vacíos (preserva el existente); (c) frontend Modificar PUT ahora envía `client_segment`; (d) `regenerate_quote_pdf` deriva el segmento de `client_segment` o `sede` (ya no asume PYME).
+**QA:** testing_agent iteration_238 → **backend 100% (7/7 pytest)**. Test canónico: `/app/backend/tests/test_iter238_client_segment_preserve.py`. ⚠️ PREVIEW; requiere REDEPLOY para producción.
+
+### Configuración: menús colapsables — Jul 2026
+`Settings.jsx`: "Anexos Corporativos de Cotización" convertido en menú desplegable (cerrado por defecto, carga diferida de anexos al abrir, categorías internas colapsables con contadores). Nuevo menú colapsable "Configuración General" que agrupa desde "Gestión de Footer Global" hasta "Refresco del Reporte de Embudo" (footer, remitentes, calendario, notificaciones, Otras Acciones, SLA, respaldos, usuarios conectados, refresco de embudo). Reduce carga visual. Verificado por screenshot.
+
 ### Ficha de Clientes: Modelo Jerárquico RIF Único (Principal / Sucursales) — Jul 2026
 **Requerimiento:** convertir registros independientes con el mismo RIF en una estructura Cliente Principal (matriz) + Sucursales hijas, con herencia condicional y contactos multi-nivel. Decisiones del usuario: colección `clients` plana + `parent_client_id`+`is_branch`; RIF base = RIF sanitizado idéntico; grupos sin 'Principal' promueven el más antiguo; herencia = snapshot al crear la sucursal (luego 100% editable local); alcance backend+frontend.
 - **Modelo (`models.py`):** `Client`/`ClientCreate` += `parent_client_id`, `is_branch`.
