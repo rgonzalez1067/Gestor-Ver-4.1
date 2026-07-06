@@ -7,7 +7,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zealous-chaum-8.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://integration-hub-148.preview.emergentagent.com')
 SESSION_TOKEN = "test_session_pdf_12345"
 
 @pytest.fixture

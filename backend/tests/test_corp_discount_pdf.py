@@ -21,7 +21,7 @@ import config
 from config import UPLOADS_DIR
 from pymongo import MongoClient
 
-API = os.environ.get("REACT_APP_BACKEND_URL", "https://zealous-chaum-8.preview.emergentagent.com").rstrip("/") + "/api"
+API = os.environ.get("REACT_APP_BACKEND_URL", "https://integration-hub-148.preview.emergentagent.com").rstrip("/") + "/api"
 ADMIN = {"email": "rgonzalez@megasoft.com.ve", "password": "admin123"}
 
 

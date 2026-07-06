@@ -9,7 +9,7 @@ import requests
 import os
 import io
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zealous-chaum-8.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://integration-hub-148.preview.emergentagent.com').rstrip('/')
 AUTH_HEADER = {"Authorization": "Bearer test_import_session_token_2024"}
 
 
