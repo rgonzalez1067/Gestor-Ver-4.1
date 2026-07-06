@@ -1212,18 +1212,29 @@ function FunnelRecalculateCard() {
 function CorporateAnexosCard() {
   const [anexos, setAnexos] = useState([]);
   const [uploadingKey, setUploadingKey] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [openCats, setOpenCats] = useState({});
+  const [loaded, setLoaded] = useState(false);
   const inputRefs = useRef({});
 
   const loadAnexos = async () => {
     try {
       const res = await api.get('/config/anexos');
       setAnexos(res.data?.anexos || []);
+      setLoaded(true);
     } catch {
       toast.error('No se pudieron cargar los anexos corporativos');
     }
   };
 
-  useEffect(() => { loadAnexos(); }, []);
+  // Carga diferida: solo se piden los anexos al abrir la sección (menos carga inicial)
+  const toggleOpen = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !loaded) loadAnexos();
+  };
+
+  const toggleCat = (cat) => setOpenCats((prev) => ({ ...prev, [cat]: !prev[cat] }));
 
   const uploadAnexo = async (key, fileList) => {
     const f = fileList?.[0];
@@ -1266,69 +1277,119 @@ function CorporateAnexosCard() {
     try { return new Date(iso).toLocaleString('es-VE'); } catch { return iso; }
   };
 
-  return (
-    <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="corporate-anexos-section">
-      <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1 flex items-center gap-2">
-        <FileText size={24} className="text-blue-600" />
-        Anexos Corporativos de Cotización
-      </h2>
-      <p className="text-slate-600 mb-4">
-        Actualiza los PDFs corporativos (tarifas, términos y condiciones de equipos) que se insertan
-        automáticamente en las cotizaciones, <strong>sin necesidad de un nuevo despliegue</strong>. Solo archivos PDF.
-      </p>
+  const grouped = Object.entries(anexos.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {}));
 
-      <div className="space-y-6">
-        {Object.entries(anexos.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {})).map(([cat, items]) => (
-          <div key={cat}>
-            <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 border-b border-slate-100 pb-1">{cat}</h3>
-            <div className="space-y-3">
-              {items.map((a) => (
-                <div key={a.key} className="border border-slate-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid={`anexo-row-${a.key}`}>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-800 text-sm">{a.label}</span>
-                      {a.exists ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">{a.pages || '?'} pág.</Badge>
-                      ) : (
-                        <Badge className="bg-red-100 text-red-700 border-red-200">Sin archivo</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">{a.description}</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Última actualización: {fmtDate(a.updated_at)}{a.updated_by ? ` · por ${a.updated_by}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {a.exists && (
-                      <Button size="sm" variant="outline" onClick={() => downloadAnexo(a.key, a.filename)} data-testid={`anexo-download-${a.key}`}>
-                        <Download size={16} className="mr-1.5" /> Descargar
-                      </Button>
-                    )}
-                    <input
-                      type="file"
-                      ref={(el) => { inputRefs.current[a.key] = el; }}
-                      onChange={(e) => uploadAnexo(a.key, e.target.files)}
-                      accept=".pdf,application/pdf"
-                      className="hidden"
-                      data-testid={`anexo-file-input-${a.key}`}
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => inputRefs.current[a.key]?.click()}
-                      disabled={uploadingKey === a.key}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      data-testid={`anexo-upload-${a.key}`}
-                    >
-                      <Upload size={16} className="mr-1.5" />
-                      {uploadingKey === a.key ? 'Subiendo...' : 'Reemplazar'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 mb-6 overflow-hidden" data-testid="corporate-anexos-section">
+      {/* Encabezado clicable (colapsable) */}
+      <button
+        type="button"
+        onClick={toggleOpen}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 p-6 text-left hover:bg-slate-50 transition-colors"
+        data-testid="corporate-anexos-toggle"
+      >
+        <div className="flex items-start gap-2 min-w-0">
+          <FileText size={24} className="text-blue-600 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-slate-900 font-manrope flex items-center gap-2">
+              Anexos Corporativos de Cotización
+              {loaded && anexos.length > 0 && (
+                <Badge className="bg-slate-100 text-slate-600 border-slate-200 font-normal">{anexos.length}</Badge>
+              )}
+            </h2>
+            <p className="text-slate-600 text-sm mt-0.5">
+              Actualiza los PDFs corporativos (tarifas, términos y condiciones) sin un nuevo despliegue. Solo PDF.
+            </p>
           </div>
-        ))}
-      </div>
+        </div>
+        <ChevronDown size={22} className={`text-slate-400 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Cuerpo desplegable */}
+      {open && (
+        <div className="px-6 pb-6 border-t border-slate-100 pt-4" data-testid="corporate-anexos-body">
+          {!loaded ? (
+            <div className="flex items-center justify-center py-8 text-slate-400" data-testid="corporate-anexos-loading">
+              <RefreshCw size={18} className="animate-spin mr-2" /> Cargando anexos...
+            </div>
+          ) : grouped.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4">No hay anexos configurados.</p>
+          ) : (
+            <div className="space-y-3">
+              {grouped.map(([cat, items]) => {
+                const catOpen = !!openCats[cat];
+                const configured = items.filter((i) => i.exists).length;
+                return (
+                  <div key={cat} className="border border-slate-200 rounded-lg overflow-hidden">
+                    {/* Encabezado de categoría (colapsable interno) */}
+                    <button
+                      type="button"
+                      onClick={() => toggleCat(cat)}
+                      aria-expanded={catOpen}
+                      className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+                      data-testid={`anexo-cat-toggle-${cat}`}
+                    >
+                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                        <ChevronRight size={16} className={`text-slate-400 transition-transform duration-200 ${catOpen ? 'rotate-90' : ''}`} />
+                        {cat}
+                      </span>
+                      <Badge className="bg-white text-slate-500 border-slate-200 font-normal">{configured}/{items.length}</Badge>
+                    </button>
+                    {catOpen && (
+                      <div className="p-3 space-y-3" data-testid={`anexo-cat-body-${cat}`}>
+                        {items.map((a) => (
+                          <div key={a.key} className="border border-slate-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid={`anexo-row-${a.key}`}>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-slate-800 text-sm">{a.label}</span>
+                                {a.exists ? (
+                                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">{a.pages || '?'} pág.</Badge>
+                                ) : (
+                                  <Badge className="bg-red-100 text-red-700 border-red-200">Sin archivo</Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500 mt-1">{a.description}</p>
+                              <p className="text-xs text-slate-400 mt-1">
+                                Última actualización: {fmtDate(a.updated_at)}{a.updated_by ? ` · por ${a.updated_by}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {a.exists && (
+                                <Button size="sm" variant="outline" onClick={() => downloadAnexo(a.key, a.filename)} data-testid={`anexo-download-${a.key}`}>
+                                  <Download size={16} className="mr-1.5" /> Descargar
+                                </Button>
+                              )}
+                              <input
+                                type="file"
+                                ref={(el) => { inputRefs.current[a.key] = el; }}
+                                onChange={(e) => uploadAnexo(a.key, e.target.files)}
+                                accept=".pdf,application/pdf"
+                                className="hidden"
+                                data-testid={`anexo-file-input-${a.key}`}
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => inputRefs.current[a.key]?.click()}
+                                disabled={uploadingKey === a.key}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                                data-testid={`anexo-upload-${a.key}`}
+                              >
+                                <Upload size={16} className="mr-1.5" />
+                                {uploadingKey === a.key ? 'Subiendo...' : 'Reemplazar'}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
