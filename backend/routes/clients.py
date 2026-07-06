@@ -471,11 +471,13 @@ async def get_consolidated_contacts(client_id: str, authorization: Optional[str]
 
 
 @router.post("/clients/{parent_id}/branches")
-async def create_branch(parent_id: str, client_data: ClientCreate, authorization: Optional[str] = Header(None)):
+async def create_branch(parent_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Crea una sucursal hija adscrita a un Principal. Hereda (snapshot) los campos
     operativos del Principal como valores por defecto; luego es 100% editable local.
     Los contactos del Principal NO se copian (son globales); la sucursal parte con
-    sus propios contactos locales (los que vengan en el payload, o ninguno)."""
+    sus propios contactos locales (los que vengan en el payload, o ninguno).
+    Acepta payload PARCIAL: los campos no provistos (incl. legal_name/fantasy_name)
+    se heredan del Principal."""
     await require_permission(authorization, "clientes", "edit")
 
     principal = await db.clients.find_one({"client_id": parent_id}, {"_id": 0})
@@ -488,7 +490,8 @@ async def create_branch(parent_id: str, client_data: ClientCreate, authorization
         if real:
             principal = real
 
-    sucursal = (client_data.sucursal or "").strip()
+    body = body or {}
+    sucursal = (body.get("sucursal") or "").strip()
     if not sucursal or _is_principal_sucursal(sucursal):
         raise HTTPException(status_code=400, detail="Debe indicar un nombre de sucursal distinto de 'Principal'.")
 
@@ -497,23 +500,32 @@ async def create_branch(parent_id: str, client_data: ClientCreate, authorization
     if existing:
         raise HTTPException(status_code=400, detail=f"Ya existe la sucursal '{sucursal}' para el RIF {rif}")
 
-    data = client_data.model_dump()
-    provided = client_data.model_dump(exclude_unset=True)
-    # Snapshot de herencia: campos NO provistos explícitamente (o vacíos) se heredan del Principal
+    # Snapshot de herencia: campos NO provistos (o vacíos) en el body se heredan del Principal
+    def _empty(v):
+        return v is None or v == "" or (isinstance(v, list) and len(v) == 0)
+
+    data = dict(body)
     for f in INHERITED_BRANCH_FIELDS:
-        val = provided.get(f)
-        empty = (f not in provided) or val is None or val == "" or (isinstance(val, list) and len(val) == 0)
-        if empty:
+        if f not in data or _empty(data.get(f)):
             data[f] = principal.get(f)
+    # legal_name/fantasy_name son obligatorios en el modelo → heredar si faltan
+    for req_f in ("legal_name", "fantasy_name"):
+        if _empty(data.get(req_f)):
+            data[req_f] = principal.get(req_f) or ""
     data["rif"] = rif
     data["sucursal"] = sucursal
     data["parent_client_id"] = principal["client_id"]
     data["is_branch"] = True
-    for c in data.get("contacts", []):
+    # Construir vía ClientCreate para validar/normalizar, luego promover a Client
+    branch_in = ClientCreate(**{k: v for k, v in data.items() if k in ClientCreate.model_fields})
+    branch_dict = branch_in.model_dump()
+    branch_dict["parent_client_id"] = principal["client_id"]
+    branch_dict["is_branch"] = True
+    for c in branch_dict.get("contacts", []):
         if not c.get("contact_id"):
             c["contact_id"] = f"cnt_{uuid.uuid4().hex[:8]}"
 
-    branch = Client(**data)
+    branch = Client(**branch_dict)
     doc = branch.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
     await db.clients.insert_one(doc)
