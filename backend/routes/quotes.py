@@ -919,6 +919,9 @@ class QuoteUpdate(BaseModel):
     equipment_items: Optional[List[dict]] = None
     repair_description: Optional[str] = None
     equipment_serial_number: Optional[str] = None
+    # Segmento PyME/Corporativo — debe transportarse en el flujo "Modificar"
+    # (duplicar+PUT) para que una cotización CORP no se degrade a PYME.
+    client_segment: Optional[str] = None
 
 @router.put("/quotes/{quote_id}")
 async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: Optional[str] = Header(None)):
@@ -941,6 +944,15 @@ async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: 
     for field, value in update_fields.items():
         if value is not None:
             update_data[field] = value
+
+    # Normalizar segmento si viene en el update (evita degradación a PYME por
+    # variantes 'Corporativo'/'Corp' y garantiza que CORP se conserve).
+    if update_data.get("client_segment"):
+        seg = str(update_data["client_segment"]).strip().upper()
+        update_data["client_segment"] = "CORP" if seg in ("CORP", "CORPORATIVO", "CORPORATE") else "PYME"
+    else:
+        # Nunca escribir un client_segment vacío: preservar el existente.
+        update_data.pop("client_segment", None)
     
     # Calcular total_bs si se actualizó total_usd
     if "total_usd" in update_data:
@@ -987,7 +999,10 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
         
         quote_number = quote["quote_number"]
         quote_type = quote.get("quote_type", "VPOS")
-        client_segment = quote.get("client_segment", "PYME")
+        # Segmento autoritativo: usar el almacenado; si falta, derivar de la sede
+        # de la cotización (evita degradar CORP→PYME al regenerar el PDF).
+        _seg_raw = (quote.get("client_segment") or quote.get("sede") or "").strip().upper()
+        client_segment = "CORP" if _seg_raw in ("CORP", "CORPORATIVO", "CORPORATE") else "PYME"
         services = quote.get("services", [])
         
         # Reconstruir items por tipo desde los servicios almacenados

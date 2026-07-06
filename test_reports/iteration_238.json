@@ -1,0 +1,36 @@
+{
+  "summary": "Backend-only regression for Iter238 CORP→PYME segment degradation bug. 7/7 pytest cases green against the public REACT_APP_BACKEND_URL. Validates: (1) create CORP persists as CORP; (2) duplicate + PUT WITHOUT client_segment preserves CORP (the original production bug); (3) PUT with explicit CORP persists CORP; (4) PUT with 'Corporativo' normalizes to CORP; (5) PUT without client_segment on existing CORP quote does not wipe segment; (6) regenerate-pdf keeps client_segment=CORP and returns 200; (7) PYME regression — duplicate + PUT without segment preserves PYME.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter238_client_segment_preserve.py",
+    "/app/test_reports/pytest/iter238_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "quotes.py update_quote correctly pops empty client_segment before $set (line ~955), preventing segment erasure — good defensive coding.",
+    "_resolve_client_segment normalization in create paths + update_quote normalization is duplicated logic; could be factored into a single helper reused by PUT/POST/regenerate-pdf to guarantee identical CORP/CORPORATIVO/CORPORATE handling.",
+    "regenerate_quote_pdf falls back to sede when client_segment missing — solid fallback, but if a legacy quote lacks both, it defaults to PYME. Consider logging a warning to surface data-quality issues.",
+    "duplicate_quote uses {**original_quote} which is fine for segment preservation; note it also copies quote_pdf_url before nulling it — verified fields are reset via explicit keys."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter238_client_segment_preserve.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "not tested (per request)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (used for all tests).",
+  "seed_data_creation": "Created ~10 disposable CORP/PYME quotes with prefix TEST_ITER238 during the run and deleted them via module-scoped cleanup fixture (DELETE /api/quotes/{id}).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_iter238_client_segment_preserve.py is the canonical regression for the CORP→PYME degradation bug. Note: quote items MUST include cantidad_cajas/cantidad_bancos to exercise regenerate-pdf without triggering TemplateQuotePDFRequest validation errors (initially the test failed because the service item lacked these fields — unrelated to the segment bug).",
+  "rca of the issue": "Original prod bug: QuotesTable renders segment from quote.client_segment; the 'Modificar' flow = POST /quotes/{id}/duplicate (copies client_segment via {**original_quote}) + PUT /quotes/{newId} which used a QuoteUpdate model that OMITTED client_segment. Additionally the frontend PUT did not send it, so no path degraded the field — BUT regenerate-pdf hardcoded 'PYME' as fallback which corrupted CORP quotes when they went through PDF regeneration. Fix layers: (a) QuoteUpdate now exposes client_segment; (b) update_quote normalizes CORP/CORPORATIVO→CORP and pops empty values to preserve existing segment; (c) frontend Modificar PUT now sends client_segment; (d) regenerate-pdf derives client_segment from stored quote.client_segment or sede. All four layers verified by tests 2, 3, 4, 5 and 6."
+}

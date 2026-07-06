@@ -3598,6 +3598,7 @@ export const Quotes = () => {
       await api.put(`/quotes/${newQuoteId}`, {
         quote_type: quoteData.quote_type,
         client_id: quoteData.client_id,
+        client_segment: quoteData.client_segment,
         pricing_model: quoteData.pricing_model,
         services: allServices,
         integrator_id: quoteData.integrator_id,
