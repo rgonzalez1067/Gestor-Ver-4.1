@@ -31,6 +31,7 @@ export const Settings = () => {
   const { canEdit } = usePermission('configuracion');
   const navigate = useNavigate();
   const [logoUrl, setLogoUrl] = useState(null);
+  const [generalConfigOpen, setGeneralConfigOpen] = useState(false);
   const [notifLogoUrl, setNotifLogoUrl] = useState(null);
   const [appendingSignature, setAppendingSignature] = useState(false);
   const [notifUploading, setNotifUploading] = useState(false);
@@ -729,6 +730,30 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* ===== Configuración General (menú colapsable) ===== */}
+          <div className="bg-white rounded-lg border border-slate-200 mb-6 overflow-hidden" data-testid="general-config-section">
+            <button
+              type="button"
+              onClick={() => setGeneralConfigOpen(v => !v)}
+              aria-expanded={generalConfigOpen}
+              className="w-full flex items-center justify-between gap-3 p-6 text-left hover:bg-slate-50 transition-colors"
+              data-testid="general-config-toggle"
+            >
+              <div className="flex items-start gap-2 min-w-0">
+                <Settings2 size={24} className="text-slate-700 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <h2 className="text-xl font-semibold text-slate-900 font-manrope">Configuración General</h2>
+                  <p className="text-slate-600 text-sm mt-0.5">
+                    Footer global, correos, calendario laboral, notificaciones, Otras Acciones, SLA, respaldos, usuarios conectados y refresco del embudo.
+                  </p>
+                </div>
+              </div>
+              <ChevronDown size={22} className={`text-slate-400 flex-shrink-0 transition-transform duration-200 ${generalConfigOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {generalConfigOpen && (
+          <div data-testid="general-config-body">
           {/* Pie de Página Global Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="global-footer-card">
             <div className="flex items-start justify-between gap-4">
@@ -1040,6 +1065,8 @@ export const Settings = () => {
 
           {/* Refresco del Reporte de Embudo (Admin) */}
           <FunnelRecalculateCard />
+          </div>
+          )}
 
           {/* Plantillas de Correo Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
