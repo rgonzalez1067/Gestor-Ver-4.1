@@ -75,6 +75,82 @@ def sanitize_rif(rif_raw: str) -> str:
     return re.sub(r'[^A-Za-z0-9]', '', rif_raw).upper()
 
 
+# ==================== JERARQUÍA RIF (Principal / Sucursales) ====================
+
+# Campos que una sucursal HIJA hereda (snapshot) del Principal al crearse.
+# Tras el snapshot, cada campo es editable localmente sin afectar al Principal.
+INHERITED_BRANCH_FIELDS = [
+    # Estatus y Definición Legal
+    "condicion", "legal_name", "fantasy_name", "segment",
+    # Capacidad Operativa
+    "cantidad_tiendas", "cantidad_cajas",
+    # Gestión y Soluciones
+    "tipo_servicio", "integrador_id", "integrador_name", "aplicativo",
+    "implementer_user_id", "implementer_name",
+    "coordinator_user_id", "coordinator_name", "modelo_impresora_fiscal",
+    # Dirección
+    "address", "branch_address",
+    # Información Adicional
+    "categoria_comercial", "grupo_economico",
+    "referidor", "referidor_tipo", "referidor_id", "referidor_nombre",
+    "ejecutivo_propietario", "ejecutivo_user_id",
+    "fecha_primer_contacto", "tipo_contacto",
+]
+
+
+def _is_principal_sucursal(sucursal: Optional[str]) -> bool:
+    return (sucursal or "Principal").strip().lower() == "principal"
+
+
+async def _find_principal_for_rif(rif: str, exclude_id: Optional[str] = None):
+    """Devuelve el documento Principal (matriz) para un RIF, o None si no existe."""
+    query = {"rif": rif, "$or": [{"is_branch": {"$ne": True}}, {"sucursal": {"$regex": r"^\s*principal\s*$", "$options": "i"}}]}
+    if exclude_id:
+        query["client_id"] = {"$ne": exclude_id}
+    return await db.clients.find_one(query, {"_id": 0})
+
+
+async def _derive_hierarchy(rif: str, sucursal: Optional[str], self_client_id: Optional[str] = None):
+    """Determina (parent_client_id, is_branch) para un registro según su RIF+sucursal.
+    - sucursal 'Principal' → (None, False)
+    - sucursal con nombre y existe Principal del RIF → (principal_id, True)
+    - sucursal con nombre pero aún no hay Principal → (None, False) (registro independiente)
+    """
+    if _is_principal_sucursal(sucursal):
+        return None, False
+    principal = await _find_principal_for_rif(rif, exclude_id=self_client_id)
+    if principal:
+        return principal["client_id"], True
+    return None, False
+
+
+async def _consolidated_contacts_for_client(client: dict):
+    """Contactos consolidados de un cliente: los del Principal (globales) + los
+    locales de la sucursal (si el cliente es una hija). Cada contacto lleva 'scope'
+    ('principal' | 'local') y 'sucursal'. No muta los documentos originales."""
+    principal = client
+    if client.get("is_branch") and client.get("parent_client_id"):
+        p = await db.clients.find_one({"client_id": client["parent_client_id"]}, {"_id": 0})
+        if p:
+            principal = p
+
+    out = []
+
+    def _emit(src_doc, scope):
+        for c in (src_doc.get("contacts") or []):
+            if not (c.get("email") or "").strip():
+                continue
+            item = dict(c)
+            item["scope"] = scope
+            item["sucursal"] = src_doc.get("sucursal") or "Principal"
+            out.append(item)
+
+    _emit(principal, "principal")
+    if client.get("client_id") != principal.get("client_id"):
+        _emit(client, "local")
+    return out, principal
+
+
 def parse_rif_data(text: str) -> dict:
     """Extrae RIF, razón social y dirección fiscal del texto"""
     if not text.strip():
@@ -302,6 +378,10 @@ async def create_client(client_data: ClientCreate, authorization: Optional[str] 
     for c in data.get("contacts", []):
         if not c.get("contact_id"):
             c["contact_id"] = f"cnt_{uuid.uuid4().hex[:8]}"
+    # Derivar jerarquía Principal/Sucursal por RIF
+    data["parent_client_id"], data["is_branch"] = await _derive_hierarchy(
+        client_data.rif, client_data.sucursal
+    )
     client = Client(**data)
     doc = client.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -314,6 +394,203 @@ async def get_clients(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     clients = await db.clients.find({}, {"_id": 0}).to_list(2000)
     return clients
+
+
+# ==================== ENDPOINTS DE JERARQUÍA (Principal / Sucursales) ====================
+
+def _client_brief(c: dict) -> dict:
+    return {
+        "client_id": c.get("client_id"),
+        "rif": c.get("rif"),
+        "sucursal": c.get("sucursal") or "Principal",
+        "legal_name": c.get("legal_name"),
+        "fantasy_name": c.get("fantasy_name"),
+        "condicion": c.get("condicion"),
+        "is_branch": bool(c.get("is_branch")),
+        "parent_client_id": c.get("parent_client_id"),
+        "contacts_count": len([x for x in (c.get("contacts") or []) if (x.get("email") or "").strip()]),
+    }
+
+
+@router.get("/clients/by-rif")
+async def get_clients_by_rif(rif: str = "", authorization: Optional[str] = Header(None)):
+    """Devuelve el árbol {principal, branches[]} de un RIF. Usado por el Cotizador
+    para desplegar el selector de sucursal cuando existen sucursales adscritas."""
+    await get_current_user(authorization)
+    rif_s = sanitize_rif(rif)
+    if not rif_s:
+        return {"rif": rif_s, "principal": None, "branches": [], "has_branches": False}
+    docs = await db.clients.find({"rif": rif_s}, {"_id": 0}).to_list(1000)
+    if not docs:
+        return {"rif": rif_s, "principal": None, "branches": [], "has_branches": False}
+    principal = None
+    for d in docs:
+        if not d.get("is_branch") and not d.get("parent_client_id"):
+            principal = d
+            break
+    if principal is None:
+        # Fallback: sucursal 'Principal' o el más antiguo
+        principal = next((d for d in docs if _is_principal_sucursal(d.get("sucursal"))), None)
+        if principal is None:
+            principal = sorted(docs, key=lambda x: x.get("created_at") or "")[0]
+    branches = [d for d in docs if d.get("client_id") != principal.get("client_id")]
+    branches.sort(key=lambda x: (x.get("sucursal") or "").lower())
+    return {
+        "rif": rif_s,
+        "principal": _client_brief(principal),
+        "branches": [_client_brief(b) for b in branches],
+        "has_branches": len(branches) > 0,
+    }
+
+
+@router.get("/clients/{client_id}/branches")
+async def get_client_branches(client_id: str, authorization: Optional[str] = Header(None)):
+    """Sucursales del grupo de un cliente (resuelve el Principal por RIF)."""
+    await get_current_user(authorization)
+    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0, "rif": 1})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    return await get_clients_by_rif(rif=client.get("rif", ""), authorization=authorization)
+
+
+@router.get("/clients/{client_id}/consolidated-contacts")
+async def get_consolidated_contacts(client_id: str, authorization: Optional[str] = Header(None)):
+    """Contactos elegibles para envíos: contactos del Principal (globales) +
+    contactos locales de la sucursal seleccionada (si el cliente es una hija)."""
+    await get_current_user(authorization)
+    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    contacts, principal = await _consolidated_contacts_for_client(client)
+    return {
+        "client_id": client_id,
+        "principal_client_id": principal.get("client_id"),
+        "is_branch": bool(client.get("is_branch")),
+        "contacts": contacts,
+    }
+
+
+@router.post("/clients/{parent_id}/branches")
+async def create_branch(parent_id: str, client_data: ClientCreate, authorization: Optional[str] = Header(None)):
+    """Crea una sucursal hija adscrita a un Principal. Hereda (snapshot) los campos
+    operativos del Principal como valores por defecto; luego es 100% editable local.
+    Los contactos del Principal NO se copian (son globales); la sucursal parte con
+    sus propios contactos locales (los que vengan en el payload, o ninguno)."""
+    await require_permission(authorization, "clientes", "edit")
+
+    principal = await db.clients.find_one({"client_id": parent_id}, {"_id": 0})
+    if not principal:
+        raise HTTPException(status_code=404, detail="Cliente Principal no encontrado")
+
+    # Resolver el verdadero Principal (si se pasó el id de una hija)
+    if principal.get("is_branch") and principal.get("parent_client_id"):
+        real = await db.clients.find_one({"client_id": principal["parent_client_id"]}, {"_id": 0})
+        if real:
+            principal = real
+
+    sucursal = (client_data.sucursal or "").strip()
+    if not sucursal or _is_principal_sucursal(sucursal):
+        raise HTTPException(status_code=400, detail="Debe indicar un nombre de sucursal distinto de 'Principal'.")
+
+    rif = principal.get("rif")
+    existing = await db.clients.find_one({"rif": rif, "sucursal": sucursal}, {"_id": 0, "client_id": 1})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Ya existe la sucursal '{sucursal}' para el RIF {rif}")
+
+    data = client_data.model_dump()
+    provided = client_data.model_dump(exclude_unset=True)
+    # Snapshot de herencia: campos NO provistos explícitamente (o vacíos) se heredan del Principal
+    for f in INHERITED_BRANCH_FIELDS:
+        val = provided.get(f)
+        empty = (f not in provided) or val is None or val == "" or (isinstance(val, list) and len(val) == 0)
+        if empty:
+            data[f] = principal.get(f)
+    data["rif"] = rif
+    data["sucursal"] = sucursal
+    data["parent_client_id"] = principal["client_id"]
+    data["is_branch"] = True
+    for c in data.get("contacts", []):
+        if not c.get("contact_id"):
+            c["contact_id"] = f"cnt_{uuid.uuid4().hex[:8]}"
+
+    branch = Client(**data)
+    doc = branch.model_dump()
+    doc["created_at"] = doc["created_at"].isoformat()
+    await db.clients.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@router.post("/admin/clients/migrate-hierarchy")
+async def migrate_client_hierarchy(authorization: Optional[str] = Header(None)):
+    """Migración idempotente: agrupa clientes por RIF y establece el vínculo
+    Principal/Sucursal (parent_client_id + is_branch). Si un grupo no tiene
+    'Principal', promueve el registro más antiguo."""
+    await require_permission(authorization, "clientes", "edit")
+    return await run_client_hierarchy_migration()
+
+
+async def run_client_hierarchy_migration():
+    """Lógica de migración jerárquica (reutilizable en startup y endpoint)."""
+    all_clients = await db.clients.find({}, {"_id": 0, "client_id": 1, "rif": 1, "sucursal": 1, "created_at": 1}).to_list(5000)
+    groups = {}
+    for c in all_clients:
+        groups.setdefault(c.get("rif") or "", []).append(c)
+
+    promoted = 0
+    branches_linked = 0
+    principals = 0
+    for rif, docs in groups.items():
+        if not rif:
+            continue
+        principal = next((d for d in docs if _is_principal_sucursal(d.get("sucursal"))), None)
+        if principal is None:
+            principal = sorted(docs, key=lambda x: x.get("created_at") or "")[0]
+            await db.clients.update_one(
+                {"client_id": principal["client_id"]},
+                {"$set": {"sucursal": "Principal", "is_branch": False, "parent_client_id": None}}
+            )
+            promoted += 1
+        else:
+            await db.clients.update_one(
+                {"client_id": principal["client_id"]},
+                {"$set": {"is_branch": False, "parent_client_id": None}}
+            )
+        principals += 1
+        for d in docs:
+            if d["client_id"] == principal["client_id"]:
+                continue
+            await db.clients.update_one(
+                {"client_id": d["client_id"]},
+                {"$set": {"is_branch": True, "parent_client_id": principal["client_id"]}}
+            )
+            branches_linked += 1
+
+    return {
+        "message": "Migración de jerarquía completada",
+        "groups": len(groups),
+        "principals": principals,
+        "promoted_to_principal": promoted,
+        "branches_linked": branches_linked,
+    }
+
+
+async def restore_client_hierarchy():
+    """Ejecuta la migración jerárquica UNA vez (guardada por flag en `config`).
+    Se llama en el startup en background para que Producción quede migrada
+    automáticamente tras un redeploy, sin bloquear el readiness probe."""
+    flag = await db.config.find_one({"type": "client_hierarchy_migrated"}, {"_id": 0})
+    if flag and flag.get("value") is True:
+        return
+    result = await run_client_hierarchy_migration()
+    await db.config.update_one(
+        {"type": "client_hierarchy_migrated"},
+        {"$set": {"type": "client_hierarchy_migrated", "value": True, "result": result}},
+        upsert=True,
+    )
+    logger.info(f"[startup] client hierarchy migrated: {result}")
+
+
 
 
 # ==================== DATOS DE IMPLE (edición rápida + cascada multisucursal) ====================
@@ -616,6 +893,10 @@ async def update_client(client_id: str, client_data: ClientCreate, authorization
     for c in data.get("contacts", []):
         if not c.get("contact_id"):
             c["contact_id"] = f"cnt_{uuid.uuid4().hex[:8]}"
+    # Re-derivar jerarquía (evita que un PUT sin estos campos rompa el vínculo padre/hija)
+    data["parent_client_id"], data["is_branch"] = await _derive_hierarchy(
+        client_data.rif, client_data.sucursal, self_client_id=client_id
+    )
     result = await db.clients.update_one(
         {"client_id": client_id},
         {"$set": data}
@@ -659,6 +940,14 @@ async def delete_client(client_id: str, authorization: Optional[str] = Header(No
         raise HTTPException(
             status_code=400, 
             detail=f"No se puede eliminar el cliente porque tiene {quotes_count} cotización(es) vinculada(s). Elimine primero las cotizaciones asociadas."
+        )
+
+    # No permitir eliminar un Principal que tiene sucursales adscritas
+    branches_count = await db.clients.count_documents({"parent_client_id": client_id})
+    if branches_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede eliminar el Principal porque tiene {branches_count} sucursal(es) adscrita(s). Elimine o reasigne primero las sucursales."
         )
     
     result = await db.clients.delete_one({"client_id": client_id})

@@ -513,7 +513,15 @@ export const QuoteModals = ({ ctx }) => {
                                   data-testid={`contact-checkbox-${idx}`}
                                 />
                               </td>
-                              <td className="px-3 py-2 text-slate-700 font-medium">{c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '—'}</td>
+                              <td className="px-3 py-2 text-slate-700 font-medium">
+                                {c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '—'}
+                                {c.scope === 'local' && (
+                                  <span className="ml-1.5 text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full" data-testid={`contact-scope-local-${idx}`}>Sucursal{c.sucursal ? `: ${c.sucursal}` : ''}</span>
+                                )}
+                                {c.scope === 'principal' && (
+                                  <span className="ml-1.5 text-[10px] font-semibold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded-full" data-testid={`contact-scope-principal-${idx}`}>Principal</span>
+                                )}
+                              </td>
                               <td className="px-3 py-2 text-slate-600 truncate max-w-[180px]">{c.email}</td>
                               <td className="px-3 py-2 text-slate-500">{c.role || '—'}</td>
                             </tr>

@@ -2403,7 +2403,7 @@ export const Quotes = () => {
     setContactSelectLoading(true);
     try {
       if (quote?.client_id) {
-        const res = await api.get(`/clients/${quote.client_id}`);
+        const res = await api.get(`/clients/${quote.client_id}/consolidated-contacts`);
         const contacts = (res.data?.contacts || []).filter(c => (c.email || '').includes('@'));
         setContactList(contacts);
       }

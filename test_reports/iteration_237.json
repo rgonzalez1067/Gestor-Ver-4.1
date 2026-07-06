@@ -1,0 +1,56 @@
+{
+  "summary": "Iteration 237 — E2E validación de la nueva jerarquía RIF Cliente Principal/Sucursales. Backend: 10/10 pytest cases PASS cubriendo migración idempotente, /clients/by-rif, /clients/{id}/consolidated-contacts (Principal vs hija), POST /clients/{parent_id}/branches (herencia snapshot, contactos NO copiados, cleanup DELETE), PUT sobre sucursal preserva is_branch/parent, guard DELETE de Principal con sucursales (400), y /projects/{id}/suggested-contacts. Frontend (Playwright + Chrome): Clientes muestra 18 branch-badge y 8 branch-count (Lacoste principal cli_0744288d46bf con chip +1, sucursal cli_e807e33ae011 con badge); el menú 'Agregar Sucursal' abre el diálogo con RIF bloqueado ('J-40064040-7 heredado del Principal'), datos precargados (MNF 128 GROUP C.A, Segmento Pymes, Coordinador y Cantidades del Principal), panel `inherited-contacts-panel` con EVELIN FERNANDEZ en solo lectura, botón save-client-button etiquetado 'Crear Sucursal'; Cotizaciones: al elegir Lacoste principal aparece `quote-sucursal-block` con Select mostrando 'Principal (Matriz) · Lacoste' y 'Sucursal — Tienda ODLR Puerto Ordaz · Tienda ODLR Puerto Ordaz' — la selección cambia client_id (trigger label actualizado). Modal de destinatarios en QuoteModals.jsx confirmado por code review: renderiza badges `contact-scope-principal-{i}` y `contact-scope-local-{i}` desde el shape del endpoint /consolidated-contacts. No se enviaron correos reales.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/clients/{parent_id}/branches",
+        "issue": "ClientCreate declara legal_name y fantasy_name como REQUIRED en Pydantic; el endpoint devuelve 422 antes de ejecutar el snapshot de herencia INHERITED_BRANCH_FIELDS. La spec dice que estos campos deben heredarse del Principal cuando no se envían. Frontend hoy los precarga desde el Principal (funciona), pero cualquier consumidor programático que llame el endpoint sin ellos recibe 422 en vez de un branch heredado. Fix sugerido: en /branches, aceptar payload parcial (BaseModel con Optional o body dict) o hacer legal_name/fantasy_name Optional en ClientCreate. Test que documenta el gap: test_create_branch_missing_required_pydantic_fields_returns_422. Prioridad MEDIA — no rompe el flujo UI actual pero contradice el spec."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "App shell",
+        "issues": [
+          "Hydration warning recurrente en consola: 'In HTML, <span> cannot be a child of <tbody>' y '<tr> cannot be a child of <span>'. Ocurre en varias rutas (dashboard, /clients, /quotes). No bloquea la funcionalidad pero contamina la consola y puede indicar un problema estructural en algún componente que renderiza fragments/spans dentro de una tabla. Buscar el origen: probablemente un componente Skeleton/Loader mal envuelto en un <span> dentro de <tbody>. Prioridad BAJA."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter237_client_hierarchy.py",
+    "/app/test_reports/pytest/iter237_results.xml"
+  ],
+  "action_items": [
+    "OPCIONAL: Hacer legal_name/fantasy_name Optional para el endpoint POST /clients/{parent_id}/branches (o crear un BranchCreate model separado) para que el snapshot de herencia se aplique cuando el consumidor los omita, tal como dicta la spec.",
+    "OPCIONAL: Investigar y corregir el warning de hidratación 'span cannot be a child of tbody' (probable Skeleton/Loader mal envuelto)."
+  ],
+  "critical_code_review_comments": [
+    "routes/clients.py L473-521 create_branch: la lógica de snapshot funciona bien pero corre DESPUÉS de la validación Pydantic; como ClientCreate exige legal_name/fantasy_name, el snapshot nunca se aplica a estos dos campos. La spec pide 'hereda campos del Principal cuando no se envían (ej. condicion, legal_name, segment)'. Considerar refactor: aceptar body: dict o BranchCreate con todos los campos Optional.",
+    "routes/clients.py L127-151 _consolidated_contacts_for_client: correcto. Emite scope='principal' para el doc padre y scope='local' para la hija sólo si el client actual es distinto del principal. Filtra contactos sin email (línea 141). Alineado con la spec (contactos del Principal son globales, los de la sucursal locales).",
+    "routes/clients.py L879-906 update_client: correcto — al final del PUT re-deriva parent_client_id/is_branch con _derive_hierarchy(rif, sucursal), por lo que un cliente PUT que no envíe esos campos NO rompe el vínculo padre/hija (verificado por test test_create_branch_inherits_and_local_edit_cleanup: PUT sin is_branch/parent_client_id preserva ambos). Excelente defensa.",
+    "routes/clients.py L933-958 delete_client: el guard 'branches_count = count_documents({parent_client_id: client_id})' es el criterio correcto (usa el vínculo jerárquico y no depende del nombre de sucursal). Verificado por test — DELETE Principal Lacoste devuelve 400.",
+    "routes/clients.py L524-575 run_client_hierarchy_migration: idempotente (verificado — 2 llamadas consecutivas devuelven los mismos counts). Promueve el registro más antiguo cuando el grupo no tiene 'Principal'. Buen fallback.",
+    "routes/projects.py L2564-2631 get_suggested_contacts: consolida bien Principal+sucursal con scope. Puntos correctos: (a) el 'email principal' del cliente y contactos legacy contact1/contact2 sólo se emiten para scope='Principal' (evita duplicaciones), (b) el label del contacto CRM incluye la sucursal cuando scope!='Principal'. Sugerencia menor: si el proyecto tiene client_id de una sucursal pero el Principal no existe (huérfano), scope quedará 'Principal' apuntando al propio doc de la sucursal (línea 2590 fallback). Muy edge, sólo si hay corrupción en la jerarquía.",
+    "frontend QuoteWizardDialog.jsx L418-446: el bloque quote-sucursal-block se computa desde 'clients' local buscando por RIF. Correcto según la spec ('El selector de sucursal en cotización se computa desde la lista completa de clientes por RIF'). El picker cambia quote.client_id — verificado.",
+    "frontend Clients.jsx L1466-1553: form maneja bien el modo 'Agregar Sucursal' (addingBranchParentId): panel inherited-contacts-panel visible, sección 'Contactos de esta Sucursal (locales)' aislada, save button texto 'Crear Sucursal'. RIF input con nota 'heredado del Principal' — verificado visualmente.",
+    "frontend QuoteModals.jsx L518-524: renderiza correctamente 'contact-scope-principal-{i}' (fondo indigo) y 'contact-scope-local-{i}' (fondo amber con nombre de sucursal). El shape esperado ({email, scope, sucursal}) coincide con lo que devuelve /clients/{id}/consolidated-contacts. Integración correcta."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter237_client_hierarchy.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 pytest)",
+    "frontend": "100% (Clients grid + Add Branch dialog + Quote wizard sucursal picker)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (Admin). Lacoste Principal: cli_0744288d46bf; Sucursal Lacoste: cli_e807e33ae011; RIF J-40064040-7.",
+  "seed_data_creation": "Test de Backend crea 1 branch temporal TEST_237_Sucursal_* bajo Lacoste, ejerce el flujo completo (create → verify inheritance → PUT edit branch_address → verify hierarchy preservada → verify Principal intocable → DELETE Principal debe 400 → cleanup DELETE branch). Cleanup verificado, no queda basura. UI test cancela el diálogo (sin persistir).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Suite pytest reutilizable en /app/backend/tests/test_iter237_client_hierarchy.py (JUnit: /app/test_reports/pytest/iter237_results.xml). IMPORTANTE: correr con REACT_APP_BACKEND_URL exportado (no está en el shell por defecto en el sub-agent). Datos verificados en producción: 516+ principals, 18 branches. Migración idempotente. Todos los endpoints jerárquicos funcionan.\n\nGAP conocido (no bloqueante para UI): POST /api/clients/{parent_id}/branches requiere legal_name/fantasy_name en el payload aunque la spec pide herencia; el UI lo precarga y funciona bien. Si el equipo quiere alinear al spec, ver action_items.\n\nFlujo consolidado de destinatarios NO probado end-to-end en UI porque no hay quotes existentes para Lacoste (branch o principal). Verificado por code review (QuoteModals.jsx L518-524) + backend test de /consolidated-contacts. Si se necesita validar en UI, crear una quote para cli_e807e33ae011 y abrir el modal de envío 'Seleccionar Destinatarios' (contact-select-modal); las filas deben tener badges contact-scope-principal-{i} y contact-scope-local-{i}.",
+  "rca of the issue": "No aplica (validación de feature nueva). Nota RCA del gap detectado: /clients/{parent_id}/branches usa ClientCreate como modelo Pydantic, que declara legal_name/fantasy_name obligatorios (models.py L41-42). Como la validación Pydantic corre antes del handler, el snapshot de herencia (clients.py L502-507) nunca alcanza a rellenar esos campos si el cliente omite enviarlos → 422. Mitigación: refactorizar el endpoint para aceptar un BranchCreate con Optional[str], o cambiar la firma a body: dict y construir Client(**data) tras el snapshot."
+}

@@ -70,6 +70,9 @@ class ClientCreate(BaseModel):
     contacts: List[ContactCRM] = []
     contact1: Optional[Contact] = None
     contact2: Optional[Contact] = None
+    # Jerarquía RIF: Principal (matriz) vs Sucursal (hija)
+    parent_client_id: Optional[str] = None
+    is_branch: bool = False
 
 class Client(BaseModel):
     client_id: str = Field(default_factory=lambda: f"cli_{uuid.uuid4().hex[:12]}")
@@ -106,6 +109,9 @@ class Client(BaseModel):
     contacts: List[ContactCRM] = []
     contact1: Optional[Contact] = None
     contact2: Optional[Contact] = None
+    # Jerarquía RIF: Principal (matriz) vs Sucursal (hija)
+    parent_client_id: Optional[str] = None
+    is_branch: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ImpleDataUpdate(BaseModel):

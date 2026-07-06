@@ -415,6 +415,35 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         Patrocinador: {quoteData.sponsoring_processor_name ? `${quoteData.sponsoring_processor_name} — ` : ''}{quoteData.sponsoring_bank_name}
                       </p>
                     )}
+                    {(() => {
+                      if (isMultiRif) return null;
+                      const sc = clients.find(c => c.client_id === quoteData.client_id);
+                      if (!sc) return null;
+                      const group = clients.filter(c => c.rif === sc.rif);
+                      if (group.length <= 1) return null;
+                      const principal = group.find(c => !c.is_branch && !c.parent_client_id) || group.find(c => (c.sucursal || 'Principal') === 'Principal') || group[0];
+                      const ordered = [principal, ...group.filter(c => c.client_id !== principal.client_id).sort((a, b) => (a.sucursal || '').localeCompare(b.sucursal || ''))];
+                      return (
+                        <div className="mt-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg" data-testid="quote-sucursal-block">
+                          <Label className="text-xs font-semibold text-amber-800 flex items-center gap-1 mb-1">
+                            <Building2 size={13} /> Sucursal destino <span className="text-red-500">*</span>
+                          </Label>
+                          <Select value={quoteData.client_id || ''} onValueChange={(val) => setQuoteData(prev => ({ ...prev, client_id: val }))}>
+                            <SelectTrigger className="w-full h-9 border-amber-300 bg-white" data-testid="quote-sucursal-select">
+                              <SelectValue placeholder="Seleccione la sucursal..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ordered.map(c => (
+                                <SelectItem key={c.client_id} value={c.client_id} data-testid={`quote-sucursal-option-${c.client_id}`}>
+                                  {c.is_branch ? `Sucursal — ${c.sucursal}` : 'Principal (Matriz)'} · {c.fantasy_name || c.legal_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-amber-700 mt-1">Este RIF tiene {group.length - 1} sucursal(es). Elija a cuál va dirigida la cotización.</p>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Hide Modelo/Cajas/Bancos for Payment Gateway */}

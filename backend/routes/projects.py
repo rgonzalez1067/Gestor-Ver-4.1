@@ -2577,39 +2577,58 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
         client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
         if client:
             client_label = project.get("client_name", client.get("fantasy_name", "Cliente"))
-            # Email principal del cliente (si existe)
-            if client.get("email"):
-                contacts.append({
-                    "email": client["email"],
-                    "label": client_label,
-                    "name": client_label,
-                    "contact_type": "Principal",
-                    "source": "client",
-                })
-            # Contactos CRM del cliente (array contacts)
-            for c in client.get("contacts", []):
-                if c.get("email"):
-                    name = c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or "Contacto"
-                    role = c.get("role") or c.get("contact_type") or "Otro"
+            # Consolidar: Principal (globales) + sucursal seleccionada (locales)
+            client_docs = []
+            principal = client
+            if client.get("is_branch") and client.get("parent_client_id"):
+                p = await db.clients.find_one({"client_id": client["parent_client_id"]}, {"_id": 0})
+                if p:
+                    principal = p
+                    client_docs.append((p, "Principal"))
+                    client_docs.append((client, client.get("sucursal") or "Sucursal"))
+                else:
+                    client_docs.append((client, "Principal"))
+            else:
+                client_docs.append((client, "Principal"))
+
+            for cdoc, scope_label in client_docs:
+                # Email principal del cliente (si existe) — solo del Principal
+                if cdoc.get("email") and scope_label == "Principal":
                     contacts.append({
-                        "email": c["email"],
-                        "label": name,
-                        "name": name,
-                        "contact_type": role,
+                        "email": cdoc["email"],
+                        "label": client_label,
+                        "name": client_label,
+                        "contact_type": "Principal",
                         "source": "client",
+                        "scope": scope_label,
                     })
-            # Contactos legacy (contact1, contact2)
-            for key in ["contact1", "contact2"]:
-                legacy = client.get(key)
-                if legacy and isinstance(legacy, dict) and legacy.get("email"):
-                    legacy_name = legacy.get('name', key)
-                    contacts.append({
-                        "email": legacy["email"],
-                        "label": legacy_name,
-                        "name": legacy_name,
-                        "contact_type": legacy.get("role") or "Contacto",
-                        "source": "client",
-                    })
+                # Contactos CRM (array contacts)
+                for c in cdoc.get("contacts", []):
+                    if c.get("email"):
+                        name = c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or "Contacto"
+                        role = c.get("role") or c.get("contact_type") or "Otro"
+                        contacts.append({
+                            "email": c["email"],
+                            "label": f"{name} · {scope_label}" if scope_label != "Principal" else name,
+                            "name": name,
+                            "contact_type": role,
+                            "source": "client",
+                            "scope": scope_label,
+                        })
+                # Contactos legacy (contact1, contact2) — solo del Principal
+                if scope_label == "Principal":
+                    for key in ["contact1", "contact2"]:
+                        legacy = cdoc.get(key)
+                        if legacy and isinstance(legacy, dict) and legacy.get("email"):
+                            legacy_name = legacy.get('name', key)
+                            contacts.append({
+                                "email": legacy["email"],
+                                "label": legacy_name,
+                                "name": legacy_name,
+                                "contact_type": legacy.get("role") or "Contacto",
+                                "source": "client",
+                                "scope": scope_label,
+                            })
 
     # Contactos de bancos del proyecto
     matrix = project.get("implementation_matrix", {})

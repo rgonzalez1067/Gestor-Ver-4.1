@@ -354,6 +354,13 @@ async def create_indexes():
         except Exception as e:
             logging.warning(f"Object storage init failed (images will not work): {e}")
 
+        # Migración jerárquica de clientes (Principal/Sucursales) — idempotente, guardada por flag
+        try:
+            from routes.clients import restore_client_hierarchy
+            await restore_client_hierarchy()
+        except Exception as e:
+            logging.warning(f"[startup] client hierarchy migration failed: {e}")
+
         # Sincronizar plantillas de correo por defecto a MongoDB (sin sobreescribir las editadas)
         try:
             from routes.seed_and_templates import generate_email_templates_by_sede

@@ -13,7 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Textarea } from '../components/ui/textarea';
 import { ClientBusinessSummary } from '../components/ClientBusinessSummary';
 import DebouncedInput from '../components/DebouncedInput';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout, Check, ChevronsUpDown, Briefcase } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout, Check, ChevronsUpDown, Briefcase, Users, Building2, GitBranch } from 'lucide-react';
 import api from '../utils/api';
 import { formatRif } from '../utils/rifFormatter';
 import { toast } from 'sonner';
@@ -53,6 +53,7 @@ export const Clients = () => {
   const [categoriasComerciales, setCategoriasComerciales] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const [addingBranchParentId, setAddingBranchParentId] = useState(null);
   const [clientDialogTab, setClientDialogTab] = useState('data');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteClientData, setDeleteClientData] = useState({ id: null, name: null });
@@ -274,6 +275,13 @@ export const Clients = () => {
       if (editingClient) {
         await api.put(`/clients/${editingClient.client_id}`, payload);
         toast.success('Cliente actualizado exitosamente');
+      } else if (addingBranchParentId) {
+        if (!(payload.sucursal || '').trim() || (payload.sucursal || '').trim().toLowerCase() === 'principal') {
+          toast.error("Indique un nombre de sucursal distinto de 'Principal'");
+          return;
+        }
+        await api.post(`/clients/${addingBranchParentId}/branches`, payload);
+        toast.success('Sucursal creada exitosamente (heredó datos del Principal)');
       } else {
         await api.post('/clients', payload);
         toast.success('Cliente creado exitosamente');
@@ -399,7 +407,52 @@ export const Clients = () => {
       contacts: [emptyContact()]
     });
     setEditingClient(null);
+    setAddingBranchParentId(null);
     setBitacoraInicioText('');
+  };
+
+  // Agregar Sucursal: crea una hija que HEREDA (snapshot) los datos del Principal.
+  // El RIF queda bloqueado (mismo del Principal); la sucursal parte SIN contactos
+  // (los del Principal son globales y se muestran read-only en la pestaña Contactos).
+  const openAddBranchDialog = (principal) => {
+    setEditingClient(null);
+    setAddingBranchParentId(principal.client_id);
+    setClientDialogTab('data');
+    setFormData({
+      rif: principal.rif || '',
+      legal_name: principal.legal_name || '',
+      fantasy_name: '',
+      segment: principal.segment || 'Pymes',
+      condicion: principal.condicion || 'Prospecto',
+      referidor: principal.referidor || '',
+      referidor_tipo: principal.referidor_tipo || '',
+      referidor_id: principal.referidor_id || '',
+      referidor_nombre: principal.referidor_nombre || '',
+      address: principal.address || '',
+      branch_address: '',
+      categoria_comercial: principal.categoria_comercial || '',
+      sucursal: '',
+      grupo_economico: principal.grupo_economico || '',
+      ejecutivo_propietario: principal.ejecutivo_propietario || '',
+      ejecutivo_user_id: principal.ejecutivo_user_id || '',
+      cantidad_tiendas: principal.cantidad_tiendas ?? '',
+      cantidad_cajas: principal.cantidad_cajas ?? '',
+      coordinator_user_id: principal.coordinator_user_id || '',
+      coordinator_name: principal.coordinator_name || '',
+      implementer_user_id: principal.implementer_user_id || '',
+      implementer_name: principal.implementer_name || '',
+      fecha_primer_contacto: principal.fecha_primer_contacto || '',
+      tipo_contacto: principal.tipo_contacto || '',
+      tipo_servicio: principal.tipo_servicio || [],
+      integrador_id: principal.integrador_id || '',
+      integrador_name: principal.integrador_name || '',
+      aplicativo: principal.aplicativo || '',
+      modelo_impresora_fiscal: principal.modelo_impresora_fiscal || '',
+      additional_info: principal.additional_info || '',
+      contacts: [emptyContact()]
+    });
+    setDialogOpen(true);
+    toast.info(`Nueva sucursal para ${principal.fantasy_name || principal.legal_name}. Los datos se heredaron del Principal (editables). Indique el nombre de la sucursal.`);
   };
 
   // Duplicar cliente: pre-carga todos los datos excepto identificadores únicos
@@ -978,10 +1031,11 @@ export const Clients = () => {
                           </Select>
                         </div>
                         <div>
-                          <Label className="text-xs">RIF</Label>
+                          <Label className="text-xs">RIF{addingBranchParentId && <span className="ml-1 text-[10px] text-indigo-600">(heredado del Principal)</span>}</Label>
                           <DebouncedInput data-testid="client-rif-input" value={formData.rif}
                             onCommit={(v) => { setFormData(prev => ({ ...prev, rif: v })); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; }); }}
-                            className={`h-9 font-mono ${rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
+                            disabled={!!addingBranchParentId}
+                            className={`h-9 font-mono ${addingBranchParentId ? 'bg-slate-100 text-slate-500' : ''} ${rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
                             placeholder="J000000000" required />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -1236,10 +1290,10 @@ export const Clients = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <Label className="text-xs">Nombre de Sucursal</Label>
+                            <Label className="text-xs">Nombre de Sucursal{addingBranchParentId && <span className="ml-1 text-red-500">*</span>}</Label>
                             <DebouncedInput data-testid="client-sucursal-input" value={formData.sucursal}
                               onCommit={(v) => setFormData(prev => ({ ...prev, sucursal: v }))}
-                              className="h-9" placeholder="Sede Principal" required />
+                              className={`h-9 ${addingBranchParentId ? 'border-amber-400 ring-1 ring-amber-200' : ''}`} placeholder={addingBranchParentId ? 'Ej: Sucursal Las Mercedes' : 'Sede Principal'} required />
                           </div>
                         </div>
                         <div>
@@ -1410,12 +1464,47 @@ export const Clients = () => {
 
                     {/* === CONTACTOS === */}
                     <div className="border-t pt-4">
+                      {(() => {
+                        const isBranchCtx = !!addingBranchParentId || !!(editingClient && editingClient.is_branch);
+                        if (!isBranchCtx) return null;
+                        const principalId = addingBranchParentId || editingClient?.parent_client_id;
+                        const principalDoc = principalId ? clients.find(c => c.client_id === principalId) : null;
+                        const inherited = (principalDoc?.contacts || []).filter(c => (c.email || '').trim() || (c.full_name || '').trim());
+                        return (
+                          <div className="mb-4 p-3 bg-indigo-50/60 border border-indigo-200 rounded-lg" data-testid="inherited-contacts-panel">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Users size={14} className="text-indigo-600" />
+                              <h4 className="text-xs font-semibold uppercase tracking-wider text-indigo-700">Contactos Globales del Principal (solo lectura)</h4>
+                            </div>
+                            <p className="text-[11px] text-indigo-600/80 mb-2">Estos contactos pertenecen al cliente Principal y están disponibles automáticamente para todas sus sucursales. Se editan únicamente desde la ficha del Principal.</p>
+                            {inherited.length === 0 ? (
+                              <p className="text-xs text-slate-400 italic" data-testid="inherited-contacts-empty">El Principal no tiene contactos registrados.</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {inherited.map((c, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs text-slate-600 bg-white/70 rounded px-2 py-1" data-testid={`inherited-contact-${i}`}>
+                                    <span className="font-medium text-slate-700">{c.full_name || '—'}</span>
+                                    <span className="text-slate-400">·</span>
+                                    <span>{c.email || 's/correo'}</span>
+                                    {c.role && <span className="ml-auto text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">{c.role}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold text-sm uppercase tracking-wider text-slate-700">Contactos</h3>
+                        <h3 className="font-semibold text-sm uppercase tracking-wider text-slate-700">
+                          {(addingBranchParentId || (editingClient && editingClient.is_branch)) ? 'Contactos de esta Sucursal (locales)' : 'Contactos'}
+                        </h3>
                         <Button type="button" size="sm" variant="outline" onClick={addContact} data-testid="add-contact-btn">
                           <UserPlus size={14} className="mr-1" />Agregar
                         </Button>
                       </div>
+                      {(addingBranchParentId || (editingClient && editingClient.is_branch)) && (
+                        <p className="text-[11px] text-amber-700 mb-2" data-testid="local-contacts-hint">Los contactos que agregue aquí son exclusivos de esta sucursal (no se comparten con el Principal ni con otras sucursales).</p>
+                      )}
                       {formData.contacts.map((contact, idx) => (
                         <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end p-2.5 bg-slate-50 rounded-lg border" data-testid={`contact-row-${idx}`}>
                           <div className="col-span-3">
@@ -1457,7 +1546,7 @@ export const Clients = () => {
                     <div className="flex justify-end gap-3 pt-2">
                       <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>Cancelar</Button>
                       <Button type="submit" data-testid="save-client-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
-                        {editingClient ? 'Actualizar' : 'Guardar'}
+                        {editingClient ? 'Actualizar' : (addingBranchParentId ? 'Crear Sucursal' : 'Guardar')}
                       </Button>
                     </div>
                   </form>
@@ -1522,6 +1611,7 @@ export const Clients = () => {
                 {filtered.map((client) => {
                   const mainContact = client.contacts?.[0] || null;
                   const legacyContact = client.contact1;
+                  const branchCount = clients.filter(c => c.parent_client_id === client.client_id).length;
                   return (
                     <tr key={client.client_id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 text-sm font-mono text-slate-700 whitespace-nowrap">
@@ -1532,7 +1622,20 @@ export const Clients = () => {
                             }`}>{client.condicion}</span>
                           )}
                         </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{client.sucursal || 'Principal'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600">
+                        {client.is_branch ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded bg-amber-50 text-amber-700 border border-amber-200" data-testid={`branch-badge-${client.client_id}`} title="Sucursal (hija)">
+                            <GitBranch size={11} /> {client.sucursal || 'Sucursal'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1" data-testid={`principal-cell-${client.client_id}`}>
+                            {client.sucursal || 'Principal'}
+                            {branchCount > 0 && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-indigo-100 text-indigo-700" title="Sucursales adscritas" data-testid={`branch-count-${client.client_id}`}>+{branchCount}</span>
+                            )}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm font-medium text-slate-900 max-w-[200px] truncate" title={client.legal_name}>{client.legal_name}</td>
                       <td className="px-4 py-3 text-sm text-slate-600 max-w-[180px] truncate" title={client.fantasy_name}>{client.fantasy_name}</td>
                       <td className="px-4 py-3">
@@ -1585,6 +1688,9 @@ export const Clients = () => {
                               </DropdownMenuItem>
                               {canEdit && <DropdownMenuItem onSelect={() => duplicateClient(client)} className="cursor-pointer">
                                 <Copy size={14} className="mr-2 text-blue-500" /> Duplicar Cliente
+                              </DropdownMenuItem>}
+                              {canEdit && !client.is_branch && <DropdownMenuItem onSelect={() => openAddBranchDialog(client)} className="cursor-pointer" data-testid={`add-branch-${client.client_id}`}>
+                                <GitBranch size={14} className="mr-2 text-amber-600" /> Agregar Sucursal
                               </DropdownMenuItem>}
                               {canEdit && <><DropdownMenuSeparator />
                               <DropdownMenuItem onSelect={() => handleDelete(client.client_id)}
