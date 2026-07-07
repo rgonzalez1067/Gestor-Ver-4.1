@@ -177,8 +177,10 @@ class QuoteCreateWithPDF(BaseModel):
     requires_vpn: bool = False
     # Tipo de Comunicación (conectividad): "VPN" | "SSL" | "NO_APLICA".
     communication_type: Optional[str] = None
-    # Segmento de cliente
-    client_segment: str = "PYME"
+    # Segmento de cliente. None por defecto: si el consumidor NO lo envía, el
+    # backend cae al fallback user_sede (ver L447). Un default 'PYME' truthy
+    # rompería ese fallback (era la trampa latente del bug PG/Link de Pago).
+    client_segment: Optional[str] = None
     # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
     branch_details: List[dict] = []  # [{store_name: str, quantity: int}]
     # VPOS Multi-RIF
