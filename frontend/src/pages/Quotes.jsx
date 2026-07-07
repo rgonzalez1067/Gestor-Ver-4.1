@@ -1783,6 +1783,7 @@ export const Quotes = () => {
         client_id: quoteData.client_id,
         quote_category: 'implementation',
         quote_type: quoteData.quote_type || 'GATEWAY',
+        client_segment: quoteData.client_segment || 'PYME',
         link_pago_variant: quoteData.link_pago_variant || 'link_pago',
         pricing_model: 'conventional',
         services: [],

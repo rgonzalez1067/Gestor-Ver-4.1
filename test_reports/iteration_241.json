@@ -1,0 +1,53 @@
+{
+  "summary": "Iter241 — Regresión backend + spot-check frontend del BUG FIX: handleSubmitPGQuote en Quotes.jsx ahora envía client_segment en el payload de POST /api/quotes/create-with-pdf. Backend: 8/8 pytest cases green contra REACT_APP_BACKEND_URL. Se valida que (1) GATEWAY + client_segment=CORP -> persiste CORP; (2) LINK_PAGO + CORP -> CORP; (3) GATEWAY + PYME -> PYME; (4) admin (sede=TBP) sin client_segment -> PYME (normalización estricta); (5) OBSERVACIÓN: corp user (sede=CORP) SIN client_segment -> PYME por el default 'PYME' del pydantic QuoteCreateWithPDF (el fallback 'or user_sede' es CÓDIGO MUERTO para este endpoint porque el default de pydantic siempre gana sobre None); (6) VPOS con CORP mantiene CORP (regresión); (7) mmartin (Ventas Corporativas) VE la cotización PG-CORP recién creada por ella misma en GET /api/quotes (rama de visibilidad por creator_departamento OK); (8) cotización creada por admin con segmento CORP guarda CORP. Frontend spot-check (Playwright): login mmartin@ (contraseña reseteada por el agente); menú 'Implementaciones' abre → click 'new-impl-corp' → wizard 'Nueva Implementación' se renderiza con badge 'Corporativo' visible → confirma que openWizard('CORP') setea correctamente quoteData.client_segment='CORP' antes del submit. TODAS las cotizaciones creadas por los tests fueron eliminadas (DELETE); leftover count en DB = 0.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/quotes/create-with-pdf",
+        "issue": "QuoteCreateWithPDF.client_segment tiene default 'PYME' en pydantic (models.py-inline L181 de routes/quotes.py). Combinado con `data.client_segment or user_sede` (L447), el fallback a user_sede es CÓDIGO MUERTO: cuando el frontend omite el campo, pydantic pone 'PYME' (truthy) y NUNCA se activa el fallback. Esto explica exactamente el bug original en prod. El fix actual del frontend (siempre enviar client_segment) hace que este camino ya no aplique, pero el default pydantic sigue siendo una trampa latente. Sugerencia: cambiar el default a Optional[str] = None y ajustar L447 a `data.client_segment or user_sede` (que ya está escrito pensando en None). Alternativamente eliminar el fallback y confiar 100% en el frontend."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Quotes.jsx / QuotesTable",
+        "issues": [
+          "Warning de hidratación en consola: '<tr> cannot be a child of <span>' y '<span> cannot be a child of <tbody>'. Un <span data-ve-dynamic='true' style='display:contents'> está envolviendo filas <tr> dentro del <tbody>. No bloquea funcionalidad, pero React reporta hydration error. Localizar y remover el wrapper <span> del render de filas de QuotesTable (~L322-348)."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter241_pg_client_segment_corp.py",
+    "/app/test_reports/pytest/iter241_results.xml"
+  ],
+  "action_items": [
+    "[Menor/latente] Endurecer el default de QuoteCreateWithPDF.client_segment: cambiar `client_segment: str = 'PYME'` a `client_segment: Optional[str] = None` en /app/backend/routes/quotes.py L181 para que el fallback `data.client_segment or user_sede` (L447) funcione realmente. Actualmente el fallback documentado en la especificación es código muerto.",
+    "[Menor/UX] Reparar hydration warning en QuotesTable (span envolviendo tr) para eliminar el ruido en consola.",
+    "[QA] Password de mmartin@megasoft.com.ve y mposligua@megasoft.com.ve estaban desincronizadas en el entorno; el agente las reseteó a Test1234! vía hash_password directo en mongo para poder loguear."
+  ],
+  "critical_code_review_comments": [
+    "El fix del frontend (Quotes.jsx L1786) es exactamente 1 línea añadida al payload PG/LP: `client_segment: quoteData.client_segment || 'PYME'`. openWizard(segment) fija quoteData.client_segment=segment, así que el menú CORP/PYME es autoritativo. Fix correcto y quirúrgico.",
+    "TRAMPA LATENTE (backend): el default pydantic 'PYME' en QuoteCreateWithPDF hace que el fallback a user_sede documentado NUNCA se active desde /create-with-pdf. La única razón por la que el fix funciona es que el frontend AHORA sí envía el segmento; si otro consumidor (mobile, integración) olvida enviarlo, degrada silenciosamente a PYME. Riesgo bajo pero real; se sugiere cambio a Optional[str]=None.",
+    "_resolve_client_segment normaliza estrictamente a CORP solo si el valor entra en {CORP, CORPORATIVO, CORPORATE}. Cualquier otro (incluido 'TBP', que es la sede real del admin) cae a PYME. Consistente con la política 'la opción del menú manda'.",
+    "quotes.py L447 crea la cotización con el segmento resuelto; L285 (create-with-pdf con datos hidratados) y L357-358 (PG genesis path) también aplican append_quote_static_pages con resolved_seg. Coherente en las 3 rutas de generación de PDF.",
+    "Visibilidad Ventas Corporativas: _dept_visibility_or (L516) usa el snapshot inmutable creator_departamento; probado que mmartin ve su propia cotización PG-CORP en /api/quotes (test 07)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter241_pg_client_segment_corp.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8)",
+    "frontend": "spot-check OK — badge 'Corporativo' visible al abrir wizard vía new-impl-corp; login mmartin OK; sin flujo completo de submit por complejidad del wizard PG (client search + integrator + setup items + medios de pago). El submit está cubierto indirectamente por los tests backend 07 y 08 que golpean el mismo endpoint que el frontend."
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123. Corp: mmartin@megasoft.com.ve / Test1234! (password reseteado vía backend hash_password). Corp secundario: mposligua@megasoft.com.ve / Test1234! (también reseteado).",
+  "seed_data_creation": "Durante el test se crearon ~9 cotizaciones (mix de GATEWAY/LINK_PAGO/VPOS, CORP/PYME) con notes prefijo 'TEST_ITER241' y todas se eliminaron en el teardown módulo autouse. Verificado post-run: 0 documentos con TEST_ITER241 en db.quotes.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test canónico: /app/backend/tests/test_iter241_pg_client_segment_corp.py. Puntos importantes: (1) mmartin/mposligua tienen contraseña Test1234! en preview (reseteada por Iter241; también estaba reseteada en Iter239 pero volvió a desincronizarse). (2) POST /quotes/create-with-pdf requiere pdf_data (aunque sea minimal) o el PDF no se genera pero el quote SÍ se guarda. (3) QuoteItem.services requiere 'item_name' (no 'name') y 'item_type' válido ('setup'/'additional'/etc.). (4) El default pydantic 'PYME' es una trampa: si un test necesita simular fallback real user_sede, hay que enviar client_segment='' (string vacío, que es falsy) o modificar el modelo. (5) mmartin/mposligua tienen sede=CORP y departamento='Ventas Corporativas'; sus cotizaciones tienen creator_departamento='Ventas Corporativas' y son visibles para el equipo Corp completo (rama _dept_visibility_or). (6) El endpoint responde con {quote, pdf_url, message} — el quote_id está en response['quote']['quote_id'].",
+  "rca of the issue": "BUG ORIGINAL EN PROD: en producción los usuarios de Ventas Corporativas tenían sede != 'CORP' (probablemente 'PYME' o 'TBP' migrado desde legacy) por lo que el fallback `user_sede` degradaba a PYME. En preview la sede está corregida a 'CORP', pero como el pydantic default de client_segment='PYME' es TRUTHY, el fallback nunca se activaba y siempre quedaba 'PYME' regardless. Doble bug apilado: (a) frontend no enviaba client_segment, (b) el fallback backend está roto por default pydantic. FIX APLICADO POR EL AGENTE: el frontend AHORA envía client_segment (Quotes.jsx L1786), lo que hace que el default pydantic no importe y el backend guarde el valor del menú CORP/PYME. VERIFICACIÓN: backend tests 01-03 confirman que enviando client_segment explícito el backend lo guarda idéntico; test 07 confirma que la cotización aparece en el listado de mmartin (visibilidad OK). El bug queda cerrado. Se recomienda además cerrar la trampa latente cambiando el default pydantic a None (acción de bajo riesgo, no bloquea el fix)."
+}
