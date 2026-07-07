@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, RefreshCw, Wifi, Building2, Shield } from 'lucide-react';
+import { ArrowLeft, Users, RefreshCw, Wifi, Building2, Shield, MessageSquare } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import DirectMessageComposer from '../components/DirectMessageComposer';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -19,6 +20,7 @@ export default function ConnectedUsers() {
   const [data, setData] = useState({ items: [], total_users: 0, total_connections: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -67,9 +69,14 @@ export default function ConnectedUsers() {
                   <p className="text-xs text-indigo-100">Sesiones activas en tiempo real (auto-refresh cada 15s)</p>
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing} className="text-white hover:bg-white/15 hover:text-white" data-testid="refresh-connected-btn">
-                <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button onClick={() => setComposerOpen(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-white gap-1.5 mr-1" data-testid="open-direct-message-btn">
+                  <MessageSquare size={14} /> Enviar Mensaje Directo
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing} className="text-white hover:bg-white/15 hover:text-white" data-testid="refresh-connected-btn">
+                  <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+                </Button>
+              </div>
             </div>
 
             {/* Métricas */}
@@ -144,6 +151,7 @@ export default function ConnectedUsers() {
           </div>
         </div>
       </main>
+      <DirectMessageComposer open={composerOpen} onOpenChange={setComposerOpen} connectedUsers={data.items} />
     </div>
   );
 }

@@ -58,6 +58,12 @@ export default function useNotifications() {
       ws.onopen = () => {
         setConnected(true);
         reconnectAttemptsRef.current = 0;
+        // Heartbeat: ping cada 30s para que el backend detecte y purgue
+        // "usuarios fantasma" (TTL 90s) si la pestaña se cierra abruptamente.
+        try { ws.send('ping'); } catch (e) { /* noop */ }
+        ws._hb = setInterval(() => {
+          try { if (ws.readyState === 1) ws.send('ping'); } catch (e) { /* noop */ }
+        }, 30000);
       };
 
       ws.onmessage = (ev) => {
@@ -67,6 +73,10 @@ export default function useNotifications() {
             setItems((prev) => [msg.payload, ...prev].slice(0, 100));
             setUnread((u) => u + 1);
             if (onIncomingRef.current) onIncomingRef.current(msg.payload);
+          } else if (msg.type === 'direct_message' && msg.payload) {
+            // Mensaje directo del Administrador: se maneja globalmente
+            // (toast para 'low'; modal bloqueante para 'medium'/'high').
+            window.dispatchEvent(new CustomEvent('direct-message', { detail: msg.payload }));
           } else if (msg.type === 'internal_message' && msg.payload) {
             // Mensaje interno (Centro de Mensajes): no entra a la lista de notificaciones
             // del sistema, solo dispara la alerta intensa.
@@ -87,6 +97,7 @@ export default function useNotifications() {
 
       ws.onclose = () => {
         setConnected(false);
+        try { if (wsRef.current && wsRef.current._hb) clearInterval(wsRef.current._hb); } catch (e) { /* noop */ }
         wsRef.current = null;
         if (unmountedRef.current) return;
         // Backoff exponencial, máximo 3 intentos antes de hacer fallback a polling

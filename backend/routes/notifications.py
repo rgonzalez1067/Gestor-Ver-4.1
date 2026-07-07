@@ -184,9 +184,10 @@ async def websocket_notifications(websocket: WebSocket, user_id: str, token: Opt
         # Enviar un "hello" para que el cliente sepa que conectó
         await websocket.send_json({"type": "hello", "user_id": user_id})
         while True:
-            # Mantener viva la conexión; cliente puede enviar pings
+            # Mantener viva la conexión; cliente envía 'ping' cada ~30s (heartbeat)
             msg = await websocket.receive_text()
             if msg == "ping":
+                manager.touch(websocket)
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
         pass

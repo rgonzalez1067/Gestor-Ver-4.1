@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { Toaster } from 'sonner';
 import { UnreadMessagesProvider, useUnreadMessages } from './context/UnreadMessagesContext';
 import { GlobalUnreadBanner } from './components/GlobalUnreadBanner';
+import DirectMessageAlert from './components/DirectMessageAlert';
 import Auth from './pages/Auth';
 import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
@@ -287,6 +288,7 @@ function App() {
         <UnreadMessagesProvider>
           <AppRouter />
           <GlobalUnreadBanner />
+          <DirectMessageAlert />
           <AppToaster />
         </UnreadMessagesProvider>
       </BrowserRouter>

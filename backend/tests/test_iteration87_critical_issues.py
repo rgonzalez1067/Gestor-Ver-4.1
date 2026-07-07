@@ -6,7 +6,7 @@ Iteration 87 - Testing 3 Critical Issues:
 3. RIF normalization (sanitize_rif removes hyphens, spaces, special chars)
 
 Test Credentials: admin@gestor.com / Admin2026!
-Base URL: https://integration-hub-148.preview.emergentagent.com
+Base URL: https://heartbeat-clean.preview.emergentagent.com
 """
 import pytest
 import requests
@@ -15,7 +15,7 @@ import time
 import uuid
 
 # Base URL from environment variable
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://integration-hub-148.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://heartbeat-clean.preview.emergentagent.com').rstrip('/')
 
 
 @pytest.fixture(scope="module")

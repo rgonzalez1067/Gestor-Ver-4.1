@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
@@ -144,12 +145,16 @@ class ConnectionManager:
 
     def __init__(self):
         self._active: Dict[str, Set[WebSocket]] = {}
+        # Último heartbeat por socket (time.monotonic()). Permite detectar y
+        # purgar "usuarios fantasma" (sockets colgados sin cierre limpio).
+        self._last_seen: Dict[WebSocket, float] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self, user_id: str, websocket: WebSocket) -> None:
         await websocket.accept()
         async with self._lock:
             self._active.setdefault(user_id, set()).add(websocket)
+            self._last_seen[websocket] = time.monotonic()
         logger.info(f"[WS] Connected user={user_id} total={self._count()}")
 
     async def disconnect(self, user_id: str, websocket: WebSocket) -> None:
@@ -159,7 +164,39 @@ class ConnectionManager:
                 conns.discard(websocket)
                 if not conns:
                     self._active.pop(user_id, None)
+            self._last_seen.pop(websocket, None)
         logger.info(f"[WS] Disconnected user={user_id} total={self._count()}")
+
+    def touch(self, websocket: WebSocket) -> None:
+        """Registra el heartbeat de un socket (llamado al recibir 'ping')."""
+        self._last_seen[websocket] = time.monotonic()
+
+    async def reap_stale(self, ttl_seconds: int = 90) -> int:
+        """Purga sockets sin heartbeat en > ttl_seconds (usuarios fantasma).
+        Cierra el socket y lo elimina del registro. Retorna cuántos purgó."""
+        now = time.monotonic()
+        stale = []  # (user_id, websocket)
+        async with self._lock:
+            for uid, conns in list(self._active.items()):
+                for ws in list(conns):
+                    last = self._last_seen.get(ws, 0)
+                    if now - last > ttl_seconds:
+                        stale.append((uid, ws))
+            for uid, ws in stale:
+                conns = self._active.get(uid)
+                if conns:
+                    conns.discard(ws)
+                    if not conns:
+                        self._active.pop(uid, None)
+                self._last_seen.pop(ws, None)
+        for _, ws in stale:
+            try:
+                await ws.close(code=4408, reason="heartbeat timeout")
+            except Exception:  # noqa: BLE001
+                pass
+        if stale:
+            logger.info(f"[WS] reaped {len(stale)} ghost socket(s) total={self._count()}")
+        return len(stale)
 
     def _count(self) -> int:
         return sum(len(v) for v in self._active.values())
@@ -261,6 +298,42 @@ def stop_ws_dispatcher() -> None:
     _ws_dispatch_stop = True
     if _ws_dispatch_task is not None:
         _ws_dispatch_task.cancel()
+
+
+# ==================== Heartbeat Reaper (limpieza de fantasmas) ====================
+# Cada 30s purga sockets que no enviaron 'ping' en > 90s (pestaña cerrada de
+# forma abrupta, pérdida de red, etc.), manteniendo la grilla de "Usuarios
+# Conectados" sincronizada con el estado real.
+
+WS_REAP_INTERVAL = 30       # segundos entre barridos
+WS_HEARTBEAT_TTL = 90       # tolerancia sin heartbeat antes de dar de baja
+_ws_reaper_task: Optional["asyncio.Task"] = None
+_ws_reaper_stop = False
+
+
+async def _ws_reaper_loop() -> None:
+    logger.info("[WS] reaper de heartbeat iniciado")
+    while not _ws_reaper_stop:
+        await asyncio.sleep(WS_REAP_INTERVAL)
+        try:
+            await manager.reap_stale(WS_HEARTBEAT_TTL)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[WS] reaper error: {e}")
+    logger.info("[WS] reaper de heartbeat detenido")
+
+
+def start_ws_reaper() -> None:
+    global _ws_reaper_task, _ws_reaper_stop
+    _ws_reaper_stop = False
+    if _ws_reaper_task is None or _ws_reaper_task.done():
+        _ws_reaper_task = asyncio.create_task(_ws_reaper_loop())
+
+
+def stop_ws_reaper() -> None:
+    global _ws_reaper_stop
+    _ws_reaper_stop = True
+    if _ws_reaper_task is not None:
+        _ws_reaper_task.cancel()
 
 
 # ==================== Config helpers ====================

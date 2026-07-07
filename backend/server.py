@@ -58,7 +58,7 @@ from routes.inbox import router as inbox_router
 from routes.connected_users import router as connected_users_router
 from routes.other_actions_config import router as other_actions_router
 from services.notification_scheduler import start_scheduler, stop_scheduler
-from services.notification_service import start_ws_dispatcher, stop_ws_dispatcher
+from services.notification_service import start_ws_dispatcher, stop_ws_dispatcher, start_ws_reaper, stop_ws_reaper
 
 app = FastAPI(title="Cotizador Merchant Server API")
 
@@ -70,6 +70,7 @@ async def _on_startup():
         logging.warning(f"[startup] scheduler failed: {e}")
     try:
         start_ws_dispatcher()
+        start_ws_reaper()
     except Exception as e:
         logging.warning(f"[startup] ws dispatcher failed: {e}")
     try:
@@ -86,6 +87,7 @@ async def _on_shutdown():
         logging.warning(f"[shutdown] scheduler failed: {e}")
     try:
         stop_ws_dispatcher()
+        stop_ws_reaper()
     except Exception as e:
         logging.warning(f"[shutdown] ws dispatcher failed: {e}")
 
