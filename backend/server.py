@@ -78,6 +78,12 @@ async def _on_startup():
         await restore_corporate_anexos()
     except Exception as e:
         logging.warning(f"[startup] restore_corporate_anexos failed: {e}")
+    try:
+        # Precargar snapshot de feriados para el fallback síncrono del generador de PDF.
+        from services.business_calendar import get_holiday_sets
+        await get_holiday_sets()
+    except Exception as e:
+        logging.warning(f"[startup] holiday snapshot warmup failed: {e}")
 
 @app.on_event("shutdown")
 async def _on_shutdown():

@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Feature CERTIFICADA: Fecha de Vencimiento en portada de Cotizaciones (Implementaciones)
+
+- **Requerimiento:** agregar "FECHA DE VENCIMIENTO" en la portada de las cotizaciones comerciales, justo debajo de "FECHA DE EMISIÓN", mismo estilo, formato DD/MM/AAAA. Cálculo: emisión + 15 días hábiles (exclusivo, el día de emisión no cuenta), excluyendo fines de semana y feriados de `db.holidays`. Eliminar el punto "Vigencia de la Propuesta" de Términos y Condiciones.
+- **Backend `business_calendar.py`:** nuevo `add_business_days_after(start, n, specific, recurring)` (exclusivo), `compute_expiry_date(start, n=15)` async, snapshot síncrono `get_cached_holiday_sets()`. Validado: Lun 01/09/2025→Lun 22/09/2025; con feriado 22/09→Mar 23/09.
+- **Backend `pdf_generator.py`:** `TemplateQuotePDFRequest.fecha_vencimiento`; `_build_modern_cover` renderiza la fila de vencimiento bajo emisión (mismo `meta_label`/`meta_value_med`, padding simétrico); eliminados los 2 bloques "Vigencia de la Propuesta" (generate_vpos PyME y generate_pg) con renumeración de T&C (1.Tiempo Implementación, 2.Forma de Pago, 3.Soporte, 4.Confidencialidad).
+- **Backend `quotes.py`:** cálculo en `hydrate_pdf_request` + sitios PG (~356) y CORP (~1178). **`server.py`:** precarga del snapshot de feriados en startup (evita edge-case cold-start).
+- **QA (testing_agent iter244): 17/17 backend + frontend smoke 100%.** Verificado VPOS PyME, Gateway y CORP: portada con vencimiento DD/MM/AAAA y sin "Vigencia de la Propuesta"; regresión OK.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-07 — Feature CERTIFICADA: Anexos pre-envío en Proyectos Directos
 
 - **Requerimiento:** permitir cargar archivos anexos ANTES de enviar el Proyecto Directo a Implementación. Decisión del usuario: los anexos se adjuntan al correo de Implementación (junto a la Ficha Técnica) Y quedan guardados en el proyecto.

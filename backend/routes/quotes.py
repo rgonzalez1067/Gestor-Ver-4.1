@@ -357,8 +357,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                         from services.business_calendar import compute_expiry_date as _ced
                         from datetime import datetime as _dtv, timezone as _tzv
                         pdf_request.fecha_vencimiento = (await _ced(_dtv.now(_tzv.utc).date(), 15)).strftime("%d/%m/%Y")
-                    except Exception:
-                        pass
+                    except Exception as _ve:
+                        logging.warning(f"[quotes PG] no se pudo calcular fecha de vencimiento: {_ve}")
                     generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
                     pdf_buffer = generator.generate()
                     # Segmento PyME/Corporativo: resolver y aplicar el anexo correspondiente
@@ -1185,8 +1185,8 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             from services.business_calendar import compute_expiry_date as _ced2
             from datetime import datetime as _dtv2, timezone as _tzv2
             pdf_request.fecha_vencimiento = (await _ced2(_dtv2.now(_tzv2.utc).date(), 15)).strftime("%d/%m/%Y")
-        except Exception:
-            pass
+        except Exception as _ve2:
+            logging.warning(f"[quotes CORP] no se pudo calcular fecha de vencimiento: {_ve2}")
         generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
         pdf_buffer = generator.generate()
         
