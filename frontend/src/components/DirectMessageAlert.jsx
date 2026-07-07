@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, Info, Megaphone } from 'lucide-react';
 
@@ -12,10 +12,16 @@ import { AlertTriangle, Info, Megaphone } from 'lucide-react';
  */
 export default function DirectMessageAlert() {
   const [queue, setQueue] = useState([]);
+  const seenIdsRef = useRef(new Set());
 
   useEffect(() => {
     const handler = (ev) => {
       const msg = ev.detail || {};
+      // Deduplicar por id: StrictMode/reconexión pueden entregar el mismo mensaje 2 veces.
+      if (msg.id) {
+        if (seenIdsRef.current.has(msg.id)) return;
+        seenIdsRef.current.add(msg.id);
+      }
       if ((msg.level || 'medium') === 'low') {
         toast(msg.body, {
           description: msg.from ? `De: ${msg.from}` : undefined,

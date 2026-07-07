@@ -46,6 +46,9 @@ export default function useNotifications() {
     const userId = user?.user_id;
     if (!userId) return;
 
+    // Evita abrir un segundo WebSocket sobre uno vivo/conectando (StrictMode remonta el hook en dev).
+    if (wsRef.current && wsRef.current.readyState <= 1) return;
+
     const baseUrl = process.env.REACT_APP_BACKEND_URL || '';
     const wsProto = baseUrl.startsWith('https') ? 'wss' : 'ws';
     const host = baseUrl.replace(/^https?:\/\//, '');

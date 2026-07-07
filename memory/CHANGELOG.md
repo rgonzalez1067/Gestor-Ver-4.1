@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Feature CERTIFICADA: Módulo de Comunicación Directa + Heartbeat/Reaper
+
+- **Backend (100% — testing_agent iter242, 12/12 pytest):** `POST /api/admin/direct-message` (niveles low/medium/high, recipient_ids o all_online, valida body vacío/sin destinatarios 400, 403 no-admin), CRUD `/api/admin/message-templates`, `GET /api/admin/connected-users`. Heartbeat ping 30s / reaper TTL 90s (`notification_service.ConnectionManager`).
+- **Frontend:** `/settings/connected-users` renderiza OK (la "pantalla blanca" del handoff NO era reproducible — ruta correcta es `/settings/connected-users`, no `/connected-users`). Composer (`DirectMessageComposer.jsx`), alerta global bloqueante (`DirectMessageAlert.jsx`).
+- **Bug HIGH corregido y verificado:** doble entrega de mensajes (modal/toast duplicado) por StrictMode abriendo 2 WebSockets. Fix quirúrgico: (a) dedupe por `msg.id` con `seenIdsRef` en `DirectMessageAlert.jsx`; (b) guard `if (wsRef.current && wsRef.current.readyState <= 1) return;` en `useNotifications.js`. Verificado por screenshot: OVERLAY COUNT=1, un solo click cierra.
+- **Backlog (no bloqueante):** presencia WS multi-worker (colección `ws_presence` Mongo TTL 90s) para que `all_online` y la grilla reflejen todas las réplicas; hydration warnings en Dashboard.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-06 — Bug Fix (reincidente): imágenes pegadas DESDE Gmail llegaban rotas al cliente
 
 - **Causa raíz real:** la plantilla "Notificación de Proyecto — Cliente" tenía 5 `<img src="https://mail.google.com/mail/u/1?ui=2&ik=...&view=fimg...">` — imágenes **pegadas directamente desde un correo de Gmail**, cuyas URLs requieren la sesión de Google del autor. Ni el backend ni el destinatario pueden descargarlas → siempre llegan rotas (el autor las ve en la Vista Previa solo porque está logueado en Gmail). El fix anterior (CID) no podía recuperarlas.
