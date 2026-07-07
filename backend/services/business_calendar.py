@@ -22,12 +22,22 @@ logger = logging.getLogger("business_calendar")
 _CACHE = {"specific": None, "recurring": None, "at": 0.0}
 _TTL_SECONDS = 30
 
+# Snapshot sincrónico de los últimos sets cargados (para usarlos desde código
+# síncrono como el generador de PDF, que no puede hacer await).
+_SNAPSHOT = {"specific": set(), "recurring": set()}
+
 
 def invalidate_holidays_cache() -> None:
     """Limpia el caché en memoria de festivos (llamar al crear/eliminar)."""
     _CACHE["specific"] = None
     _CACHE["recurring"] = None
     _CACHE["at"] = 0.0
+
+
+def get_cached_holiday_sets() -> tuple:
+    """Acceso SÍNCRONO al último snapshot de festivos (puede estar vacío si aún
+    no se ha hecho ninguna carga async). Uso: generador de PDF."""
+    return _SNAPSHOT["specific"], _SNAPSHOT["recurring"]
 
 
 async def get_holiday_sets() -> tuple:
@@ -46,6 +56,7 @@ async def get_holiday_sets() -> tuple:
         else:
             specific.add(hd)
     _CACHE["specific"], _CACHE["recurring"], _CACHE["at"] = specific, recurring, now
+    _SNAPSHOT["specific"], _SNAPSHOT["recurring"] = specific, recurring
     return specific, recurring
 
 
@@ -89,3 +100,27 @@ def add_business_days(start: date, n: int, specific: set, recurring: set) -> dat
             if counted >= n:
                 return cur
         cur += timedelta(days=1)
+
+
+def add_business_days_after(start: date, n: int, specific: set, recurring: set) -> date:
+    """Fecha del n-ésimo día hábil DESPUÉS de `start` (start NO cuenta, exclusivo).
+
+    Ej. (regla de vencimiento de cotizaciones): emisión Lunes 01 + 15 días hábiles
+    → Lunes 22 (se saltan sábados, domingos y feriados intermedios).
+    """
+    if n <= 0:
+        return start
+    counted = 0
+    cur = start
+    while counted < n:
+        cur += timedelta(days=1)
+        if is_business_day(cur, specific, recurring):
+            counted += 1
+    return cur
+
+
+async def compute_expiry_date(start: date, n: int = 15) -> date:
+    """Calcula la fecha de vencimiento = `start` + `n` días hábiles (exclusivo),
+    excluyendo fines de semana y feriados de la BD."""
+    specific, recurring = await get_holiday_sets()
+    return add_business_days_after(start, n, specific, recurring)

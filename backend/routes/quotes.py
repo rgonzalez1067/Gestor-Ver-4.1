@@ -353,6 +353,12 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                     if logo_file.exists():
                         logo_path = str(logo_file)
                     
+                    try:
+                        from services.business_calendar import compute_expiry_date as _ced
+                        from datetime import datetime as _dtv, timezone as _tzv
+                        pdf_request.fecha_vencimiento = (await _ced(_dtv.now(_tzv.utc).date(), 15)).strftime("%d/%m/%Y")
+                    except Exception:
+                        pass
                     generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
                     pdf_buffer = generator.generate()
                     # Segmento PyME/Corporativo: resolver y aplicar el anexo correspondiente
@@ -1175,6 +1181,12 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
         if logo_file.exists():
             logo_path = str(logo_file)
         
+        try:
+            from services.business_calendar import compute_expiry_date as _ced2
+            from datetime import datetime as _dtv2, timezone as _tzv2
+            pdf_request.fecha_vencimiento = (await _ced2(_dtv2.now(_tzv2.utc).date(), 15)).strftime("%d/%m/%Y")
+        except Exception:
+            pass
         generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
         pdf_buffer = generator.generate()
         
@@ -1713,6 +1725,17 @@ async def hydrate_pdf_request(data: TemplateQuotePDFRequest):
 
     Se aplica a TODOS los modelos (VPOS, MPOS, Payment Gateway, Link de Pago).
     """
+    # --- Fecha de Vencimiento de la propuesta (portada) ---
+    # Emisión (hoy) + 15 días hábiles, excluyendo fines de semana y feriados de BD.
+    try:
+        from datetime import datetime as _dt, timezone as _tz
+        from services.business_calendar import compute_expiry_date
+        _emision = _dt.now(_tz.utc).date()
+        _venc = await compute_expiry_date(_emision, 15)
+        data.fecha_vencimiento = _venc.strftime("%d/%m/%Y")
+    except Exception as _e:
+        logger.warning(f"[quotes] no se pudo calcular fecha de vencimiento: {_e}")
+
     # --- Cliente ---
     if getattr(data, "client_id", None):
         client = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0})

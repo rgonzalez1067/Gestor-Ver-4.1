@@ -39,6 +39,9 @@ class TemplateQuotePDFRequest(BaseModel):
     cantidad_cajas: int = 1
     # Número de cotización
     quote_number: str = ""
+    # Fecha de vencimiento de la propuesta (DD/MM/AAAA) — se calcula en el backend
+    # como Fecha de Emisión + 15 días hábiles (excluye fines de semana y feriados).
+    fecha_vencimiento: str = ""
     # Items de cotización
     setup_items: List[QuotePDFItem] = []
     recurring_basic_items: List[QuotePDFItem] = []
@@ -314,10 +317,26 @@ class DynamicQuotePDFGenerator:
             [Paragraph("NÚMERO DE COTIZACIÓN", meta_label)],
             [Paragraph(self.data.quote_number or "—", meta_value_big)],
         ]
+        # Fecha de Vencimiento: Emisión + 15 días hábiles (excluye fines de semana
+        # y feriados). Se calcula en el backend y llega en self.data.fecha_vencimiento;
+        # si no viniera, se computa aquí con el snapshot síncrono de feriados.
+        fecha_vencimiento = (self.data.fecha_vencimiento or "").strip()
+        if not fecha_vencimiento:
+            try:
+                from datetime import date as _date
+                from services.business_calendar import get_cached_holiday_sets, add_business_days_after
+                _spec, _rec = get_cached_holiday_sets()
+                fecha_vencimiento = add_business_days_after(_date.today(), 15, _spec, _rec).strftime("%d/%m/%Y")
+            except Exception:
+                fecha_vencimiento = ""
+
         col_date = [
             [Paragraph("FECHA DE EMISIÓN", meta_label)],
             [Paragraph(fecha_actual, meta_value_med)],
         ]
+        if fecha_vencimiento:
+            col_date.append([Paragraph("FECHA DE VENCIMIENTO", meta_label)])
+            col_date.append([Paragraph(fecha_vencimiento, meta_value_med)])
         inner_quote = Table(col_quote)
         inner_quote.setStyle(TableStyle([
             ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -335,6 +354,11 @@ class DynamicQuotePDFGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
             ('TOPPADDING', (0, 1), (-1, 1), 0),
             ('BOTTOMPADDING', (0, 1), (-1, 1), 0),
+            # Vencimiento (filas 2-3, si existen): mismo espaciado que emisión.
+            ('TOPPADDING', (0, 2), (-1, 2), 8),
+            ('BOTTOMPADDING', (0, 2), (-1, 2), 4),
+            ('TOPPADDING', (0, 3), (-1, 3), 0),
+            ('BOTTOMPADDING', (0, 3), (-1, 3), 0),
         ]))
 
         meta_card = Table(
@@ -1255,27 +1279,19 @@ class DynamicQuotePDFGenerator:
         )))
         elements.append(Spacer(1, 20))
         
-        # Fecha de vigencia en español
-        vigencia_date = now + timedelta(days=5)
-        vigencia_fecha = f"{vigencia_date.day} de {MESES_ES[vigencia_date.month]} de {vigencia_date.year}"
-        
         terminos = f"""
-        <b>1. Vigencia de la Propuesta</b><br/>
-        La presente oferta económica tiene una vigencia de <b>5 días hábiles</b> a partir de su emisión.
-        Fecha de vencimiento: <b>{vigencia_fecha}</b><br/><br/>
-        
-        <b>2. Tiempo de Implementación</b><br/>
+        <b>1. Tiempo de Implementación</b><br/>
         El tiempo estimado de implementación queda sujeto a la prontitud con la que las entidades 
         bancarias remitan la información técnica de afiliados y terminales de los productos seleccionados.<br/><br/>
         
-        <b>3. Forma de Pago</b><br/>
+        <b>2. Forma de Pago</b><br/>
         - Costos de Setup: 100% después de aprobar la propuesta para dar inicio al Proyecto<br/>
         - Costos Recurrentes: Facturación mensual vencida<br/><br/>
         
-        <b>4. Soporte Técnico</b><br/>
+        <b>3. Soporte Técnico</b><br/>
         Se incluye soporte técnico 24/7 para incidencias relacionadas con la plataforma de pagos.<br/><br/>
         
-        <b>5. Confidencialidad</b><br/>
+        <b>4. Confidencialidad</b><br/>
         Toda la información contenida en este documento es confidencial y de uso exclusivo
         del destinatario.
         """
@@ -2088,26 +2104,19 @@ class DynamicQuotePDFGenerator:
         )))
         elements.append(Spacer(1, 20))
         
-        vigencia_date = now + timedelta(days=5)
-        vigencia_fecha = f"{vigencia_date.day} de {MESES_ES[vigencia_date.month]} de {vigencia_date.year}"
-        
         terminos = f"""
-        <b>1. Vigencia de la Propuesta</b><br/>
-        La presente oferta económica tiene una vigencia de <b>5 días hábiles</b> a partir de su emisión.
-        Fecha de vencimiento: <b>{vigencia_fecha}</b><br/><br/>
-        
-        <b>2. Tiempo de Implementación</b><br/>
+        <b>1. Tiempo de Implementación</b><br/>
         El tiempo estimado de implementación queda sujeto a la prontitud con la que las entidades 
         bancarias remitan la información técnica de afiliados y terminales de los productos seleccionados.<br/><br/>
         
-        <b>3. Forma de Pago</b><br/>
+        <b>2. Forma de Pago</b><br/>
         - Costos de Setup: 100% después de aprobar la propuesta para dar inicio al Proyecto<br/>
         - Costos Recurrentes: Facturación mensual vencida<br/><br/>
         
-        <b>4. Soporte Técnico</b><br/>
+        <b>3. Soporte Técnico</b><br/>
         Se incluye soporte técnico 24/7 para incidencias relacionadas con la plataforma de pagos.<br/><br/>
         
-        <b>5. Confidencialidad</b><br/>
+        <b>4. Confidencialidad</b><br/>
         Toda la información contenida en este documento es confidencial y de uso exclusivo
         del destinatario.
         """

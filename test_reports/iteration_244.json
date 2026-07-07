@@ -1,0 +1,37 @@
+{
+  "summary": "Iter244 — Certificación end-to-end del feature 'Fecha de Vencimiento' en la portada de cotizaciones de Implementaciones y eliminación de 'Vigencia de la Propuesta' en T&C. 17/17 pytest cases PASSED (100%) contra REACT_APP_BACKEND_URL. Validado: (A) Algoritmo business_calendar.add_business_days_after (5 unit tests): Lu 01/09/2025+15h → Lu 22/09/2025; con feriado 2025-09-22 → Ma 23/09/2025; emisión Jueves 04/09 → Jueves 25/09; emisión Viernes 05/09 → Viernes 26/09; n=1 con inicio hábil → siguiente día hábil (exclusivo confirmado). (B) POST /api/quotes/preview-pdf-with-template (integración, extracción de texto con pypdf) para VPOS PyME, Gateway (GATEWAY) y VPOS CORP: la portada (página 1) contiene 'FECHA DE EMISIÓN' Y 'FECHA DE VENCIMIENTO' con al menos una fecha en formato DD/MM/AAAA; la fecha de vencimiento parseada es > hoy. (C) 'Vigencia de la Propuesta' NO aparece en ninguna variante (PyME/PG/CORP). (D) T&C mantiene los 4 puntos esperados: Tiempo de Implementación, Forma de Pago, Soporte Técnico, Confidencialidad. (E) POST /api/quotes/generate-pdf-with-template (retorna PDF binario attachment) para PyME/PG/CORP devuelve 200 application/pdf, portada con 'FECHA DE VENCIMIENTO' y sin 'Vigencia'. (F) FRONTEND smoke: login admin OK; UI en /dashboard; llamada autenticada desde la sesión del navegador a /api/quotes/preview-pdf-with-template → 200 application/pdf (1.20 MB). Regresión: PDF sigue generándose correctamente para los 3 tipos (VPOS PyME, VPOS CORP, Gateway).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter244_fecha_vencimiento.py",
+    "/app/test_reports/pytest/iter244_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/business_calendar.py L105-119: add_business_days_after es correcto (exclusivo) y el algoritmo se comportó exactamente como especifica la regla de negocio (Lu 01→Lu 22, con salto de feriados). OK.",
+    "routes/quotes.py L1728-1737: hydrate_pdf_request captura Exception genérica y solo loguea warning si falla el cálculo. Al no propagar, si compute_expiry_date fallara (por ejemplo, con DB caída), el PDF se generaría con vencimiento vacío. El generador tiene fallback síncrono (get_cached_holiday_sets snapshot) pero el snapshot puede estar vacío en cold-start, lo que dejaría la portada SIN 'FECHA DE VENCIMIENTO'. Considerar registrar una métrica y/o alarma cuando ocurra.",
+    "services/pdf_generator.py L323-331: la lectura de fallback usa un snapshot en memoria que puede estar vacío en cold-start (aún no se llamó a get_holiday_sets async). No afecta el flujo por hidratación en el endpoint, pero deja un edge-case si el generador se invocara desde otro contexto sin await previo. Considerar precargar el snapshot en el startup del app.",
+    "pdf_generator.py fecha_vencimiento: formato hardcodeado DD/MM/AAAA (correcto según requisito). Aceptable.",
+    "quotes.py L357-361 y L1185-1187: el cálculo del vencimiento en las rutas PG y CORP se hace en un bloque `try/except: pass`. Silenciar excepciones enmascara errores de configuración. Sugerido: al menos logger.warning."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter244_fecha_vencimiento.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17)",
+    "frontend": "100% (login + fetch preview autenticado 200 application/pdf 1.20 MB)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123. Login response usa clave 'session_token' (no 'access_token').",
+  "seed_data_creation": "No se creó data persistente. Los tests usan quote_number='TEST-ITER244-*' y solo generan/previsualizan PDFs (preview y generate NO persisten cotizaciones — solo devuelven el binario). No se ejercitó /api/quotes/create-with-pdf en este iter porque requiere payload de creación completo y validación adicional; el feature en ese endpoint está cubierto por la misma función hydrate_pdf_request que ya está probada indirectamente vía preview y generate.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test canónico: /app/backend/tests/test_iter244_fecha_vencimiento.py (17 tests, ~21s). Notas: (1) El login endpoint /api/auth/login devuelve 'session_token' (no 'access_token' ni 'token'). (2) Ambos endpoints /api/quotes/preview-pdf-with-template y /api/quotes/generate-pdf-with-template RETORNAN PDF BINARIO (application/pdf) directamente — no JSON. (3) El endpoint /api/quotes/create-with-pdf sí persiste una cotización y retorna JSON con pdf_url. No fue cubierto en este iter (la lógica del vencimiento es compartida vía hydrate_pdf_request). (4) La extracción de texto del PDF se hace con pypdf 6.13.2. (5) Feriados actuales en db.holidays son solo recurrentes (Navidad, Fin de Año, Año Nuevo, Día del Trabajador). Los tests unitarios del algoritmo pasan sets vacíos/artificiales, por lo que no dependen del estado de la BD.",
+  "rca of the issue": "No se detectaron bugs. La única observación menor es el manejo de excepciones silenciosas al calcular fecha_vencimiento en dos sitios (PG L357-361, CORP L1185-1187) — se recomienda logger.warning para trazabilidad, sin cambiar comportamiento."
+}
