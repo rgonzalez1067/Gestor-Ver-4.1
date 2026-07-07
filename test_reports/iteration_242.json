@@ -1,0 +1,61 @@
+{
+  "summary": "Iter242 — Certificación end-to-end (backend + frontend) del Módulo de Comunicación Directa al Usuario + Heartbeat/Reaper (Sesiones Activas). BACKEND: 12/12 pytest cases green contra REACT_APP_BACKEND_URL. Validado: (1) GET /api/admin/connected-users shape correcto (items, total_users, total_connections) y 403 a no-admin; (2) POST /api/admin/direct-message rechaza body vacío (400), rechaza sin destinatarios (400), rechaza no-admin (403), acepta send a all_online (200 devuelve delivered≥1 con nivel medium), acepta send a recipient_id específico (delivered=1, level=high); (3) CRUD /api/admin/message-templates funcional: 403 no-admin en GET/POST, 400 text vacío, ciclo CREATE→GET→DELETE→verify-removed OK; ObjectId excluido en todos los responses. FRONTEND: /settings/connected-users renderiza SIN pantalla blanca; connected-users-page, total-users, total-connections presentes; auto-refresh ok. Composer (open-direct-message-btn → direct-message-composer): abre correctamente, permite seleccionar nivel (dm-level-low/medium/high), toggle 'Todos los conectados' (dm-all-online), listar/aplicar/eliminar plantillas (dm-templates-toggle → dm-save-template → dm-template-* → dm-template-del-*), redactar y enviar (dm-body → dm-send-btn) con toast de éxito 'Mensaje enviado a N usuario(s) conectado(s)'. RECEPCIÓN: enviando a all_online (admin es su propio receptor con WS activo): nivel LOW dispara TOAST con el cuerpo del mensaje + 'De: Rafael González'; nivel MEDIUM dispara modal bloqueante AZUL (bg-blue-700) con 'Mensaje del Administrador', body correcto y botón 'Entendido / Cerrar' que cierra el overlay; nivel HIGH dispara modal bloqueante ROJO (bg-red-600) con 'Mensaje Urgente' + AlertTriangle, body correcto y botón de confirmación. data-testid direct-message-overlay/direct-message-modal/direct-message-body/direct-message-close verificados. Plantillas de TEST_ITER242 eliminadas al final.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/admin/connected-users",
+        "issue": "En el preview, tras un send con delivered=1 exitoso (indicando WS activo), el GET siguiente devuelve total_users=0/total_connections=0. El comentario del propio módulo (connected_users.py L8-11) ya lo documenta: el ConnectionManager vive EN MEMORIA POR PROCESO. Con múltiples réplicas/workers de uvicorn, este endpoint sólo ve las conexiones del pod que atiende la request. En preview coincide que POST y GET pueden caer en distintos workers, dando la ilusión de que 'la grilla está vacía pero el mensaje llegó'. Para producción multi-nodo se requeriría un store compartido (Redis/Mongo pub-sub o un tag colectivo en la BD). Como fix rápido: publicar/leer 'presence' en una colección Mongo compartida (`ws_presence` con TTL 90s alineado al reaper). No es bloqueante en single-worker."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "DirectMessageAlert.jsx / useNotifications.js",
+        "issue": "ENTREGA DUPLICADA de mensajes directos EN DEV MODE: al enviar 1 mensaje MEDIUM/HIGH con all_online, el receptor (misma pestaña admin) recibe el mensaje DOS veces — la cola del overlay queda con 2 entradas y hay que pulsar 'Entendido / Cerrar' 2 veces para vaciarla. Confirmado también con LOW: el toast se renderiza duplicado ('TEST_ITER242 ...' aparece dos veces). Root cause probable: React.StrictMode (habilitado en /app/frontend/src/index.js L29) hace que useNotifications monte-desmonte-remonte el hook en DEV, abriendo transitoriamente 2 WebSockets sobre el mismo user_id; ConnectionManager registra ambos en _active y deliver_local envía el payload a los DOS sockets ⇒ 2 onmessage ⇒ 2 dispatch('direct-message') ⇒ 2 items en la cola de DirectMessageAlert.",
+        "selector": "[data-testid=direct-message-overlay] + [data-testid=direct-message-close]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Dashboard (no relacionado al feature actual pero visible en consola durante navegación)",
+        "issues": [
+          "Warnings de hidratación heredados: '<tr> cannot be a child of <span>' y '<span> cannot be a child of <tbody>' en Dashboard (span data-ve-dynamic envolviendo tr dentro de tbody). Ya reportado en iter241, sigue presente."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter242_direct_messages.py",
+    "/app/test_reports/pytest/iter242_results.xml"
+  ],
+  "action_items": [
+    "[HIGH] Deduplicar la recepción de mensajes directos en el cliente para evitar doble modal/doble toast. Opciones: (a) En useNotifications.js, guardar wsRef y en el efecto verificar `if (wsRef.current) return;` antes de crear un nuevo WebSocket (evita que StrictMode abra 2 sockets). (b) En DirectMessageAlert.jsx, deduplicar por `msg.id` antes de agregar a la cola: `setQueue((q) => q.some(x => x.id === msg.id) ? q : [...q, msg])`. La opción (b) es más defensiva y también protege contra doble entrega si en el futuro hay redundancia legítima.",
+    "[MEDIUM] Compartir el estado de conexiones WebSocket entre workers para que GET /api/admin/connected-users refleje TODAS las réplicas y no solo el proceso local. Escribir/leer una colección `ws_presence` en Mongo con TTL 90s (alineado al reaper) desde connect/disconnect del ConnectionManager.",
+    "[MENOR] Corregir hydration warning en Dashboard.jsx (span envolviendo tr, ~L362-389). Legado, no bloquea."
+  ],
+  "critical_code_review_comments": [
+    "connected_users.py: acceso intencional a manager._active con noqa SLF001. Documentado. La query a db.users hace $in con user_ids y proyecta _id:0 — correcto. items ordenados alfabéticamente por full_name — buena UX.",
+    "direct-message L100: `recipient_ids = list(manager.local_user_ids()) if all_online else ...`. Este 'local' es la clave del bug de multi-worker: con múltiples réplicas, all_online sólo cubre a los conectados AL MISMO PROCESO que atiende el POST. Considerar publicar el mensaje a Mongo (`ws_outbox`) tal como hace notify(), pero con un mecanismo que resuelva 'all_online' a nivel global (por ejemplo, una colección `ws_presence` con user_ids activos globalmente).",
+    "notification_service.ConnectionManager: `send_to_user` inserta en ws_outbox — bueno, permite fan-out cross-worker. Pero direct-message envía por manager.send_to_user (que sí usa ws_outbox), así que el fan-out MULTINODO del mensaje SÍ funciona. Lo que no funciona multinodo es la RESOLUCIÓN de 'all_online' porque manager.local_user_ids() es local.",
+    "Reaper: WS_REAP_INTERVAL=30, WS_HEARTBEAT_TTL=90 alineado al spec del PRD (heartbeat 30s / limpieza 90s). Bien.",
+    "Frontend DirectMessageComposer: bien estructurado, data-testid consistentes, validaciones cliente antes de enviar (body vacío, sin destinatarios sin all_online).",
+    "Frontend DirectMessageAlert: cola FIFO simple con setQueue slice(1) para dismiss. NO deduplica por id — vulnerable a bug de doble delivery descrito arriba."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter242_direct_messages.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12)",
+    "frontend": "95% — todos los flujos UI verificados; único issue observado es el doble delivery del mensaje (dev-only, atribuible a StrictMode + WS re-mount)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123. No-admin utilizado: mmartin@megasoft.com.ve / Test1234! (Jrojas@megasoft.com.ve estaba nuevamente desincronizado, devolvía 401 en preview; el request pedía Jrojas pero ese usuario tenía password desincronizada y este agente NO lo reseteó — usamos mmartin como sustituto válido de role=user para verificar 403).",
+  "seed_data_creation": "3 mensajes directos insertados en db.direct_messages con body prefijo TEST_ITER242 (uno medium via API, uno high via UI, uno medium via UI). No hay endpoint público para borrarlos; se dejan como registro de auditoría (comportamiento esperado). 1 plantilla TEST_ITER242 creada y eliminada en el mismo test (net-zero).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test canónico: /app/backend/tests/test_iter242_direct_messages.py (12 tests). Notas: (1) Jrojas@megasoft.com.ve tiene password desincronizada en preview (401 con Test1234!) — usar mmartin@megasoft.com.ve / Test1234! como no-admin. (2) Para verificar RECEPCIÓN del modal en Playwright, iniciar sesión como admin, esperar 5-6s para que el WS de useNotifications conecte, luego enviar con all_online=true — el propio admin recibirá el mensaje. (3) Al testear el close del modal, hacer 2 clicks porque el mensaje llega duplicado en dev (StrictMode). (4) El grid de connected-users muestra 0 conexiones aunque haya WS activos si el POST cae en otro worker que el GET — esperado con multi-worker uvicorn.",
+  "rca of the issue": "BUG DETECTADO — Doble entrega de Mensaje Directo en cliente: (Reproducción) Login admin → esperar WS conecte → abrir composer → nivel MEDIUM/HIGH → all_online ON → enviar → observar que el modal bloqueante requiere DOS clicks para cerrarse porque el CustomEvent 'direct-message' se dispara dos veces. (Causa raíz probable) React.StrictMode en /app/frontend/src/index.js hace que useNotifications se monte-desmonte-remonte en DEV: durante el remount, wsRef.current puede quedar apuntando a un WS aún abierto/en CONNECTING mientras se crea uno nuevo. El backend registra ambos sockets en ConnectionManager._active[user_id] (Set) y deliver_local itera todos, enviando el mismo payload dos veces. El browser recibe onmessage dos veces, dispatchando dos CustomEvents 'direct-message', y DirectMessageAlert los encola por separado. (Mitigación recomendada) DirectMessageAlert.jsx L27: cambiar `setQueue((q) => [...q, msg])` por `setQueue((q) => q.some(x => x?.id === msg?.id) ? q : [...q, msg])` para deduplicar por id (el backend ya genera dm_id único). Adicionalmente, en useNotifications.js reforzar el guard `if (wsRef.current && wsRef.current.readyState <= 1) return;` en connectWebSocket para no crear un segundo socket sobre uno vivo/conectando. Ambos fixes son quirúrgicos y de bajo riesgo."
+}
