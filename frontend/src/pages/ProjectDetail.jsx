@@ -63,17 +63,22 @@ const ProjectDetail = () => {
   const [emailForm, setEmailForm] = useState({ recipients: [''], subject: '', message: '', templateId: '' });
   const [adhocManualEmail, setAdhocManualEmail] = useState('');
 
-  // Batch update (actualización masiva multitienda)
+  // Batch update (actualización masiva — multi-selección, todos los proyectos)
   const [batchModalOpen, setBatchModalOpen] = useState(false);
-  const [batchPhase, setBatchPhase] = useState('');
-  const [batchBank, setBatchBank] = useState('');
-  const [batchProducts, setBatchProducts] = useState([]);
+  const [batchPhases, setBatchPhases] = useState([]);          // multi fases
+  const [batchBanks, setBatchBanks] = useState([]);            // multi bancos/entes
+  const [batchBankProducts, setBatchBankProducts] = useState({}); // {banco: [medios de pago]}
   const [batchStoreIds, setBatchStoreIds] = useState([]);
   const [batchReason, setBatchReason] = useState('Recepción de información masiva por parte del Banco/Cliente');
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   // Fase 5 VPOS Multi-RIF: filtro en cascada por RIF. '__ALL__' = Todos los RIFs.
   const [batchRif, setBatchRif] = useState('__ALL__');
   const [fichaDownloading, setFichaDownloading] = useState(false);
+
+  const _matrixCatalog = () => project?.implementation_matrix || {};
+  const _productsOfBank = (bank) => Object.keys(_matrixCatalog()[bank] || {});
+  const _projIsMultistore = () =>
+    (project?.project_type === 'multistore' || project?.project_type === 'multirif') && (project?.stores || []).length > 0;
 
   // Tiendas visibles en el modal según el filtro de RIF en cascada.
   const getBatchFilteredStores = () => {
@@ -83,29 +88,44 @@ const ProjectDetail = () => {
   };
 
   const openBatchModal = () => {
-    setBatchPhase(STORE_PHASES[0]);
-    const firstBank = Object.keys(project?.implementation_matrix || {})[0] || '';
-    setBatchBank(firstBank);
-    const prods = firstBank ? Object.keys((project?.implementation_matrix || {})[firstBank] || {}) : [];
-    setBatchProducts(prods);
+    const banks = Object.keys(_matrixCatalog());
+    const firstBank = banks[0] || '';
+    setBatchPhases(STORE_PHASES.length ? [STORE_PHASES[0]] : []);
+    setBatchBanks(firstBank ? [firstBank] : []);
+    setBatchBankProducts(firstBank ? { [firstBank]: _productsOfBank(firstBank) } : {});
     setBatchStoreIds([]);
     setBatchRif('__ALL__');
     setBatchReason('Recepción de información masiva por parte del Banco/Cliente');
     setBatchModalOpen(true);
   };
 
+  const toggleBatchPhase = (phase) => {
+    setBatchPhases(prev => prev.includes(phase) ? prev.filter(p => p !== phase) : [...prev, phase]);
+  };
+
+  // Al marcar/desmarcar un banco: se añade con TODOS sus medios de pago preseleccionados
+  // (o se retira junto con su bloque de medios de pago).
+  const toggleBatchBank = (bank) => {
+    setBatchBanks(prev => {
+      if (prev.includes(bank)) {
+        setBatchBankProducts(bp => { const n = { ...bp }; delete n[bank]; return n; });
+        return prev.filter(b => b !== bank);
+      }
+      setBatchBankProducts(bp => ({ ...bp, [bank]: _productsOfBank(bank) }));
+      return [...prev, bank];
+    });
+  };
+
+  const toggleBatchBankProduct = (bank, prod) => {
+    setBatchBankProducts(prev => {
+      const current = prev[bank] || [];
+      const next = current.includes(prod) ? current.filter(p => p !== prod) : [...current, prod];
+      return { ...prev, [bank]: next };
+    });
+  };
+
   const toggleBatchStore = (storeId) => {
     setBatchStoreIds(prev => prev.includes(storeId) ? prev.filter(s => s !== storeId) : [...prev, storeId]);
-  };
-
-  const toggleBatchProduct = (prod) => {
-    setBatchProducts(prev => prev.includes(prod) ? prev.filter(p => p !== prod) : [...prev, prod]);
-  };
-
-  // Al cambiar de banco en el modal, preseleccionar todos sus medios de pago.
-  const handleBatchBankChange = (bank) => {
-    setBatchBank(bank);
-    setBatchProducts(Object.keys((project?.implementation_matrix || {})[bank] || {}));
   };
 
   // Al cambiar el RIF, se reinicia la selección de tiendas (cambia el universo visible).
@@ -120,21 +140,22 @@ const ProjectDetail = () => {
   };
 
   const submitBatchUpdate = async () => {
-    if (!batchPhase || !batchBank || batchProducts.length === 0) {
-      toast.error('Seleccione fase, banco y al menos un producto'); return;
-    }
-    if (batchStoreIds.length === 0) {
-      toast.error('Seleccione al menos una tienda'); return;
-    }
-    const confirmMsg = `Se actualizará la fase "${batchPhase}" de ${batchProducts.length} producto(s) (banco ${batchBank}) en ${batchStoreIds.length} tienda(s). ¿Continuar?`;
-    if (!window.confirm(confirmMsg)) return;
+    const isMs = _projIsMultistore();
+    if (batchPhases.length === 0) { toast.error('Seleccione al menos una fase'); return; }
+    const bankProducts = {};
+    batchBanks.forEach(b => { const prods = (batchBankProducts[b] || []).filter(Boolean); if (prods.length) bankProducts[b] = prods; });
+    if (Object.keys(bankProducts).length === 0) { toast.error('Seleccione al menos un banco/ente con un medio de pago'); return; }
+    if (isMs && batchStoreIds.length === 0) { toast.error('Seleccione al menos una tienda'); return; }
+
+    const nBanks = Object.keys(bankProducts).length;
+    const scopeTxt = isMs ? `${batchStoreIds.length} tienda(s)` : 'la matriz del proyecto';
+    if (!window.confirm(`Se marcarán al 100% ${batchPhases.length} fase(s) en ${nBanks} banco(s) sobre ${scopeTxt}. ¿Continuar?`)) return;
     setBatchSubmitting(true);
     try {
       const res = await api.post(`/projects/${projectId}/matrix/batch-update`, {
-        phase: batchPhase,
-        bank_name: batchBank,
-        product_names: batchProducts,
-        store_ids: batchStoreIds,
+        phases: batchPhases,
+        bank_products: bankProducts,
+        store_ids: isMs ? batchStoreIds : [],
         reason: batchReason,
       });
       toast.success(res.data.message || 'Actualización masiva aplicada');
@@ -1661,8 +1682,8 @@ const ProjectDetail = () => {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-slate-900">Matriz de Implementación</h2>
               <div className="flex items-center gap-2">
-                {/* Actualización Masiva — proyectos multitienda y Multi-RIF */}
-                {(isMultistore || isMultiRif) && canEditMatrix && clientNotified && (
+                {/* Actualización Masiva — disponible para TODOS los proyectos de integración */}
+                {canEditMatrix && clientNotified && bankNames.length > 0 && (
                   <Button
                     onClick={openBatchModal}
                     className="gap-2 bg-amber-500 hover:bg-amber-600 text-white"
@@ -2842,14 +2863,15 @@ const ProjectDetail = () => {
           open={batchModalOpen}
           onOpenChange={setBatchModalOpen}
           project={project}
-          batchPhase={batchPhase}
-          setBatchPhase={setBatchPhase}
-          batchBank={batchBank}
-          setBatchBank={handleBatchBankChange}
+          isMultistore={_projIsMultistore()}
+          batchPhases={batchPhases}
+          toggleBatchPhase={toggleBatchPhase}
+          batchBanks={batchBanks}
+          toggleBatchBank={toggleBatchBank}
+          batchBankProducts={batchBankProducts}
+          toggleBatchBankProduct={toggleBatchBankProduct}
           batchRif={batchRif}
           setBatchRif={handleBatchRifChange}
-          batchProducts={batchProducts}
-          toggleBatchProduct={toggleBatchProduct}
           batchStoreIds={batchStoreIds}
           batchReason={batchReason}
           setBatchReason={setBatchReason}

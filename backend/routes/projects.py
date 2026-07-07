@@ -2081,37 +2081,59 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
 
 
 class BatchMatrixUpdate(BaseModel):
-    phase: str
-    bank_name: str
-    product_name: Optional[str] = None  # legacy (un solo producto)
-    product_names: Optional[list] = None  # multi-select (varios medios de pago)
-    store_ids: list
+    # --- Multi-selección (nuevo) ---
+    phases: Optional[list] = None          # varias fases a marcar al 100%
+    bank_products: Optional[dict] = None   # {banco: [medios de pago]} — cruce multi-banco
+    # --- Legacy (compatibilidad) ---
+    phase: Optional[str] = None            # una sola fase
+    bank_name: Optional[str] = None        # un solo banco
+    product_name: Optional[str] = None     # un solo producto
+    product_names: Optional[list] = None   # varios productos de un solo banco
+    # Comunes
+    store_ids: Optional[list] = None       # opcional; no requerido en proyectos NO multitienda
     reason: Optional[str] = ""
 
 
 @router.post("/projects/{project_id}/matrix/batch-update")
 async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdate, authorization: Optional[str] = Header(None)):
-    """Actualización masiva: para cada tienda seleccionada marca processed=expected en (fase+banco+producto).
-    Solo proyectos multitienda. Registra UNA entrada en bitácora con todo el detalle."""
+    """Actualización masiva CRUZADA: marca al 100% una o varias FASES para uno o
+    varios BANCOS (cada uno con su lista de medios de pago). Disponible para TODOS
+    los proyectos de integración: en multitienda/Multi-RIF aplica a las tiendas
+    seleccionadas; en proyectos NO multitienda aplica directamente a la matriz del
+    proyecto. Registra UNA entrada en bitácora con todo el detalle."""
     current_user = await get_current_user(authorization)
-    if body.phase not in STORE_PHASES:
-        raise HTTPException(status_code=400, detail=f"Fase inválida. Válidas: {STORE_PHASES}")
-    if not body.store_ids:
-        raise HTTPException(status_code=400, detail="Debe seleccionar al menos una tienda")
 
-    # Medios de pago: multi-select (product_names) con compat. legacy (product_name)
-    products = body.product_names if body.product_names else ([body.product_name] if body.product_name else [])
-    products = [p for p in products if p]
-    if not products:
-        raise HTTPException(status_code=400, detail="Debe seleccionar al menos un medio de pago/producto")
+    # --- Normalizar FASES (multi con fallback legacy) ---
+    phases = body.phases if body.phases else ([body.phase] if body.phase else [])
+    phases = [p for p in phases if p]
+    if not phases:
+        raise HTTPException(status_code=400, detail="Debe seleccionar al menos una fase")
+    invalid = [p for p in phases if p not in STORE_PHASES]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Fase(s) inválida(s): {invalid}. Válidas: {STORE_PHASES}")
+
+    # --- Normalizar BANCOS + MEDIOS DE PAGO (dict {banco: [productos]}) ---
+    bank_products = {}
+    if body.bank_products:
+        for bank, prods in body.bank_products.items():
+            clean = [p for p in (prods or []) if p]
+            if bank and clean:
+                bank_products[bank] = clean
+    elif body.bank_name:
+        legacy_prods = body.product_names if body.product_names else ([body.product_name] if body.product_name else [])
+        legacy_prods = [p for p in legacy_prods if p]
+        if legacy_prods:
+            bank_products[body.bank_name] = legacy_prods
+    if not bank_products:
+        raise HTTPException(status_code=400, detail="Debe seleccionar al menos un banco/ente con al menos un medio de pago")
 
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    if project.get("project_type") not in ("multistore", "multirif"):
-        raise HTTPException(status_code=400, detail="Solo proyectos multitienda o Multi-RIF")
     if not project.get("client_notified"):
         raise HTTPException(status_code=400, detail="Debe notificar al cliente primero antes de actualizar la matriz")
+
+    is_multistore = project.get("project_type") in ("multistore", "multirif") and bool(project.get("stores"))
 
     # Permisología: admin, implementador asignado o supervisor.
     # El implementador asignado se guarda en `assigned_to_user_id` (campo canónico).
@@ -2133,37 +2155,63 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
 
-    processed_stores = []
-    for sid in body.store_ids:
-        store = stores_by_id.get(sid)
-        if not store:
-            continue
-        matrix = store.get("implementation_matrix", {})
-        if body.bank_name not in matrix:
-            matrix[body.bank_name] = {}
-        store_expected_total = 0
-        for product_name in products:
-            if product_name not in matrix[body.bank_name]:
-                matrix[body.bank_name][product_name] = {}
-            old_data = matrix[body.bank_name][product_name].get(body.phase, {})
-            expected = old_data.get("expected", store.get("box_count", 0)) or store.get("box_count", 0)
-            matrix[body.bank_name][product_name][body.phase] = {
-                "completed": expected > 0,
-                "expected": expected,
-                "processed": expected,
-                "updated_at": now,
-                "updated_by": user_name,
-                "batch_updated": True,
-            }
-            store_expected_total += expected
-        await db.projects.update_one(
-            {"project_id": project_id, "stores.store_id": sid},
-            {"$set": {"stores.$.implementation_matrix": matrix, "updated_at": now, "last_qualified_activity_at": now}}
-        )
-        processed_stores.append({"store_id": sid, "name": store.get("name", sid), "expected": store_expected_total})
+    all_products = sorted({p for prods in bank_products.values() for p in prods})
+    banks_list = list(bank_products.keys())
 
-    if not processed_stores:
-        raise HTTPException(status_code=404, detail="Ninguna de las tiendas seleccionadas existe en el proyecto")
+    def _apply_to_matrix(matrix, default_expected):
+        """Marca al 100% cada (banco→producto→fase) del cruce sobre una matriz."""
+        total = 0
+        for bank, prods in bank_products.items():
+            if bank not in matrix:
+                matrix[bank] = {}
+            for product_name in prods:
+                if product_name not in matrix[bank]:
+                    matrix[bank][product_name] = {}
+                for phase in phases:
+                    old_data = matrix[bank][product_name].get(phase, {})
+                    expected = old_data.get("expected") or default_expected
+                    matrix[bank][product_name][phase] = {
+                        "completed": True,
+                        "expected": expected,
+                        "processed": expected,
+                        "updated_at": now,
+                        "updated_by": user_name,
+                        "batch_updated": True,
+                    }
+                    total += expected
+        return total
+
+    processed_stores = []
+    scope_label = ""
+
+    if is_multistore:
+        target_ids = body.store_ids or []
+        if not target_ids:
+            raise HTTPException(status_code=400, detail="Debe seleccionar al menos una tienda")
+        for sid in target_ids:
+            store = stores_by_id.get(sid)
+            if not store:
+                continue
+            matrix = store.get("implementation_matrix", {})
+            store_expected_total = _apply_to_matrix(matrix, store.get("box_count", 0) or 0)
+            await db.projects.update_one(
+                {"project_id": project_id, "stores.store_id": sid},
+                {"$set": {"stores.$.implementation_matrix": matrix, "updated_at": now, "last_qualified_activity_at": now}}
+            )
+            processed_stores.append({"store_id": sid, "name": store.get("name", sid), "expected": store_expected_total})
+        if not processed_stores:
+            raise HTTPException(status_code=404, detail="Ninguna de las tiendas seleccionadas existe en el proyecto")
+        scope_label = f"{len(processed_stores)} tienda(s)"
+    else:
+        # Proyecto NO multitienda: aplicar directamente a la matriz del proyecto.
+        matrix = project.get("implementation_matrix", {}) or {}
+        default_expected = project.get("cantidad_cajas") or project.get("box_count") or 0
+        _apply_to_matrix(matrix, default_expected)
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"implementation_matrix": matrix, "updated_at": now, "last_qualified_activity_at": now}}
+        )
+        scope_label = "matriz del proyecto"
 
     # Recalcular rollup
     updated_project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
@@ -2173,16 +2221,14 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
 
     # Bitácora única con detalle completo
     reason = (body.reason or "Recepción de información masiva por parte del Banco/Cliente").strip()
+    bp_lines = "\n".join([f"  · {b}: {', '.join(prods)}" for b, prods in bank_products.items()])
     store_names = [s["name"] for s in processed_stores]
-    total_procesado = sum(s["expected"] for s in processed_stores)
     bitacora_text = (
         f"[ACTUALIZACIÓN MASIVA DE ESTATUS]\n"
-        f"Fase actualizada: {body.phase}\n"
-        f"Productos ({len(products)}): {', '.join(products)}\n"
-        f"Ente bancario: {body.bank_name}\n"
-        f"Tiendas procesadas ({len(processed_stores)}): {', '.join(store_names)}\n"
-        f"Total de unidades completadas: {total_procesado}\n"
-        f"Motivo: {reason}\n"
+        f"Fase(s) actualizada(s) ({len(phases)}): {', '.join(phases)}\n"
+        f"Bancos/Entes ({len(banks_list)}) y medios de pago:\n{bp_lines}\n"
+        + (f"Tiendas procesadas ({len(processed_stores)}): {', '.join(store_names)}\n" if is_multistore else "Alcance: matriz del proyecto (No Multitienda)\n")
+        + f"Motivo: {reason}\n"
         f"Usuario responsable: {user_name}"
     )
     bitacora_entry = {
@@ -2194,19 +2240,22 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
         "auto_generated": True,
         "entry_type": "batch_matrix_update",
         "batch_meta": {
-            "phase": body.phase,
-            "bank_name": body.bank_name,
-            "product_names": products,
+            "phases": phases,
+            "bank_products": bank_products,
             "reason": reason,
             "stores": processed_stores,
             "total_stores": len(processed_stores),
+            "is_multistore": is_multistore,
         },
     }
     await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
 
     return {
-        "message": f"Actualización masiva aplicada a {len(processed_stores)} tienda(s)",
+        "message": f"Actualización masiva aplicada ({len(phases)} fase(s), {len(banks_list)} banco(s)) a {scope_label}",
         "stores_processed": processed_stores,
+        "phases": phases,
+        "banks": banks_list,
+        "is_multistore": is_multistore,
         "bitacora_entry_id": bitacora_entry["entry_id"],
     }
 

@@ -1,0 +1,57 @@
+{
+  "summary": "Iter240 — Regresión end-to-end (backend + frontend) del rediseño de Actualización Masiva de Estatus (multi-fase × multi-banco × multi-medio-de-pago). BACKEND: 10/10 pytest cases green contra REACT_APP_BACKEND_URL. Validado cruce en proyecto NO-multitienda (prj_e86a47af1bff, 2 fases × 2 bancos × Pago C2P (PG)) con completed=true persistido en project.implementation_matrix; cruce en multitienda (prj_e3cc3f3af922, 1 tienda) con completed=true en stores.$.implementation_matrix; rollup_progress recalculado; 5 validaciones 400 (sin fases, sin bank_products, banco con productos vacíos, fase inválida, multistore sin store_ids); compatibilidad legacy con {phase, bank_name, product_names} funcionando; bitácora única entry_type='batch_matrix_update' con batch_meta.is_multistore correcto y bank_products preservado. FRONTEND (Playwright): botón data-testid='batch-update-btn' VISIBLE en NO-multitienda (Payment Gateway, single) — candado 'multitienda' eliminado exitosamente; modal 'batch-update-dialog' se abre; sin sección 'Tiendas a procesar' en no-multitienda; multi-select de 2 fases y 2 bancos funciona; DOS bloques independientes 'batch-bank-block-<banco>' se renderizan al marcar 2 bancos, cada uno con SUS 3 productos y sin cross-contamination; desmarcar un banco elimina su bloque; submit deshabilitado sin banco/producto o sin tienda (multi); flujo de submit end-to-end con confirm() → toast 'Actualización masiva aplicada (2 fase(s), 1 banco(s)) a matriz del proyecto' → modal cerrado. En multitienda: sección Tiendas + batch-select-all presentes, batch-rif-select ausente (proyecto sin Multi-RIF, esperado); submit deshabilitado sin tienda, habilitado con tienda. Todo el flujo funciona conforme al spec.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/projects/{id}/matrix/batch-update",
+        "issue": "El endpoint CREA silenciosamente bancos o productos en la matriz si el nombre enviado no existe (lines 2165-2169 en routes/projects.py: `if bank not in matrix: matrix[bank] = {}`). Esto es comportamiento heredado y el agente principal lo documentó, pero en un frontend malintencionado o con typos podría contaminar la matriz. Sugerencia: opcionalmente validar bank/product contra la matriz existente y devolver 400 si no existen, dejando la creación implícita solo para admin o flag explícito."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "BatchUpdateModal",
+        "issues": [
+          "Warning de accesibilidad en consola: 'Missing Description or aria-describedby={undefined} for DialogContent'. Agregar <DialogDescription> o aria-describedby a <DialogContent data-testid=batch-update-dialog> mejora accesibilidad (no bloquea funcionalidad).",
+          "Al marcar un banco, todos sus productos quedan seleccionados por default (batch-product-checkbox-*-* -> state=checked). Esto es funcional (Playwright confirmó los 3 productos de Banco Mercantil pre-check) pero podría ser inesperado si el usuario quiere seleccionar un producto específico; considerar arrancar con productos vacíos y forzar selección explícita para evitar acciones masivas involuntarias."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter240_batch_matrix_evolution.py",
+    "/app/test_reports/pytest/iter240_results.xml"
+  ],
+  "action_items": [
+    "[Opcional/menor] Endurecer validación en batch-update: rechazar (400) bancos/productos que no existan en la matriz del proyecto, en lugar de crearlos silenciosamente. Alinear con el comentario del agente principal 'usa SOLO nombres reales del catálogo'.",
+    "[Opcional/menor] Añadir <DialogDescription> al DialogContent de BatchUpdateModal para eliminar el warning de accesibilidad de radix-ui.",
+    "[Discusión UX] Definir si al marcar un banco en el modal se deben pre-seleccionar TODOS sus medios de pago (comportamiento actual) o iniciar vacío para forzar selección explícita del usuario."
+  ],
+  "critical_code_review_comments": [
+    "BatchMatrixUpdate model (routes/projects.py L2083) soporta multi (phases + bank_products dict) y legacy (phase + bank_name + product_names) con normalización defensiva — bien diseñado, no rompe consumidores previos.",
+    "_apply_to_matrix (L2161) es reutilizado por ambas ramas (multistore + no-multistore) evitando duplicación DRY.",
+    "batch_matrix_update valida en orden: fases (400) → bank_products (400) → project existe (404) → client_notified (400) → permisología (403) → si multistore requiere store_ids (400). Buen fail-fast.",
+    "Permisología incluye admin, assigned_to_user_id + legacy implementer_user_id/implementer_id, y supervisores por cargo — cobertura amplia.",
+    "Bitácora única entry_type='batch_matrix_update' con batch_meta completo (phases, bank_products, stores, is_multistore, reason) — auditoría correcta.",
+    "MENOR: L2165-2169 crea bancos/productos inexistentes silenciosamente. Buen que sea heredado, pero abre vector para 'basura de matriz' si el frontend envía typos. Considerar switch/flag.",
+    "FRONTEND: BatchUpdateModal (292 líneas) está en un archivo modular independiente, canSubmit derivado correctamente. Uso de data-testid consistente (batch-phase-checkbox-<p>, batch-bank-checkbox-<b>, batch-bank-block-<b>, batch-product-checkbox-<b>-<p>).",
+    "FRONTEND: submitBatchUpdate (ProjectDetail.jsx L142) envía payload con phases/bank_products/store_ids/reason — alineado al schema backend nuevo. Fallback via api.post correcto y toasts adecuados."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter240_batch_matrix_evolution.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10)",
+    "frontend": "100% (todos los data-testid del spec verificados: batch-update-btn, batch-update-dialog, batch-phases-list, batch-phase-checkbox-<fase>, batch-banks-list, batch-bank-checkbox-<banco>, batch-bank-block-<banco>, batch-product-checkbox-<banco>-<producto>, batch-reason, batch-submit-btn, batch-select-all, batch-store-<id>, batch-rif-select (ausencia correcta en no-multi-rif))"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (leído de /app/memory/test_credentials.md). Session_token obtenido vía POST /api/auth/login.",
+  "seed_data_creation": "Se aplicaron cambios reales en los 2 proyectos de prueba (impacto controlado, coherente con el spec del agente principal que dice 'usar SOLO nombres reales del catálogo'):\n- prj_e86a47af1bff (NO-multi): matriz de Banco Mercantil y Banco Nacional de Crédito (BNC) marcada al 100% en fases Recibido y Configurado para Pago C2P (PG); adicionalmente Banco Mercantil/Pago C2P (PG) marcado en Recibido y Testeado por los tests de compat legacy y frontend submit. 3 entradas nuevas en bitacora con entry_type=batch_matrix_update. NINGÚN banco/producto/tienda ficticio creado.\n- prj_e3cc3f3af922 (multi): tienda #1 marcada al 100% en fases Recibido+Configurado para el primer producto de Banesco Banco Universal y BNC. 1 entrada nueva en bitacora.\nNo se puede revertir desde la API pública sin un endpoint dedicated; estos proyectos son de QA y las marcas son reversibles manualmente si el usuario lo requiere.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El test canónico /app/backend/tests/test_iter240_batch_matrix_evolution.py cubre las 3 dimensiones (validaciones, single-project cruce multi-banco/multi-fase, multistore cruce). Notas para futuras iteraciones: (1) El login devuelve 'session_token' (no 'access_token'); (2) BASE_URL debe leerse de /app/frontend/.env como fallback si REACT_APP_BACKEND_URL no está en el env del pytest; (3) STORE_PHASES son 4 ['Recibido','Configurado','Testeado','En Producción']; (4) El endpoint CREA banco/producto si no existe (heredado); (5) En Playwright, el PRIMER click sobre un radix Checkbox recién montado dentro de un Dialog puede fallar silenciosamente — usar wait_for_timeout(800) tras abrir dialog + retry-loop con data-state verification; (6) batch-product-checkbox-<bank>-<prod> tiene comas y paréntesis; el atributo selector CSS acepta comillas simples internas o dobles; (7) Los productos se auto-seleccionan al marcar el banco (comportamiento observado en Iter240, no verificado si es intencional).",
+  "rca of the issue": "N/A — no se detectaron bugs bloqueantes. Feature completamente funcional. Sólo se sugieren endurecimientos menores (validación explícita de bancos/productos existentes; DialogDescription para accesibilidad; UX de pre-selección de productos)."
+}
