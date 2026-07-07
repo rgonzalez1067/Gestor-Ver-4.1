@@ -3,6 +3,12 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Actualización Masiva de Estatus — multi-selección cruzada + alcance global — Jul 2026
+**Requerimiento:** convertir Fase, Banco/Ente y Medios de Pago en multi-selección; al elegir 2+ bancos renderizar un bloque de Medios de Pago independiente por banco; soportar cruces (varias fases × varios bancos c/productos); y quitar el candado "Multitienda" para que el botón esté disponible en TODOS los proyectos (incl. No Multitienda). Decisiones del usuario: Banco=Ente (misma dimensión, llaves de la matriz); No-Multitienda aplica directo a `project.implementation_matrix` sin sección de tiendas; multi-fase marca cada fase al 100%.
+**Backend (`routes/projects.py`):** `BatchMatrixUpdate` acepta `phases[]` + `bank_products{banco:[productos]}` (con compat legacy `phase`/`bank_name`/`product_names`). `batch_update_multistore_matrix` reescrito: helper `_apply_to_matrix` reutilizado por rama multitienda (loop tiendas) y no-multitienda (matriz de proyecto); valida banco/producto contra el catálogo real (400 si no existen, evita basura); removida la restricción de `project_type`; bitácora única `entry_type='batch_matrix_update'` con `batch_meta`; rollup recalculado.
+**Frontend:** `ProjectDetail.jsx` estado `batchPhases`/`batchBanks`/`batchBankProducts` + handlers; botón sin candado (`canEditMatrix && clientNotified && bankNames.length>0`). `BatchUpdateModal.jsx` reescrito: checkboxes multi para Fase y Banco/Ente, un bloque de Medios de Pago por banco seleccionado (sin mezclar catálogos), sección Tiendas condicionada a multitienda (con cascada por RIF en Multi-RIF), resumen y validación de submit. `DialogDescription` para accesibilidad.
+**QA:** testing_agent iteration_240 → **backend 100% (10/10)** + **frontend 100%** (prueba crítica de bloques por adquirente y disponibilidad en No-Multitienda verificadas). Test: `/app/backend/tests/test_iter240_batch_matrix_evolution.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
 ### Bug Fix: Persistencia de visibilidad histórica de cotizaciones ante cambio de depto del creador — Jul 2026
 **Síntoma:** al transferir de departamento a un ejecutivo/asesor, TODAS sus cotizaciones históricas desaparecían del panel de su antiguo equipo de ventas.
 **RCA:** `get_quotes`/`get_quote` resolvían la visibilidad por equipo cruzando el **departamento ACTUAL** del creador (consultando `db.users` en tiempo de ejecución). Al mutar el depto del creador, sus registros dejaban de matchear al equipo antiguo.

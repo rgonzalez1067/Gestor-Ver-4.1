@@ -2135,6 +2135,17 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
 
     is_multistore = project.get("project_type") in ("multistore", "multirif") and bool(project.get("stores"))
 
+    # Validar banco/medio de pago contra el CATÁLOGO real del proyecto (evita
+    # contaminar la matriz con nombres inexistentes por typos del cliente).
+    catalog = project.get("implementation_matrix", {}) or {}
+    for bank, prods in bank_products.items():
+        if bank not in catalog:
+            raise HTTPException(status_code=400, detail=f"El banco/ente '{bank}' no existe en la matriz del proyecto")
+        bank_catalog = catalog.get(bank) or {}
+        for p in prods:
+            if p not in bank_catalog:
+                raise HTTPException(status_code=400, detail=f"El medio de pago '{p}' no existe para '{bank}'")
+
     # Permisología: admin, implementador asignado o supervisor.
     # El implementador asignado se guarda en `assigned_to_user_id` (campo canónico).
     user_id = current_user.get("user_id", "")

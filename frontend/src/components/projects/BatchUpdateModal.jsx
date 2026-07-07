@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
@@ -91,6 +91,7 @@ export const BatchUpdateModal = ({
             {isMultistore ? ' Se aplica a las tiendas seleccionadas.' : ' Se aplica a la matriz del proyecto.'}
             {' '}Queda registrado en la bitácora.
           </p>
+          <DialogDescription className="sr-only">Asistente de actualización masiva de estatus de proyecto</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
