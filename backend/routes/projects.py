@@ -1,6 +1,6 @@
 """Route module: projects.py - Módulo de Proyectos (Post-Venta)"""
 from fastapi import APIRouter, HTTPException, Header, UploadFile, File, Form, Query
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse, StreamingResponse
 from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel
@@ -1031,6 +1031,43 @@ async def set_notification_preference(body: NotificationPreferenceUpdate, author
         upsert=True,
     )
     return {"message": "Plantilla preferida actualizada", "destination": body.destination, "template_id": body.template_id}
+
+
+@router.get("/projects/{project_id}/attachments/{attachment_id}/download")
+async def download_project_attachment(project_id: str, attachment_id: str, authorization: Optional[str] = Header(None)):
+    """Descarga un anexo del proyecto (los cargados en Proyectos Directos antes
+    del envío a Implementación). Sirve desde FS local primero, luego Object
+    Storage como fallback. Acceso: cualquier usuario con acceso al módulo
+    Proyectos (RBAC global cubre /api/projects)."""
+    import io as _io
+    from config import UPLOADS_DIR
+    from services.pdf_storage import get_pdf_from_storage
+
+    await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "attachments": 1})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    att = next((a for a in (project.get("attachments") or []) if a.get("attachment_id") == attachment_id), None)
+    if not att:
+        raise HTTPException(status_code=404, detail="Anexo no encontrado")
+
+    key = (att.get("storage_key") or (att.get("url") or "").replace("/uploads/", "")).lstrip("/")
+    ctype = att.get("content_type", "application/octet-stream")
+    filename = att.get("filename", attachment_id)
+
+    file_path = UPLOADS_DIR / key
+    if file_path.exists():
+        return FileResponse(path=str(file_path), filename=filename, media_type=ctype)
+
+    obj = get_pdf_from_storage(key)
+    if obj:
+        content, stored_ctype = obj
+        return StreamingResponse(
+            _io.BytesIO(content),
+            media_type=stored_ctype or ctype,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    raise HTTPException(status_code=404, detail="Archivo no encontrado en el servidor")
 
 
 @router.get("/projects/{project_id}/ficha-tecnica")

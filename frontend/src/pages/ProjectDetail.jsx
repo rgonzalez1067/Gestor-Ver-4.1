@@ -16,7 +16,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark, FileDown, TrendingUp, Star
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark, FileDown, TrendingUp, Star, Download
 } from 'lucide-react';
 
 import { SingleBankSection } from '../components/projects/SingleBankSection';
@@ -74,6 +74,8 @@ const ProjectDetail = () => {
   // Fase 5 VPOS Multi-RIF: filtro en cascada por RIF. '__ALL__' = Todos los RIFs.
   const [batchRif, setBatchRif] = useState('__ALL__');
   const [fichaDownloading, setFichaDownloading] = useState(false);
+  const [anexosOpen, setAnexosOpen] = useState(false);
+  const [anexoDownloading, setAnexoDownloading] = useState(null);
 
   const _matrixCatalog = () => project?.implementation_matrix || {};
   const _productsOfBank = (bank) => Object.keys(_matrixCatalog()[bank] || {});
@@ -1074,6 +1076,31 @@ const ProjectDetail = () => {
   };
 
   // ==================== FICHA TÉCNICA (PDF on-the-fly) ====================
+  const downloadProjectAttachment = async (att) => {
+    setAnexoDownloading(att.attachment_id);
+    try {
+      const res = await api.get(`/projects/${projectId}/attachments/${att.attachment_id}/download`, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: att.content_type || 'application/octet-stream' }));
+      const isImage = /\.(png|jpe?g|webp|gif)$/i.test(att.filename || '');
+      const isPdf = /\.pdf$/i.test(att.filename || '');
+      if (isImage || isPdf) {
+        window.open(blobUrl, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = att.filename || att.attachment_id;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 30000);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al descargar el anexo');
+    } finally {
+      setAnexoDownloading(null);
+    }
+  };
+
   const downloadFichaTecnica = async () => {
     setFichaDownloading(true);
     try {
@@ -1260,6 +1287,14 @@ const ProjectDetail = () => {
                   <Button variant="outline" size="sm" onClick={downloadFichaTecnica} disabled={fichaDownloading} className="text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-7 px-2" data-testid="download-ficha-tecnica-btn">
                     <FileDown size={12} />{fichaDownloading ? 'Generando...' : 'Ficha Técnica'}
                   </Button>
+                  {(project.attachments || []).length > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => setAnexosOpen(true)} className="text-xs gap-1 border-rose-200 text-rose-700 hover:bg-rose-50 h-7 px-2 relative" data-testid="open-project-anexos-btn">
+                      <Paperclip size={12} />Anexos
+                      <span className="ml-1 inline-flex items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-bold px-1.5 min-w-[16px] h-[16px]" data-testid="project-anexos-badge">
+                        {(project.attachments || []).length}
+                      </span>
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -2920,6 +2955,37 @@ const ProjectDetail = () => {
             />
           );
         })()}
+
+        {/* Modal: Anexos del Proyecto (cargados en Proyecto Directo antes del envío) */}
+        <Dialog open={anexosOpen} onOpenChange={setAnexosOpen}>
+          <DialogContent className="max-w-lg" data-testid="project-anexos-modal">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-rose-800">
+                <Paperclip size={18} /> Anexos del Proyecto
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {(project.attachments || []).length === 0 ? (
+                <p className="text-sm text-slate-400 italic py-4 text-center">Este proyecto no tiene anexos.</p>
+              ) : (project.attachments || []).map((att) => (
+                <div key={att.attachment_id} className="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-3 py-2" data-testid={`project-anexo-${att.attachment_id}`}>
+                  <Paperclip size={16} className="text-slate-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 truncate">{att.filename}</p>
+                    <p className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
+                      {att.category && <span className="bg-slate-100 px-1.5 py-0.5 rounded">{att.category}</span>}
+                      {att.uploaded_by_name && <span>por {att.uploaded_by_name}</span>}
+                      {att.uploaded_at && <span>{new Date(att.uploaded_at).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 gap-1 border-rose-200 text-rose-700 hover:bg-rose-50 shrink-0" disabled={anexoDownloading === att.attachment_id} onClick={() => downloadProjectAttachment(att)} data-testid={`project-anexo-download-${att.attachment_id}`}>
+                    <Download size={13} />{anexoDownloading === att.attachment_id ? '...' : 'Ver'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

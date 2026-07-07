@@ -6,6 +6,7 @@
 - **Backend (`direct_projects.py`):** nuevo `POST /api/direct-projects/upload-attachment` (staging multipart, valida tipo PDF/imagen/Word/Excel/CSV y tamaño máx 10MB, guarda vía `save_pdf_dual` en `attachments/direct_staging/{id}`). El modelo `DirectProjectCreate` acepta `attachments: list[dict]`; al crear el proyecto se persisten en `project.attachments` y se pasan como `extra_attachments` (base64) a `engine_try_dispatch('send_to_implementation', ...)`. Respuesta incluye `attachments_count`. Hardening: solo se aceptan `storage_key` con prefijo `attachments/direct_staging/`.
 - **Frontend (`DirectProjectCreation.jsx`):** tarjeta 'Anexos del Proyecto' con dropzone + selección múltiple, selector de categoría por archivo, validación cliente (tipo/tamaño), y subida secuencial en `doSubmit` antes del POST. Banner de éxito muestra el conteo de anexos.
 - **QA (testing_agent iter243): 8/8 backend + frontend E2E 100%.** Verificado upload válido/inválido (.txt→400, >10MB→400), creación con y sin anexos, y persistencia en `project.attachments` (proyecto PRY-2026-07-008-PRI con 2 anexos).
+- **Enhancement (mismo día):** visor de anexos en la ficha del Proyecto. Nuevo `GET /api/projects/{project_id}/attachments/{attachment_id}/download` (sirve desde FS→Object Storage). Botón "Anexos" con badge de conteo en el header de `ProjectDetail.jsx` que abre modal (`project-anexos-modal`) con lista descargable/visualizable. Verificado por curl (200/404) y screenshot (modal + 2 filas descargables).
 - **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
 
 
