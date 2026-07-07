@@ -3,6 +3,12 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug Fix: Persistencia de visibilidad histórica de cotizaciones ante cambio de depto del creador — Jul 2026
+**Síntoma:** al transferir de departamento a un ejecutivo/asesor, TODAS sus cotizaciones históricas desaparecían del panel de su antiguo equipo de ventas.
+**RCA:** `get_quotes`/`get_quote` resolvían la visibilidad por equipo cruzando el **departamento ACTUAL** del creador (consultando `db.users` en tiempo de ejecución). Al mutar el depto del creador, sus registros dejaban de matchear al equipo antiguo.
+**Fix (origen inmutable):** cada cotización guarda al crearse `creator_departamento` + `creator_cargo` (snapshot). La visibilidad por equipo se basa en ese origen inmutable (helper `_dept_visibility_or`), con fallback a los miembros actuales del depto para históricos y siempre las propias del usuario. Registrado en los 3 paths de creación (create_quote, create_quote_with_pdf, flujo equipos); el duplicado (`{**original_quote}`) preserva el origen. Backfill idempotente en startup (`backfill_quote_origin`, flag `config.quote_origin_backfilled`) pobló 127 cotizaciones. Campos expuestos en el modelo `Quote`. Cotizaciones NUEVAS del transferido se adscriben a su nuevo depto y no fugan al equipo anterior.
+**QA:** testing_agent iteration_239 → **backend 100% (11/11 pytest)**. Test canónico: `/app/backend/tests/test_iter239_creator_dept_immutable.py`. Regresiones OK (Ventas Corporativas, Admin, Coordinador, Ejecutivo, Director). ⚠️ PREVIEW; requiere REDEPLOY.
+
 ### Bug Fix: Degradación de segmento CORP→PYME en cotizaciones — Jul 2026
 **Síntoma (producción):** un usuario de Ventas Corporativas (sede='CORP') creaba cotizaciones CORP y "de pronto" aparecían como PYME, sin cambios en su perfil.
 **RCA:** el badge de la grilla se lee de `quote.client_segment` (QuotesTable.jsx L362-368). El flujo "Modificar" = `POST /quotes/{id}/duplicate` (copia el segmento vía `{**original_quote}`) + `POST /quotes/{newId}/regenerate-pdf`. `regenerate_quote_pdf` tenía `client_segment = quote.get("client_segment", "PYME")` con **fallback hardcodeado a 'PYME'**, que corrompía cotizaciones CORP al regenerar el PDF. Además `QuoteUpdate` no exponía `client_segment` y el PUT de Modificar no lo transportaba.

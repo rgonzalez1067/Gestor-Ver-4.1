@@ -738,6 +738,8 @@ class Quote(BaseModel):
     created_by_user_id: Optional[str] = None  # ID del usuario que creó la cotización
     creator_name: Optional[str] = None  # Nombre completo del creador (inyectado en listing)
     creator_initials: Optional[str] = None  # Iniciales del creador (inyectado en listing)
+    creator_departamento: Optional[str] = None  # ORIGEN INMUTABLE: depto del creador al crear (visibilidad por equipo)
+    creator_cargo: Optional[str] = None  # ORIGEN INMUTABLE: cargo del creador al crear
     # Campos de seguimiento - timestamps
     sent_to_client_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
