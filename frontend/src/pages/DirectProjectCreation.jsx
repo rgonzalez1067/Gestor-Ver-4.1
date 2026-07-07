@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText, Server, Network } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText, Server, Network, Paperclip, File as FileIcon, Image as ImageIcon } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -29,6 +29,27 @@ const AVAIL_FIELD = (qt) => (QUOTE_TYPES.find((x) => x.id === qt) || {}).avail |
 // Payment Gateway / Link de Pago: productos virtuales (sin cajas físicas, sin
 // multitienda/multi-rif; integradores filtrados por certificación PG).
 const PG_LIKE = (qt) => qt === 'GATEWAY' || qt === 'LINK_PAGO';
+
+/* Anexos del Proyecto Directo — tipos y tamaño permitidos (validados también en backend). */
+const DP_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.csv';
+const DP_ALLOWED_EXTS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'xls', 'xlsx', 'csv'];
+const DP_MAX_BYTES = 10 * 1024 * 1024;
+const DP_ATTACH_CATEGORIES = ['Orden de Compra', 'Factura', 'Nota de Entrega', 'Otros'];
+
+function formatBytes(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function attachIcon(name) {
+  const ext = (name || '').split('.').pop().toLowerCase();
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return <ImageIcon size={16} className="text-green-500" />;
+  if (['pdf'].includes(ext)) return <FileText size={16} className="text-red-500" />;
+  if (['xlsx', 'xls', 'csv'].includes(ext)) return <FileSpreadsheet size={16} className="text-emerald-600" />;
+  return <FileIcon size={16} className="text-slate-500" />;
+}
 
 /* ------------------------------------------------------------------ */
 /* Combobox de clientes con búsqueda — forwardRef para foco externo   */
@@ -188,6 +209,31 @@ export default function DirectProjectCreation() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastCreated, setLastCreated] = useState(null); // {project_number, project_id, dispatched}
+
+  // Anexos cargados ANTES del envío a Implementación. Cada item: {uid, file, category}.
+  const [attachments, setAttachments] = useState([]);
+  const [uploadingAtt, setUploadingAtt] = useState(false);
+  const attachInputRef = useRef(null);
+
+  const addAttachments = (fileList) => {
+    const incoming = Array.from(fileList || []);
+    const accepted = [];
+    incoming.forEach((file) => {
+      const ext = (file.name || '').split('.').pop().toLowerCase();
+      if (!DP_ALLOWED_EXTS.includes(ext)) {
+        toast.error(`"${file.name}": tipo no permitido`);
+        return;
+      }
+      if (file.size > DP_MAX_BYTES) {
+        toast.error(`"${file.name}" supera los 10MB`);
+        return;
+      }
+      accepted.push({ uid: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, file, category: 'Otros' });
+    });
+    if (accepted.length) setAttachments((prev) => [...prev, ...accepted]);
+  };
+  const removeAttachment = (uid) => setAttachments((prev) => prev.filter((a) => a.uid !== uid));
+  const setAttachmentCategory = (uid, category) => setAttachments((prev) => prev.map((a) => a.uid === uid ? { ...a, category } : a));
 
   const clientRef = useRef(null);
   const serialsAreaRef = useRef(null);
@@ -554,7 +600,30 @@ export default function DirectProjectCreation() {
     setAssignModal({ open: false, scenario: null, name: '' });
     setSaving(true);
     try {
-      const payload = { ...form, cantidad_cajas: Number(form.cantidad_cajas) };
+      // Subir anexos en staging (si los hay) antes de crear el proyecto.
+      let uploadedAttachments = [];
+      if (attachments.length > 0) {
+        setUploadingAtt(true);
+        try {
+          for (const a of attachments) {
+            const fd = new FormData();
+            fd.append('file', a.file);
+            fd.append('category', a.category || 'Otros');
+            const { data: ref } = await api.post('/direct-projects/upload-attachment', fd, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            uploadedAttachments.push(ref);
+          }
+        } catch (upErr) {
+          toast.error(`Error subiendo anexos: ${upErr.response?.data?.detail || upErr.message}`);
+          setUploadingAtt(false);
+          setSaving(false);
+          return;
+        }
+        setUploadingAtt(false);
+      }
+
+      const payload = { ...form, cantidad_cajas: Number(form.cantidad_cajas), attachments: uploadedAttachments };
       delete payload.equipment_serials;
       // Modelo de Pinpad: cada serial (cargado por Excel, lote o manual) hereda
       // el "Modelo Pinpad" general del proyecto cuando su fila no trae modelo,
@@ -590,7 +659,7 @@ export default function DirectProjectCreation() {
       const res = await api.post('/direct-projects', payload);
       const d = res.data;
       toast.success(
-        `Proyecto ${d.project_number} creado ${d.notification?.dispatched ? '· correo enviado' : '· sin notificación configurada'}`,
+        `Proyecto ${d.project_number} creado ${d.notification?.dispatched ? '· correo enviado' : '· sin notificación configurada'}${d.attachments_count ? ` · ${d.attachments_count} anexo(s)` : ''}`,
         { duration: 6000 }
       );
 
@@ -602,6 +671,7 @@ export default function DirectProjectCreation() {
       });
       setForm(INITIAL_FORM);
       setBulkSerialsText('');
+      setAttachments([]);
       // Esperar un tick para que el remount del combobox limpie el valor visible.
       setTimeout(() => clientRef.current?.focus(), 50);
     } catch (e) {
@@ -1413,6 +1483,65 @@ export default function DirectProjectCreation() {
       </Card>
       )}
 
+      {/* Card 5.5: Anexos del Proyecto (se adjuntan al correo de Implementación) */}
+      <Card className="border-rose-100 shadow-sm" data-testid="dp-attachments-card">
+        <CardHeader className="pb-3 bg-gradient-to-r from-rose-50 to-rose-50/30 border-b border-rose-100 rounded-t-lg">
+          <CardTitle className="text-base flex items-center gap-2 text-rose-900">
+            <div className="bg-rose-500 rounded-md p-1.5"><Paperclip size={14} className="text-white" /></div>
+            Anexos del Proyecto <span className="text-xs font-normal text-rose-700/70">(opcional)</span>
+          </CardTitle>
+          <CardDescription className="text-xs text-rose-700/70">
+            Adjunta soportes (orden de compra, imágenes, planillas). Se guardarán en el proyecto y se enviarán al equipo de Implementación junto con la Ficha Técnica. Máx 10MB por archivo · PDF, imágenes, Word, Excel, CSV.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div
+            onDragOver={(e) => { e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); addAttachments(e.dataTransfer.files); }}
+            className="border-2 border-dashed border-rose-200 rounded-lg p-5 text-center bg-rose-50/30 hover:bg-rose-50/60 transition-colors cursor-pointer"
+            onClick={() => attachInputRef.current?.click()}
+            data-testid="dp-attach-dropzone"
+          >
+            <Upload size={22} className="mx-auto text-rose-400 mb-1.5" />
+            <p className="text-sm text-slate-600">Arrastra archivos aquí o <span className="text-rose-600 font-semibold">haz clic para seleccionar</span></p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Puedes seleccionar varios a la vez</p>
+            <input
+              ref={attachInputRef}
+              type="file"
+              multiple
+              accept={DP_ACCEPT}
+              className="hidden"
+              onChange={(e) => { addAttachments(e.target.files); if (attachInputRef.current) attachInputRef.current.value = ''; }}
+              data-testid="dp-attach-input"
+            />
+          </div>
+
+          {attachments.length > 0 && (
+            <div className="space-y-1.5" data-testid="dp-attach-list">
+              {attachments.map((a) => (
+                <div key={a.uid} className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2" data-testid={`dp-attach-item-${a.uid}`}>
+                  {attachIcon(a.file.name)}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 truncate">{a.file.name}</p>
+                    <p className="text-[11px] text-slate-400">{formatBytes(a.file.size)}</p>
+                  </div>
+                  <Select value={a.category} onValueChange={(v) => setAttachmentCategory(a.uid, v)}>
+                    <SelectTrigger className="h-8 w-40 text-xs" data-testid={`dp-attach-cat-${a.uid}`}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {DP_ATTACH_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="ghost" onClick={() => removeAttachment(a.uid)} className="text-red-600 h-8 w-8 p-0" data-testid={`dp-attach-remove-${a.uid}`}>
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              ))}
+              <p className="text-[11px] text-slate-500 pt-1" data-testid="dp-attach-count">{attachments.length} anexo(s) listo(s) para enviar.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Card 6: Instrucciones */}
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3 bg-gradient-to-r from-slate-50 to-slate-50/30 border-b border-slate-200 rounded-t-lg">
@@ -1483,7 +1612,7 @@ export default function DirectProjectCreation() {
                 </Button>
                 <Button onClick={doSubmit} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="dp-assign-confirm-btn">
                   {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Zap size={14} className="mr-1" />}
-                  Confirmar y Enviar
+                  {uploadingAtt ? 'Subiendo anexos...' : 'Confirmar y Enviar'}
                 </Button>
               </div>
             </div>
@@ -1497,7 +1626,7 @@ export default function DirectProjectCreation() {
               <div className="flex justify-end">
                 <Button onClick={doSubmit} disabled={saving} className="bg-amber-600 hover:bg-amber-700 text-white" data-testid="dp-assign-accept-btn">
                   {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
-                  Aceptar
+                  {uploadingAtt ? 'Subiendo anexos...' : 'Aceptar'}
                 </Button>
               </div>
             </div>

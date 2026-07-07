@@ -18,18 +18,25 @@ Endpoints:
 """
 from datetime import datetime, timezone
 from io import BytesIO
+from pathlib import Path
+import base64
 import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Header, UploadFile, File
+from fastapi import APIRouter, HTTPException, Header, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from config import db, get_current_user
+from config import db, get_current_user, UPLOADS_DIR
 from routes.quote_transitions import _create_project_from_quote
 from services.implementation_pdf import generate_implementation_pdf
 from services.notification_engine import try_dispatch as engine_try_dispatch
+from services.pdf_storage import save_pdf_dual, get_pdf_from_storage
+
+# Anexos de Proyecto Directo: tipos y tamaño permitidos (validación en backend).
+DP_ALLOWED_EXTS = {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".csv"}
+DP_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 MB por archivo
 
 router = APIRouter(tags=["direct-projects"])
 logger = logging.getLogger("direct-projects")
@@ -160,6 +167,12 @@ class DirectProjectCreate(BaseModel):
     # Instrucciones para el implementador
     implementation_instructions: Optional[str] = None
 
+    # Anexos cargados ANTES del envío a Implementación. Cada item es una
+    # referencia devuelta por POST /direct-projects/upload-attachment:
+    # {attachment_id, filename, url, storage_key, file_size, content_type, category}.
+    # Se persisten en project.attachments y se adjuntan al correo de Implementación.
+    attachments: list[dict] = Field(default_factory=list)
+
 
 def _grid_to_services(boxes_grid) -> list[dict]:
     """Agrupa una grilla [(bank, product, qty)] en items 'additional' (services).
@@ -204,6 +217,55 @@ def _grid_to_matrix(boxes_grid) -> dict:
 
 
 # =================== Endpoint principal ===================
+@router.post("/direct-projects/upload-attachment")
+async def upload_direct_project_attachment(
+    file: UploadFile = File(...),
+    category: str = Form("Otros"),
+    authorization: Optional[str] = Header(None),
+):
+    """Sube un anexo en STAGING antes de crear el Proyecto Directo.
+
+    Guarda el archivo en Object Storage (+ FS cache) bajo una carpeta de
+    staging y devuelve la metadata. El frontend acumula estas referencias y las
+    envía en `attachments` al crear el proyecto (POST /direct-projects), donde
+    se persisten en `project.attachments` y se adjuntan al correo de
+    Implementación.
+    """
+    user = await _require_direct_projects_access(authorization, write=True)
+
+    ext = (Path(file.filename).suffix if file.filename else "").lower()
+    if ext not in DP_ALLOWED_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de archivo no permitido ({ext or 'sin extensión'}). Permitidos: PDF, imágenes, Word, Excel, CSV.",
+        )
+
+    content = await file.read()
+    if len(content) > DP_MAX_ATTACHMENT_BYTES:
+        raise HTTPException(status_code=400, detail="El archivo no debe superar los 10MB")
+    if not content:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+
+    staging_id = f"dps_{uuid.uuid4().hex[:10]}"
+    attachment_id = f"att_{uuid.uuid4().hex[:12]}"
+    safe_filename = f"{attachment_id}{ext}"
+    storage_key = f"attachments/direct_staging/{staging_id}/{safe_filename}"
+    file_path = UPLOADS_DIR / storage_key
+
+    save_pdf_dual(file_path, content, storage_key)
+
+    return {
+        "attachment_id": attachment_id,
+        "category": category or "Otros",
+        "filename": file.filename or safe_filename,
+        "url": f"/uploads/{storage_key}",
+        "storage_key": storage_key,
+        "file_size": len(content),
+        "content_type": file.content_type or "application/octet-stream",
+        "uploaded_by": user.get("email", "unknown"),
+    }
+
+
 @router.post("/direct-projects")
 async def create_direct_project(
     payload: DirectProjectCreate,
@@ -522,6 +584,45 @@ async def create_direct_project(
         }},
     )
 
+    # ---- Anexos cargados antes del envío (staging → proyecto + correo) ----
+    # Persistimos la metadata en project.attachments y preparamos los binarios
+    # (base64) para adjuntarlos al correo de "Enviar a Implementación".
+    dp_extra_attachments = []
+    project_attachments = []
+    _att_now = datetime.now(timezone.utc).isoformat()
+    _uploader_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", "unknown")
+    for a in (payload.attachments or []):
+        key = (a.get("storage_key") or "").strip()
+        rec = {
+            "attachment_id": a.get("attachment_id") or f"att_{uuid.uuid4().hex[:12]}",
+            "category": a.get("category") or "Otros",
+            "filename": a.get("filename") or "anexo",
+            "url": a.get("url") or (f"/uploads/{key}" if key else ""),
+            "storage_key": key,
+            "uploaded_by": user.get("email", "unknown"),
+            "uploaded_by_name": _uploader_name,
+            "uploaded_at": _att_now,
+            "file_size": a.get("file_size"),
+            "content_type": a.get("content_type") or "application/octet-stream",
+            "source": "direct_project_creation",
+        }
+        project_attachments.append(rec)
+        if key:
+            try:
+                fetched = get_pdf_from_storage(key)
+                if fetched:
+                    dp_extra_attachments.append({
+                        "filename": rec["filename"],
+                        "content": base64.b64encode(fetched[0]).decode("utf-8"),
+                    })
+            except Exception as e:
+                logger.warning(f"[direct-projects] no se pudo leer anexo {key} para el correo: {e}")
+    if project_attachments:
+        await db.projects.update_one(
+            {"project_id": project["project_id"]},
+            {"$set": {"attachments": project_attachments}},
+        )
+
     # ---- Generar Ficha Técnica PDF ----
     # generate_implementation_pdf espera (quote, client, contacts, branches).
     # Le pasamos la synthetic_quote enriquecida con el quote_number final
@@ -552,6 +653,7 @@ async def create_direct_project(
             notif_quote,
             user,
             implementation_pdf_bytes=pdf_bytes,
+            extra_attachments=(dp_extra_attachments or None),
         )
         notification_result = {"dispatched": bool(dispatched), "reason": "ok" if dispatched else "no_config"}
 
@@ -596,6 +698,7 @@ async def create_direct_project(
         "project_id": project["project_id"],
         "project_number": prd_number,
         "notification": notification_result,
+        "attachments_count": len(project_attachments),
     }
 
 

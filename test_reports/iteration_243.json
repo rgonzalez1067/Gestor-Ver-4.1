@@ -1,0 +1,48 @@
+{
+  "summary": "Iter243 — Certificación end-to-end (backend + frontend) del feature 'Anexos pre-envío' en Proyectos Directos. BACKEND: 8/8 pytest cases green contra REACT_APP_BACKEND_URL. Validado: (1) POST /api/direct-projects/upload-attachment acepta PDF/PNG con metadata correcta (attachment_id, filename, url, storage_key, file_size, content_type, category); (2) rechaza .txt (400 con 'Tipo de archivo no permitido'); (3) rechaza .exe (400); (4) rechaza archivo > 10MB (400 con detail 'El archivo no debe superar los 10MB'); (5) requiere autenticación (401/403 sin token); (6) POST /api/direct-projects con 2 refs de attachments crea el proyecto, retorna attachments_count=2 y persiste project.attachments con IDs coincidentes, uploaded_by, source='direct_project_creation'; (7) POST /api/direct-projects SIN anexos → attachments_count=0 y proyecto se crea normalmente (flujo intacto). FRONTEND: /direct-projects renderiza sin pantalla blanca; dp-attachments-card / dp-attach-dropzone / dp-attach-input presentes. Upload de .txt inválido dispara toast rojo '\"TEST_ITER243_INVALID.txt\": tipo no permitido' y NO agrega el item. Upload de 2 PDF válidos agrega 2 items (dp-attach-item-*), dp-attach-count muestra '2 anexo(s) listo(s) para enviar.', y remove funciona (baja a 1). FLUJO E2E COMPLETO: login admin → completar Proyecto Directo Simple (cliente Combobox dp-client-opt-*, VPOS default, cantidad_cajas=1, Reel con banco+producto, servidor 'Multicomercio MSC', comm SSL) → adjuntar 2 PDFs → dp-submit-btn habilitado (errors.length=0) → modal dp-assign-modal se abre → dp-assign-accept-btn → proyecto creado PRY-2026-07-008-PRI (prj_9791d8dfdc29). Verificación API GET /api/projects/prj_9791d8dfdc29 → origin='direct', attachments_count=2, ambos items con filename/storage_key/category correctos. Header muestra 'Correo enviado a destinatarios configurados' → notification.dispatched=true.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Global / Dashboard (heredado, no del feature)",
+        "issues": [
+          "Warnings de hidratación persistentes: '<span> cannot be a child of <tr>/<tbody>' y '<td>/<th> ... span' en Dashboard. Ya reportados en iter241/242, siguen presentes; no bloquean el flujo de Proyectos Directos."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter243_dp_attachments.py",
+    "/app/test_reports/pytest/iter243_results.xml"
+  ],
+  "action_items": [
+    "[MENOR] Considerar mostrar en el toast de éxito el conteo de anexos ('· N anexo(s)'), como está redactado en el PRD del feature. Actualmente el banner verde de éxito NO incluye la cifra; solo aparece 'Correo enviado a destinatarios configurados'. No es bloqueante (los anexos se guardan y llegan al correo), pero el copy final del toast quedó pendiente de aplicarse (o el toast se muestra brevemente y luego lo reemplaza el banner permanente). Verificar handler en doSubmit del frontend."
+  ],
+  "critical_code_review_comments": [
+    "direct_projects.py L237-247: validación por extensión es defensiva; considera también validar Content-Type/MIME (magic bytes) para evitar rename malicioso (.exe → .pdf). No bloqueante en preview.",
+    "direct_projects.py L243: se lee todo el body en memoria antes del check de 10MB. Un adversario podría transmitir un archivo mucho mayor y agotar memoria antes del reject. Considerar leer por streaming con corte al superar DP_MAX_ATTACHMENT_BYTES (FastAPI/Starlette Request.stream con conteo incremental).",
+    "direct_projects.py L614-617: se codifica base64 en memoria por cada anexo. Con archivos cercanos a 10MB y muchos anexos, el pico de memoria puede ser elevado; aceptable para el volumen esperado.",
+    "direct_projects.py L620-624: proyecto se ACTUALIZA con attachments después de creado — hay una ventana breve donde el proyecto existe sin sus anexos. En caso de fallo entre create_project y $set attachments, quedaría inconsistente. Considerar incluir attachments en el documento inicial de creación.",
+    "direct_projects.py L594-608: no se valida que storage_key de las refs enviadas por el cliente pertenezcan a 'attachments/direct_staging/' — un cliente malicioso podría enviar cualquier storage_key existente en el bucket para 'anexar' arbitrariamente. Mitigar validando prefix y/o uploaded_by contra el user actual.",
+    "Frontend DirectProjectCreation.jsx: dp-attach-input está oculto (className hidden) — es correcto (patrón dropzone), pero se detectó que Playwright lo ve como no-visible; los tests usan set_input_files sobre el input hidden y funciona igual.",
+    "Frontend L611-620 (doSubmit): sube anexos secuencialmente en un for; con muchos archivos podría paralelizarse con Promise.all para mejor UX. No es bloqueante."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter243_dp_attachments.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8)",
+    "frontend": "100% (renderización, upload válido/inválido, remove, submit E2E y verificación de persistencia)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123. No se necesitó no-admin (feature restringido a acceso escritura proyectos_directos; admin la tiene por override).",
+  "seed_data_creation": "Se creó 1 proyecto real de prueba: project_id=prj_9791d8dfdc29 / number=PRY-2026-07-008-PRI, origin='direct', con 2 anexos TEST_ITER243_UI_A.pdf y TEST_ITER243_UI_B.pdf en 'attachments/direct_staging/...'. Adicionalmente los 2 tests de backend crearon 2 proyectos directos más (con y sin anexos). Todos con prefijo TEST_ITER243 en el fantasy_name/economic_group. No se implementó teardown (no hay endpoint público DELETE de proyectos).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test canónico: /app/backend/tests/test_iter243_dp_attachments.py (8 tests). Prerrequisitos: (1) Debe haber al menos un cliente en la BD (el test toma el primero de GET /api/clients). (2) El payload de POST /api/direct-projects requiere boxes_grid con quantity>=1 en cada fila (además de bank_name+product_name); si se omite quantity, Pydantic devuelve 422. Notas del preview: (a) el frontend muestra un overlay heredado de iter242 ('Tiene N mensajes pendientes...') que se cierra con Enter (max 3 intentos). (b) toast final tras submit puede quedar cubierto por el banner verde permanente 'Proyecto ... creado correctamente'.",
+  "rca of the issue": "Sin bugs bloqueantes. Observaciones (no bugs): (1) el toast de éxito del frontend no muestra explícitamente '· N anexo(s)' aunque el PRD lo mencionaba — puede ser un tema de copy o duración del toast; los anexos SÍ se persisten y se despachan. (2) Warnings de hidratación en Dashboard persisten de iteraciones previas (span dentro de tr/tbody). Ambos son menores. RECOMENDACIÓN DE HARDENING (no bug): validar prefix de storage_key en el POST /direct-projects para evitar que un cliente malicioso adjunte storage_keys arbitrarias del bucket."
+}
