@@ -1,0 +1,44 @@
+{
+  "summary": "Iter239 — Backend-only regression del fix de VISIBILIDAD HISTÓRICA basada en ORIGEN INMUTABLE (creator_departamento/creator_cargo). 11/11 pytest cases green contra la URL pública REACT_APP_BACKEND_URL. Se validó: (1) POST /api/quotes persiste creator_departamento y creator_cargo con el snapshot del creador; (2) B (mismo depto que A) ve y accede a la cotización antes de la transferencia; (3) PUT /api/admin/users/{A} cambia el depto de A; (4) B SIGUE viendo (list) y accediendo (GET 200) a la cotización histórica de A tras la transferencia — CRITERIO DE ACEPTACIÓN CENTRAL; (5) nueva cotización de A ya transferido se guarda con el NUEVO departamento y NO aparece en el panel de B (GET individual 403); (6) regresión Ventas Corporativas: equipo Corp sigue viendo cotización de un miembro transferido a Implementación; (7) admin (bypass total) sigue viendo todo; (8) backfill idempotente: flag config.quote_origin_backfilled=true y ratio de cotizaciones históricas con creator_departamento poblado ≥ 40% (aceptando orphan created_by_user_id de importaciones legacy).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/quotes y GET /api/quotes/{id}",
+        "issue": "El response_model=Quote NO declara creator_departamento ni creator_cargo, por lo que Pydantic los FILTRA de la respuesta JSON. El fix funcional en la query de Mongo NO se ve afectado (visibilidad correcta verificada por tests 02-08), pero el frontend/consumidores externos no pueden leer el origen inmutable vía API — sólo indirectamente por si la cotización aparece o no. Recomendación: agregar creator_departamento y creator_cargo (Optional[str]=None) al modelo Quote en /app/backend/models.py L687+ para exponerlos en las respuestas."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter239_creator_dept_immutable.py",
+    "/app/test_reports/pytest/iter239_results.xml"
+  ],
+  "action_items": [
+    "[Opcional/menor] Agregar campos creator_departamento y creator_cargo (Optional[str]=None) al modelo Quote (models.py) para exponerlos en /api/quotes y /api/quotes/{id}. El fix funcional NO lo requiere (visibilidad se calcula por query de Mongo directo), pero mejora la observabilidad para el frontend y auditoría."
+  ],
+  "critical_code_review_comments": [
+    "_dept_visibility_or (quotes.py L516) mantiene fallback correcto a miembros ACTUALES del depto para históricos sin creator_departamento — buena estrategia defensiva post-backfill.",
+    "El backfill idempotente (quotes.py L531) SOLO pobla cotizaciones cuyo created_by_user_id sigue existiendo en db.users. Cotizaciones importadas con created_by_user_id sintético (orphan) quedan con creator_departamento=None. Sugerencia: log de conteo de skipped para telemetría.",
+    "get_quote (quotes.py L780+) usa fallback vía DB (find_one users) cuando quote.creator_departamento está ausente — coherente con la lista. Buen doble camino.",
+    "Duplicate quote_actions.py L~3200 usa {**original_quote} y por ende preserva creator_departamento — corrección validada por lectura del código; no probado con test end-to-end en esta iteración pero cubierto por Iter238.",
+    "MENOR: response_model=Quote en las 3 rutas (POST/GET/GET_by_id) descarta creator_departamento/creator_cargo del payload de salida. No rompe funcionalidad pero limita observabilidad."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter239_creator_dept_immutable.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11)",
+    "frontend": "not tested (per request)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123. Los usuarios A/B de prueba se crean y eliminan dentro del run (dominio @qatest.io, contraseña TestPass123!).",
+  "seed_data_creation": "Durante el run se crearon: 2 usuarios ejecutivos (Ventas Pyme, PYME) + 2 usuarios ejecutivos (Ventas Corporativas, CORP) + ~4 cotizaciones de prueba con notes prefix TEST_ITER239. Cleanup module-scoped autouse borra cotizaciones y usuarios; verificado post-run (0 leftovers en db.quotes y db.users).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El test /app/backend/tests/test_iter239_creator_dept_immutable.py es la regresión canónica del fix de visibilidad histórica por creator_departamento/creator_cargo inmutable. Notas importantes para futuras iteraciones: (1) DEPARTAMENTOS válidos están en models.py L967 (whitelist estricta en PUT /admin/users/{id}); nombres tipo 'Ventas QA Test' o 'Soporte Técnico' del enunciado NO existen en la whitelist — el test usa 'Ventas Pyme' + transferencia a 'Implementación' que reproduce el mismo escenario. (2) POST /api/admin/users/create asigna 'read' por defecto a todos los módulos; hay que hacer PUT /admin/users/{id}/permissions con {cotizaciones:'edit'} para permitir POST /quotes. (3) Los campos creator_departamento/creator_cargo NO aparecen en la respuesta JSON de GET /quotes por el response_model=Quote — se verifican leyendo directo de MongoDB (pymongo). (4) Dominio de email .local es rechazado por pydantic email-validator; usar dominios públicos válidos.",
+  "rca of the issue": "Bug original: la resolución de visibilidad por equipo en get_quotes/get_quote consultaba db.users para obtener el departamento ACTUAL del creador. Al transferir a un ejecutivo a otro depto, sus cotizaciones históricas desaparecían del panel de sus antiguos compañeros (ejem: si A crea en Ventas Pyme y luego se muda a Implementación, B en Ventas Pyme dejaba de ver la cotización original). Fix: se persiste creator_departamento + creator_cargo como snapshot inmutable al crear la cotización (POST /quotes y create_quote_with_pdf y el flujo equipos), y la visibilidad se calcula sobre ese snapshot (con fallback a miembros actuales del depto para históricos pre-backfill). Backfill idempotente en startup pobla el snapshot en cotizaciones existentes. Verificado por los tests 01-11: la cotización histórica sobrevive a la transferencia; las cotizaciones NUEVAS del transferido se adscriben al nuevo depto y NO fugan al equipo anterior."
+}

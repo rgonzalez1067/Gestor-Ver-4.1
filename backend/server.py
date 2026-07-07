@@ -361,6 +361,13 @@ async def create_indexes():
         except Exception as e:
             logging.warning(f"[startup] client hierarchy migration failed: {e}")
 
+        # Backfill de origen inmutable de cotizaciones (creator_departamento) — idempotente, flag
+        try:
+            from routes.quotes import backfill_quote_origin
+            await backfill_quote_origin()
+        except Exception as e:
+            logging.warning(f"[startup] quote origin backfill failed: {e}")
+
         # Sincronizar plantillas de correo por defecto a MongoDB (sin sobreescribir las editadas)
         try:
             from routes.seed_and_templates import generate_email_templates_by_sede

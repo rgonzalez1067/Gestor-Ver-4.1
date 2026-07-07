@@ -8,6 +8,7 @@ import uuid
 import logging
 import io
 import os
+import re
 
 from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_corporate_static_pages, append_quote_static_pages, append_equipment_conditions, stamp_header_footer_on_all_pages, render_email_template
 from services.pdf_storage import save_pdf_dual
@@ -108,6 +109,11 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     
     doc = quote.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
+    # Origen inmutable: departamento/cargo del creador AL MOMENTO de crear.
+    # La visibilidad por equipo se basa en esto (no en el depto ACTUAL del creador),
+    # blindando el histórico ante transferencias de departamento.
+    doc['creator_departamento'] = current_user.get('departamento')
+    doc['creator_cargo'] = current_user.get('cargo')
     # Token dinámico: abreviaturas concatenadas de medios de pago.
     try:
         from services.medios_pago_abrev import compute_abreviaturas_medios_pago
@@ -446,6 +452,9 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         
         doc = quote.model_dump()
         doc['created_at'] = doc['created_at'].isoformat()
+        # Origen inmutable del creador (ver create_quote)
+        doc['creator_departamento'] = current_user.get('departamento')
+        doc['creator_cargo'] = current_user.get('cargo')
         try:
             from services.medios_pago_abrev import compute_abreviaturas_medios_pago
             doc['abreviaturas_medios_pago'] = await compute_abreviaturas_medios_pago(doc)
@@ -504,6 +513,53 @@ async def update_pg_defaults(data: dict, authorization: Optional[str] = Header(N
     return {"message": "Configuración actualizada", "costo": costo}
 
 
+def _dept_visibility_or(dept_name, member_ids, self_id):
+    """Ramas $or para visibilidad colaborativa por departamento.
+    Se basa en el ORIGEN INMUTABLE `creator_departamento` (blindado ante
+    transferencias del creador), con fallback a los miembros ACTUALES del
+    depto para históricos sin el campo, y siempre las propias del usuario."""
+    branches = [
+        {"creator_departamento": {"$regex": f"^{re.escape(dept_name)}$", "$options": "i"}},
+    ]
+    if member_ids:
+        branches.append({"created_by_user_id": {"$in": member_ids}})
+    if self_id:
+        branches.append({"created_by_user_id": self_id})
+    return branches
+
+
+async def backfill_quote_origin():
+    """Snapshot inmutable del departamento/cargo del creador para cotizaciones
+    que aún no lo tienen (`creator_departamento`). Idempotente y guardado por
+    flag en `config`. Se ejecuta en el startup para blindar el histórico ante
+    futuras transferencias de departamento."""
+    flag = await db.config.find_one({"type": "quote_origin_backfilled"}, {"_id": 0})
+    if flag and flag.get("value") is True:
+        return
+    users = await db.users.find({}, {"_id": 0, "user_id": 1, "departamento": 1, "cargo": 1}).to_list(5000)
+    umap = {u["user_id"]: u for u in users if u.get("user_id")}
+    updated = 0
+    cursor = db.quotes.find(
+        {"creator_departamento": {"$exists": False}},
+        {"_id": 0, "quote_id": 1, "created_by_user_id": 1}
+    )
+    async for q in cursor:
+        u = umap.get(q.get("created_by_user_id"))
+        if not u:
+            continue
+        await db.quotes.update_one(
+            {"quote_id": q["quote_id"]},
+            {"$set": {"creator_departamento": u.get("departamento"), "creator_cargo": u.get("cargo")}}
+        )
+        updated += 1
+    await db.config.update_one(
+        {"type": "quote_origin_backfilled"},
+        {"$set": {"type": "quote_origin_backfilled", "value": True, "updated": updated}},
+        upsert=True,
+    )
+    logging.info(f"[startup] quote origin backfilled: {updated}")
+
+
 @router.get("/quotes", response_model=List[Quote])
 async def get_quotes(authorization: Optional[str] = Header(None)):
     current_user = await get_current_user(authorization)
@@ -543,10 +599,10 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             pass
         elif "ventas corporativ" in depto_norm:
             # ===== REGLA DE EQUIPO: Ventas Corporativas (colaborativa) =====
-            # Todos los usuarios del Equipo de Ventas Corporativas ven TODAS las
-            # cotizaciones creadas por cualquier integrante del equipo (no solo las
-            # propias). Match tolerante a variantes del nombre del departamento.
-            # No se aplica filtro por segmento: ven todo lo del equipo.
+            # Visibilidad por ORIGEN INMUTABLE: toda cotización cuyo creador
+            # pertenecía a Ventas Corporativas AL CREARLA sigue visible para el
+            # equipo, aunque el creador haya sido transferido después. Fallback a
+            # miembros actuales para históricos sin `creator_departamento`.
             team = await db.users.find(
                 {"departamento": {"$regex": "ventas corporativ", "$options": "i"},
                  "is_active": {"$ne": False}},
@@ -555,7 +611,10 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             team_ids = [u["user_id"] for u in team] or [user_id]
             if user_id and user_id not in team_ids:
                 team_ids.append(user_id)
-            query["created_by_user_id"] = {"$in": team_ids}
+            query["$or"] = [
+                {"creator_departamento": {"$regex": "ventas corporativ", "$options": "i"}},
+                {"created_by_user_id": {"$in": team_ids}},
+            ]
         elif is_admin_dept:
             # Administración: visibilidad por SEDE (PYME/CORP/TBP) sin importar
             # qué usuario creó la cotización. Permite que todo el equipo de
@@ -573,11 +632,11 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
                 dept_user_ids = [u["user_id"] for u in dept_users] or [user_id]
                 if user_id and user_id not in dept_user_ids:
                     dept_user_ids.append(user_id)
-                query["created_by_user_id"] = {"$in": dept_user_ids}
+                query["$or"] = _dept_visibility_or(user_depto, dept_user_ids, user_id)
             else:
                 query["created_by_user_id"] = user_id
         elif "gerente" in cargo:
-            # Gerente de Ventas: ve todo su departamento + filtro por segmento
+            # Gerente de Ventas: ve todo su departamento (por origen inmutable) + filtro por segmento
             query["client_segment"] = user_sede
             if user_depto:
                 dept_users = await db.users.find(
@@ -585,11 +644,12 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
                     {"_id": 0, "user_id": 1}
                 ).to_list(500)
                 dept_user_ids = [u["user_id"] for u in dept_users]
-                query["created_by_user_id"] = {"$in": dept_user_ids}
+                query["$or"] = _dept_visibility_or(user_depto, dept_user_ids, user_id)
             else:
                 query["created_by_user_id"] = user_id
         elif "coordinador" in cargo:
-            # Coordinador: ve sus cotizaciones + Ejecutivos de su departamento, filtrado por segmento
+            # Coordinador: ve sus cotizaciones + las de Ejecutivos de su departamento
+            # (por origen inmutable creator_departamento + creator_cargo), filtrado por segmento.
             query["client_segment"] = user_sede
             if user_depto:
                 team_users = await db.users.find(
@@ -601,12 +661,17 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
                     {"_id": 0, "user_id": 1}
                 ).to_list(500)
                 team_user_ids = [u["user_id"] for u in team_users]
-                query["created_by_user_id"] = {"$in": team_user_ids}
+                query["$or"] = [
+                    {"creator_departamento": {"$regex": f"^{re.escape(user_depto)}$", "$options": "i"},
+                     "creator_cargo": {"$regex": "ejecutivo", "$options": "i"}},
+                    {"created_by_user_id": {"$in": team_user_ids}},
+                    {"created_by_user_id": user_id},
+                ]
             else:
                 query["created_by_user_id"] = user_id
         else:
-            # Ejecutivo u otro cargo sin jerarquía: solo cotizaciones de su mismo
-            # departamento (privacidad colaborativa por unidad de negocio).
+            # Ejecutivo u otro cargo sin jerarquía: cotizaciones de su mismo
+            # departamento de ORIGEN (privacidad colaborativa por unidad de negocio).
             query["client_segment"] = user_sede
             if user_depto:
                 dept_users = await db.users.find(
@@ -616,7 +681,7 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
                 dept_user_ids = [u["user_id"] for u in dept_users] or [user_id]
                 if user_id and user_id not in dept_user_ids:
                     dept_user_ids.append(user_id)
-                query["created_by_user_id"] = {"$in": dept_user_ids}
+                query["$or"] = _dept_visibility_or(user_depto, dept_user_ids, user_id)
             else:
                 # Usuario sin departamento asignado → solo ve sus propias cotizaciones
                 query["created_by_user_id"] = user_id
@@ -724,20 +789,25 @@ async def get_quote(quote_id: str, authorization: Optional[str] = Header(None)):
             if (quote.get("client_segment") or "").upper() != user_sede:
                 raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (restricción de sede para Administración)")
         elif "ventas corporativ" in depto_norm:
-            # Equipo de Ventas Corporativas: acceso a cualquier cotización creada
-            # por un integrante del equipo (consistente con la lista).
+            # Equipo de Ventas Corporativas: acceso por ORIGEN INMUTABLE del
+            # creador (consistente con la lista). Fallback al depto actual del
+            # creador solo si la cotización no tiene `creator_departamento`.
             creator_id = quote.get("created_by_user_id")
             if creator_id and creator_id != current_user.get("user_id"):
-                creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
-                creator_depto = ((creator or {}).get("departamento") or "").lower()
-                if "ventas corporativ" not in creator_depto:
+                origin = (quote.get("creator_departamento") or "")
+                if not origin:
+                    creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
+                    origin = ((creator or {}).get("departamento") or "")
+                if "ventas corporativ" not in origin.lower():
                     raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (privacidad por departamento)")
         else:
             creator_id = quote.get("created_by_user_id")
             if creator_id and creator_id != current_user.get("user_id"):
-                creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
-                creator_depto = (creator or {}).get("departamento") or ""
-                if not user_depto or user_depto != creator_depto:
+                origin = quote.get("creator_departamento")
+                if not origin:
+                    creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
+                    origin = (creator or {}).get("departamento") or ""
+                if not user_depto or user_depto.strip().lower() != (origin or "").strip().lower():
                     raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (privacidad por departamento)")
     if isinstance(quote['created_at'], str):
         quote['created_at'] = datetime.fromisoformat(quote['created_at'])
@@ -2217,6 +2287,8 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         "attachments": [attachment_entry],
         "sede": user_sede,
         "created_by_user_id": current_user.get("user_id"),
+        "creator_departamento": current_user.get("departamento"),
+        "creator_cargo": current_user.get("cargo"),
         "created_at": now.isoformat(),
         "status_history": [{
             "status": "Borrador",
