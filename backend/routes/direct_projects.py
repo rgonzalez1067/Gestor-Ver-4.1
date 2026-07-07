@@ -593,6 +593,10 @@ async def create_direct_project(
     _uploader_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", "unknown")
     for a in (payload.attachments or []):
         key = (a.get("storage_key") or "").strip()
+        # Seguridad: solo se aceptan refs subidas vía staging de proyectos directos.
+        if not key.startswith("attachments/direct_staging/"):
+            logger.warning(f"[direct-projects] anexo con storage_key inválido descartado: {key!r}")
+            continue
         rec = {
             "attachment_id": a.get("attachment_id") or f"att_{uuid.uuid4().hex[:12]}",
             "category": a.get("category") or "Otros",

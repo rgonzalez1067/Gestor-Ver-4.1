@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Feature CERTIFICADA: Anexos pre-envío en Proyectos Directos
+
+- **Requerimiento:** permitir cargar archivos anexos ANTES de enviar el Proyecto Directo a Implementación. Decisión del usuario: los anexos se adjuntan al correo de Implementación (junto a la Ficha Técnica) Y quedan guardados en el proyecto.
+- **Backend (`direct_projects.py`):** nuevo `POST /api/direct-projects/upload-attachment` (staging multipart, valida tipo PDF/imagen/Word/Excel/CSV y tamaño máx 10MB, guarda vía `save_pdf_dual` en `attachments/direct_staging/{id}`). El modelo `DirectProjectCreate` acepta `attachments: list[dict]`; al crear el proyecto se persisten en `project.attachments` y se pasan como `extra_attachments` (base64) a `engine_try_dispatch('send_to_implementation', ...)`. Respuesta incluye `attachments_count`. Hardening: solo se aceptan `storage_key` con prefijo `attachments/direct_staging/`.
+- **Frontend (`DirectProjectCreation.jsx`):** tarjeta 'Anexos del Proyecto' con dropzone + selección múltiple, selector de categoría por archivo, validación cliente (tipo/tamaño), y subida secuencial en `doSubmit` antes del POST. Banner de éxito muestra el conteo de anexos.
+- **QA (testing_agent iter243): 8/8 backend + frontend E2E 100%.** Verificado upload válido/inválido (.txt→400, >10MB→400), creación con y sin anexos, y persistencia en `project.attachments` (proyecto PRY-2026-07-008-PRI con 2 anexos).
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-07 — Feature CERTIFICADA: Módulo de Comunicación Directa + Heartbeat/Reaper
 
 - **Backend (100% — testing_agent iter242, 12/12 pytest):** `POST /api/admin/direct-message` (niveles low/medium/high, recipient_ids o all_online, valida body vacío/sin destinatarios 400, 403 no-admin), CRUD `/api/admin/message-templates`, `GET /api/admin/connected-users`. Heartbeat ping 30s / reaper TTL 90s (`notification_service.ConnectionManager`).

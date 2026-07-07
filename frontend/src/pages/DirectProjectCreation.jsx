@@ -668,6 +668,7 @@ export default function DirectProjectCreation() {
         project_number: d.project_number,
         project_id: d.project_id,
         dispatched: !!d.notification?.dispatched,
+        attachments: d.attachments_count || 0,
       });
       setForm(INITIAL_FORM);
       setBulkSerialsText('');
@@ -741,7 +742,8 @@ export default function DirectProjectCreation() {
                 Proyecto <span className="font-mono font-bold">{lastCreated.project_number}</span> creado correctamente
               </p>
               <p className="text-xs text-emerald-700">
-                {lastCreated.dispatched ? '✓ Correo enviado a destinatarios configurados' : '⚠ Notificación no enviada (no hay configuración para el evento)'}.
+                {lastCreated.dispatched ? '✓ Correo enviado a destinatarios configurados' : '⚠ Notificación no enviada (no hay configuración para el evento)'}
+                {lastCreated.attachments > 0 ? ` · ${lastCreated.attachments} anexo(s) adjuntado(s)` : ''}.
                 El formulario se reinició para una nueva captura.
               </p>
             </div>
