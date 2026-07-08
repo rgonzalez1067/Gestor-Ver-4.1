@@ -1,0 +1,36 @@
+{
+  "summary": "BUG FIX validado end-to-end (5/5 tests pytest). Al enviar una cotización a Implementación, el proyecto YA NO hereda el PDF de la Cotización ni ningún anexo. Confirmado en 2 escenarios: (A) sin anexos manuales → project.attachments == []; (B) con 2 anexos manuales → project.attachments contiene EXACTAMENTE esos 2 (source='quote_send_to_implementation', category='Otros'), NINGUNO con category=='Cotización' ni inherited_from=='cotización'. Descarga vía /api/projects/{id}/attachments/{aid}/download sigue funcionando (200 + binarios byte-a-byte iguales). Aislamiento entre proyectos preservado (404 cross-project).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter247_no_quote_pdf_inheritance.py",
+    "/app/test_reports/pytest/iter247_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "quote_transitions.py L149-153: correcta eliminacion del loop de herencia. El comentario docstring explica bien la homologacion con Proyectos Directos. 'attachments = []' explícito → mongo persiste el campo (validado por escenario D: detail.attachments == [] y NO ausente).",
+    "quote_actions.py::_persist_manual_attachments_to_project (sin cambios, iter246): sigue haciendo $push correctamente sobre attachments=[] inicial, produciendo exactamente los N registros del modal. La ausencia del PDF heredado NO afecta la operacion de $push.",
+    "Contract mantenido: los anexos manuales conservan attachment_id 'att_...', storage_key 'attachments/{project_id}/...', source='quote_send_to_implementation', category='Otros'. El endpoint /projects/{id}/attachments/{aid}/download los sirve correctamente y devuelve 404 para cross-project (aislamiento).",
+    "Nota (no-blocker): la cotización original sigue conteniendo el PDF en su archivo/histórico (via archive_quote_to_history antes del delete_quote), asi que el PDF no se pierde del sistema — solo se excluye del proyecto. Ver quote_actions.py L594-601 y L468 (delete_one)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter247_no_quote_pdf_inheritance.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5)",
+    "frontend": "N/A (backend only per review_request)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login response usa 'session_token').",
+  "seed_data_creation": "Se consumieron 2 cotizaciones Borrador/implementation del pool: una para el escenario A (sin anexos) y otra para el escenario B (con 2 anexos TEST_ITER247_contrato.pdf + TEST_ITER247_mapa.png). Los proyectos resultantes quedan persistidos con nomenclatura PRY-YYYY-MM-###-XXX. Se generaron ~2 storage_keys nuevos bajo attachments/{project_id}/... para los proyectos del escenario B.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test canónico del fix: /app/backend/tests/test_iter247_no_quote_pdf_inheritance.py — 5 tests que corroboran que _create_project_from_quote inicializa attachments=[] y no hereda ningun item de quote.attachments (incluido el PDF category='Cotización'). Consume 2 cotizaciones Borrador/implementation por corrida; si el pool cae bajo 2, se skipea con mensaje claro. Complementa a iter246 (test_iter246_quote_impl_attachments.py) que sigue vigente pero ya filtra por source='quote_send_to_implementation'. Para re-testear tras cambios en quote_transitions.py, correr: pytest /app/backend/tests/test_iter247_no_quote_pdf_inheritance.py -v.",
+  "rca of the issue": "Root cause del bug reportado: _create_project_from_quote heredaba quote.get('attachments') (incluyendo el PDF con category='Cotización') al construir project.attachments. Fix aplicado en quote_transitions.py L149-153: se reemplazo el loop de herencia por 'attachments = []' — el proyecto ahora solo recibe anexos vía _persist_manual_attachments_to_project ($push desde el modal 'Personalizar Comunicación'). Reproduccion previa al fix: cualquier cotización enviada a Implementación producia un proyecto con al menos 1 anexo (el PDF), y el boton 'Anexos' del ProjectDetail aparecia siempre. Post-fix (verificado): SIN anexos manuales → project.attachments == [] (no aparece el boton); CON anexos manuales → SOLO esos aparecen. Sin regresion en persistencia manual ni en descarga."
+}

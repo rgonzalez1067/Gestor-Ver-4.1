@@ -146,19 +146,11 @@ async def _create_project_from_quote(
             if name not in implementation_matrix[bn]:
                 implementation_matrix[bn][name] = {}
 
-    # Heredar anexos de la cotización
+    # Anexos del proyecto: por homologación con Proyectos Directos, el proyecto
+    # NO hereda los anexos de la cotización (p.ej. el PDF de la Cotización). Solo
+    # se cargan los anexos que el operador sube en el modal "Personalizar
+    # Comunicación" (se agregan luego vía $push en send_quote_to_implementation).
     attachments = []
-    for att in quote.get("attachments", []):
-        attachments.append({
-            "attachment_id": att.get("attachment_id", f"att_{uuid.uuid4().hex[:12]}"),
-            "filename": att.get("filename", ""),
-            "url": att.get("url", ""),
-            "category": att.get("category", "Cotización"),
-            "uploaded_by": att.get("uploaded_by", "system"),
-            "uploaded_by_name": att.get("uploaded_by_name", "Sistema"),
-            "uploaded_at": att.get("uploaded_at", now.isoformat()),
-            "inherited_from": "cotización",
-        })
 
     # Generador del Proyecto: usuario que originó la cotización (para auditoría y filtro).
     creator_uid = quote.get("created_by_user_id") or quote.get("created_by")
