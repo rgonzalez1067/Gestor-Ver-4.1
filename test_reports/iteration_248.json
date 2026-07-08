@@ -1,0 +1,37 @@
+{
+  "summary": "Verificado end-to-end el bypass del wizard de hardware al enviar cotizaciones a Implementación para productos digitales (GATEWAY y LINK_PAGO), y confirmada la regresión para presencial VPOS. Se seedearon 3 cotizaciones (una GATEWAY, una LINK_PAGO, una VPOS) en estado Pagada del mismo cliente, se abrió el dropdown de acciones de cada fila y se disparó 'Enviar a Implementación'. En los 3 casos aparece el modal Personalizar Comunicación (data-testid=email-modal). Tras pulsar Continuar (email-confirm-btn): GATEWAY → NO aparece multistore-dialog (proyecto creado con project_type_impl='payment_gateway', is_multistore/stores=null); LINK_PAGO → idéntico bypass (toast 'Nuevo proyecto PRY-2026-07-019-PRI' visible en UI); VPOS → SÍ aparece multistore-dialog (regresión OK). Al finalizar los flujos digitales, la cotización se archiva y se remueve de la grilla (contador cayó 90→88), y el registro de la VPOS queda intacto en Pagada esperando el wizard. 3/3 escenarios PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Quotes (grilla principal)", "issues": ["Hydration warnings en consola: '<tr> cannot contain <span>' y '<span> tbody' — no bloquean funcionalidad pero indican HTML mal anidado en QuotesTable. Preexistentes, no relacionados a este fix."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/seed_iter248_test_quotes.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx L2359-2368 (confirmEmailAndProceed): switch limpio y correcto — sólo GATEWAY/LINK_PAGO ramifican al handleSendToImplementation(..., true). Cualquier otro quote_type (VPOS/MPOS/FAST_TRACK/VPOS_MULTIRIF/vacío) cae a openMultistoreDialog, preservando la regresión.",
+    "Quotes.jsx L2643-2653 (handleSendToImplementation bypassHardware=true): body mínimo bien construido — project_type_impl='payment_gateway', economic_group/fantasy_name vacíos, implementation_instructions opcional. NO se leen pymePinpadSerials, fiscalPrinterModel ni multirif_distribution → efectivamente no hay filtración de campos de hardware. Confirmado en DB: los proyectos GATEWAY/LINK_PAGO se guardaron sin is_multistore/stores.",
+    "Nota (no-blocker): al usar `body.project_type_impl = 'payment_gateway'` tanto para GATEWAY como para LINK_PAGO, el proyecto pierde la distinción semántica entre 'Payment Gateway puro' y 'Link de Pago/Tokenizador' a nivel de tipo de implementación. Si el backend/UI de Gestión de Implementación necesita diferenciarlos, considerar 'payment_gateway_link' u otro valor para LINK_PAGO. El campo original quote_type de la cotización queda arqueado en el histórico, así que aún es rastreable, pero puede requerir join. Fuera del alcance de este bug.",
+    "QuotesTable.jsx L722: el DropdownMenuItem 'Enviar a Implementación' NO tiene data-testid propio. Se testeó por role/texto (get_by_role('menuitem', name='Enviar a Implementación')) y funcionó, pero un data-testid=`send-to-impl-btn-${quote.quote_id}` haría los tests más robustos."
+  ],
+  "updated_files": [
+    "/app/backend/tests/seed_iter248_test_quotes.py (nuevo — reusable para próximas iteraciones sobre este flujo)"
+  ],
+  "success_rate": {
+    "backend": "N/A (frontend-only per review_request)",
+    "frontend": "100% (3/3 escenarios PASS)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login usa 'session_token'). Todas las cotizaciones seedadas se crearon en estado Pagada para saltar el modal de excepción y aislar la validación del bypass.",
+  "seed_data_creation": "Se creó el script /app/backend/tests/seed_iter248_test_quotes.py que inserta 3 cotizaciones sobre el primer cliente disponible (cli_d7a6037a7cf7 · ASTROCEL CELULARES, C.A.) con quote_number COT-TEST-ITER248-{GW|LP|VPOS}-001, estado Pagada, monto USD 1160. Después de las pruebas se hizo cleanup: quotes.delete_many({'quote_number': /TEST-ITER248/}) y projects.delete_many idem — DB queda limpia. Para re-ejecutar: `python3 /app/backend/tests/seed_iter248_test_quotes.py` (idempotente vía replace_one/upsert).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Para revalidar este flujo tras cambios en Quotes.jsx::confirmEmailAndProceed o handleSendToImplementation: (1) correr /app/backend/tests/seed_iter248_test_quotes.py para reseedar los 3 quotes (GATEWAY/LINK_PAGO/VPOS Pagada); (2) UI login admin → /quotes; (3) por cada fila abrir data-testid=quote-actions-{quote_id}, click en menuitem 'Enviar a Implementación', confirmar email-confirm-btn; (4) validar que multistore-dialog aparece SOLO para VPOS. Selectores clave: email-modal, email-confirm-btn, multistore-dialog, exception-modal (si status != Pagada), exception-reason. Al terminar: `db.quotes.delete_many({'quote_number': {'$regex':'TEST-ITER248'}})` y `db.projects.delete_many({'quote_number': {'$regex':'TEST-ITER248'}})`. En este run se generó y luego eliminó el proyecto de LINK_PAGO PRY-2026-07-019-PRI y su par GATEWAY (visible en toast). Warnings de hydration en consola son preexistentes en QuotesTable — no afectan el fix.",
+  "rca of the issue": "N/A — no era un bug a reproducir sino verificación de una feature nueva. El fix ya estaba implementado en Quotes.jsx L2359-2368 (rama en confirmEmailAndProceed que detecta quote_type ∈ {GATEWAY, LINK_PAGO} y llama handleSendToImplementation(..., bypassHardware=true)) más L2643-2653 (rama bypass en handleSendToImplementation que arma un body mínimo con project_type_impl='payment_gateway' y omite todos los campos de hardware físico). El testing confirmó que la rama funciona correctamente en los 3 productos digitales/presenciales y que la creación del proyecto ocurre en el mismo request POST /api/quotes/{id}/send-to-implementation, sin pasos intermedios de wizard."
+}

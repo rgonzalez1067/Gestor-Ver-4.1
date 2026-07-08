@@ -2357,7 +2357,15 @@ export const Quotes = () => {
     } else if (action === 'collect') {
       openCollectConfirm(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'send-to-implementation') {
-      openMultistoreDialog(quoteId, pendingAction?.exceptionHeaders || null);
+      // Bypass para productos digitales (Payment Gateway / Link de Pago-Tokenizador):
+      // no aplican Multitienda, Pinpads ni Impresora Fiscal → crear proyecto directo.
+      const _q = quotes.find(q => q.quote_id === quoteId);
+      const _qt = (_q?.quote_type || '').toUpperCase();
+      if (_qt === 'GATEWAY' || _qt === 'LINK_PAGO') {
+        handleSendToImplementation(quoteId, pendingAction?.exceptionHeaders || null, null, true);
+      } else {
+        openMultistoreDialog(quoteId, pendingAction?.exceptionHeaders || null);
+      }
     } else if (action === 'deliver') {
       // Capturar los headers ANTES de cerrar el modal de email para no perder
       // los anexos manuales ni el mensaje personalizado.
@@ -2623,7 +2631,7 @@ export const Quotes = () => {
   };
 
   // Enviar a implementación (con soporte multitienda)
-  const handleSendToImplementation = async (quoteId, exceptionInfo, storesData = null) => {
+  const handleSendToImplementation = async (quoteId, exceptionInfo, storesData = null, bypassHardware = false) => {
     setActionLoading(quoteId);
     try {
       const headers = { ...getEmailHeaders() };
@@ -2632,6 +2640,18 @@ export const Quotes = () => {
         headers['x-regularization-date'] = exceptionInfo.regularization_date;
       }
       const body = {};
+      if (bypassHardware) {
+        // Payment Gateway / Link de Pago-Tokenizador: productos digitales/web.
+        // Se OMITEN los modales de Multitienda, Pinpads e Impresora Fiscal y NO
+        // se inyecta configuración de hardware físico. Solo el tipo de proyecto
+        // digital para el backend.
+        body.project_type_impl = 'payment_gateway';
+        body.economic_group = '';
+        body.fantasy_name = '';
+        if (implInstructions && implInstructions.trim()) {
+          body.implementation_instructions = implInstructions;
+        }
+      } else {
       if (storesData && storesData.length > 0) {
         body.is_multistore = true;
         body.stores = storesData;
@@ -2687,6 +2707,7 @@ export const Quotes = () => {
       // Se envía tal cual (puede contener espacios/guiones de formato intencionales).
       if (serialsProviderNote && serialsProviderNote.trim()) {
         body.serials_provider_note = serialsProviderNote;
+      }
       }
       const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, body, { headers });
       
