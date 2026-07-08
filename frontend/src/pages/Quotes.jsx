@@ -2357,12 +2357,13 @@ export const Quotes = () => {
     } else if (action === 'collect') {
       openCollectConfirm(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'send-to-implementation') {
-      // Bypass para productos digitales (Payment Gateway / Link de Pago-Tokenizador):
-      // no aplican Multitienda, Pinpads ni Impresora Fiscal → crear proyecto directo.
+      // Productos digitales (Payment Gateway / Link de Pago-Tokenizador): se OMITEN
+      // los modales de Multitienda, Pinpads e Impresora Fiscal, pero SÍ se conservan
+      // "Datos Técnicos e Instrucciones" y "Asignación del Implementador".
       const _q = quotes.find(q => q.quote_id === quoteId);
       const _qt = (_q?.quote_type || '').toUpperCase();
       if (_qt === 'GATEWAY' || _qt === 'LINK_PAGO') {
-        handleSendToImplementation(quoteId, pendingAction?.exceptionHeaders || null, null, true);
+        openDigitalImplementationWizard(quoteId, pendingAction?.exceptionHeaders || null);
       } else {
         openMultistoreDialog(quoteId, pendingAction?.exceptionHeaders || null);
       }
@@ -2631,7 +2632,7 @@ export const Quotes = () => {
   };
 
   // Enviar a implementación (con soporte multitienda)
-  const handleSendToImplementation = async (quoteId, exceptionInfo, storesData = null, bypassHardware = false) => {
+  const handleSendToImplementation = async (quoteId, exceptionInfo, storesData = null) => {
     setActionLoading(quoteId);
     try {
       const headers = { ...getEmailHeaders() };
@@ -2640,18 +2641,6 @@ export const Quotes = () => {
         headers['x-regularization-date'] = exceptionInfo.regularization_date;
       }
       const body = {};
-      if (bypassHardware) {
-        // Payment Gateway / Link de Pago-Tokenizador: productos digitales/web.
-        // Se OMITEN los modales de Multitienda, Pinpads e Impresora Fiscal y NO
-        // se inyecta configuración de hardware físico. Solo el tipo de proyecto
-        // digital para el backend.
-        body.project_type_impl = 'payment_gateway';
-        body.economic_group = '';
-        body.fantasy_name = '';
-        if (implInstructions && implInstructions.trim()) {
-          body.implementation_instructions = implInstructions;
-        }
-      } else {
       if (storesData && storesData.length > 0) {
         body.is_multistore = true;
         body.stores = storesData;
@@ -2707,7 +2696,6 @@ export const Quotes = () => {
       // Se envía tal cual (puede contener espacios/guiones de formato intencionales).
       if (serialsProviderNote && serialsProviderNote.trim()) {
         body.serials_provider_note = serialsProviderNote;
-      }
       }
       const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, body, { headers });
       
@@ -2783,6 +2771,57 @@ export const Quotes = () => {
     // evitar el stale closure de `multistoreQuoteId` (setState asíncrono no
     // está committed cuando dispara el setTimeout). Fix iter37.
     setTimeout(() => { handleProjectTypeSelect(inferred, quoteId); }, 0);
+  };
+
+  // ── Flujo optimizado para productos DIGITALES (Payment Gateway / Link de Pago-Tokenizador) ──
+  // Omite Multitienda, Pinpads e Impresora Fiscal (no aplican a e-commerce/enlaces),
+  // pero CONSERVA "Datos Técnicos e Instrucciones" (consolidated_data) y
+  // "Asignación del Implementador" (confirm_implementer). Salta directo a esos pasos.
+  const openDigitalImplementationWizard = async (quoteId, exceptionInfo) => {
+    const _q = quotes.find(q => q.quote_id === quoteId);
+    // Reset del wizard (idéntico a openMultistoreDialog).
+    setMultistoreQuoteId(quoteId);
+    setMultistoreExceptionInfo(exceptionInfo);
+    setMultistoreNewStore({ name: '', box_count: '' });
+    setMultistoreSending(false);
+    setEquipmentList([]);
+    setEquipmentAvailable({ quote_equipment: [], rif_equipment: [] });
+    setEquipmentSelected({});
+    setPymeServerName('');
+    setPymeServerCustom('');
+    setPymeNeedsPinpads(null);
+    setPymePinpadModels([]);
+    setPymePinpadSelectedModel('');
+    setPymePinpadSerials([]);
+    setPymePinpadSerialsSelected({});
+    setSerialsByOther(false);
+    setSerialsProviderNote('');
+    setSerialsBankModal({ open: false, processor: null });
+    setImplInstructions('');
+    setImplInstructionsLen(0);
+    // Producto digital: sin hardware ni multitienda.
+    setProjectTypeImpl('payment_gateway');
+    setIsMultistore(false);
+    setMultistoreStores([]);
+    // Precargar Grupo Económico y Nombre de Fantasía desde la ficha del cliente
+    // (editables en el modal "Datos Técnicos e Instrucciones").
+    try {
+      if (_q?.client_id) {
+        const res = await api.get(`/clients/${_q.client_id}`);
+        const c = res.data || {};
+        setEconomicGroup((c.grupo_economico || '').toString());
+        setFantasyName((c.fantasy_name || '').toString());
+      } else {
+        setEconomicGroup('');
+        setFantasyName('');
+      }
+    } catch {
+      setEconomicGroup('');
+      setFantasyName('');
+    }
+    // Abrir el wizard directamente en "Datos Técnicos e Instrucciones".
+    setMultistorePhase('consolidated_data');
+    setMultistoreDialogOpen(true);
   };
 
   const handleProjectTypeSelect = async (type, overrideQuoteId) => {

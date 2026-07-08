@@ -805,6 +805,12 @@ export const QuoteModals = ({ ctx }) => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
+                        // Producto digital (Payment Gateway / Link de Pago): este es el
+                        // primer paso, no hubo Pinpad/Fiscal → "Atrás" cierra el wizard.
+                        if (projectTypeImpl === 'payment_gateway') {
+                          setMultistoreDialogOpen(false);
+                          return;
+                        }
                         // Volver al paso anterior: pinpad_selection si seleccionó Sí, pinpad_question si No
                         setMultistorePhase(pymeNeedsPinpads ? 'pinpad_selection' : 'pinpad_question');
                       }}
