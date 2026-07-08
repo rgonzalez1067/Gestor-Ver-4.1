@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Feature CERTIFICADA: Bypass de modales de hardware para productos digitales (Enviar a Implementación)
+
+- **Requerimiento:** al "Enviar a Implementación" cotizaciones tipo Payment Gateway (GATEWAY) y Link de Pago/Tokenizador (LINK_PAGO, sus 3 variantes), omitir los modales de Multitienda, Pinpads e Impresora Fiscal y saltar directo de "Personalizar Comunicación" a la creación del proyecto.
+- **Frontend `Quotes.jsx`:** en `confirmEmailAndProceed`, para `send-to-implementation` con quote_type GATEWAY/LINK_PAGO se llama `handleSendToImplementation(..., bypassHardware=true)` (arma body mínimo: `project_type_impl='payment_gateway'`, sin multistore/pinpad/fiscal) en vez de `openMultistoreDialog`. Presenciales (VPOS/MPOS/FAST_TRACK) mantienen el wizard.
+- **QA (testing_agent iter248): 3/3 frontend 100%.** GATEWAY y LINK_PAGO → NO aparece `multistore-dialog` tras confirmar `email-modal`; VPOS → wizard aparece (regresión OK). Proyecto creado correctamente y cotización archivada.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-07 — Fix: el proyecto ya NO hereda el PDF de la Cotización como anexo
 
 - **Bug:** al enviar a Implementación, el proyecto heredaba los anexos de la cotización (incluido el PDF "Cotización") y aparecían en el visor de Anexos.
