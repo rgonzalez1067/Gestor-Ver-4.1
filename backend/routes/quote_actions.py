@@ -975,9 +975,10 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
     if quote.get("quote_category") != "fast_track":
         raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones MPOS (Imple + POS)")
 
+    # NOTA: las cotizaciones MPOS (Imple + POS / fast_track) tienen un flujo
+    # particular; la acción "Configuración" NO debe bloquearse por el estado
+    # actual (puede ejecutarse aunque ya esté 'Enviada a Imple', etc.).
     current_status = quote.get("quote_status", "Borrador")
-    if current_status != "Aprobada":
-        raise HTTPException(status_code=400, detail=f"Solo se puede configurar desde estado 'Aprobada'. Estado actual: '{current_status}'")
 
     # Cambiar estado a "Configurada"
     await db.quotes.update_one(
