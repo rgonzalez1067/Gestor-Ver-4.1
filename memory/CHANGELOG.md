@@ -1,5 +1,11 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Fix: conservar "Datos Técnicos e Instrucciones" y "Asignación del Implementador" en flujo digital
+
+- **Bug:** el bypass anterior (iter248) eliminó de más — quitó también los modales "Datos Técnicos e Instrucciones" (consolidated_data) y "Asignación del Implementador" (confirm_implementer), que SÍ capturan info importante.
+- **Fix (`Quotes.jsx`):** nueva `openDigitalImplementationWizard` que abre el wizard directamente en `consolidated_data` (precargando grupo económico/fantasía del cliente), sin pasar por Multitienda/Pinpad/Fiscal; luego sigue el flujo normal consolidated_data → confirm_implementer → creación del proyecto. Se revirtió el bypass total (handleSendToImplementation vuelve a 3 args). El botón "Atrás" de consolidated_data cierra el wizard cuando el producto es digital.
+- **QA (testing_agent iter249): 5/5 frontend.** GATEWAY y LINK_PAGO abren en consolidated_data (sin fases prohibidas) → confirm_implementer → proyecto; datos (server/grupo/fantasía/instrucciones) persistidos; regresión VPOS con wizard completo OK; "Atrás" digital cierra sin mostrar Pinpad.
+
 ## 2026-07 — Feature CERTIFICADA: Bypass de modales de hardware para productos digitales (Enviar a Implementación)
 
 - **Requerimiento:** al "Enviar a Implementación" cotizaciones tipo Payment Gateway (GATEWAY) y Link de Pago/Tokenizador (LINK_PAGO, sus 3 variantes), omitir los modales de Multitienda, Pinpads e Impresora Fiscal y saltar directo de "Personalizar Comunicación" a la creación del proyecto.
