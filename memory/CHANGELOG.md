@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Bug Fix CERTIFICADO: Acción "Configuración" en MPOS (Imple + POS) sin bloqueo por estado
+
+- **Bug:** en cotizaciones MPOS (Imple + POS / fast_track), la acción "Configuración" fallaba con 400 "Solo se puede configurar desde estado 'Aprobada'" cuando el proyecto estaba en otro estado (ej. 'Enviada a Imple').
+- **Fix (`quote_actions.py` `configure_quote`):** se eliminó la restricción `current_status != 'Aprobada'`. La acción se conserva restringida a `quote_category='fast_track'` (flujo particular MPOS), pero ya no se bloquea por estado.
+- **QA (testing_agent iter253): 7/7.** configure devuelve 200 desde 'Enviada a Imple', 'Configurada', 'Facturada', 'Pagada' y 'Aprobada'; categoría non-fast_track sigue devolviendo 400; 404 para inexistente.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-07 — Feature CERTIFICADA: Catálogo de Bancos — Fase Previa a Producción + Comentarios por producto
 
 - **Requerimiento:** por cada medio de pago del banco: (1) Switch "Fase Previa a Producción" que lo oculta en Cotizaciones y lo colorea en el resumen (VPOS→naranja claro, Payment Gateway→rojo claro); (2) comentarios producto↔banco con botón 💬, marca visual (•) y tooltip en hover.
