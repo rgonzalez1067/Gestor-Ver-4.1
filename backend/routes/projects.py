@@ -1131,6 +1131,10 @@ async def download_ficha_tecnica(project_id: str, authorization: Optional[str] =
         "client_rif": pick(project.get("client_rif"), quote_like.get("client_rif")),
         # Componentes adicionales (Ficha Técnica sección C): fuente de verdad el proyecto
         "additional_components": project.get("additional_components") or quote_like.get("additional_components"),
+        # Instrucciones/observaciones para el implementador: el PROYECTO es la
+        # fuente de verdad al regenerar la ficha (la cotización origen puede haber
+        # sido archivada/eliminada, y en Proyectos Directos el quote_id es ficticio).
+        "implementation_instructions": pick(project.get("implementation_instructions"), quote_like.get("implementation_instructions")),
     })
 
     contacts = client.get("contacts", []) if client else []

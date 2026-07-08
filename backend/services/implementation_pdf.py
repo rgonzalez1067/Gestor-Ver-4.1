@@ -612,22 +612,37 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         elements.append(_section_banner("INSTRUCCIONES ADICIONALES PARA EL IMPLEMENTADOR", styles))
         elements.append(Spacer(1, 6))
         # ReportLab Paragraph admite un subset de HTML (<b>, <i>, <u>, <br/>, <br>).
-        # Convertimos tags comunes del editor a los admitidos; los desconocidos se eliminan.
+        # El texto puede venir como HTML (editor rich-text de Cotizaciones) o como
+        # texto plano con saltos de línea (textarea de Proyectos Directos). En ambos
+        # casos debemos respetar los saltos de línea y no romper el parser XML.
         import re as _re
-        safe = instructions_html
-        # <strong>→<b>, <em>→<i>
-        safe = _re.sub(r"</?(strong)>", lambda m: "</b>" if m.group(0).startswith("</") else "<b>", safe, flags=_re.I)
-        safe = _re.sub(r"</?(em)>", lambda m: "</i>" if m.group(0).startswith("</") else "<i>", safe, flags=_re.I)
-        # <p>…</p> → contenido + <br/>
-        safe = _re.sub(r"<p[^>]*>", "", safe, flags=_re.I)
-        safe = _re.sub(r"</p>", "<br/>", safe, flags=_re.I)
-        # <li>…</li> → • contenido + <br/>
-        safe = _re.sub(r"<li[^>]*>", "&bull; ", safe, flags=_re.I)
-        safe = _re.sub(r"</li>", "<br/>", safe, flags=_re.I)
-        # Quitar <ul>/<ol>
-        safe = _re.sub(r"</?(ul|ol)[^>]*>", "", safe, flags=_re.I)
-        # Remover tags desconocidos excepto b, i, u, br
-        safe = _re.sub(r"<(?!/?(?:b|i|u|br)(?:\s|/?>))[^>]+>", "", safe, flags=_re.I)
+        raw = instructions_html
+        is_html = bool(_re.search(r"<[a-zA-Z/][^>]*>", raw))
+        if is_html:
+            safe = raw
+            # <strong>→<b>, <em>→<i>
+            safe = _re.sub(r"</?(strong)>", lambda m: "</b>" if m.group(0).startswith("</") else "<b>", safe, flags=_re.I)
+            safe = _re.sub(r"</?(em)>", lambda m: "</i>" if m.group(0).startswith("</") else "<i>", safe, flags=_re.I)
+            # <p>…</p> → contenido + <br/>
+            safe = _re.sub(r"<p[^>]*>", "", safe, flags=_re.I)
+            safe = _re.sub(r"</p>", "<br/>", safe, flags=_re.I)
+            # <li>…</li> → • contenido + <br/>
+            safe = _re.sub(r"<li[^>]*>", "&bull; ", safe, flags=_re.I)
+            safe = _re.sub(r"</li>", "<br/>", safe, flags=_re.I)
+            # <br> → <br/>
+            safe = _re.sub(r"<br\s*/?>", "<br/>", safe, flags=_re.I)
+            # Quitar <ul>/<ol>
+            safe = _re.sub(r"</?(ul|ol)[^>]*>", "", safe, flags=_re.I)
+            # Remover tags desconocidos excepto b, i, u, br
+            safe = _re.sub(r"<(?!/?(?:b|i|u|br)(?:\s|/?>))[^>]+>", "", safe, flags=_re.I)
+            # Escapar '&' sueltos que NO formen parte de una entidad (evita romper el XML).
+            safe = _re.sub(r"&(?!(?:amp|lt|gt|quot|apos|bull|#\d+|#x[0-9a-fA-F]+);)", "&amp;", safe)
+            # Respetar saltos de línea literales remanentes.
+            safe = safe.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br/>")
+        else:
+            # Texto plano: escapar caracteres especiales y convertir saltos de línea.
+            safe = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            safe = safe.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br/>")
         instr_box = Table(
             [[Paragraph(safe, styles['NormalText'])]],
             colWidths=[480],

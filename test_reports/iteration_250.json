@@ -1,0 +1,50 @@
+{
+  "summary": "Verificación E2E del fix 'Instrucciones para el Implementador' en la Ficha Técnica del PDF. Se creó /app/backend/tests/test_iter250_impl_instructions_pdf.py con 6 tests. Resultados: 5/6 PASS. (1) Ruta B texto plano simple → aparece íntegro en el PDF ✅. (2) Ruta B con &, comillas, saltos de línea y viñetas (sin patrones tipo tag) → aparece íntegro ✅. (3) Ruta B con HTML rich-text pegado en el textarea (payload legacy compatible) → renderiza contenido HTML con <strong>, <ul>, entidades &amp;/&lt;/&gt; correctamente ✅. (4) Regresión: proyecto SIN instrucciones → PDF 200 sin la sección ✅. (5) Ruta A (Cotización Pagada GATEWAY seedada → POST /quotes/{id}/send-to-implementation con HTML rich-text 'Prueba QA: Servidor destino puerto 443, requiere TLS 1.2 + viñetas + entidades') → project.implementation_instructions persistida en DB y renderizada íntegra en GET /projects/{id}/ficha-tecnica ✅. (6) Ruta B texto plano CON patrones tipo tag ('<server>', '<admin>') → **BUG**: los 'tags' se eliminan del PDF (heurística is_html en implementation_pdf.py:620 confunde texto plano con HTML) ❌. Frontend smoke check: /direct-projects renderiza data-testid='dp-instructions' como TEXTAREA plana (Ruta B); /quotes carga la grilla. Backend fix verificado en routes/projects.py:1137 (mapeo project.implementation_instructions al quote_like) y services/implementation_pdf.py:608-660 (branch HTML vs plano). El fix cubre los escenarios habituales (HTML del editor, plano con & y comillas y saltos) — el único gap es el corner-case donde el usuario tipea '<palabra>' literalmente en el textarea de Proyectos Directos.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/projects/{id}/ficha-tecnica (Ruta B texto plano)",
+        "issue": "Contenido tipo '<server>' o '<admin>' escrito literalmente en el textarea de Proyectos Directos se elimina del PDF. RCA: implementation_pdf.py L620 detecta HTML con `re.search(r\"<[a-zA-Z/][^>]*>\", raw)`, que matchea también texto plano con '<palabra>'. Al entrar a la rama is_html se ejecuta L637 (`<(?!/?(?:b|i|u|br)(?:\\s|/?>))[^>]+>` → remove) y el 'tag' se pierde. Fix sugerido: (a) diferenciar rutas explícitamente pasando un flag `is_html_source` desde el caller (Route A quote_actions vs Route B direct_projects/download_ficha_tecnica), o (b) endurecer la heurística a tags conocidos: `<(p|br|strong|em|b|i|u|ul|ol|li|span|div)\\b`. Recomendado (a) para determinismo."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Global (preexistente, no-blocker)",
+        "issues": ["Hydration warnings en consola ('<tr> cannot contain <span>' y '<span> tbody') ya reportados en iter248/249."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter250_impl_instructions_pdf.py",
+    "/app/test_reports/pytest/iter250_impl_instructions.xml"
+  ],
+  "action_items": [
+    "Corregir la heurística is_html en /app/backend/services/implementation_pdf.py L620 para no clasificar como HTML texto plano que contenga '<palabra>'. Opción determinista: aceptar un flag desde el caller (Route A vs Route B) — el punto de origen sabe si el contenido es HTML rich-text (editor TipTap) o plano (textarea).",
+    "Añadir un test que replique el corner-case '<server>'/'<admin>' escrito en el textarea de Proyectos Directos (ya incluido en test_iter250_impl_instructions_pdf.py::TestSanitization::test_direct_project_plain_with_tag_like_content)."
+  ],
+  "critical_code_review_comments": [
+    "routes/projects.py L1102-1137 (download_ficha_tecnica): mapeo correcto ahora incluye 'implementation_instructions': pick(project.get(...), quote_like.get(...)). El fallback a quote_like resuelve el caso Route A cuando la cotización aún existe; el pick prioriza el proyecto (fuente de verdad) — bueno para Direct Projects donde quote_id es sintético.",
+    "services/implementation_pdf.py L608-660: el branch HTML sanitiza correctamente <strong>/<em>/<p>/<li>/<br> y escapa & sueltos; el branch plano escapa & < > y respeta \\n. Sin embargo la selección de branch se basa en un heurístico regex que produce falsos positivos con texto plano que contiene '<x>'. Ver 'minor' backend_issues.",
+    "quote_actions.py L1532-1557 (_validate_instructions_length): sanitización defensiva contra XSS (elimina <script>/<iframe>/on*=/javascript:) — correcto como última línea antes de persistir HTML del editor.",
+    "direct_projects.py L513/L549: persistencia de payload.implementation_instructions sin transformación — correcta para textarea plano.",
+    "Sugerencia: agregar un discriminador persistido en el documento del proyecto (p.ej. `implementation_instructions_format: 'html' | 'plain'`) al momento de crear el proyecto — así el renderer del PDF no necesita heurísticas."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter250_impl_instructions_pdf.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "83% (5/6 tests PASS)",
+    "frontend": "100% (smoke check: dp-instructions textarea presente en Ruta B, /quotes carga)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (session_token).",
+  "seed_data_creation": "Reutilizado /app/backend/tests/seed_iter248_test_quotes.py para seedar COT-TEST-ITER248-GW-001 (GATEWAY, Pagada) usada por el test de Ruta A. Cleanup post-suite: db.projects.delete_many({economic_group: /^TEST-ITER250/}) + db.quotes.delete_many({quote_number: /TEST-ITER248/}).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Para re-verificar tras el fix del corner-case: `python3 -m pytest /app/backend/tests/test_iter250_impl_instructions_pdf.py -v`. El único test que falla actualmente es TestSanitization::test_direct_project_plain_with_tag_like_content, que asserta que '<server>' y '<admin>' escritos literalmente en el textarea de Proyectos Directos deben aparecer en el PDF. Fix sugerido en action_items.",
+  "rca of the issue": "**RCA del test fallido**: `implementation_pdf.py:620` usa `bool(re.search(r'<[a-zA-Z/][^>]*>', raw))` para decidir si el contenido es HTML. Este regex matchea cualquier cosa entre `<letra ...>`, incluyendo texto plano tipeado por el usuario como `<server>`, `<admin>`, `<NOC>`, `<mi_config>`, etc. Al entrar en la rama HTML, la línea 637 elimina 'tags desconocidos' (regex `<(?!/?(?:b|i|u|br)(?:\\s|/?>))[^>]+>`) y borra literalmente el 'tag' del texto plano. **Reproducción**: (1) `POST /api/direct-projects` con `implementation_instructions='Configurar TLS 1.2 en <server>\\nReiniciar (uso <admin>)\\nFin'`; (2) `GET /api/projects/{id}/ficha-tecnica`; (3) el PDF muestra 'Configurar TLS 1.2 en\\nReiniciar (uso )\\nFin' — sin `<server>` ni `<admin>`. **Mitigación**: pasar un flag explícito `is_html_source` desde el caller (Route A quote_actions.py y Route B download_ficha_tecnica en routes/projects.py saben perfectamente de qué origen proviene el texto), o persistir `implementation_instructions_format` en el documento proyecto/cotización. Alternativa más rápida (pero frágil): endurecer la heurística a un allowlist de tags HTML conocidos: `re.search(r'<\\s*(p|br|strong|em|b|i|u|ul|ol|li|span|div)\\b', raw, re.I)`."
+}
