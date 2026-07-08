@@ -3,6 +3,14 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug Fix: Filtros de estado en Cotizaciones (Pagada vacío / Reparada con fugas) + Histórico multicriterio — Jun 2026
+**Síntoma:** (A) filtro "Pagada" en /quotes salía vacío; (B) filtro "Reparada" arrastraba cotizaciones Facturada/Pagada/Validar Pago.
+**RCA:** el estatus efectivo se calcula en frontend (`QuotesTable.jsx::getEffectiveStatus`); `if (q.repaired_at) return 'Reparada'` se evaluaba ANTES que los estados financieros (paid_at/invoice/pago_validado). Una reparación facturada/pagada seguía reportando 'Reparada' → 'Pagada'=0 y 'Reparada' contaminada (datos reales: OLD Pagada=0/Reparada=22).
+**Fix:** reordenada la prioridad → Entregada > Implementada > Validar Pago > Pagada > Facturada > **Reparada** > Configurada > … (financieros antes de Reparada). Resultado: Pagada=5, Reparada=6 (estricto, sin fugas).
+**Histórico (/historical-quotes):** (A) columna "Nombre de Fantasía" con Tooltip (Radix) que muestra la Razón Social (legal_name) al hover; (B) búsqueda multicriterio — `list_quote_history` (`quote_history.py`) resuelve client_ids del maestro `clients` por fantasy_name/legal_name/grupo_economico y enriquece cada doc en read-time con esos 3 campos.
+**QA:** testing_agent iteration_255 → **backend 100% + frontend 100%** (Grupo Brasero=5, SAN IGNACIO=6, tooltip Razón Social OK, Pagada/Reparada corregidos). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix V2: Homologación "Enviar a Implementación" PYME/Corp (preserva secuencia por tipo) — Jun 2026
 **Síntoma:** el asistente "Enviar a Implementación" omitía los modales "Datos Técnicos e Instrucciones" (consolidated_data) y "Asignación del Implementador" (confirm_implementer) cuando la cotización era del segmento CORP.
 **RCA:** `handleFiscalPrinterContinue` (Quotes.jsx) bifurcaba por `client_segment`; para CORP saltaba directo a crear el proyecto, omitiendo ambos modales.
