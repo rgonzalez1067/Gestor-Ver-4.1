@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Feature CERTIFICADA: Catálogo de Bancos — Fase Previa a Producción + Comentarios por producto
+
+- **Requerimiento:** por cada medio de pago del banco: (1) Switch "Fase Previa a Producción" que lo oculta en Cotizaciones y lo colorea en el resumen (VPOS→naranja claro, Payment Gateway→rojo claro); (2) comentarios producto↔banco con botón 💬, marca visual (•) y tooltip en hover.
+- **Backend `models.py`:** `BankProduct` ahora tiene `pre_production: bool` y `comment: str` (persisten vía PUT/GET /api/banks).
+- **Frontend `Banks.jsx`:** Switch + botón 💬 por producto en el modal de edición; micro-modal de comentario (`product-comment-modal`); chips de resumen con color pre_production + marca • + Tooltip. `BankDetail.jsx`: paneles VPOS/MPOS y PG/Link con color naranja/rojo + marca • + Tooltip. `Quotes.jsx`: filtros excluyen `p.pre_production` (VPOS y PG) → producto oculto al cotizar.
+- **QA (testing_agent iter252): backend 5/5, frontend 100%, sin issues.** Prueba de fuego OK (producto pre_production bloqueado en cotización); colores, marca • y tooltip verificados en /banks y /banks/{id}; convivencia color+comentario OK; regresión OK.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-07 — Bug Fix CERTIFICADO: Instrucciones para el Implementador en la Ficha Técnica
 
 - **Bug:** las instrucciones/observaciones del operador no aparecían en la Ficha Técnica (PDF), tanto desde Cotizaciones ("Datos Técnicos e Instrucciones") como desde Proyectos Directos.
