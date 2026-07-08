@@ -1,6 +1,11 @@
 # CHANGELOG — MegaNexus
 
-## 2026-07 — Bug Fix CERTIFICADO: Acción "Configuración" en MPOS (Imple + POS) sin bloqueo por estado
+## 2026-07 — Ajuste: Fecha de Vencimiento de Cotizaciones = Emisión + 20 días hábiles
+
+- Cambiado el cálculo de vencimiento de **15 → 20 días hábiles** (excluyendo fines de semana y feriados) en las 4 ocurrencias: `hydrate_pdf_request`, sitios PG y CORP (`quotes.py`) y fallback del generador (`pdf_generator.py`).
+- Verificado por curl+pypdf: emisión 08/07/2026 → vencimiento 05/08/2026 (20 hábiles).
+
+
 
 - **Bug:** en cotizaciones MPOS (Imple + POS / fast_track), la acción "Configuración" fallaba con 400 "Solo se puede configurar desde estado 'Aprobada'" cuando el proyecto estaba en otro estado (ej. 'Enviada a Imple').
 - **Fix (`quote_actions.py` `configure_quote`):** se eliminó la restricción `current_status != 'Aprobada'`. La acción se conserva restringida a `quote_category='fast_track'` (flujo particular MPOS), pero ya no se bloquea por estado.

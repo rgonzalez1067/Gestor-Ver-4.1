@@ -326,7 +326,7 @@ class DynamicQuotePDFGenerator:
                 from datetime import date as _date
                 from services.business_calendar import get_cached_holiday_sets, add_business_days_after
                 _spec, _rec = get_cached_holiday_sets()
-                fecha_vencimiento = add_business_days_after(_date.today(), 15, _spec, _rec).strftime("%d/%m/%Y")
+                fecha_vencimiento = add_business_days_after(_date.today(), 20, _spec, _rec).strftime("%d/%m/%Y")
             except Exception:
                 fecha_vencimiento = ""
 
