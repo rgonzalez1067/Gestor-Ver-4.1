@@ -1,6 +1,13 @@
 # CHANGELOG — MegaNexus
 
-## 2026-07 — Feature CERTIFICADA: Homologación de anexos Cotización → Panel de Proyectos
+## 2026-07 — Fix: el proyecto ya NO hereda el PDF de la Cotización como anexo
+
+- **Bug:** al enviar a Implementación, el proyecto heredaba los anexos de la cotización (incluido el PDF "Cotización") y aparecían en el visor de Anexos.
+- **Fix (`quote_transitions.py` `_create_project_from_quote`):** `attachments = []` (se eliminó la herencia). Ahora `project.attachments` contiene SOLO los anexos subidos en el modal "Personalizar Comunicación" ($push, source='quote_send_to_implementation'), en paridad con Proyectos Directos.
+- **QA (testing_agent iter247): 5/5.** Escenario sin anexos → `attachments==[]`; con anexos → solo los del modal (ninguno category='Cotización'/inherited_from='cotización'); descarga y aislamiento OK.
+- **Nota:** aplica a proyectos NUEVOS. Proyectos ya creados antes del fix conservan el PDF heredado (fix forward; se puede hacer limpieza puntual si se requiere).
+
+
 
 - **Requerimiento:** los archivos adjuntos cargados en el modal "Personalizar Comunicación" al "Enviar a Implementación" desde una cotización deben persistir en el proyecto con la MISMA estructura que Proyectos Directos y ser visibles/descargables desde el botón "Anexos" del Panel de Proyectos.
 - **Hallazgo:** el uploader del modal (`EmailManualAttachments`) y la propagación del header `x-manual-attachment-ids` YA existían (los anexos solo iban al correo). Cambio nuevo = **solo backend**.
