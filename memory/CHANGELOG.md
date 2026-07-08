@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Bug Fix CERTIFICADO: Instrucciones para el Implementador en la Ficha Técnica
+
+- **Bug:** las instrucciones/observaciones del operador no aparecían en la Ficha Técnica (PDF), tanto desde Cotizaciones ("Datos Técnicos e Instrucciones") como desde Proyectos Directos.
+- **Causa raíz:** el endpoint de descarga `download_ficha_tecnica` regeneraba el PDF desde el proyecto pero NO mapeaba `implementation_instructions` en el `quote_like` → salía vacío.
+- **Fix 1 (`projects.py`):** `download_ficha_tecnica` ahora incluye `implementation_instructions` tomándolo del proyecto (fuente de verdad).
+- **Fix 2 (`implementation_pdf.py`):** render robusto — detecta HTML (editor rich-text) vs texto plano (textarea); texto plano escapa `& < >` y convierte saltos de línea a `<br/>`; HTML convierte tags a subset ReportLab y escapa `&` sueltos. Heurística estricta de HTML (solo tags conocidos) para que pseudo-tags como `<server>`/`<admin>` en texto plano se muestren literales y no se eliminen.
+- **QA (testing_agent iter250→251): 6/6.** Verificado íntegro en ambas rutas, con caracteres especiales, saltos de línea, viñetas y pseudo-tags; regresión sin instrucciones OK.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-07 — Fix: conservar "Datos Técnicos e Instrucciones" y "Asignación del Implementador" en flujo digital
 
 - **Bug:** el bypass anterior (iter248) eliminó de más — quitó también los modales "Datos Técnicos e Instrucciones" (consolidated_data) y "Asignación del Implementador" (confirm_implementer), que SÍ capturan info importante.
