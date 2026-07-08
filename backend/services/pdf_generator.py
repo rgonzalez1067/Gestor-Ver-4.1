@@ -938,7 +938,7 @@ class DynamicQuotePDFGenerator:
         
         # Fecha actual en español
         now = datetime.now()
-        fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+        fecha_actual = now.strftime("%d/%m/%Y")  # Mismo formato que Fecha de Vencimiento (DD/MM/AAAA)
         
         # ==================== PÁGINA 1: PORTADA (diseño moderno) ====================
         info_portada = [
@@ -1576,7 +1576,7 @@ class DynamicQuotePDFGenerator:
         
         elements = []
         now = datetime.now()
-        fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+        fecha_actual = now.strftime("%d/%m/%Y")  # Mismo formato que Fecha de Vencimiento (DD/MM/AAAA)
         
         # ==================== PÁGINA 1: PORTADA (diseño moderno, igual a VPOS) ====================
         info_portada = [
@@ -1805,7 +1805,7 @@ class DynamicQuotePDFGenerator:
         
         elements = []
         now = datetime.now()
-        fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+        fecha_actual = now.strftime("%d/%m/%Y")  # Mismo formato que Fecha de Vencimiento (DD/MM/AAAA)
         
         # ==================== PÁGINA 1: PORTADA (diseño moderno) ====================
         # Subtítulo dinámico: Payment Gateway vs Payment Gateway - Link de Pagos

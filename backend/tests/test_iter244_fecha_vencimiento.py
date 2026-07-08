@@ -312,6 +312,112 @@ class TestPreviewPDFFechaVencimiento:
             f"Ninguna fecha en portada es futura. Encontradas: {parsed}. Hoy: {today}"
 
 
+# --------------------- Iter245: Ambas fechas MISMO formato DD/MM/AAAA ---------------------
+
+# Patrón de formato español largo (bug del iter245): "8 de julio de 2026", "29 de julio de 2026" etc.
+LONG_ES_DATE_RE = re.compile(
+    r"\b\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|"
+    r"agosto|septiembre|octubre|noviembre|diciembre)\s+de\s+\d{4}\b",
+    re.IGNORECASE,
+)
+
+
+class TestIter245PortadaAmbasFechasMismoFormato:
+    """Iter245 — Ambas fechas de la portada (EMISIÓN y VENCIMIENTO) deben
+    mostrarse en formato numérico DD/MM/AAAA. NO debe aparecer el formato
+    largo español ("N de <mes> de AAAA") en la primera página junto al bloque
+    de metadatos de la portada.
+    """
+
+    def _preview(self, auth, payload):
+        r = auth.post(f"{BASE_URL}/api/quotes/preview-pdf-with-template",
+                      json=payload, timeout=60)
+        assert r.status_code == 200, f"Status {r.status_code}: {r.text[:400]}"
+        assert r.headers.get("Content-Type", "").startswith("application/pdf")
+        return r.content
+
+    def _assert_cover_dates_same_format(self, pdf_bytes: bytes, label: str):
+        pages = _extract_pdf_pages(pdf_bytes)
+        assert pages, f"[{label}] PDF sin páginas"
+        cover = pages[0]
+        cover_up = cover.upper()
+
+        # 1) Ambas etiquetas presentes en la portada
+        assert "FECHA DE EMISI" in cover_up, f"[{label}] Falta 'FECHA DE EMISIÓN' en portada"
+        assert "FECHA DE VENCIMIENTO" in cover_up, f"[{label}] Falta 'FECHA DE VENCIMIENTO' en portada"
+
+        # 2) Debe haber al menos 2 fechas DD/MM/AAAA en la portada (emisión + vencimiento)
+        #    (Nota: el encabezado superior puede añadir una tercera ocurrencia numérica.)
+        matches = re.findall(r"\b\d{2}/\d{2}/\d{4}\b", cover)
+        assert len(matches) >= 2, (
+            f"[{label}] Se esperaban al menos 2 fechas DD/MM/AAAA en la portada, "
+            f"se encontraron {len(matches)}: {matches}. Texto: {cover[:800]}"
+        )
+
+        # 3) NO debe existir formato largo español "N de <mes> de AAAA" en la portada
+        long_matches = LONG_ES_DATE_RE.findall(cover)
+        assert not long_matches, (
+            f"[{label}] Formato largo español detectado en portada: {long_matches}. "
+            f"El bug es que 'FECHA DE EMISIÓN' se mostraba como '8 de julio de 2026'. "
+            f"Texto portada: {cover[:800]}"
+        )
+
+        # 4) Sanity: cada fecha DD/MM/AAAA en la portada debe ser válida
+        for d, m, y in re.findall(r"\b(\d{2})/(\d{2})/(\d{4})\b", cover):
+            di, mi, yi = int(d), int(m), int(y)
+            assert 1 <= di <= 31 and 1 <= mi <= 12 and 2020 <= yi <= 2099, (
+                f"[{label}] Fecha inválida en portada: {d}/{m}/{y}"
+            )
+
+    def _assert_expiry_is_15_business_days(self, pdf_bytes: bytes, label: str):
+        """Regresión: al menos una fecha en la portada debe ser futura (vencimiento),
+        y aprox. 21 días naturales adelante (15 hábiles ≈ 19-23 naturales)."""
+        from datetime import timedelta
+        pages = _extract_pdf_pages(pdf_bytes)
+        cover = pages[0]
+        dates = [date(int(y), int(m), int(d))
+                 for d, m, y in re.findall(r"\b(\d{2})/(\d{2})/(\d{4})\b", cover)]
+        assert dates, f"[{label}] Sin fechas parseables en portada"
+        today = datetime.now(timezone.utc).date()
+        future = [dp for dp in dates if dp > today]
+        assert future, f"[{label}] Sin fecha futura (vencimiento) en portada: {dates}"
+        # La más lejana debe estar entre 15 y 30 días naturales (rango holgado por feriados)
+        max_future = max(future)
+        delta = (max_future - today).days
+        assert 14 <= delta <= 32, (
+            f"[{label}] La fecha de vencimiento no está en el rango esperado "
+            f"(esperado ~15 hábiles = 19-23 días naturales, tolerancia 14-32). "
+            f"Vencimiento={max_future}, hoy={today}, delta={delta}"
+        )
+
+    # --- VPOS PyME ---
+    def test_vpos_pyme_ambas_fechas_ddmmaaaa(self, auth, client_id):
+        pdf = self._preview(auth, _vpos_pyme_payload(client_id))
+        self._assert_cover_dates_same_format(pdf, "VPOS PyME")
+
+    def test_vpos_pyme_vencimiento_15_habiles(self, auth, client_id):
+        pdf = self._preview(auth, _vpos_pyme_payload(client_id))
+        self._assert_expiry_is_15_business_days(pdf, "VPOS PyME")
+
+    # --- Gateway ---
+    def test_gateway_ambas_fechas_ddmmaaaa(self, auth, client_id):
+        pdf = self._preview(auth, _gateway_payload(client_id))
+        self._assert_cover_dates_same_format(pdf, "Gateway")
+
+    def test_gateway_vencimiento_15_habiles(self, auth, client_id):
+        pdf = self._preview(auth, _gateway_payload(client_id))
+        self._assert_expiry_is_15_business_days(pdf, "Gateway")
+
+    # --- VPOS CORP ---
+    def test_vpos_corp_ambas_fechas_ddmmaaaa(self, auth, client_id):
+        pdf = self._preview(auth, _vpos_corp_payload(client_id))
+        self._assert_cover_dates_same_format(pdf, "VPOS CORP")
+
+    def test_vpos_corp_vencimiento_15_habiles(self, auth, client_id):
+        pdf = self._preview(auth, _vpos_corp_payload(client_id))
+        self._assert_expiry_is_15_business_days(pdf, "VPOS CORP")
+
+
 # --------------------- Generación (persiste PDF) ---------------------
 
 class TestGeneratePDFPersistence:
@@ -327,6 +433,9 @@ class TestGeneratePDFPersistence:
         pages = _extract_pdf_pages(r.content)
         assert "FECHA DE VENCIMIENTO" in pages[0].upper()
         assert "Vigencia de la Propuesta" not in _extract_pdf_text(r.content)
+        # Iter245: NO debe haber formato largo español en la portada
+        assert not LONG_ES_DATE_RE.findall(pages[0]), \
+            f"[generate PyME] Formato largo español detectado en portada: {LONG_ES_DATE_RE.findall(pages[0])}"
 
     def test_generate_pdf_gateway(self, auth, client_id):
         r = auth.post(f"{BASE_URL}/api/quotes/generate-pdf-with-template",
@@ -336,6 +445,8 @@ class TestGeneratePDFPersistence:
         pages = _extract_pdf_pages(r.content)
         assert "FECHA DE VENCIMIENTO" in pages[0].upper()
         assert "Vigencia de la Propuesta" not in _extract_pdf_text(r.content)
+        assert not LONG_ES_DATE_RE.findall(pages[0]), \
+            f"[generate Gateway] Formato largo español detectado: {LONG_ES_DATE_RE.findall(pages[0])}"
 
     def test_generate_pdf_vpos_corp(self, auth, client_id):
         r = auth.post(f"{BASE_URL}/api/quotes/generate-pdf-with-template",
@@ -345,3 +456,5 @@ class TestGeneratePDFPersistence:
         pages = _extract_pdf_pages(r.content)
         assert "FECHA DE VENCIMIENTO" in pages[0].upper()
         assert "Vigencia de la Propuesta" not in _extract_pdf_text(r.content)
+        assert not LONG_ES_DATE_RE.findall(pages[0]), \
+            f"[generate CORP] Formato largo español detectado: {LONG_ES_DATE_RE.findall(pages[0])}"

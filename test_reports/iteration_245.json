@@ -1,0 +1,36 @@
+{
+  "summary": "Iter245 — Certificación del bug de formato en la portada de cotizaciones de Implementaciones: 'FECHA DE EMISIÓN' y 'FECHA DE VENCIMIENTO' ahora se muestran AMBAS en formato numérico DD/MM/AAAA. 23/23 pytest cases PASSED (100%) contra REACT_APP_BACKEND_URL. Reutilicé /app/backend/tests/test_iter244_fecha_vencimiento.py y añadí una nueva clase TestIter245PortadaAmbasFechasMismoFormato con 6 tests (VPOS PyME + Gateway + VPOS CORP × [ambas fechas DD/MM/AAAA, vencimiento 15 hábiles]), y fortalecí los 3 tests de TestGeneratePDFPersistence con aserción anti-formato-largo. Evidencia por extracción de texto con pypdf: portada de los 3 templates muestra 'FECHA DE EMISIÓN 08/07/2026' y 'FECHA DE VENCIMIENTO 29/07/2026'; NO aparece el patrón 'N de <mes> de AAAA' en la página 1. Regresión OK: /api/quotes/preview-pdf-with-template y /api/quotes/generate-pdf-with-template devuelven 200 application/pdf para VPOS PyME, Gateway (GATEWAY) y VPOS CORP; el vencimiento sigue siendo emisión+15 días hábiles (delta natural 21 días en la corrida); T&C sigue sin 'Vigencia de la Propuesta' y conserva los 4 puntos (Tiempo de Implementación, Forma de Pago, Soporte Técnico, Confidencialidad).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter244_fecha_vencimiento.py",
+    "/app/test_reports/pytest/iter245_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/pdf_generator.py: las 3 asignaciones de fecha_actual (L941 generate_vpos, L1579 generate_corp, L1808 generate_pg) ahora usan now.strftime('%d/%m/%Y'), consistentes con fecha_vencimiento. Correcto.",
+    "services/pdf_generator.py: los diccionarios MESES_ES (L921, L1562, L1791) permanecen definidos pero ya no se utilizan para fecha_actual. Sugerido eliminarlos o dejar un comentario indicando que se conservan por si otras piezas del PDF los usan (aparentemente ninguna). Cleanup de baja prioridad.",
+    "El encabezado superior (recurrente en cada página) contiene 'Fecha: DD/MM/AAAA' que ya usaba formato numérico. Ahora el bloque de metadatos coincide con ese formato. Consistencia visual OK.",
+    "routes/quotes.py hydrate_pdf_request sigue captando Exception genérica al calcular vencimiento (comentario ya reportado en iter244). No es regresión de iter245."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter244_fecha_vencimiento.py"
+  ],
+  "success_rate": {
+    "backend": "100% (23/23)",
+    "frontend": "N/A (backend only, per review request)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123. Login response usa clave 'session_token'.",
+  "seed_data_creation": "No se creó data persistente. Solo previews/generates que retornan el binario del PDF; ninguno de estos endpoints escribe en la BD.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test canónico ampliado: /app/backend/tests/test_iter244_fecha_vencimiento.py (23 tests, ~37s). La regex LONG_ES_DATE_RE detecta el bug si volviera a aparecer 'N de <mes> de AAAA' en la portada. Cada portada muestra 3 fechas DD/MM/AAAA (emisión y vencimiento del bloque de metadatos + 'Fecha:' del encabezado superior). Endpoints /api/quotes/preview-pdf-with-template y /api/quotes/generate-pdf-with-template ambos devuelven PDF binario (application/pdf); NO devuelven JSON.",
+  "rca of the issue": "Antes del fix, en pdf_generator.py las 3 secciones (generate_vpos ~L941, generate_pg ~L1808, generate CORP ~L1579) asignaban fecha_actual = f'{now.day} de {MESES_ES[now.month]} de {now.year}' (formato largo español) mientras que fecha_vencimiento se formatea con strftime('%d/%m/%Y') en la fuente (hidratación en routes/quotes.py y fallback en pdf_generator L329). Eso producía la asimetría visual 'FECHA DE EMISIÓN: 8 de julio de 2026' vs 'FECHA DE VENCIMIENTO: 29/07/2026' en el bloque de metadatos de la portada. El fix aplicado por E1 sustituye las 3 asignaciones a now.strftime('%d/%m/%Y'), unificando el formato. Verificado por extracción de texto pypdf en los 3 templates."
+}
