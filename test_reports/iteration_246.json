@@ -1,0 +1,38 @@
+{
+  "summary": "Homologación anexos Cotización→Proyecto validada end-to-end. Backend (8/8 tests) + smoke UI (ProjectDetail muestra Anexos con badge y modal, descarga funciona). Los anexos manuales subidos al modal 'Personalizar Comunicación' se persisten en project.attachments con MISMA estructura que Proyectos Directos (attachment_id att_..., storage_key='attachments/{project_id}/...', source='quote_send_to_implementation'). Endpoint de descarga devuelve binarios correctos y 404 para IDs inexistentes o para proyectos que no contienen el anexo (aislamiento OK).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter246_quote_impl_attachments.py",
+    "/app/test_reports/pytest/iter246_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "quote_actions.py::_persist_manual_attachments_to_project: correcto uso de $push con {$each: records} → no sobreescribe attachments existentes (compatible con el PDF de Cotización que ya se hereda automáticamente en _create_project_from_quote). Best-effort try/except en el caller: si el helper falla, no rompe el envío (solo se pierden los anexos, se loguea warning).",
+    "quote_actions.py L1729-1736: la búsqueda del proyecto por quote_id se hace DESPUÉS de _create_project_from_quote, lo cual es correcto. Sin embargo, para MPOS fast_track con keep_quote_active=True, el proyecto sí se crea igual (verificado indirectamente). No hay race condition ya que la creación es await.",
+    "projects.py::download_project_attachment (L1050): usa next(...) con generator para buscar el attachment_id dentro de project.attachments. Correcto y O(N) aceptable (N típicamente <10 por proyecto). Fallback FS→Object Storage bien manejado.",
+    "quote_actions.py _persist_manual_attachments_to_project: el content_type se toma del payload manual (a.get('content_type')) que viene del staging temp_manual_attachments; en test verificado que se preserva 'application/pdf' y 'image/png'. Correcto.",
+    "Sugerencia menor: el helper _persist_manual_attachments_to_project ignora silenciosamente el error de save_pdf_dual con logger.warning y continúa con el siguiente archivo. Considere devolver también los errores (records_persisted, records_failed) para mejor observabilidad si se agrega en el futuro un test de recuperación de fallo parcial.",
+    "En la UI de ProjectDetail el badge de 'Anexos 3' incluye TODOS los anexos (inherited + manual). Esto es coherente con el diseño actual — el usuario ve todo el material del proyecto en un solo lugar. No es bug.",
+    "Cross-check paridad con Proyectos Directos (iter243): en DP los anexos tienen source='direct_project_creation' y storage_key='attachments/direct_staging/...' (se conservan las claves de staging), mientras que en cotización se generan storage_keys nuevos 'attachments/{project_id}/...'. AMBOS son legibles por el endpoint /projects/{id}/attachments/{aid}/download porque este intenta el path completo, entonces la homologación funcional está OK. Sin embargo, en Proyectos Directos las claves quedan bajo direct_staging/ (compartido) mientras que aquí quedan por-proyecto. Diferencia menor pero podría uniformarse en el futuro."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter246_quote_impl_attachments.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8)",
+    "frontend": "100% (smoke UI en ProjectDetail: Anexos btn+badge+modal+download btn render y clickeable)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login response usa 'session_token').",
+  "seed_data_creation": "Consumidas 3 cotizaciones Borrador/implementation del set de pruebas al enviarlas a implementación (quo_336c9ea12240 con 2 anexos, quo_2b8c548bc454 sin anexos, quo_711da994dc8d intento sin motivo → 422). Los proyectos creados quedan persistidos en /api/projects; el que contiene los anexos manuales de prueba puede verse en el UI (prj_e4e8884f7325 según último run, cambia por iteración).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test canónico: /app/backend/tests/test_iter246_quote_impl_attachments.py — cubre upload staging, send-to-impl con x-manual-attachment-ids, verificación de project.attachments (filtrado por source='quote_send_to_implementation' porque el proyecto también hereda el PDF de la cotización con source='inherited_from=cotización'), descarga binaria, 404 por anexo inexistente, aislamiento entre proyectos, y 422 sin motivo de excepción. Cada corrida consume 2-3 cotizaciones Borrador/implementation del pool; si el pool cae bajo 3, los tests skipean con mensaje claro. Para re-ejecución en entorno con pocas Borrador/impl, sembrar más cotizaciones o ajustar el filtro fixture."
+}

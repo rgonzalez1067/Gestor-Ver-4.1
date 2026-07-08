@@ -88,6 +88,60 @@ async def _resolve_manual_attachments(ids_header: Optional[str]) -> list[dict]:
     return out
 
 
+async def _persist_manual_attachments_to_project(project_id: str, manual_attachments: list[dict], user: dict) -> int:
+    """Homologación con Proyectos Directos: persiste los anexos manuales del modal
+    'Personalizar Comunicación' en el proyecto recién creado, usando la MISMA
+    estructura de almacenamiento (Object Storage + FS) e indexación en
+    `project.attachments` (relación 1:N Proyecto↔Anexos). Devuelve la cantidad
+    persistida. No lanza excepción hacia el caller (best-effort)."""
+    import os as _os
+    import mimetypes as _mt
+    from services.pdf_storage import save_pdf_dual
+    from config import UPLOADS_DIR
+
+    if not manual_attachments:
+        return 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    uploader_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", "unknown")
+    records = []
+    for a in manual_attachments:
+        fname = a.get("filename") or "anexo"
+        b64 = a.get("content")
+        if not b64:
+            continue
+        try:
+            raw = base64.b64decode(b64)
+        except Exception:
+            continue
+        att_id = f"att_{uuid.uuid4().hex[:12]}"
+        ext = _os.path.splitext(fname)[1].lower() or (_mt.guess_extension(a.get("content_type") or "") or "")
+        storage_key = f"attachments/{project_id}/{att_id}{ext}"
+        try:
+            save_pdf_dual(UPLOADS_DIR / storage_key, raw, storage_key)
+        except Exception as e:
+            logger.warning(f"[send_to_implementation] no se pudo guardar anexo {fname} en storage: {e}")
+            continue
+        records.append({
+            "attachment_id": att_id,
+            "category": "Otros",
+            "filename": fname,
+            "url": f"/uploads/{storage_key}",
+            "storage_key": storage_key,
+            "uploaded_by": user.get("email", "unknown"),
+            "uploaded_by_name": uploader_name,
+            "uploaded_at": now_iso,
+            "file_size": len(raw),
+            "content_type": a.get("content_type") or "application/octet-stream",
+            "source": "quote_send_to_implementation",
+        })
+    if records:
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$push": {"attachments": {"$each": records}}},
+        )
+    return len(records)
+
+
 @router.post("/quotes/manual-attachments/upload")
 async def upload_manual_attachment(
     file: UploadFile = File(...),
@@ -1668,6 +1722,18 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
 
     # Anexos manuales del modal "Personalizar Comunicación"
     _manual_attachments = await _resolve_manual_attachments(manual_attachment_ids)
+
+    # Homologación con Proyectos Directos: persistir los anexos en el proyecto
+    # recién creado (mismo storage + project.attachments) para que sean
+    # visibles/descargables desde el botón "Anexos" del Panel de Proyectos.
+    if _manual_attachments:
+        try:
+            _created = await db.projects.find_one({"quote_id": quote_id}, {"_id": 0, "project_id": 1})
+            if _created and _created.get("project_id"):
+                _n = await _persist_manual_attachments_to_project(_created["project_id"], _manual_attachments, current_user)
+                logger.info(f"[send_to_implementation] {_n} anexo(s) persistido(s) en proyecto {_created['project_id']}")
+        except Exception as _pe:
+            logger.warning(f"[send_to_implementation] no se pudieron persistir anexos en el proyecto: {_pe}")
 
     # === Notification Engine (Phase 2) ===
     _engine_result = await _engine_or_legacy(
