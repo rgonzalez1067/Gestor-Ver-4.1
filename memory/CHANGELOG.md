@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-07 — Feature CERTIFICADA: Homologación de anexos Cotización → Panel de Proyectos
+
+- **Requerimiento:** los archivos adjuntos cargados en el modal "Personalizar Comunicación" al "Enviar a Implementación" desde una cotización deben persistir en el proyecto con la MISMA estructura que Proyectos Directos y ser visibles/descargables desde el botón "Anexos" del Panel de Proyectos.
+- **Hallazgo:** el uploader del modal (`EmailManualAttachments`) y la propagación del header `x-manual-attachment-ids` YA existían (los anexos solo iban al correo). Cambio nuevo = **solo backend**.
+- **Backend `quote_actions.py`:** nuevo helper `_persist_manual_attachments_to_project(project_id, manual_attachments, user)` que guarda cada anexo vía `save_pdf_dual` en `attachments/{project_id}/...` y hace `$push` a `project.attachments` (mismo esquema: attachment_id, category, filename, url, storage_key, uploaded_by/_name, uploaded_at, file_size, content_type, source='quote_send_to_implementation'). Invocado en `send_quote_to_implementation` tras crear el proyecto (búsqueda por quote_id). Los anexos siguen adjuntándose al correo.
+- **Descarga:** reutiliza `GET /api/projects/{project_id}/attachments/{attachment_id}/download` (FS→Object Storage). Botón "Anexos" en ProjectDetail ya aparece cuando `project.attachments` tiene items.
+- **QA (testing_agent iter246): 8/8 backend + smoke UI 100%.** Paridad de origen (Directo vs Cotización) y aislamiento sin fuga de datos verificados; 404 correcto para IDs inexistentes.
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-07 — Feature CERTIFICADA: Fecha de Vencimiento en portada de Cotizaciones (Implementaciones)
 
 - **Requerimiento:** agregar "FECHA DE VENCIMIENTO" en la portada de las cotizaciones comerciales, justo debajo de "FECHA DE EMISIÓN", mismo estilo, formato DD/MM/AAAA. Cálculo: emisión + 15 días hábiles (exclusivo, el día de emisión no cuenta), excluyendo fines de semana y feriados de `db.holidays`. Eliminar el punto "Vigencia de la Propuesta" de Términos y Condiciones.
