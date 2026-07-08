@@ -817,7 +817,8 @@ export const Quotes = () => {
     const bank = banks.find(b => b.bank_id === bankId);
     if (bank && bank.products) {
       const compatibilityField = getCompatibilityField(quoteData.quote_type);
-      const filteredProducts = bank.products.filter(p => p[compatibilityField] !== false);
+      // Excluir productos en "Fase Previa a Producción" (no disponibles para este banco).
+      const filteredProducts = bank.products.filter(p => p[compatibilityField] !== false && !p.pre_production);
       setAvailableMediosPago(filteredProducts);
     } else {
       setAvailableMediosPago([]);
@@ -1507,8 +1508,8 @@ export const Quotes = () => {
     }
     const bank = banks.find(b => b.bank_id === bankId);
     if (bank) {
-      // Solo filtrar por gateway_available, las duplicaciones las maneja MultiProductSelector
-      const filtered = (bank.products || []).filter(p => p.gateway_available);
+      // Filtrar por gateway_available y excluir "Fase Previa a Producción".
+      const filtered = (bank.products || []).filter(p => p.gateway_available && !p.pre_production);
       setPgFilteredProducts(filtered);
     }
   };

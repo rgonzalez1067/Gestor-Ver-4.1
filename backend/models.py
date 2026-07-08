@@ -144,6 +144,11 @@ class BankProduct(BaseModel):
     mpos_available: bool = False
     link_available: bool = False
     pg_setup_cost: float = 0  # Costo de setup para Payment Gateway
+    # Fase Previa a Producción: el producto está desarrollado en core pero NO
+    # disponible comercial/técnicamente para este banco → se oculta en Cotizaciones.
+    pre_production: bool = False
+    # Comentario libre de la relación producto↔banco (visible como tooltip en el resumen).
+    comment: str = ""
 
 class BankIntegration(BaseModel):
     """Integración en curso con un banco"""

@@ -8,7 +8,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { ArrowLeft, Building2, Monitor, Globe, Smartphone, Link, Plus, Trash2, ChevronRight, User, Phone, Mail, Hash, Rocket, Package, FileText, Pencil, Lock, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Building2, Monitor, Globe, Smartphone, Link, Plus, Trash2, ChevronRight, User, Phone, Mail, Hash, Rocket, Package, FileText, Pencil, Lock, FlaskConical, Clock } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -295,18 +296,27 @@ export const BankDetail = () => {
               Medios de Pago Activos — VPOS / MPOS
             </h2>
             {vposMpos.length > 0 ? (
+              <TooltipProvider delayDuration={100}>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                {vposMpos.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg bg-blue-50 border border-blue-100">
-                    <Package size={14} className="text-blue-600 shrink-0" />
-                    <span className="text-sm font-medium text-blue-800 truncate">{p.product_name}</span>
-                    <div className="flex gap-1 ml-auto shrink-0">
-                      {p.vpos_available && <span className="px-1 py-0.5 text-[9px] font-bold rounded bg-blue-200 text-blue-700">VPOS</span>}
-                      {p.mpos_available && <span className="px-1 py-0.5 text-[9px] font-bold rounded bg-indigo-200 text-indigo-700">MPOS</span>}
+                {vposMpos.map((p, i) => {
+                  const hasComment = p.comment && p.comment.trim();
+                  const card = (
+                    <div data-testid={`vpos-product-${i}`} className={`flex items-center gap-2 p-2.5 rounded-lg border ${p.pre_production ? 'bg-orange-100 border-orange-300' : 'bg-blue-50 border-blue-100'}`}>
+                      {p.pre_production ? <Clock size={14} className="text-orange-600 shrink-0" /> : <Package size={14} className="text-blue-600 shrink-0" />}
+                      <span className={`text-sm font-medium truncate ${p.pre_production ? 'text-orange-800' : 'text-blue-800'}`}>{p.product_name}</span>
+                      {hasComment && <span className="text-sky-500 font-bold shrink-0" data-testid={`vpos-comment-dot-${i}`}>•</span>}
+                      <div className="flex gap-1 ml-auto shrink-0">
+                        {p.vpos_available && <span className="px-1 py-0.5 text-[9px] font-bold rounded bg-blue-200 text-blue-700">VPOS</span>}
+                        {p.mpos_available && <span className="px-1 py-0.5 text-[9px] font-bold rounded bg-indigo-200 text-indigo-700">MPOS</span>}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                  return hasComment ? (
+                    <Tooltip key={i}><TooltipTrigger asChild>{card}</TooltipTrigger><TooltipContent className="max-w-xs whitespace-pre-wrap" data-testid={`vpos-tooltip-${i}`}>{p.comment}</TooltipContent></Tooltip>
+                  ) : <div key={i}>{card}</div>;
+                })}
               </div>
+              </TooltipProvider>
             ) : (
               <p className="text-sm text-slate-400 italic">Sin medios de pago VPOS/MPOS activos</p>
             )}
@@ -319,18 +329,27 @@ export const BankDetail = () => {
               Medios de Pago Activos — Payment Gateway / Link de Pago
             </h2>
             {pgLink.length > 0 ? (
+              <TooltipProvider delayDuration={100}>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                {pgLink.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg bg-green-50 border border-green-100">
-                    <Package size={14} className="text-green-600 shrink-0" />
-                    <span className="text-sm font-medium text-green-800 truncate">{p.product_name}</span>
-                    <div className="flex gap-1 ml-auto shrink-0">
-                      {p.gateway_available && <span className="px-1 py-0.5 text-[9px] font-bold rounded bg-green-200 text-green-700">PG</span>}
-                      {p.link_available && <span className="px-1 py-0.5 text-[9px] font-bold rounded bg-teal-200 text-teal-700">Link</span>}
+                {pgLink.map((p, i) => {
+                  const hasComment = p.comment && p.comment.trim();
+                  const card = (
+                    <div data-testid={`pg-product-${i}`} className={`flex items-center gap-2 p-2.5 rounded-lg border ${p.pre_production ? 'bg-red-100 border-red-300' : 'bg-green-50 border-green-100'}`}>
+                      {p.pre_production ? <Clock size={14} className="text-red-600 shrink-0" /> : <Package size={14} className="text-green-600 shrink-0" />}
+                      <span className={`text-sm font-medium truncate ${p.pre_production ? 'text-red-800' : 'text-green-800'}`}>{p.product_name}</span>
+                      {hasComment && <span className="text-sky-500 font-bold shrink-0" data-testid={`pg-comment-dot-${i}`}>•</span>}
+                      <div className="flex gap-1 ml-auto shrink-0">
+                        {p.gateway_available && <span className="px-1 py-0.5 text-[9px] font-bold rounded bg-green-200 text-green-700">PG</span>}
+                        {p.link_available && <span className="px-1 py-0.5 text-[9px] font-bold rounded bg-teal-200 text-teal-700">Link</span>}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                  return hasComment ? (
+                    <Tooltip key={i}><TooltipTrigger asChild>{card}</TooltipTrigger><TooltipContent className="max-w-xs whitespace-pre-wrap" data-testid={`pg-tooltip-${i}`}>{p.comment}</TooltipContent></Tooltip>
+                  ) : <div key={i}>{card}</div>;
+                })}
               </div>
+              </TooltipProvider>
             ) : (
               <p className="text-sm text-slate-400 italic">Sin medios de pago PG/Link activos</p>
             )}

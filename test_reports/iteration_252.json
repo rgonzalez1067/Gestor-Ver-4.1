@@ -1,0 +1,33 @@
+{
+  "summary": "QA iter252 — Catálogo de Bancos: Fase Previa a Producción (pre_production) + comentarios por producto↔banco. Backend 5/5 tests PASS (persistencia PUT/GET, GET /banks/{id}/detail, toggle-off, regresión de otras banderas). Frontend: modal de edición del banco muestra Switch 'Fase Previa a Producción' y botón 💬 en cada producto; micro-modal (product-comment-modal) guarda comentario en el estado del formulario; al guardar el banco con Actualizar, GET /api/banks confirma persistencia (Bancamiga con 'Tarjeta de Crédito/Débito' pre_prod=True + comment, y 'Tarjeta de Crédito/Débito (PG)' pre_prod=True + comment). Vista /banks: chip VPOS→naranja, chip PG→rojo, ambos con marca • y tooltip al hover mostrando el comentario íntegro. Vista /banks/{id}: paneles VPOS/MPOS y PG/Link renderizan cajas naranja/roja + marca • + tooltip correctos. Cotizaciones (PRUEBA DE FUEGO): simulación exacta de los filtros de Quotes.jsx L821 (VPOS) y L1512 (PG) contra la API real para Bancamiga → 'Tarjeta de Crédito/Débito' y 'Tarjeta de Crédito/Débito (PG)' quedaron BLOQUEADOS (fuera de las listas VPOS y PG respectivamente); el resto de productos siguen disponibles con normalidad. Regresión OK. Estado de datos restaurado (rollback PUT 200) al finalizar.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter252_bank_preprod_comment.py",
+    "/app/test_reports/pytest/iter252_bank_preprod.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx L828–L838 (getCompatibilityField): hay una cláusula 'case VPOS' duplicada y las etiquetas 'case MPOS' aparecen dos veces, con la segunda ('MPOS' → 'mpos_available') muerta por caer detrás de un case previo. Actualmente NO impacta el fix pre_production (los cotizadores de MPOS heredan vpos_available), pero es un smell latente que puede sesgar la elegibilidad en MPOS específico. Consideración de limpieza no bloqueante.",
+    "Backend PUT /banks/{id} usa el mismo shape BankCreate para el request y el response; se comporta idempotente y persiste correctamente los nuevos campos (pre_production, comment). No hay riesgo de shape mismatch en clientes actuales.",
+    "Tooltip Radix: el .text_content() en playwright devuelve el texto duplicado (visible + aria-label sombra) — es normal en Radix Tooltip, NO es un bug de la app; el usuario ve el texto una sola vez."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (5/5 pytest PASS)",
+    "frontend": "100% en flujos verificados: edición de banco (Switch pre_prod + micro-modal comentario + persistencia), resumen /banks (chip color naranja/rojo + marca • + tooltip), detalle /banks/{id} (cajas coloreadas + marca • + tooltip) y filtro de Cotizaciones (VPOS + PG excluyen pre_production)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (session_token).",
+  "seed_data_creation": "No se creó seed nuevo. Se usó Bancamiga (bnk_95e96724f40f) con productos existentes. Cambios de prueba (pre_production=True + comment='Requiere aprobación especial de la gerencia del banco' en 'Tarjeta de Crédito/Débito' y 'Tarjeta de Crédito/Débito (PG)') fueron REVERTIDOS al final vía PUT (status 200) para restaurar el estado original.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature iter252 verificado end-to-end. Suite pytest: `REACT_APP_BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d= -f2) python3 -m pytest /app/backend/tests/test_iter252_bank_preprod_comment.py -v` (~3s). Nota: la validación del filtro de Cotizaciones se hizo simulando exactamente la lógica de Quotes.jsx L821 y L1512 contra la API real (no vía wizard UI) por eficiencia; el resultado confirmó que ambos productos pre_production fueron excluidos. Si se desea recorrer el wizard visualmente, iniciar en /quotes → Implementaciones → Clientes Pymes → seleccionar cliente → paso banco (Bancamiga) → paso tipo VPOS/GATEWAY → confirmar lista.",
+  "rca of the issue": "N/A — no bugs detectados. La implementación es correcta: (1) modelo BankProduct.pre_production y BankProduct.comment se persisten sin cambios adicionales en routes/banks.py porque BankCreate ya acepta el array products completo; (2) frontend Banks.jsx aplica lógica de color condicional en resumen: pre_production+PG→red-100, pre_production+VPOS→orange-100, respetando el requisito del PRD; (3) BankDetail.jsx replica el mismo tratamiento con clases bg-orange-100/bg-red-100; (4) Quotes.jsx incluye `&& !p.pre_production` en ambos filtros (getBankProducts para VPOS/MPOS y handlePgBankChange para PG); (5) los comentarios se renderizan como TooltipContent envolviendo la tarjeta/chip, con marca • visible siempre que p.comment tenga texto."
+}

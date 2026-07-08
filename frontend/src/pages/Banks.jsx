@@ -8,7 +8,10 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket, FileBarChart, Cpu, Landmark, LayoutGrid, ListChecks } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket, FileBarChart, Cpu, Landmark, LayoutGrid, ListChecks, MessageSquare, Clock } from 'lucide-react';
+import { Switch } from '../components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { Textarea } from '../components/ui/textarea';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -181,6 +184,20 @@ export const Banks = () => {
     const updated = [...formData.products];
     updated[index] = { ...updated[index], [field]: !updated[index][field] };
     setFormData({ ...formData, products: updated });
+  };
+
+  // Modal de comentario producto↔banco
+  const [commentModal, setCommentModal] = useState({ open: false, index: -1, text: '' });
+  const openCommentModal = (index) => {
+    setCommentModal({ open: true, index, text: formData.products[index]?.comment || '' });
+  };
+  const saveComment = () => {
+    const { index, text } = commentModal;
+    if (index < 0) return;
+    const updated = [...formData.products];
+    updated[index] = { ...updated[index], comment: text.trim() };
+    setFormData({ ...formData, products: updated });
+    setCommentModal({ open: false, index: -1, text: '' });
   };
 
   const removeProduct = (index) => {
@@ -523,24 +540,42 @@ export const Banks = () => {
                       </h3>
                       <div className="space-y-2 mb-4">
                         {formData.products.map((product, index) => (
-                          <div key={index} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border">
-                            <span className="text-sm font-medium text-slate-800 truncate min-w-0 flex-shrink mr-3">{product.product_name}</span>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button type="button" onClick={() => toggleProductComponent(index, 'vpos_available')}
-                                className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.vpos_available ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
-                                data-testid={`toggle-vpos-${index}`}>VPOS</button>
-                              <button type="button" onClick={() => toggleProductComponent(index, 'mpos_available')}
-                                className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.mpos_available ? 'bg-purple-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
-                                data-testid={`toggle-mpos-${index}`}>MPOS</button>
-                              <button type="button" onClick={() => toggleProductComponent(index, 'gateway_available')}
-                                className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.gateway_available ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
-                                data-testid={`toggle-gw-${index}`}>PG</button>
-                              <button type="button" onClick={() => toggleProductComponent(index, 'link_available')}
-                                className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.link_available ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
-                                data-testid={`toggle-link-${index}`}>Link</button>
-                              <Button type="button" size="sm" variant="ghost" onClick={() => removeProduct(index)} className="text-red-500 h-7 w-7 p-0 ml-1">
-                                <Trash2 size={14} />
-                              </Button>
+                          <div key={index} className={`p-2.5 rounded-lg border ${product.pre_production ? 'bg-amber-50 border-amber-300' : 'bg-slate-50'}`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-slate-800 truncate min-w-0 flex-shrink mr-3 flex items-center gap-1.5">
+                                {product.product_name}
+                                {product.comment && product.comment.trim() && (
+                                  <span className="text-sky-500" title="Tiene comentario">•</span>
+                                )}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button type="button" onClick={() => toggleProductComponent(index, 'vpos_available')}
+                                  className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.vpos_available ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
+                                  data-testid={`toggle-vpos-${index}`}>VPOS</button>
+                                <button type="button" onClick={() => toggleProductComponent(index, 'mpos_available')}
+                                  className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.mpos_available ? 'bg-purple-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
+                                  data-testid={`toggle-mpos-${index}`}>MPOS</button>
+                                <button type="button" onClick={() => toggleProductComponent(index, 'gateway_available')}
+                                  className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.gateway_available ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
+                                  data-testid={`toggle-gw-${index}`}>PG</button>
+                                <button type="button" onClick={() => toggleProductComponent(index, 'link_available')}
+                                  className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.link_available ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
+                                  data-testid={`toggle-link-${index}`}>Link</button>
+                                <button type="button" onClick={() => openCommentModal(index)}
+                                  className={`h-7 w-7 flex items-center justify-center rounded transition-colors ml-1 ${product.comment && product.comment.trim() ? 'bg-sky-100 text-sky-600' : 'bg-slate-200 text-slate-400 hover:bg-slate-300'}`}
+                                  title="Comentario del producto" data-testid={`product-comment-btn-${index}`}>
+                                  <MessageSquare size={13} />
+                                </button>
+                                <Button type="button" size="sm" variant="ghost" onClick={() => removeProduct(index)} className="text-red-500 h-7 w-7 p-0">
+                                  <Trash2 size={14} />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200/70">
+                              <Switch checked={!!product.pre_production} onCheckedChange={() => toggleProductComponent(index, 'pre_production')} data-testid={`preprod-switch-${index}`} className="scale-90" />
+                              <span className={`text-[11px] font-medium flex items-center gap-1 ${product.pre_production ? 'text-amber-700' : 'text-slate-400'}`}>
+                                <Clock size={12} /> Fase Previa a Producción
+                              </span>
                             </div>
                           </div>
                         ))}
@@ -760,22 +795,40 @@ export const Banks = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap gap-1.5 mb-1.5">
                       {chips.length > 0 ? (
-                        chips.map((p, i) => {
+                        <TooltipProvider delayDuration={100}>
+                        {chips.map((p, i) => {
                           const isVposMpos = p.vpos_available || p.mpos_available;
                           const isPgLink = p.gateway_available || p.link_available;
-                          const colorClass = isVposMpos && !isPgLink
+                          // Fase Previa a Producción: VPOS→Naranja claro, Payment Gateway→Rojo claro.
+                          const colorClass = p.pre_production
+                            ? (isPgLink && !isVposMpos
+                                ? 'bg-red-100 text-red-800 border-red-300'
+                                : 'bg-orange-100 text-orange-800 border-orange-300')
+                            : isVposMpos && !isPgLink
                             ? 'bg-blue-100 text-blue-800 border-blue-300'
                             : !isVposMpos && isPgLink
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                             : isVposMpos && isPgLink
                             ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
                             : 'bg-slate-100 text-slate-700 border-slate-300';
-                          return (
-                            <span key={i} className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${colorClass}`}>
+                          const hasComment = p.comment && p.comment.trim();
+                          const chip = (
+                            <span data-testid={`bank-chip-${i}`} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${colorClass}`}>
+                              {p.pre_production && <Clock size={11} />}
                               {p.product_name}
+                              {hasComment && <span className="text-sky-500 font-bold" data-testid={`bank-chip-comment-dot-${i}`}>•</span>}
                             </span>
                           );
-                        })
+                          return hasComment ? (
+                            <Tooltip key={i}>
+                              <TooltipTrigger asChild>{chip}</TooltipTrigger>
+                              <TooltipContent className="max-w-xs whitespace-pre-wrap" data-testid={`bank-chip-tooltip-${i}`}>{p.comment}</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span key={i}>{chip}</span>
+                          );
+                        })}
+                        </TooltipProvider>
                       ) : (
                         <span className="text-xs text-slate-400 italic">Sin medios de pago</span>
                       )}
@@ -841,6 +894,33 @@ export const Banks = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Micro-modal: comentario producto↔banco */}
+        <Dialog open={commentModal.open} onOpenChange={(o) => !o && setCommentModal({ open: false, index: -1, text: '' })}>
+          <DialogContent className="max-w-md" data-testid="product-comment-modal">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare size={18} className="text-sky-600" />
+                {commentModal.index >= 0 && formData.products[commentModal.index]
+                  ? `Comentario · ${formData.products[commentModal.index].product_name}`
+                  : 'Comentario del Producto'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Textarea
+                value={commentModal.text}
+                onChange={(e) => setCommentModal((prev) => ({ ...prev, text: e.target.value }))}
+                placeholder="Ej: Requiere aprobación especial de la gerencia del banco"
+                rows={4}
+                data-testid="product-comment-textarea"
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setCommentModal({ open: false, index: -1, text: '' })} data-testid="product-comment-cancel">Cancelar</Button>
+                <Button onClick={saveComment} className="bg-sky-600 hover:bg-sky-700 text-white" data-testid="product-comment-save">Guardar</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
