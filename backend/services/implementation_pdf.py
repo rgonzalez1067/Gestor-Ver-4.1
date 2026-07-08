@@ -617,7 +617,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         # casos debemos respetar los saltos de línea y no romper el parser XML.
         import re as _re
         raw = instructions_html
-        is_html = bool(_re.search(r"<[a-zA-Z/][^>]*>", raw))
+        is_html = bool(_re.search(r"</?(?:p|br|strong|em|b|i|u|ul|ol|li|span|div|a)\b", raw, _re.I))
         if is_html:
             safe = raw
             # <strong>→<b>, <em>→<i>

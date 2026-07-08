@@ -1,0 +1,32 @@
+{
+  "summary": "Retest dirigido del fix iter251 sobre 'Instrucciones Adicionales para el Implementador' en la Ficha Técnica del PDF. Se ejecutó la suite completa /app/backend/tests/test_iter250_impl_instructions_pdf.py (6 tests) contra el backend público. Resultado: 6/6 PASS (previamente 5/6). El caso que fallaba en iter250 (TestSanitization::test_direct_project_plain_with_tag_like_content — texto plano con '<server>' y '<admin>') ahora PASA: los pseudo-tags aparecen LITERALES en el PDF (escapados vía rama plain-text) y los saltos de línea se respetan. Regresiones OK: (a) HTML real del editor rich-text (<strong>, <ul><li>, entidades &amp;/&lt;) sigue renderizando formato correcto; (b) texto plano con &, comillas, saltos de línea y viñetas manuales íntegro; (c) proyecto SIN instrucciones → PDF 200 sin sección; (d) Ruta A (send-to-implementation con HTML rich-text) persiste y renderiza. Fix verificado en /app/backend/services/implementation_pdf.py L620: la heurística is_html ahora usa allowlist estricta `</?(?:p|br|strong|em|b|i|u|ul|ol|li|span|div|a)\\b` (case-insensitive), evitando falsos positivos con texto plano tipo '<palabra>'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter250_impl_instructions_pdf.py",
+    "/app/test_reports/pytest/iter251_impl_instructions.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "implementation_pdf.py L620: la nueva heurística basada en allowlist (`</?(?:p|br|strong|em|b|i|u|ul|ol|li|span|div|a)\\b`) es suficiente para los payloads reales del sistema (editor TipTap y textarea plano). Cubre el bug reportado sin regresiones observables. Como mejora futura opcional (defensa en profundidad), se sugiere persistir un campo `implementation_instructions_format: 'html' | 'plain'` en el documento del proyecto/cotización desde el caller (Route A vs Route B) para eliminar totalmente cualquier heurística — pero NO es bloqueante.",
+    "Consideración adicional (no bloqueante): la lista de tags reconocidos no incluye <h1..h6>, <blockquote>, <code>, <pre>. Si el editor rich-text en el futuro emite alguno de estos, la heurística caería en la rama plain-text y los mostraría escapados. Verificable con inspección del editor TipTap si se amplía su toolbar."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (6/6 tests PASS)",
+    "frontend": "N/A (testing_type: backend only)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (session_token).",
+  "seed_data_creation": "Reutilizado /app/backend/tests/seed_iter248_test_quotes.py (idempotente) para seedar COT-TEST-ITER248-GW-001. Cleanup post-suite: db.projects.delete_many({economic_group: /^TEST-ITER250/}) + db.quotes.delete_many({quote_number: /TEST-ITER248/}).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fix iter251 verificado. La heurística estricta con allowlist en implementation_pdf.py:620 resuelve el corner-case de pseudo-tags en texto plano de Proyectos Directos. Reejecutar suite: `python3 -m pytest /app/backend/tests/test_iter250_impl_instructions_pdf.py -v` (~4-5s). Todos los tests (Ruta A HTML, Ruta B plain, Ruta B con pseudo-tags, Ruta B con & y saltos, sin-instrucciones, y send-to-implementation) están cubiertos.",
+  "rca of the issue": "El bug reportado en iter250 se debía a que `implementation_pdf.py:620` usaba `re.search(r'<[a-zA-Z/][^>]*>', raw)` — regex laxa que matchea cualquier `<letra...>`, incluyendo texto plano como '<server>', '<admin>'. Al entrar a la rama HTML, la L637 (`<(?!/?(?:b|i|u|br)(?:\\s|/?>))[^>]+>` → remove) borraba el 'tag' literal. Fix aplicado en iter251: cambio de la heurística a allowlist de tags conocidos: `</?(?:p|br|strong|em|b|i|u|ul|ol|li|span|div|a)\\b` (case-insensitive). Ahora texto plano con '<palabra>' cae a la rama plain-text que hace `.replace('<','&lt;').replace('>','&gt;')` correctamente, produciendo '<server>' y '<admin>' literales en el PDF. Verificado con extracción pypdf (test_direct_project_plain_with_tag_like_content)."
+}
