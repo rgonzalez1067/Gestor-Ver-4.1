@@ -1,0 +1,29 @@
+{
+  "summary": "Iter254 (Bug Fix V2 - Homologación CORP/PYME 'Enviar a Implementación'): validado end-to-end en UI que una cotización CORP en estado 'Pagada' YA NO omite los modales 'Datos Técnicos e Instrucciones' (consolidated_data) ni 'Asignación del Implementador' (confirm_implementer). El wizard recorre la secuencia completa según TIPO DE PRODUCTO (físico VPOS/MPOS vs digital GATEWAY/LINK_PAGO) sin diferenciar por segmento. Reproducción UI con cotización CORP VPOS quo_2ed5a92f607f (Pagada forzado): Multitienda → Pinpad → Impresora Fiscal → Datos Técnicos e Instrucciones → Asignación del Implementador. Paridad PYME confirmada por inspección de código (mismo flujo openMultistoreDialog/openDigitalImplementationWizard sin condicionales por client_segment).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones (grid)", "issues": ["Console: hydration warnings por plugin visual-edits (`<span data-ve-dynamic>` como hijo de <tbody>/<tr>) — NO es bug de negocio, corresponde al plugin de Preview. Ignorable."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_254.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx L2360-2370 (`confirmEmailAndProceed`): sólo bifurca 'send-to-implementation' por quote_type (GATEWAY/LINK_PAGO → digital; resto → físico). Sin diferenciación por client_segment. ✅",
+    "Quotes.jsx L2888-2929 (`handleFiscalPrinterContinue`): fija SIEMPRE `setMultistorePhase('consolidated_data')` — homologación V2 aplicada. ✅",
+    "Quotes.jsx L2781-2826 (`openDigitalImplementationWizard`): fija `setMultistorePhase('consolidated_data')` para productos digitales, independientemente de segmento. ✅",
+    "Quotes.jsx L3126-3133 (`handleConsolidatedContinue`): SIEMPRE avanza a 'confirm_implementer' sin condicionales de segmento. ✅",
+    "QuoteModals.jsx L727 y L835 (render de fases 'consolidated_data' y 'confirm_implementer'): renderizadas puramente por `multistorePhase` state, sin condicional por segmento. ✅",
+    "Quotes.jsx tiene 4391 líneas — sigue por encima del umbral saludable (>700). Recomendación de refactor a submódulos por dominio (multistore wizard, email modal, custom actions) para mantenibilidad. No bloqueante para este fix."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skip)", "frontend": "100% (secuencia CORP VPOS validada end-to-end)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se forzó temporalmente `quote_status: Pagada` sobre quo_2ed5a92f607f (única cotización CORP VPOS existente, originalmente en Borrador) para poder disparar 'Enviar a Implementación' desde la UI. Al finalizar los tests el estado fue RESTAURADO a Borrador. No se creó proyecto (se cerró el wizard en la fase confirm_implementer antes de avanzar).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "En DB no existen cotizaciones GATEWAY/LINK_PAGO en estado Pagada; el flujo digital (openDigitalImplementationWizard) fue validado por inspección de código (sin condicional de segmento, arranca directo en consolidated_data). Sólo existe una cotización CORP en total (quo_2ed5a92f607f VPOS, restaurada a Borrador). Si se requiere retest E2E digital, hay que seedear una cotización de tipo GATEWAY o LINK_PAGO en estado Pagada. Fase física del wizard CORP validada extremo a extremo hasta confirm_implementer, sin crear proyecto.",
+  "rca of the issue": "Antes del fix V2, `handleFiscalPrinterContinue` bifurcaba por client_segment y cuando era CORP saltaba directo a crear el proyecto omitiendo 'consolidated_data' y 'confirm_implementer'. El fix V2 elimina esa condicional (SIEMPRE avanza a consolidated_data). Complementariamente `confirmEmailAndProceed` ahora sólo bifurca por quote_type (GATEWAY/LINK_PAGO vs físicos), no por segmento. La secuencia por producto se preserva: Físico: Multitienda→Pinpad→(Fiscal si VPOS)→consolidated_data→confirm_implementer; Digital: consolidated_data→confirm_implementer."
+}
