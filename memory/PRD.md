@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug Fix V2: Homologación "Enviar a Implementación" PYME/Corp (preserva secuencia por tipo) — Jun 2026
+**Síntoma:** el asistente "Enviar a Implementación" omitía los modales "Datos Técnicos e Instrucciones" (consolidated_data) y "Asignación del Implementador" (confirm_implementer) cuando la cotización era del segmento CORP.
+**RCA:** `handleFiscalPrinterContinue` (Quotes.jsx) bifurcaba por `client_segment`; para CORP saltaba directo a crear el proyecto, omitiendo ambos modales.
+**Fix:** se eliminó la condicional por segmento — `handleFiscalPrinterContinue` fija SIEMPRE `setMultistorePhase('consolidated_data')`. La segmentación se conserva SOLO por TIPO DE PRODUCTO: `confirmEmailAndProceed` bifurca únicamente por quote_type (GATEWAY/LINK_PAGO → `openDigitalImplementationWizard`, omite hardware; resto → `openMultistoreDialog`, físico). Ambos flujos convergen en consolidated_data → confirm_implementer sin diferenciar PYME/CORP.
+**QA:** testing_agent iteration_254 → **frontend 100%** (CORP VPOS recorre Multitienda→Pinpad→Fiscal→Datos Técnicos→Implementador). Flujo digital validado por inspección de código (no había cotización GATEWAY/LINK Pagada para E2E). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix: cotizaciones PG / Link de Pago de Ventas Corporativas quedaban como PYME — Jul 2026
 **Síntoma (producción):** cotizaciones Payment Gateway (GATEWAY) y Link de Pago/Tokenizador (LINK_PAGO) creadas por usuarios de Ventas Corporativas se guardaban como PYME en vez de CORP, y los usuarios CORP no veían sus propias cotizaciones.
 **RCA (doble bug apilado):** (a) el submit de PG en el frontend (`handleSubmitPGQuote`, Quotes.jsx) NO enviaba `client_segment` en el payload de `/quotes/create-with-pdf`; (b) en el backend, el modelo `QuoteCreateWithPDF.client_segment` tenía default pydantic `'PYME'` (truthy), lo que volvía **código muerto** el fallback `data.client_segment or user_sede` — al omitirse el campo, siempre quedaba PYME. En producción, además, la sede de estos usuarios no era 'CORP'.
