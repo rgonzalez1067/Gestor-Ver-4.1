@@ -2904,40 +2904,28 @@ export const Quotes = () => {
         // No bloquea el flujo si la actualización del cliente falla
       }
     }
-    // Avanzar al siguiente paso del wizard según el flujo (PYME vs no-PYME).
-    // Multitienda ya se procesó al inicio → desde aquí:
-    // - PYME: pasa a consolidated_data (server + grupo económico + instrucciones).
-    // - No-PYME: envía directamente la cotización a Implementación con los datos recogidos.
+    // Avanzar al siguiente paso del wizard. HOMOLOGACIÓN (V2): la secuencia es
+    // IDÉNTICA para PYME y Corp — sin diferenciación por segmento. Tras la
+    // secuencia física (Multitienda/Pinpad/Fiscal) SIEMPRE se muestran
+    // "Datos Técnicos e Instrucciones" (consolidated_data) y luego "Implementador"
+    // (confirm_implementer), independientemente del segmento del creador.
     const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
-    const segment = (quote?.client_segment || '').toLowerCase();
-    const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
-    if (isPyme) {
-      // Precargar Grupo Económico y Nombre de Fantasía desde la ficha del cliente.
-      // Quedan EDITABLES en el modal `consolidated_data` para que el operador pueda
-      // ajustarlos antes de enviar la ficha técnica a Implementación.
-      try {
-        if (quote?.client_id) {
-          const res = await api.get(`/clients/${quote.client_id}`);
-          const c = res.data || {};
-          setEconomicGroup((c.grupo_economico || '').toString());
-          setFantasyName((c.fantasy_name || '').toString());
-        } else {
-          setEconomicGroup('');
-          setFantasyName('');
-        }
-      } catch {
-        // No bloquea el flujo si la ficha no se puede leer
+    // Precargar Grupo Económico y Nombre de Fantasía desde la ficha del cliente
+    // (editables en el modal consolidated_data antes de enviar la ficha técnica).
+    try {
+      if (quote?.client_id) {
+        const res = await api.get(`/clients/${quote.client_id}`);
+        const c = res.data || {};
+        setEconomicGroup((c.grupo_economico || '').toString());
+        setFantasyName((c.fantasy_name || '').toString());
+      } else {
+        setEconomicGroup('');
+        setFantasyName('');
       }
-      setMultistorePhase('consolidated_data');
-    } else {
-      // No-PYME: cierra el wizard y dispara el envío. Si el usuario marcó
-      // Multitienda, se incluye la lista de tiendas; si no, se envía vacío.
-      // FIX: propagar el motivo de excepción (flujo irregular) — antes se
-      // enviaba `null` y el backend rechazaba con "Debe proporcionar un motivo".
-      setMultistoreDialogOpen(false);
-      const storesData = isMultistore ? multistoreStores : null;
-      await handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, storesData);
+    } catch {
+      // No bloquea el flujo si la ficha no se puede leer
     }
+    setMultistorePhase('consolidated_data');
   };
 
   const advanceToMultistorePhase = async (overrideQuoteId) => {
