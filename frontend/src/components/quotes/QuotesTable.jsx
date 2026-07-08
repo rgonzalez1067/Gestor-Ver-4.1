@@ -191,16 +191,19 @@ export const QuotesTable = ({
   // "en Validar Pago", no "en Pagada".
   const getEffectiveStatus = (q) => {
     if (q.delivered_at) return 'Entregada';
-    if (q.repaired_at) return 'Reparada';
     if (q.implementation_completed_at) return 'Implementada';
-    // "Validar Pago": custom_action ejecutada (pago_validado / *_eq / *_rep).
-    // Está DESPUÉS de Pagada porque la validación bancaria ocurre tras
-    // el cobro. Si existe la marca, el estado actual es Validar Pago aunque
-    // paid_at también esté presente.
+    // FIX (jun 2026): los estados FINANCIEROS (Validar Pago / Pagada / Facturada)
+    // tienen prioridad sobre 'Reparada'. Una cotización de reparación que avanzó a
+    // facturación/cobro debe reflejar su estatus financiero real. Antes 'repaired_at'
+    // se evaluaba primero y "arrastraba" cotizaciones facturadas/pagadas al filtro
+    // "Reparada" (y dejaba vacío el filtro "Pagada").
     const ex = q.custom_actions_executed || {};
     if (ex.pago_validado || ex.pago_validado_eq || ex.pago_validado_rep) return 'Validar Pago';
     if (q.paid_at) return 'Pagada';
     if (q.invoice_number || q.invoiced_at) return 'Facturada';
+    // 'Reparada' solo cuando la cotización de reparación NO ha avanzado a un
+    // estatus financiero posterior (queda estrictamente en estado Reparada).
+    if (q.repaired_at) return 'Reparada';
     if (q.configured_at) return 'Configurada';
     // "Preasign": seriales reservados (preasignados) pero aún sin Configuración técnica.
     // Aplica al flujo MPOS (fast_track) entre Aprobada y Configurada.

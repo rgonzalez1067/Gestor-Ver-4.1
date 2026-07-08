@@ -1,0 +1,28 @@
+{
+  "summary": "Iter255 — Validación E2E de dos fixes: (1) getEffectiveStatus en QuotesTable.jsx reordenado (financieros ANTES que 'Reparada') resuelve los dos bugs de filtros en /quotes; (2) /historical-quotes ahora muestra tooltip con Razón Social al hacer hover sobre Nombre de Fantasía y la búsqueda cubre fantasy_name/legal_name/grupo_economico. Todos los criterios de aceptación se cumplen.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones (grid)", "issues": ["Console: warnings de hidratación por plugin visual-edits (`data-ve-dynamic` span dentro de <tbody>/<tr>) — no es bug de negocio, se descarta según indicación del main agent."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_255.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "QuotesTable.jsx L192-214 getEffectiveStatus: la nueva prioridad Entregada > Implementada > Validar Pago > Pagada > Facturada > Reparada > Configurada > Preasign > Aprobada > Enviada es correcta. 'Reparada' ya no arrastra registros con paid_at/invoiced_at/pago_validado. ✅",
+    "quote_history.py list_quote_history: el $or ahora resuelve client_ids desde el maestro clients por fantasy_name/legal_name/grupo_economico y enriquece cada doc en read-time con esos tres campos. Validado por curl (Grupo Brasero=5, SAN IGNACIO=6). ✅",
+    "HistoricalQuotes.jsx L228-249: celda de Nombre de Fantasía envuelta en Radix Tooltip con contenido testeable (data-testid `qh-razon-tooltip-<history_id>`), y placeholder de búsqueda actualizado. ✅",
+    "QuotesTable.jsx sigue en 789 líneas — dentro del umbral saludable, sin necesidad de split. HistoricalQuotes.jsx 375 líneas — OK.",
+    "Nota menor: el tooltip de Razón Social se mantiene visible momentáneamente tras el mouse-out por delay de Radix (delayDuration=150 en entrada; salida usa timing interno del portal). Comportamiento estándar Radix, no bloqueante."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (2/2 curl checks OK: Grupo Brasero=5, SAN IGNACIO=6, docs enriquecidos)", "frontend": "100% (7/7 verificaciones UI: Pagada=5 rows, Reparada=6 rows/todas Reparaciones, tooltip aparece con Razón Social, search por Grupo Económico=5 con 3 fantasías distintas, search por Razón Social=6, search por Fantasía=1)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login OK)",
+  "seed_data_creation": "Ninguno — se usaron los datos reales del ambiente.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Ambos fixes verificados extremo a extremo. En /quotes con dataset actual: Pagada=5 filas (todas de categoría Reparaciones), Reparada=6 filas (todas Reparaciones, sin fugas de Facturada/Pagada/Validar Pago). En /historical-quotes hay 128 registros totales; el tooltip flotante muestra 'Razón Social' + legal_name; búsquedas: 'Grupo Brasero'→5 (Carbon/Barako/Brasero El Marqúez), 'SAN IGNACIO'→6 (todas FARMACIA SAN IGNACIO), 'Barako'→1. Todos los data-testid usados están presentes: filter-status, quote-row-*, qh-fantasy-*, qh-razon-tooltip-*, qh-search, qh-row-*.",
+  "rca of the issue": "Root cause de los bugs de filtros: en QuotesTable.jsx getEffectiveStatus (antes del fix), la condición `if (q.repaired_at) return 'Reparada'` se evaluaba ANTES que `paid_at`/`invoiced_at`, por lo que cualquier reparación que había avanzado a Facturada/Pagada seguía reportando estatus efectivo 'Reparada'. Consecuencia: filtro 'Pagada'=0 (nunca coincidía) y 'Reparada'=22 (arrastraba financieros). Fix: mover el bloque financiero (pago_validado/paid_at/invoiced_at) DELANTE de repaired_at. Nuevo comportamiento verificado en UI: Pagada=5, Reparada=6, sin cross-contamination."
+}

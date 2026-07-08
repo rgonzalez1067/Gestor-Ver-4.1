@@ -8,6 +8,7 @@ import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '../components/ui/tooltip';
 import { Archive, Download, Search, FileText, Eye, Lock, ShieldAlert, Trash2, FolderOpen } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -172,7 +173,7 @@ export const HistoricalQuotes = () => {
               <Label className="text-xs">Búsqueda</Label>
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 w-3.5 h-3.5 text-slate-400" />
-                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nro. cotización, cliente..." className="pl-8 text-sm" data-testid="qh-search" />
+                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nro. cotización, Nombre de Fantasía, Razón Social, Grupo Económico..." className="pl-8 text-sm" data-testid="qh-search" />
               </div>
             </div>
             <div>
@@ -203,7 +204,7 @@ export const HistoricalQuotes = () => {
                 <tr className="text-xs text-slate-500 uppercase font-semibold">
                   <th className="px-4 py-3 text-left">Nº Cotización</th>
                   <th className="px-4 py-3 text-left">Tipo</th>
-                  <th className="px-4 py-3 text-left">Cliente</th>
+                  <th className="px-4 py-3 text-left">Nombre de Fantasía</th>
                   <th className="px-4 py-3 text-left">Categoría</th>
                   <th className="px-4 py-3 text-right">Total USD</th>
                   <th className="px-4 py-3 text-left">Nº Factura</th>
@@ -224,7 +225,29 @@ export const HistoricalQuotes = () => {
                   <tr key={r.history_id} className="border-b border-slate-100 hover:bg-slate-50 text-sm" data-testid={`qh-row-${r.history_id}`}>
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-600">{r.quote_number}</td>
                     <td className="px-4 py-3"><ProjectTypeBadge quoteType={r.quote_type} size="xs" /></td>
-                    <td className="px-4 py-3">{r.client_name || '—'}</td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const fantasia = r.fantasy_name || r.client_name || '—';
+                        const razon = r.legal_name || r.client_name || '';
+                        return (
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help border-b border-dotted border-slate-300" data-testid={`qh-fantasy-${r.history_id}`}>
+                                  {fantasia}
+                                </span>
+                              </TooltipTrigger>
+                              {razon && (
+                                <TooltipContent data-testid={`qh-razon-tooltip-${r.history_id}`}>
+                                  <span className="text-[10px] uppercase opacity-70">Razón Social</span>
+                                  <p className="font-medium">{razon}</p>
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })()}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={`text-[10px] ${CATEGORY_COLORS[r.quote_category] || 'bg-slate-50'}`}>
                         {CATEGORY_LABELS[r.quote_category] || r.quote_category}

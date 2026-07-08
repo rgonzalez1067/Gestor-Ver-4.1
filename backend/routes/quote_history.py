@@ -176,11 +176,24 @@ async def list_quote_history(
         # de cliente con paréntesis u otros metacaracteres (p.ej. "..., C.A.)")
         # producían una regex inválida y un error 500.
         safe = re.escape(search.strip())
-        query["$or"] = [
+        or_conditions = [
             {"quote_number": {"$regex": safe, "$options": "i"}},
             {"client_name": {"$regex": safe, "$options": "i"}},
             {"invoice_number": {"$regex": safe, "$options": "i"}},
         ]
+        # Búsqueda multicriterio: además de los campos del histórico, se resuelven
+        # los client_id del maestro de clientes cuyo Nombre de Fantasía, Razón Social
+        # (legal_name) o Grupo Económico coincidan con el texto buscado.
+        matching_client_ids = await db.clients.distinct("client_id", {
+            "$or": [
+                {"fantasy_name": {"$regex": safe, "$options": "i"}},
+                {"legal_name": {"$regex": safe, "$options": "i"}},
+                {"grupo_economico": {"$regex": safe, "$options": "i"}},
+            ]
+        })
+        if matching_client_ids:
+            or_conditions.append({"client_id": {"$in": matching_client_ids}})
+        query["$or"] = or_conditions
     if from_date or to_date:
         date_q = {}
         if from_date:
@@ -191,6 +204,21 @@ async def list_quote_history(
 
     cursor = db.quote_history.find(query, {"_id": 0, "snapshot": 0}).sort("archived_at", -1)
     docs = await cursor.to_list(1000)
+    # Enriquecer cada registro con datos del maestro de clientes: Nombre de Fantasía,
+    # Razón Social (legal_name) y Grupo Económico (para tooltip y búsqueda en la grilla).
+    client_ids = list({d.get("client_id") for d in docs if d.get("client_id")})
+    client_map = {}
+    if client_ids:
+        async for cl in db.clients.find(
+            {"client_id": {"$in": client_ids}},
+            {"_id": 0, "client_id": 1, "fantasy_name": 1, "legal_name": 1, "grupo_economico": 1},
+        ):
+            client_map[cl["client_id"]] = cl
+    for d in docs:
+        cl = client_map.get(d.get("client_id")) or {}
+        d["fantasy_name"] = cl.get("fantasy_name") or ""
+        d["legal_name"] = cl.get("legal_name") or d.get("client_name") or ""
+        d["grupo_economico"] = cl.get("grupo_economico") or ""
     return docs
 
 
