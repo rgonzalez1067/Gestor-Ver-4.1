@@ -624,6 +624,7 @@ async def approve_quote(
     quote_id: str,
     payload: Optional[str] = Form(None),
     payment_files: List[UploadFile] = File(default=[]),
+    approval_files: List[UploadFile] = File(default=[]),
     authorization: Optional[str] = Header(None),
     exception_reason: Optional[str] = Header(None, alias="x-exception-reason"),
     regularization_date: Optional[str] = Header(None, alias="x-regularization-date"),
@@ -780,6 +781,22 @@ async def approve_quote(
                 })
             except Exception as _e:
                 logger.warning(f"[Approve] No se pudo leer payment_file {_pf.filename}: {_e}")
+
+    # Comprobantes de Aprobación / Orden de Compra (multipart) — SE persisten aparte
+    # vía /attachments, pero también se adjuntan al correo de Administración para que
+    # TODOS los anexos cargados en el modal lleguen al correo.
+    if approval_files:
+        for _af in approval_files:
+            try:
+                _raw = await _af.read()
+                if not _raw:
+                    continue
+                _engine_extra_attachments.append({
+                    "filename": _af.filename or "soporte_aprobacion.pdf",
+                    "content": base64.b64encode(_raw).decode("utf-8"),
+                })
+            except Exception as _e:
+                logger.warning(f"[Approve] No se pudo leer approval_file {_af.filename}: {_e}")
 
     # Anexos manuales del modal "Personalizar Comunicación" (CSV de IDs en header).
     _manual_attachments = await _resolve_manual_attachments(manual_attachment_ids)
@@ -941,11 +958,12 @@ async def approve_quote(
         # Workflow centralizado: approve → Administración + Ventas (sede) + PDF adjunto
         # Para equipos, usar plantilla específica de equipos
         eq_template_override = "equipment_approved" if quote.get("quote_category") == "equipment" else None
-        # Mergear approval_attachments con los _engine_extra_attachments
-        # (payment_files + manual_attachments del modal Personalizar Comunicación)
+        # Mergear approval_attachments con los _engine_extra_attachments.
+        # `approval_attachments_b64` ya se inicializó con una copia de
+        # `_engine_extra_attachments` (payment + approval files) más el PDF de
+        # Cálculos Definitivos, por lo que NO se debe volver a extender (evita
+        # adjuntos duplicados en el correo).
         merged_approval = list(approval_attachments_b64 or [])
-        if _engine_extra_attachments:
-            merged_approval.extend(_engine_extra_attachments)
 
         email_results = await send_workflow_notification(
             action="approve",

@@ -444,6 +444,8 @@ async def send_email(
         "subject": subject,
         "html_preview": html[:500],
         "has_attachment": bool(attachments),
+        "attachment_count": len(attachments or []),
+        "attachment_names": [a.get("filename") for a in (attachments or [])],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 

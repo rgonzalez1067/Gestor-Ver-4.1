@@ -332,6 +332,12 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
           approveFormData.append('payment_files', file);
         }
       }
+      // Adjuntar también los Comprobantes de Aprobación / Orden de Compra al correo
+      // (además de su persistencia en quote.attachments hecha en el Step 1), para
+      // que TODOS los anexos cargados en el modal lleguen al correo de Administración.
+      for (const file of approvalFiles) {
+        approveFormData.append('approval_files', file);
+      }
 
       await api.post(`/quotes/${quoteId}/approve`, approveFormData, {
         headers: { ...exHeaders, 'Content-Type': 'multipart/form-data' },

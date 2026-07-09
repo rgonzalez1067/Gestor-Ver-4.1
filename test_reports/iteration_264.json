@@ -1,0 +1,36 @@
+{
+  "summary": "Iter264 — Bug fix (español): En el modal de Aprobación de cotizaciones, los archivos cargados en 'Comprobante de Aprobación / Orden de Compra' (approval_files) NO se estaban adjuntando al correo de Administración (solo se persistían en quote.attachments). Fix backend: en POST /api/quotes/{id}/approve se agregó el parámetro approval_files: List[UploadFile] y un loop que los agrega a _engine_extra_attachments (junto a payment_files) → se anexan al correo. Se corrigió duplicación en ruta legacy (merged_approval ya no re-extiende _engine_extra_attachments). Observabilidad: email_service.email_log ahora graba attachment_count y attachment_names. VERIFICACIÓN pytest 2/2 PASS: (1) test_approve_multipart_with_4_files_reaches_email_log — se aprueba una cotización desechable en 'Enviada' (implementation VPOS) enviando multipart con 2 payment_files + 2 approval_files; se lee email_logs y se verifica que attachment_names contiene EXACTAMENTE los 4 archivos cargados + el PDF auto-generado 'Calculos_Definitivos_COT-PROBE.pdf' + el logo inline 'notif_logo.jpg' (attachment_count=6, sin duplicaciones); (2) test_regression_approval_persistence_via_attachments_endpoint — POST /api/quotes/{id}/attachments con category='Orden de Compra' sigue persistiendo el archivo en quote.attachments (regresión OK). Endpoint de aprobación devuelve 200 y new_status='Aprobada'. Se corrió también una sonda ad-hoc que imprime attachment_names para prueba visual — resultado: ['notif_logo.jpg','Calculos_Definitivos_COT-PROBE.pdf','pago_1.pdf','pago_2.pdf','orden_compra_1.pdf','orden_compra_2.pdf'].",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter264_approval_multi_attachments.py",
+    "/app/test_reports/pytest/iter264_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend routes/quote_actions.py approve_quote (~L622-800): el nuevo parámetro approval_files: List[UploadFile] = File(default=[]) y el loop que los agrega a _engine_extra_attachments es correcto — TODOS los archivos cargados en el modal llegan ahora al correo de Administración.",
+    "El fix de duplicación en la ruta legacy (approve alternativo, ~L940-970) es correcto: approval_attachments_b64 = list(_engine_extra_attachments) y luego merged_approval = list(approval_attachments_b64) evita re-extender con _engine_extra_attachments una segunda vez. Verificado: attachment_count=6 y sin duplicaciones en attachment_names.",
+    "email_service.py L446-448: la observabilidad (attachment_count + attachment_names) es una excelente decisión de diseño para QA — permite verificar el contenido efectivamente enviado sin necesitar acceder al buzón real. El campo attachment_names es la fuente de verdad y funciona correctamente vía SMTP.",
+    "Nota positiva: la aprobación NO persiste payment_files ni approval_files en quote.attachments desde el endpoint /approve — la persistencia se realiza vía el endpoint separado /quotes/{id}/attachments (llamado en Step 1 del modal). Separación de responsabilidades correcta.",
+    "Observación menor (no blocker): approval_files se anexan al correo con su filename original (ej. 'orden_compra_1.pdf'), mientras que cuando se persisten vía /attachments el backend los renombra a '{quote_number}_OrdenCompra.pdf'. Esto es coherente porque son flujos independientes, pero podría causar confusión al usuario si compara el correo vs el registro de attachments en la UI. Sugerencia (opcional): unificar el nombre canónico en ambos lados o incluir el nombre original en la UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter264_approval_multi_attachments.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (2/2 pytest)",
+    "frontend": "N/A (testing_type=backend only)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Cotización temporal 'qid_iter264_multiatt' (COT-ITER264-MULTIATT) y cliente 'cli_iter264_multiatt' — creados y eliminados por el propio test (fixture module scope con cleanup). Se limpian también los email_logs asociados.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fix 100% funcional. Fuente de verdad: colección Mongo email_logs, filtro por quote_id y action~='approve'; los campos nuevos attachment_count y attachment_names están grabados en todos los envíos que pasen por email_service.send_email (SMTP prioritario, Resend fallback). Para depurar futuros bugs de adjuntos, revisar estos campos antes que audit del inbox. El test /app/backend/tests/test_iter264_approval_multi_attachments.py es idempotente y reutilizable — usarlo como regresión si se toca approve_quote o email_service. Correo real dispatchado por SMTP a rgonzalez@megasoft.com.ve durante los tests (attachment_count=6 confirmado en última corrida)."
+}
