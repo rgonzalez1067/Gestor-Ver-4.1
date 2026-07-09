@@ -3,6 +3,12 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Feature: Panel de 6 KPIs dinámicos y reactivos en Cotizaciones — Jun 2026
+**Requerimiento:** evolucionar el panel superior de /quotes a 6 tarjetas reactivas: Cotizaciones Totales, En Borrador, Enviadas, Aprobadas, Facturadas, Pagadas; que se recalculen según los filtros de la grilla (período/fechas, categoría, segmento, cliente).
+**Implementación (100% client-side, sin endpoint nuevo):** módulo compartido `components/quotes/quoteStatus.js` (`getEffectiveStatus` + `quoteMatchesFilters`) reutilizado por la grilla (`QuotesTable.jsx`) y por los KPIs (`QuotesKpiCards.jsx` reescrito). El universo base de los KPIs aplica todos los filtros EXCEPTO estado (`includeStatus:false`), de modo que cada tarjeta coincide EXACTAMENTE con las filas de la grilla al filtrar por ese estado, y el panel se mantiene estable al cambiar solo el filtro de estado (reactivo a fecha/categoría/segmento/cliente). `Quotes.jsx` pasa `filters` a `<QuotesKpiCards>` sobre el mismo `rbacFilteredQuotes` que la grilla.
+**QA:** testing_agent iteration_256 → **frontend 100% (33/33)**. Precisión exacta (Borrador 3=3, Enviada 54=54, Aprobada 5=5, Facturada 15=15, Pagada 5=5); reactividad por fecha (hoy→1), categoría (Reparaciones 36=36, Equipos 51=51) y combinado; cálculo memoizado <10ms. Data-testids: quotes-kpi-cards, quotes-kpi-{total|borrador|enviada|aprobada|facturada|pagada}(-value). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix: Filtros de estado en Cotizaciones (Pagada vacío / Reparada con fugas) + Histórico multicriterio — Jun 2026
 **Síntoma:** (A) filtro "Pagada" en /quotes salía vacío; (B) filtro "Reparada" arrastraba cotizaciones Facturada/Pagada/Validar Pago.
 **RCA:** el estatus efectivo se calcula en frontend (`QuotesTable.jsx::getEffectiveStatus`); `if (q.repaired_at) return 'Reparada'` se evaluaba ANTES que los estados financieros (paid_at/invoice/pago_validado). Una reparación facturada/pagada seguía reportando 'Reparada' → 'Pagada'=0 y 'Reparada' contaminada (datos reales: OLD Pagada=0/Reparada=22).
