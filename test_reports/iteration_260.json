@@ -1,0 +1,37 @@
+{
+  "summary": "Iter260 — VALIDACIÓN DEL FIX RBAC con el usuario NO-ADMIN real que reportó el bug (ragg1008@gmail.com / admin123, role=user, departamento='Ventas Corporativas', cotizaciones=edit). RESULTADO: PASS 3/3. El modal 'Equipos de Infraestructura' (data-testid equipos-infra-modal) AHORA APARECE correctamente para el usuario Corporativo no-admin en las 3 cotizaciones exactas del reporte (COT-2026-07-011/012/013-CORP, todas VPOS + CORP + Enviada). El flujo funciona completo: send-to-client-btn-{qid} → contact-select-modal → contact-select-continue → email-modal → email-confirm-btn → equipos-infra-modal (con equipos-infra-yes y equipos-infra-no visibles). Se descartó con Escape en las 3 sin pulsar Sí/No (no se re-envió ninguna cotización). Backend: curl confirmó que GET /api/quotes/equipos-infra-status responde 200 con {exists:true, enabled:true, has_recipients:true} y que GET /api/other-actions/configs/cotizacion_equipos_infra sigue respondiendo 403 para este mismo usuario (demostrando por qué era necesario el fix).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones — diálogos", "issues": ["Warnings Radix 'Missing Description or aria-describedby for {DialogContent}' persisten en contact-select-modal/email-modal (heredado, no bloqueante)."]},
+      {"screen": "Cotizaciones — tabla", "issues": ["Hydration warnings de <span> dentro de <tr>/<tbody> por wrappers data-ve-dynamic (ignorable por indicación explícita del request)."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_260.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix correctamente implementado: el frontend ahora usa GET /api/quotes/equipos-infra-status (módulo 'cotizaciones', accesible al rol Corporativo con permiso cotizaciones=edit) en lugar del antiguo GET /api/other-actions/configs/cotizacion_equipos_infra (módulo 'config_otras_acciones' — sólo admin). RCA validada por curl: para ragg1008@gmail.com el endpoint viejo retorna 403 y el nuevo retorna 200 → antes el catch() del frontend silenciaba el 403 y despachaba sin mostrar el modal.",
+    "El endpoint nuevo devuelve solo {exists, enabled, has_recipients} sin exponer los emails de destinatarios — buena práctica de mínimo privilegio para un rol no-admin.",
+    "Nota (menor, ya reportado en iter259): el botón 'Enviar al Cliente' sigue habilitado para cotizaciones en estado 'Enviada' (muestra ✓). Confirmado que el modal aparece igual en Enviada. Comportamiento por diseño."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (2/2 curl asserts: /quotes/equipos-infra-status=200, /other-actions/configs=403)", "frontend": "100% (3/3 cotizaciones muestran equipos-infra-modal con el usuario no-admin)"},
+  "test_credentials": "Usuario Corporativo NO-ADMIN validado: ragg1008@gmail.com / admin123 (role=user, departamento='Ventas Corporativas', cotizaciones=edit). NOTA: /app/memory/test_credentials.md indica que este usuario era 'admin' (parachute); el review_request confirma que fue degradado a role=user y así lo devuelve /auth/me actualmente. Actualizar test_credentials.md.",
+  "seed_data_creation": "Ninguno — cotizaciones reales del reporte.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug validado y RESUELTO end-to-end con el usuario correcto. Evidencia: (1) Backend curl (Bearer session token) → NEW /api/quotes/equipos-infra-status=200 {exists:true,enabled:true,has_recipients:true}; OLD /api/other-actions/configs/cotizacion_equipos_infra=403 'No tiene acceso al módulo config_otras_acciones'. (2) UI Playwright con ragg1008@gmail.com en las 3 COTs exactas: el modal 'Equipos de Infraestructura' aparece en las 3 y network log muestra únicamente /quotes/equipos-infra-status status=200 (no hay ninguna llamada al endpoint viejo). El fix está correctamente aplicado en frontend/src/pages/Quotes.jsx (proceedSendToClient) y backend/routes/quotes.py.",
+  "test_evidence": {
+    "backend_curl_asserts": {
+      "user": "ragg1008@gmail.com (role=user, dpto=Ventas Corporativas, cotizaciones=edit)",
+      "GET /api/quotes/equipos-infra-status": {"http": 200, "body": {"exists": true, "enabled": true, "has_recipients": true}},
+      "GET /api/other-actions/configs/cotizacion_equipos_infra": {"http": 403, "body": "No tiene acceso al módulo 'config_otras_acciones'"}
+    },
+    "COT-2026-07-011-CORP": {"quote_id": "quo_6145056ff292", "contact_modal": true, "email_modal": true, "equipos_infra_modal": true, "yes_btn": true, "no_btn": true, "network": [{"url": "/quotes/equipos-infra-status", "status": 200}], "dismissed_via_escape": true, "post_state_unchanged": true},
+    "COT-2026-07-012-CORP": {"quote_id": "quo_a8e5b0c2a65a", "contact_modal": true, "email_modal": true, "equipos_infra_modal": true, "yes_btn": true, "no_btn": true, "network": [{"url": "/quotes/equipos-infra-status", "status": 200}], "dismissed_via_escape": true, "post_state_unchanged": true},
+    "COT-2026-07-013-CORP": {"quote_id": "quo_62f219cf2c9b", "contact_modal": true, "email_modal": true, "equipos_infra_modal": true, "yes_btn": true, "no_btn": true, "network": [{"url": "/quotes/equipos-infra-status", "status": 200}], "dismissed_via_escape": true, "post_state_unchanged": true}
+  },
+  "rca of the issue": "RCA CONFIRMADA Y RESUELTA. Causa: el módulo RBAC 'config_otras_acciones' (mapeado a /api/other-actions en server.py L159) no permite acceso al rol Corporativo no-admin. El frontend consultaba GET /api/other-actions/configs/cotizacion_equipos_infra dentro de un try/catch → recibía 403 → el catch silenciaba el error y ejecutaba el send sin mostrar el modal. Fix: nuevo endpoint GET /api/quotes/equipos-infra-status bajo módulo 'cotizaciones' (accesible a Corporativo con cotizaciones=edit) que devuelve un payload liviano {exists, enabled, has_recipients}. El frontend en Quotes.jsx proceedSendToClient ahora lo consume. Validación end-to-end confirmada en iter260 con el usuario exacto que reportó el bug."
+}

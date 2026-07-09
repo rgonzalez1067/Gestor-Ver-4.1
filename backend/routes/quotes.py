@@ -488,6 +488,23 @@ async def get_pg_recurring_costs(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     return PG_RECURRING_COSTS_TABLE
 
+@router.get("/quotes/equipos-infra-status")
+async def get_equipos_infra_status(authorization: Optional[str] = Header(None)):
+    """Estado liviano de la acción 'Cotización Equipos Infra' para el interceptor
+    del frontend al 'Enviar al Cliente'. Vive bajo /api/quotes (módulo
+    'cotizaciones') para que los usuarios de Ventas Corporativas —que NO tienen
+    acceso al módulo 'config_otras_acciones'— puedan consultarlo sin recibir 403.
+    """
+    await get_current_user(authorization)
+    cfg = await db.other_action_configs.find_one({"action_id": "cotizacion_equipos_infra"}, {"_id": 0})
+    if not cfg:
+        return {"exists": False, "enabled": False, "has_recipients": False}
+    return {
+        "exists": True,
+        "enabled": cfg.get("enabled", True) is not False,
+        "has_recipients": len(cfg.get("recipients") or []) > 0,
+    }
+
 @router.get("/pg-defaults")
 async def get_pg_defaults(authorization: Optional[str] = Header(None)):
     """Devuelve la configuración por defecto de Payment Gateway (Persona Jurídica)"""

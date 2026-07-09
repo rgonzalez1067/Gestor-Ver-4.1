@@ -2460,10 +2460,9 @@ export const Quotes = () => {
     const isCorp = seg === 'CORP' || creatorDept.includes('corporativ');
     if (isEligibleType && isCorp) {
       try {
-        const res = await api.get('/other-actions/configs/cotizacion_equipos_infra');
+        const res = await api.get('/quotes/equipos-infra-status');
         const cfg = res.data || {};
-        const hasRecipients = (cfg.recipients || []).length > 0;
-        if (cfg.exists !== false && cfg.enabled !== false && hasRecipients) {
+        if (cfg.exists !== false && cfg.enabled !== false && cfg.has_recipients) {
           setEquiposInfraQuoteId(quoteId);
           setEquiposInfraOpen(true);
           return;
