@@ -3,7 +3,18 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Cambio: eliminación de la línea "Att:" en el encabezado de los PDFs de cotización — Jun 2026
+### Feature: Matriz Financiera Consolidada por tipo_corp en aprobación Corporativa (modal + correo Admin) — Jun 2026
+**Requerimiento:** para cotizaciones CORP de tipo VPOS/VPOS_MULTIRIF/MPOS/FAST_TRACK, sustituir el listado ítem-por-ítem de "Instrucciones de Facturación" por una matriz por tipo_corp — filas Setup/Recurrentes/TOTAL, columnas "Hardware y Software" (Derecho de Uso, Infraestructura) + "Consultoría" (Apoyo técnico, Soporte y Monitoreo) + Total, montos netos (sin IVA), con toggles de filas (Ambas/Solo Setup/Solo Recurrente) y de moneda ($/Bs con la tasa del modal). El correo a Administración (cuerpo HTML + PDF "Cálculos Definitivos") debe reflejar la misma matriz respetando lo visado. PYME conserva formato tradicional.
+**Implementación:**
+- Backend NUEVO `services/corp_billing_matrix.py`: `is_corp_matrix_eligible`, `compute_corp_billing_matrix` (clasifica services por item_type + tipo_corp resuelto desde catálogo db.services), `resolve_matrix_rows`, `build_corp_matrix_html`.
+- Backend NUEVO endpoint `GET /api/quotes/{id}/corp-billing-matrix` (módulo cotizaciones → accesible a Corp).
+- `quote_actions.py::approve`: guarda `billing_instruction.billing_matrix` (config + montos); construye HTML e inyecta al engine.
+- `notification_engine.py::try_dispatch`: nuevo `injected_html_block` insertado antes del footer.
+- `billing_pdf.py`: si hay `billing_matrix`, renderiza la matriz (respeta currency+row_mode) en vez del listado.
+- Frontend `ApprovalBillingModal.jsx`: fetch de la matriz al abrir, toggles moneda/filas con recálculo instantáneo, oculta la tabla detallada cuando es Corp elegible.
+**QA:** testing_agent iteration_262 → **backend 100% (5/5 pytest) + frontend 100% (12/12)** + verificación visual del PDF (Bs 4.000=100×40, TOTAL GENERAL correcto). Test: `tests/test_iter262_corp_billing_matrix.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** dirigir todas las cotizaciones de implementación a la persona jurídica; en el bloque de carta del PDF dejar solo "Señores:" y "RIF:", quitando "Att: <contacto>".
 **Cambio:** en `pdf_generator.py` se removió la línea `<b>Att:</b> {cliente_contacto}` en los 3 generadores (`generate_vpos` PYME, `generate_vpos_corp` CORP, `generate_pg` Gateway) vía replace_all; el `<br/><br/>` se trasladó a la línea de RIF para conservar el espaciado.
 **QA:** verificado por el main agent generando PDFs reales (PYME y CORP) + render visual: "Att:" ausente, "Señores"/"RIF" presentes. ⚠️ PREVIEW; requiere REDEPLOY.
