@@ -3953,7 +3953,10 @@ export const Quotes = () => {
           </div>
 
           {/* Iter49: KPI cards — computados del array de cotizaciones, no requiere backend */}
-          <QuotesKpiCards quotes={rbacFilteredQuotes} />
+          <QuotesKpiCards
+            quotes={rbacFilteredQuotes}
+            filters={{ filterClient, filterStatus, filterCategory, filterSegment, filterDateFrom, filterDateTo }}
+          />
 
           {/* Botones de Nueva Cotización — Visibilidad por Permisos Especiales */}
           <NewQuoteButtons

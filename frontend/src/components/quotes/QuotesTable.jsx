@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import QuoteStatusStepper from './QuoteStatusStepper';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { getEffectiveStatus as getEffectiveStatusShared, quoteMatchesFilters } from './quoteStatus';
 
 const STATUS_COLORS = {
   'Borrador': 'bg-slate-100 text-slate-600',
@@ -189,80 +190,11 @@ export const QuotesTable = ({
   // financiera adicional del pago. Por eso se considera un estado MÁS
   // avanzado que Pagada — un quote con paid_at+pago_validado está
   // "en Validar Pago", no "en Pagada".
-  const getEffectiveStatus = (q) => {
-    if (q.delivered_at) return 'Entregada';
-    if (q.implementation_completed_at) return 'Implementada';
-    // FIX (jun 2026): los estados FINANCIEROS (Validar Pago / Pagada / Facturada)
-    // tienen prioridad sobre 'Reparada'. Una cotización de reparación que avanzó a
-    // facturación/cobro debe reflejar su estatus financiero real. Antes 'repaired_at'
-    // se evaluaba primero y "arrastraba" cotizaciones facturadas/pagadas al filtro
-    // "Reparada" (y dejaba vacío el filtro "Pagada").
-    const ex = q.custom_actions_executed || {};
-    if (ex.pago_validado || ex.pago_validado_eq || ex.pago_validado_rep) return 'Validar Pago';
-    if (q.paid_at) return 'Pagada';
-    if (q.invoice_number || q.invoiced_at) return 'Facturada';
-    // 'Reparada' solo cuando la cotización de reparación NO ha avanzado a un
-    // estatus financiero posterior (queda estrictamente en estado Reparada).
-    if (q.repaired_at) return 'Reparada';
-    if (q.configured_at) return 'Configurada';
-    // "Preasign": seriales reservados (preasignados) pero aún sin Configuración técnica.
-    // Aplica al flujo MPOS (fast_track) entre Aprobada y Configurada.
-    if (q.preassigned_at || (q.preassigned_serials && q.preassigned_serials.length > 0)) return 'Preasign';
-    if (q.approved_at) return 'Aprobada';
-    if (q.sent_at) return 'Enviada';
-    return q.quote_status || 'Borrador';
-  };
+  const getEffectiveStatus = getEffectiveStatusShared;
 
-  const filteredQuotes = quotes.filter(quote => {
-    if (filterClient && filterClient !== 'all') {
-      // Soporta multi-id (varios client_id agrupados por nombre, separados por coma)
-      // para que cuando el usuario filtra por un cliente con duplicados en BD,
-      // se traigan las cotizaciones de TODOS sus client_id.
-      const allowedIds = filterClient.split(',');
-      if (!allowedIds.includes(quote.client_id)) return false;
-    }
-    if (filterStatus && filterStatus !== 'all' && getEffectiveStatus(quote) !== filterStatus) return false;
-    if (filterCategory && filterCategory !== 'all') {
-      // Categorías: 'implementation' (Implementación), 'equipment', 'repair'.
-      // Adicionalmente se admite el sufijo ':<TYPE>' para filtrar dentro de
-      // Implementación por tipo de cotización (VPOS/MPOS/FAST_TRACK/GATEWAY).
-      const cat = quote.quote_category || 'implementation';
-      const [baseCat, subType] = filterCategory.split(':');
-
-      // Caso especial: 'implementation:FAST_TRACK' (MPOS Imple+POS) debe
-      // coincidir tanto con cotizaciones nuevas (quote_category='fast_track')
-      // como con las legacy (quote_category='implementation' + quote_type='FAST_TRACK').
-      if (subType === 'FAST_TRACK') {
-        const qt = (quote.quote_type || '').toUpperCase();
-        if (cat !== 'fast_track' && !(cat === 'implementation' && qt === 'FAST_TRACK')) return false;
-      } else if (baseCat === 'implementation' && !subType) {
-        // "Implementación (todas)" — incluye TODOS los tipos de implementación,
-        // incluidas las MPOS (Imple + POS) que viven en `quote_category='fast_track'`.
-        // Antes la condición `baseCat !== cat` dejaba a las fast_track fuera.
-        if (cat !== 'implementation' && cat !== 'fast_track') return false;
-      } else {
-        if (baseCat !== cat) return false;
-        if (subType) {
-          const qt = (quote.quote_type || '').toUpperCase();
-          if (qt !== subType.toUpperCase()) return false;
-        }
-      }
-    }
-    if (filterSegment && filterSegment !== 'all' && (quote.client_segment || 'PYME') !== filterSegment) return false;
-    if (filterDateFrom) {
-      // Interpretar fecha en zona local (no UTC) para evitar pérdida de registros
-      // por desplazamientos de zona horaria. "Desde" → inicio del día local.
-      const fromDate = new Date(filterDateFrom + 'T00:00:00');
-      if (new Date(quote.created_at) < fromDate) return false;
-    }
-    if (filterDateTo) {
-      // "Hasta" → fin del día local (23:59:59.999) para que sea inclusivo:
-      // un quote creado a las 18:00 del 15-ene SIEMPRE entra cuando se filtra "hasta 15-ene".
-      const toDate = new Date(filterDateTo + 'T23:59:59.999');
-      if (new Date(quote.created_at) > toDate) return false;
-    }
-    return true;
-  });
+  const filteredQuotes = quotes.filter(quote => quoteMatchesFilters(quote, {
+    filterClient, filterStatus, filterCategory, filterSegment, filterDateFrom, filterDateTo,
+  }, { includeStatus: true }));
 
   // === Doble scrollbar sincronizado (arriba + abajo) ===
   // Necesario porque la tabla es muy ancha (min-w-[1200px]) y el usuario tiene
