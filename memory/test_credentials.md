@@ -21,11 +21,15 @@
 - Role: user / Cargo: Implementador
 - Nota: password reseteado por el agente (2026-06-07) al validar el fix RBAC de catálogos (Proyectos Directos). El hash previo estaba desactualizado.
 
-## Admin de respaldo (parachute)
+## Usuario Corporativo (antes "parachute") — AHORA role=user
 - Email: ragg1008@gmail.com
 - Password: admin123
-- Role: admin
+- Role: user (⚠️ fue degradado de admin a user)
 - Name: Rafael González (Respaldo)
+- departamento: Ventas Corporativas · cotizaciones=edit
+- Nota: es el usuario que reportó el bug del modal "Equipos de Infraestructura".
+  Sirve para probar flujos de Corporativo NO-admin (no tiene el módulo
+  config_otras_acciones → 403 en /api/other-actions/*).
 
 ## Usuario NO-admin de pruebas (perfil Consulta + Cotizaciones inactivas)
 - Email: srubio@megasoft.com.ve
