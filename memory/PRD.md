@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug Fix: modal "Equipos de Infraestructura" no se activaba para usuarios de Corporativo — Jun 2026
+**Síntoma:** el modal interceptor "¿Esta cotización incluye Equipos de Infraestructura?" (al "Enviar al Cliente") no se activaba para cotizaciones VPOS/MPOS/VPOS_MULTIRIF generadas por usuarios del área Corporativo.
+**RCA:** `proceedSendToClient` (Quotes.jsx) solo disparaba con `client_segment === 'CORP'`; las cotizaciones creadas por usuarios de Ventas Corporativas cuyo cliente no quedaba marcado CORP nunca activaban el modal.
+**Fix:** el interceptor ahora dispara para tipos VPOS/MPOS/VPOS_MULTIRIF cuando `client_segment==='CORP'` **O** `creator_departamento` contiene "corporativ" (origen inmutable del creador), siempre que la acción configurable `cotizacion_equipos_infra` esté habilitada con destinatarios. Restringido a esos 3 tipos → no regresa para GATEWAY/LINK_PAGO/Equipos/Reparación.
+**QA:** testing_agent iteration_257 → **frontend 100% (2/2)** (CORP VPOS muestra el modal; PYME Reparación lo omite). Nota: durante el test de regresión se envió realmente la cotización PYME COT-2026-06-159-PYME (Borrador→Enviada) por falta de aborto limpio del flujo de email; efecto de datos en preview, no bug. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: Panel de 6 KPIs dinámicos y reactivos en Cotizaciones — Jun 2026
 **Requerimiento:** evolucionar el panel superior de /quotes a 6 tarjetas reactivas: Cotizaciones Totales, En Borrador, Enviadas, Aprobadas, Facturadas, Pagadas; que se recalculen según los filtros de la grilla (período/fechas, categoría, segmento, cliente).
 **Implementación (100% client-side, sin endpoint nuevo):** módulo compartido `components/quotes/quoteStatus.js` (`getEffectiveStatus` + `quoteMatchesFilters`) reutilizado por la grilla (`QuotesTable.jsx`) y por los KPIs (`QuotesKpiCards.jsx` reescrito). El universo base de los KPIs aplica todos los filtros EXCEPTO estado (`includeStatus:false`), de modo que cada tarjeta coincide EXACTAMENTE con las filas de la grilla al filtrar por ese estado, y el panel se mantiene estable al cambiar solo el filtro de estado (reactivo a fecha/categoría/segmento/cliente). `Quotes.jsx` pasa `filters` a `<QuotesKpiCards>` sobre el mismo `rbacFilteredQuotes` que la grilla.
