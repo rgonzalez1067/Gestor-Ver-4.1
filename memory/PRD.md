@@ -3,7 +3,16 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Feature: Matriz Financiera Consolidada por tipo_corp en aprobación Corporativa (modal + correo Admin) — Jun 2026
+### Feature: Inyección condicional de "Configuración del Tokenizador" en aprobación de Link de Pago — Jun 2026
+**Requerimiento:** en el modal de Aprobación de cotizaciones LINK_PAGO, la sección "Instrucciones de Facturación" debe clonar la estructura de Payment Gateway y, según `link_pago_variant`: 'link_pago' → sin cambios; 'tokenizador'/'ambos' → inyectar la fila "Configuración del Tokenizador" con monto desde Medios de Pago (colección services), sumado al total y persistido en histórico/reportes.
+**RCA adicional:** el modal solo leía `pg_setup_items` para quote_type=GATEWAY; las cotizaciones LINK_PAGO (que también usan pg_setup_items, services vacío) mostraban la sección VACÍA. Se corrigió incluyendo LINK_PAGO en esa rama.
+**Implementación:**
+- Backend NUEVO endpoint `GET /api/quotes/{id}/tokenizador-billing-line` → {applies, found, concepto, monto_usd}; aplica solo a LINK_PAGO + variant tokenizador/ambos; monto desde db.services (name ~ "Configuración del Tokenizador", setup_cost_conventional).
+- Se creó el servicio "Configuración del Tokenizador" (srv_f7acb699a5e0, $150) en Medios de Pago.
+- Frontend `ApprovalBillingModal.jsx`: `consolidated` incluye LINK_PAGO en la rama pg_setup_items y agrega la línea tokenizador (concept_type:'tokenizador') cuando aplica → fluye a totales, IVA, consolidated_items del payload (persistencia) y PDF Cálculos Definitivos. Label de subtotal unificado con PG.
+**QA:** testing_agent iteration_263 → **backend 100% (5/5 pytest) + frontend 100% (3/3)**. Escenario A (link_pago) sin token; C (ambos) con $150, TOTAL $661.20 correcto; regresión GATEWAY sin token. Test: `tests/test_iter263_tokenizador_billing_line.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** para cotizaciones CORP de tipo VPOS/VPOS_MULTIRIF/MPOS/FAST_TRACK, sustituir el listado ítem-por-ítem de "Instrucciones de Facturación" por una matriz por tipo_corp — filas Setup/Recurrentes/TOTAL, columnas "Hardware y Software" (Derecho de Uso, Infraestructura) + "Consultoría" (Apoyo técnico, Soporte y Monitoreo) + Total, montos netos (sin IVA), con toggles de filas (Ambas/Solo Setup/Solo Recurrente) y de moneda ($/Bs con la tasa del modal). El correo a Administración (cuerpo HTML + PDF "Cálculos Definitivos") debe reflejar la misma matriz respetando lo visado. PYME conserva formato tradicional.
 **Implementación:**
 - Backend NUEVO `services/corp_billing_matrix.py`: `is_corp_matrix_eligible`, `compute_corp_billing_matrix` (clasifica services por item_type + tipo_corp resuelto desde catálogo db.services), `resolve_matrix_rows`, `build_corp_matrix_html`.

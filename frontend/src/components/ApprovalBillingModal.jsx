@@ -171,6 +171,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
           quantity: 1,
           unit_price_usd: Number(tokenizadorLine.monto_usd || 0),
           total_usd: Number(tokenizadorLine.monto_usd || 0),
+          concept_type: 'tokenizador',
         });
       }
       return out;
@@ -630,7 +631,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                 <tfoot>
                   <tr className="bg-slate-50 border-t border-slate-200">
                     <td className="px-3 py-2 text-xs text-slate-700 font-semibold" colSpan={2}>
-                      {isEquipmentQuote ? 'Subtotal (Equipos y Accesorios)' : ((quote?.quote_type || '').toUpperCase() === 'GATEWAY' ? 'Subtotal (Conceptos PG)' : 'Subtotal (Setup + Productos)')}
+                      {isEquipmentQuote ? 'Subtotal (Equipos y Accesorios)' : (['GATEWAY', 'LINK_PAGO'].includes((quote?.quote_type || '').toUpperCase()) ? 'Subtotal (Conceptos PG)' : 'Subtotal (Setup + Productos)')}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">${grandTotalUsd.toFixed(2)}</td>
                     <td className="px-3 py-2"></td>
