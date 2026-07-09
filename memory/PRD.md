@@ -3,7 +3,12 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Feature: Concepto "Infraestructura" en Tipo Corp + subdivisión de tabla de Costos (pág. 3 PDF) — Jun 2026
+### Cambio: eliminación de la línea "Att:" en el encabezado de los PDFs de cotización — Jun 2026
+**Requerimiento:** dirigir todas las cotizaciones de implementación a la persona jurídica; en el bloque de carta del PDF dejar solo "Señores:" y "RIF:", quitando "Att: <contacto>".
+**Cambio:** en `pdf_generator.py` se removió la línea `<b>Att:</b> {cliente_contacto}` en los 3 generadores (`generate_vpos` PYME, `generate_vpos_corp` CORP, `generate_pg` Gateway) vía replace_all; el `<br/><br/>` se trasladó a la línea de RIF para conservar el espaciado.
+**QA:** verificado por el main agent generando PDFs reales (PYME y CORP) + render visual: "Att:" ausente, "Señores"/"RIF" presentes. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** (1) alta del concepto "Infraestructura" en el catálogo "Tipo Corp" de la Ficha de Medios de Pago; (2) subdividir la supercabecera "Hardware y Software" de la tabla "COSTOS DE IMPLEMENTACIÓN" (pág. 3) en dos hijas — "Derecho de Uso" + "Infraestructura" (2ª subdivisión, a la derecha de Derecho de Uso) — solo para cotizaciones VPOS/MPOS/VPOS_MULTIRIF/FAST_TRACK del segmento Corporativo; PYME conserva formato estándar.
 **Implementación:**
 - Frontend `MediosPago.jsx`: "Infraestructura" agregado a `TIPO_CORP_OPTIONS` (2ª opción).

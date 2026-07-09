@@ -960,8 +960,7 @@ class DynamicQuotePDFGenerator:
         # Carta de presentación
         carta_header = f"""
         <b>Señores:</b> {self.data.cliente_nombre}<br/>
-        <b>RIF:</b> {self.data.cliente_rif}<br/>
-        <b>Att:</b> {self.data.cliente_contacto or 'Departamento de Compras'}<br/><br/>
+        <b>RIF:</b> {self.data.cliente_rif}<br/><br/>
         """
         elements.append(Paragraph(carta_header, self.styles['TextoNormal']))
         
@@ -1608,8 +1607,7 @@ class DynamicQuotePDFGenerator:
         # ==================== PÁGINA 2: RESUMEN EJECUTIVO (igual que VPOS estándar) ====================
         carta_header = f"""
         <b>Señores:</b> {self.data.cliente_nombre}<br/>
-        <b>RIF:</b> {self.data.cliente_rif}<br/>
-        <b>Att:</b> {self.data.cliente_contacto or 'Departamento de Compras'}<br/><br/>
+        <b>RIF:</b> {self.data.cliente_rif}<br/><br/>
         """
         elements.append(Paragraph(carta_header, self.styles['TextoNormal']))
         
@@ -1841,8 +1839,7 @@ class DynamicQuotePDFGenerator:
         # Carta de presentación (idéntica a VPOS)
         carta_header = f"""
         <b>Señores:</b> {self.data.cliente_nombre}<br/>
-        <b>RIF:</b> {self.data.cliente_rif}<br/>
-        <b>Att:</b> {self.data.cliente_contacto or 'Departamento de Compras'}<br/><br/>
+        <b>RIF:</b> {self.data.cliente_rif}<br/><br/>
         """
         elements.append(Paragraph(carta_header, self.styles['TextoNormal']))
         
