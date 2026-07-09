@@ -488,6 +488,30 @@ async def get_pg_recurring_costs(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     return PG_RECURRING_COSTS_TABLE
 
+@router.get("/quotes/{quote_id}/tokenizador-billing-line")
+async def get_tokenizador_billing_line(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Línea de facturación 'Configuración del Tokenizador' para cotizaciones
+    Link de Pago cuya variante sea 'tokenizador' o 'ambos'. El monto se extrae
+    del catálogo de Medios de Pago (colección services). Bajo /api/quotes."""
+    await get_current_user(authorization)
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "quote_type": 1, "link_pago_variant": 1})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    if (quote.get("quote_type") or "").upper() != "LINK_PAGO":
+        return {"applies": False}
+    variant = (quote.get("link_pago_variant") or "").lower()
+    if variant not in ("tokenizador", "ambos"):
+        return {"applies": False}
+    svc = await db.services.find_one(
+        {"name": {"$regex": r"^\s*Configuraci[oó]n del Tokenizador\s*$", "$options": "i"}},
+        {"_id": 0, "setup_cost_conventional": 1, "setup_cost_outsourcing": 1, "name": 1},
+    )
+    monto = 0.0
+    found = bool(svc)
+    if svc:
+        monto = float(svc.get("setup_cost_conventional") or svc.get("setup_cost_outsourcing") or 0)
+    return {"applies": True, "found": found, "concepto": "Configuración del Tokenizador", "monto_usd": monto}
+
 @router.get("/quotes/{quote_id}/corp-billing-matrix")
 async def get_corp_billing_matrix(quote_id: str, authorization: Optional[str] = Header(None)):
     """Matriz Financiera Consolidada por tipo_corp para el modal de aprobación

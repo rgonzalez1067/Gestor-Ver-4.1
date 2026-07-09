@@ -1,0 +1,33 @@
+{
+  "summary": "Iter263 — Feature 'Inyección condicional de Configuración del Tokenizador' en el modal de Aprobación de cotizaciones Link de Pago. Backend pytest 5/5 PASS sobre GET /api/quotes/{id}/tokenizador-billing-line: (a) variant='link_pago' → {applies:false}; (b) variant='ambos' → {applies:true, found:true, concepto:'Configuración del Tokenizador', monto_usd:150.0}; (c) 404 en quote inexistente; (d) 401/403 sin auth; (e) regresión GATEWAY → {applies:false}. Frontend Playwright (admin rgonzalez): abrí el modal 'Aprobación de Cotización' para 3 cotizaciones y leí data-testid 'billing-consolidation-table'. (A) COT-2026-07-056-PYME (LINK_PAGO/link_pago) → 6 filas PG estándar (Persona Jurídica + 5 conceptos con banco 'Bancamiga'), Subtotal $468.00, SIN fila Tokenizador — ✅. (C) COT-2026-07-058-PYME (LINK_PAGO/ambos) → 6 filas PG (banco BNC) + fila 'Configuración del Tokenizador' 1×$150.00 (Bs. 93332.02). Subtotal $570.00 ($420 PG + $150 tok), IVA 16% $91.20, TOTAL GENERAL $661.20 = $570+$91.20 — matemática correcta ✅. (G) Regresión GATEWAY COT-2026-07-057-PYME → 5 filas PG (banco Mercantil), Subtotal $432.00, SIN Tokenizador ✅. Payload consolidated_items en handleSubmit deriva del mismo useMemo 'consolidated', por lo que persistir la línea tokenizador está garantizado por construcción (no se completó la aprobación real para evitar emails).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ApprovalBillingModal — encabezado de subtotal", "issues": ["Inconsistencia menor de rótulo entre GATEWAY y LINK_PAGO: para GATEWAY dice 'Subtotal (Conceptos PG)' y para LINK_PAGO dice 'Subtotal (Setup + Productos)'. Es cosmético; no afecta cálculos ni persistencia."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter263_tokenizador_billing_line.py",
+    "/app/test_reports/pytest/iter263_results.xml"
+  ],
+  "action_items": [
+    "(Opcional/cosmético) Unificar el label del subtotal de la sección Instrucción de Facturación para LINK_PAGO y GATEWAY (ambos son la misma estructura ahora)."
+  ],
+  "critical_code_review_comments": [
+    "Backend routes/quotes.py:491 aísla correctamente el condicional a quote_type=LINK_PAGO y variant in ('tokenizador','ambos'); usa regex insensible a mayúsculas/acentos para encontrar 'Configuración del Tokenizador' en services y toma setup_cost_conventional (fallback setup_cost_outsourcing). No hay leak de ObjectId.",
+    "ApprovalBillingModal.jsx: consolidated useMemo ahora agrupa pg_setup_items para 'GATEWAY' Y 'LINK_PAGO' y agrega la línea tokenizador cuando tokenizadorLine.applies. La misma lista alimenta grandTotalUsd, IVA, grandTotalConIvaUsd y consolidated_items del payload — un único punto de verdad, correcto.",
+    "El fetch a /tokenizador-billing-line se dispara junto con /corp-billing-matrix en el useEffect(open,quoteId); si el endpoint falla, tokenizadorLine queda null y no rompe el modal (degrada seguro). Bien.",
+    "El fila tokenizador se agrega SIEMPRE al final de la lista PG sin section. Para PDF/reportes basta con name/quantity/total_usd, pero convendría añadir un campo distintivo (ej. concept_type:'tokenizador') para trazabilidad, no es blocker."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter263_tokenizador_billing_line.py"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest)", "frontend": "100% (3/3 escenarios UI Playwright: A link_pago sin tokenizador, C ambos con $150 y total $661.20, G GATEWAY sin tokenizador)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Ninguno. No se completó ninguna aprobación real (no se enviaron correos). Se abrió el modal y se cerró con Escape/Cancelar en los 3 casos.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature 100% funcional end-to-end en el modal de Aprobación. Endpoint: GET /api/quotes/{id}/tokenizador-billing-line devuelve {applies,found,concepto,monto_usd} y depende de: quote_type=LINK_PAGO + link_pago_variant in ('tokenizador','ambos') + colección services con nombre 'Configuración del Tokenizador' (srv_f7acb699a5e0, setup_cost_conventional=150). Cotizaciones de referencia: quo_4493ae3aea8d (COT-056, link_pago), quo_228bc3a17586 (COT-058, ambos), quo_661e13392954 (COT-057, GATEWAY para regresión). Flujo UI: Cotizaciones → menú acciones (quote-actions-{id}) → 'Aprobación' → modal de email (email-confirm-btn) → approval-billing-modal. Persistencia: consolidated_items se deriva del mismo array renderizado, incluyendo la línea tokenizador; si se necesita validar el registro en billing_instruction del histórico o el PDF 'Cálculos Definitivos', usar una LINK_PAGO 'ambos' descartable y completar la aprobación (implicará envío de correo). No se validó eso en esta iter para evitar spam."
+}

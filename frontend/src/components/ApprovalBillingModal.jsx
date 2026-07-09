@@ -26,6 +26,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   const [corpMatrix, setCorpMatrix] = useState(null); // {eligible, columns, setup_by_corp, recurring_by_corp}
   const [matrixRowMode, setMatrixRowMode] = useState('both'); // both | setup | recurring
   const [matrixCurrency, setMatrixCurrency] = useState('USD'); // USD | BS
+  const [tokenizadorLine, setTokenizadorLine] = useState(null); // {applies, concepto, monto_usd}
   const paymentFileRef = useRef(null);
   const approvalFileRef = useRef(null);
 
@@ -41,6 +42,10 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
     api.get(`/quotes/${quoteId}/corp-billing-matrix`)
       .then(res => setCorpMatrix(res.data?.eligible ? res.data : null))
       .catch(() => setCorpMatrix(null));
+    // Línea 'Configuración del Tokenizador' (Link de Pago variante tokenizador/ambos)
+    api.get(`/quotes/${quoteId}/tokenizador-billing-line`)
+      .then(res => setTokenizadorLine(res.data?.applies ? res.data : null))
+      .catch(() => setTokenizadorLine(null));
   }, [open, quoteId]);
 
   // Set default billing date to today
@@ -142,8 +147,9 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
       }));
     }
 
-    // Payment Gateway: los conceptos viven en `pg_setup_items` (no en `services`)
-    if ((quote.quote_type || '').toUpperCase() === 'GATEWAY') {
+    // Payment Gateway y Link de Pago/Tokenizador: los conceptos viven en
+    // `pg_setup_items` (no en `services`). Link de Pago clona la estructura de PG.
+    if (['GATEWAY', 'LINK_PAGO'].includes((quote.quote_type || '').toUpperCase())) {
       const pgItems = quote.pg_setup_items || [];
       const map = {};
       for (const it of pgItems) {
@@ -157,7 +163,17 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
         map[name].quantity += 1;
         map[name].total_usd += cost;
       }
-      return Object.values(map);
+      const out = Object.values(map);
+      // Inyección obligatoria de 'Configuración del Tokenizador' (variante tokenizador/ambos)
+      if (tokenizadorLine?.applies) {
+        out.push({
+          name: tokenizadorLine.concepto || 'Configuración del Tokenizador',
+          quantity: 1,
+          unit_price_usd: Number(tokenizadorLine.monto_usd || 0),
+          total_usd: Number(tokenizadorLine.monto_usd || 0),
+        });
+      }
+      return out;
     }
 
     // Cotización de Implementación: usar services (excluir recurrentes)
@@ -173,7 +189,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
       map[name].total_usd += (s.total_usd || s.subtotal_usd || 0);
     }
     return Object.values(map);
-  }, [quote, isEquipmentQuote]);
+  }, [quote, isEquipmentQuote, tokenizadorLine]);
 
   const rateNum = parseFloat(exchangeRate) || 0;
   const grandTotalUsd = consolidated.reduce((sum, c) => sum + c.total_usd, 0);
