@@ -3,7 +3,15 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Bug Fix (RCA real): modal "Equipos de Infraestructura" no se activaba para Corporativo NO-admin — Jun 2026
+### Feature: Concepto "Infraestructura" en Tipo Corp + subdivisión de tabla de Costos (pág. 3 PDF) — Jun 2026
+**Requerimiento:** (1) alta del concepto "Infraestructura" en el catálogo "Tipo Corp" de la Ficha de Medios de Pago; (2) subdividir la supercabecera "Hardware y Software" de la tabla "COSTOS DE IMPLEMENTACIÓN" (pág. 3) en dos hijas — "Derecho de Uso" + "Infraestructura" (2ª subdivisión, a la derecha de Derecho de Uso) — solo para cotizaciones VPOS/MPOS/VPOS_MULTIRIF/FAST_TRACK del segmento Corporativo; PYME conserva formato estándar.
+**Implementación:**
+- Frontend `MediosPago.jsx`: "Infraestructura" agregado a `TIPO_CORP_OPTIONS` (2ª opción).
+- Backend `services.py` L193: `valid_tipo_corp` incluye "Infraestructura" (validación de importación).
+- Backend `pdf_generator.py::_create_corp_financial_summary`: tabla reestructurada a 6 columnas; `CORP_COLUMNS=['Derecho de Uso','Infraestructura','Apoyo Técnico','Soporte y Monitoreo']`; SPAN de "Hardware y Software" sobre las 2 primeras subcolumnas y "Consultoría" sobre las 2 siguientes. Clasificación de montos por `tipo_corp` automática. Gating ya existente: `generate_vpos_corp` solo para CORP (PYME→`generate_vpos` estándar; GATEWAY/LINK_PAGO→flujos propios).
+**QA:** testing_agent iteration_261 → **backend 100% (5/5) + frontend 100% (8/8)**. Verificado visualmente: Set-up $42/$25.50, Recurrentes $10/$22.58, totales $67.50/$32.58/$100.08; PYME sin columna Infraestructura. Test de regresión: `tests/test_iter261_infraestructura_tipo_corp.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Síntoma:** el modal interceptor no aparecía al "Enviar al Cliente" para usuarios de Ventas Corporativas (funcionaba solo para admins).
 **RCA definitiva:** el frontend consultaba `GET /api/other-actions/configs/cotizacion_equipos_infra`, pero el prefijo `/api/other-actions` está protegido por el módulo RBAC `config_otras_acciones` (server.py L159), al que los usuarios Corporativos (role=user) NO tienen acceso → 403. El `try/catch` de `proceedSendToClient` tragaba el 403 y despachaba directo, omitiendo el modal. Los admins sí tienen el módulo → por eso las pruebas previas (como admin) pasaban sin detectar el bug.
 **Fix:** nuevo endpoint liviano `GET /api/quotes/equipos-infra-status` (módulo `cotizaciones`, accesible a Corporativo con cotizaciones=edit) que devuelve `{exists, enabled, has_recipients}` sin exponer emails. `proceedSendToClient` ahora lo consume en vez del endpoint bajo `/other-actions`. (Complementa el fix previo de detección por `client_segment==='CORP' || creator_departamento incluye 'corporativ'` para tipos VPOS/MPOS/VPOS_MULTIRIF.)
