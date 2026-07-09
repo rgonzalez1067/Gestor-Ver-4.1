@@ -1,0 +1,46 @@
+{
+  "summary": "Iter258 — Certificación específica de la RAMA NUEVA del fix 'Equipos de Infraestructura' en /quotes → Enviar al Cliente. Se ejercitó EXCLUSIVAMENTE la detección por creator_departamento (no por client_segment===CORP). Cotización probada: COT-2026-07-052-PYME (id=quo_2ed5a92f607f, client_segment=PYME, quote_type=VPOS, creator_departamento='Ventas Corporativas', estado Borrador). RESULTADO: PASS — el modal equipos-infra-modal apareció correctamente tras confirmar el email-modal, incluyendo botones equipos-infra-no y equipos-infra-yes visibles. Se descartó con Escape y la cotización permaneció en Borrador sin sent_to_client_at.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones — diálogos", "issues": ["Warnings menores de accesibilidad Radix: 'Missing Description or aria-describedby for {DialogContent}' en contact-select-modal y email-modal (no bloqueante, ya reportado en iter257)."]},
+      {"screen": "Cotizaciones — tabla", "issues": ["Warnings de hidratación React por wrappers <span data-ve-dynamic=\"true\"> del plugin visual-edits envolviendo filas <tr> dentro de <tbody> (Dashboard y QuotesTable). Ignorable por indicación del review_request pero conviene registrarlo."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_258.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx proceedSendToClient (~L2454-2481): la condición `isCorp = seg==='CORP' || creatorDept.includes('corporativ')` funciona correctamente en la rama nueva (PYME + creator='Ventas Corporativas'). Validado end-to-end.",
+    "GET /api/quotes retorna correctamente `creator_departamento` para cada quote (verificado por curl). El objeto quote consumido por el frontend contiene el campo, por lo tanto no hay riesgo de shadowing/normalización previa.",
+    "Sugerencia menor (ya anotada en iter257): al responder 'Sí, incluye Equipos Infra' el POST /quotes/{id}/equipos-infra sólo hace console.error si falla; sin feedback UX. Considerar toast.warning."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skip por request)", "frontend": "100% (1/1 escenario clave — rama creator_departamento)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login OK con session_token).",
+  "seed_data_creation": "Ninguno — se usó el dato preparado por el main agent (COT-2026-07-052-PYME seteado a client_segment=PYME + creator_departamento='Ventas Corporativas').",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fix confirmado en ambas ramas (iter257: client_segment==='CORP'; iter258: creator_departamento contiene 'corporativ'). El dato de prueba quo_2ed5a92f607f quedó en Borrador tras Escape (no se envió). Config 'cotizacion_equipos_infra' sigue enabled con 1 recipient. Flujo QA E2E: send-to-client-btn → contact-select-modal → contact-checkbox (María Marín) → contact-select-continue → email-modal → email-confirm-btn → equipos-infra-modal → Escape (aborta sin despachar).",
+  "test_evidence": {
+    "scenario_creator_departamento_branch": {
+      "quote_id": "quo_2ed5a92f607f",
+      "quote_number": "COT-2026-07-052-PYME",
+      "client_segment": "PYME",
+      "quote_type": "VPOS",
+      "creator_departamento": "Ventas Corporativas",
+      "pre_state_quote_status": "Borrador",
+      "pre_state_sent_to_client_at": null,
+      "flow_executed": "login → /quotes → quote-actions-quo_2ed5a92f607f → send-to-client-btn-quo_2ed5a92f607f → contact-select-modal (1 contacto: María Marín / fsiadmi84@gmail.com) → contact-select-continue → email-modal (Personalizar Comunicación) → email-confirm-btn (Continuar) → equipos-infra-modal APARECIÓ",
+      "equipos_infra_modal_visible": true,
+      "equipos_infra_no_visible": true,
+      "equipos_infra_yes_visible": true,
+      "dismissed_via_escape": true,
+      "post_state_quote_status": "Borrador (sin cambio, verificado por GET /api/quotes)",
+      "post_state_sent_to_client_at": null,
+      "result": "PASS — la detección por creator_departamento='Ventas Corporativas' dispara correctamente el interceptor pese a que client_segment=PYME."
+    }
+  },
+  "rca of the issue": "N/A — el fix está funcionando. Rama nueva del fix (Quotes.jsx L2454-2481) validada: `creatorDept.includes('corporativ')` habilita el modal para usuarios de 'Ventas Corporativas' aunque el cliente no esté marcado CORP. El reporte previo del usuario ('no está funcionando') probablemente se debió a un caso donde el quote.creator_departamento del quote específico no era exactamente 'Ventas Corporativas' o el quote_type no era VPOS/MPOS/VPOS_MULTIRIF. Con los datos actuales el fix funciona 100%."
+}
