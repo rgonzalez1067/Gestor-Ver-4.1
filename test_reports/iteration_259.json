@@ -1,0 +1,64 @@
+{
+  "summary": "Iter259 — Reproducción EXACTA del escenario del usuario en /quotes → 'Enviar al Cliente' para 3 cotizaciones REALES en estado 'Enviada' (COT-2026-07-011-CORP, COT-2026-07-012-CORP, COT-2026-07-013-CORP; todas VPOS + Corp + creator_departamento='Ventas Corporativas'). RESULTADO: PASS en las 3. El modal 'Equipos de Infraestructura' (data-testid equipos-infra-modal) APARECE correctamente pese a que la cotización ya está en estado 'Enviada'. El botón 'Enviar al Cliente' se muestra habilitado (con checkmark ✓ porque quote.sent_to_client_at ya tiene valor) y el flujo completo funciona: contact-select-modal → contact-select-continue → email-modal → email-confirm-btn → equipos-infra-modal (con equipos-infra-yes y equipos-infra-no). Se descartó con Escape en las 3 sin re-enviar (no se pulsó ninguno de los dos botones del modal, por lo que no se disparó executeSendToClient ni el POST /equipos-infra). El estado 'Enviada' NO impide la aparición del modal.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones — diálogos", "issues": ["Warnings Radix: 'Missing Description or aria-describedby for {DialogContent}' en contact-select-modal y email-modal (ya reportado iter257/258, no bloqueante)."]},
+      {"screen": "Cotizaciones — tabla", "issues": ["Warnings de hidratación React por wrappers <span data-ve-dynamic=\"true\"> del plugin visual-edits (ignorable por indicación del review_request)."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_259.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx proceedSendToClient (~L2454-2481): el interceptor NO tiene ninguna dependencia del quote_status. La condición sólo evalúa quote_type + client_segment/creator_departamento + config /other-actions/configs/cotizacion_equipos_infra (enabled + recipients). Por lo tanto es INMUNE al estado 'Enviada' → el modal aparece en Borrador y en Enviada por igual (comportamiento verificado en las 3 cotizaciones del reporte).",
+    "QuotesTable.jsx L514-518: el botón send_to_client se renderiza para cualquier estado (no hay override que lo oculte en 'Enviada'); simplemente muestra un ✓ cuando quote.sent_to_client_at existe. Confirmado que sigue clickeable/enabled en 'Enviada'.",
+    "Recomendación (menor, no acción): la ausencia de indicador visual del checkmark ✓ podría hacer que el usuario confunda 'ya enviada' con 'no clickeable'. El botón sí funciona (verificado). Podría considerar hover-tooltip 'Re-enviar cotización' para clarificar."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skip por request)", "frontend": "100% (3/3 cotizaciones en 'Enviada' muestran el modal correctamente)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login OK).",
+  "seed_data_creation": "Ninguno — se usaron las 3 cotizaciones reales indicadas por el usuario.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El bug reportado por el usuario NO es reproducible en el entorno preview con las 3 cotizaciones indicadas. El estado 'Enviada' no bloquea el modal. Posibles causas del reporte del usuario (para investigación por el main agent): (1) cache/build viejo en el cliente (versión pre-fix); (2) el usuario podría haber estado clickeando otro botón (p.ej. 'Modificar Cotización' o alguna acción custom del catálogo) en lugar de send-to-client-btn; (3) diferencia de datos: el user podría estar usando otras cotizaciones no listadas donde quote_type no es VPOS/MPOS/VPOS_MULTIRIF o creator_departamento no contiene 'corporativ'. Las 3 cotizaciones probadas están OK. Ninguna cambió de estado tras el flujo (se cerró con Escape antes de pulsar Sí/No).",
+  "test_evidence": {
+    "COT-2026-07-011-CORP": {
+      "quote_id": "quo_6145056ff292",
+      "estado": "Enviada",
+      "send_to_client_btn_visible": true,
+      "send_to_client_btn_enabled": true,
+      "button_label": "Enviar al Cliente ✓",
+      "contact_select_modal": true,
+      "contact_checkboxes_count": 1,
+      "contact_select_continue_enabled": true,
+      "email_modal": true,
+      "email_confirm_btn_enabled": true,
+      "equipos_infra_modal_appeared": true,
+      "equipos_infra_yes_visible": true,
+      "equipos_infra_no_visible": true,
+      "dismissed_via_escape": true,
+      "post_state_unchanged": "Enviada (no se pulsó Sí/No, no se llamó executeSendToClient)"
+    },
+    "COT-2026-07-012-CORP": {
+      "quote_id": "quo_a8e5b0c2a65a",
+      "estado": "Enviada",
+      "send_to_client_btn_visible": true,
+      "equipos_infra_modal_appeared": true,
+      "equipos_infra_yes_visible": true,
+      "equipos_infra_no_visible": true,
+      "dismissed_via_escape": true
+    },
+    "COT-2026-07-013-CORP": {
+      "quote_id": "quo_62f219cf2c9b",
+      "estado": "Enviada",
+      "send_to_client_btn_visible": true,
+      "equipos_infra_modal_appeared": true,
+      "equipos_infra_yes_visible": true,
+      "equipos_infra_no_visible": true,
+      "dismissed_via_escape": true
+    }
+  },
+  "rca of the issue": "No hay bug reproducible en el entorno preview. El fix (Quotes.jsx L2454-2481) funciona correctamente en estado 'Enviada' porque el interceptor NO condiciona el modal al quote_status — sólo a quote_type + (client_segment==='CORP' || creator_departamento.includes('corporativ')) + config habilitada. Verificado en las 3 cotizaciones exactas reportadas por el usuario (COT-2026-07-011/012/013-CORP). Si el usuario sigue reportando el bug, el main agent debe: (a) confirmar que el usuario está probando en la URL preview y no en un build local/caché viejo; (b) validar que el usuario haga clic específicamente en 'Enviar al Cliente' del menú de acciones (no otro botón); (c) revisar los logs del navegador del usuario para ver si alguna llamada al GET /other-actions/configs/cotizacion_equipos_infra falla (la sesión del usuario podría no tener permisos)."
+}
