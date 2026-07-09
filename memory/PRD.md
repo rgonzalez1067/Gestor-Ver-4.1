@@ -3,7 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Feature: Inyección condicional de "Configuración del Tokenizador" en aprobación de Link de Pago — Jun 2026
+### Bug Fix: no se adjuntaban todos los anexos del modal de Aprobación al correo — Jun 2026
+**Síntoma:** "se cargaron 3 anexos y solo llegó uno" al correo de Administración en la aprobación de cotizaciones.
+**RCA:** el modal tiene dos uploaders — "Comprobante de Pago Anticipado" (`payment_files`, SÍ se adjuntaba) y "Comprobante de Aprobación / Orden de Compra" (`approval_files`, SOLO se persistía en `quote.attachments`, NO se adjuntaba al correo).
+**Fix:** `approve_quote` acepta ahora `approval_files: List[UploadFile]` y los agrega a `_engine_extra_attachments` (junto a payment_files) → se anexan al correo, además de su persistencia (Step 1). Frontend envía `approval_files` en el FormData de /approve. Corregida una duplicación preexistente en la ruta legacy. Observabilidad: `email_log` graba `attachment_count` y `attachment_names`.
+**QA:** testing_agent iteration_264 → **backend 100% (2/2 pytest)**. Verificado vía email_log.attachment_names: 2 pago + 2 orden + PDF Cálculos + logo = 6 adjuntos, sin duplicados; persistencia de Orden de Compra intacta. Test: `tests/test_iter264_approval_multi_attachments.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** en el modal de Aprobación de cotizaciones LINK_PAGO, la sección "Instrucciones de Facturación" debe clonar la estructura de Payment Gateway y, según `link_pago_variant`: 'link_pago' → sin cambios; 'tokenizador'/'ambos' → inyectar la fila "Configuración del Tokenizador" con monto desde Medios de Pago (colección services), sumado al total y persistido en histórico/reportes.
 **RCA adicional:** el modal solo leía `pg_setup_items` para quote_type=GATEWAY; las cotizaciones LINK_PAGO (que también usan pg_setup_items, services vacío) mostraban la sección VACÍA. Se corrigió incluyendo LINK_PAGO en esa rama.
 **Implementación:**
