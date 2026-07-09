@@ -1,0 +1,28 @@
+{
+  "summary": "Iter262 — E2E validation of the CORP Billing Matrix feature (modal de Aprobación) + PYME regression. Backend (pytest 5/5 PASS): GET /api/quotes/{id}/corp-billing-matrix returns eligible:true with correct columns/setup_by_corp/recurring_by_corp for COT-052 (setup DdU=12.20, Apoyo=12.00; recurring DdU=10.05, Infra=7.00, Soporte=7.25) and for COT-054, eligible:false for PYME quote, 404 for non-existent, and 401/403 when unauthenticated. Frontend (Playwright, admin rgonzalez): opened Aprobación modal for CORP VPOS COT-2026-07-014-CORP → 'corp-billing-matrix' rendered with 'corp-matrix-table' + rows setup/recurrentes/total, detailed 'billing-consolidation-table' hidden (parent display:none). Row-mode toggles: Solo Setup ($502.00), Solo Recurrente ($256.00), Ambas ($758.00 = 502+256) recalculan TOTAL GENERAL correctamente. Currency toggle: USD $758.00 ↔ Bs. 471.637,83 (rate 622.2135; 758×622.2135=471637.833 ✓), and back to USD $758.00 sin recargar. Regresión PYME (COT-2026-06-162-PYME): abre modal detallado tradicional con 'billing-consolidation-table' y NO renderiza 'corp-billing-matrix'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter262_corp_billing_matrix.py",
+    "/app/test_reports/pytest/iter262_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/corp_billing_matrix.py está bien encapsulado (is_corp_matrix_eligible / compute_corp_billing_matrix / resolve_matrix_rows / build_corp_matrix_html) y CORP_COLUMNS coincide entre backend (columnas) y frontend (CORP_COLS). Endpoint bajo /api/quotes (módulo cotizaciones) es accesible para Ventas Corporativas — verificado.",
+    "ApprovalBillingModal.jsx oculta correctamente 'billing-consolidation-table' con display:none cuando corpMatrix.eligible, evitando parpadeo, y expone todos los data-testid pedidos (corp-billing-matrix, corp-matrix-table, matrix-rowmode-*, matrix-currency-*, matrix-row-*, matrix-total-general).",
+    "Consola: se observaron hydration warnings 'span cannot be a child of tr/tbody/th/td' pero son inyecciones data-ve-dynamic del preview (ignorables per spec). No afectan la funcionalidad."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter262_corp_billing_matrix.py"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest)", "frontend": "100% (12/12 checks UI Playwright: matrix visible, structure, 3 row-mode toggles + numeric TOTAL, currency USD↔BS con conversión numérica, back-to-USD, y regresión PYME)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Ninguno. No se completó ninguna aprobación real (no envío de emails); se abrió el modal y se pulsó Cancelar para ambas cotizaciones.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature 'Matriz Financiera Corporativa en modal de aprobación' está funcional end-to-end. Endpoint principal: GET /api/quotes/{id}/corp-billing-matrix. Cotizaciones probadas: CORP VPOS 'Enviada' aprobables → quo_5537499dc878 (COT-014-CORP), quo_a8e5b0c2a65a (COT-012-CORP), quo_6145056ff292 (COT-011-CORP); PYME 'Enviada' → quo_5bcd951bc7bd (COT-162-PYME). COT-052 (quo_2ed5a92f607f) está en 'Borrador' — la acción Aprobación aparece 'Regularizar' y abre modal de excepción; el endpoint sigue devolviendo la matriz correcta. La consistencia EMAIL/PDF (billing_instruction.billing_matrix + PDF 'Cálculos Definitivos' con matriz en Bs.) ya fue verificada por el main agent y no se re-testeó para evitar emails reales; si en la próxima iter se necesita, usar una CORP VPOS descartable y completar la aprobación."
+}

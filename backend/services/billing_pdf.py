@@ -75,6 +75,70 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     elements.append(info_table)
     elements.append(Spacer(1, 12))
 
+    # === Matriz Financiera Consolidada (aprobación Corporativa) ===
+    # Si el aprobador visó la matriz por tipo_corp, se renderiza en lugar del
+    # listado ítem-por-ítem, respetando la moneda ($/Bs.) y las filas elegidas.
+    _bm = billing_instruction.get('billing_matrix')
+    if _bm:
+        from services.corp_billing_matrix import resolve_matrix_rows, _fmt as _bm_fmt
+        _currency = (_bm.get('currency') or 'USD').upper()
+        _rate = float(_bm.get('exchange_rate') or 0)
+        _cols = _bm.get('columns') or ["Derecho de Uso", "Infraestructura", "Apoyo Técnico", "Soporte y Monitoreo"]
+        _rows, _total_by_col, _total_general = resolve_matrix_rows(_bm)
+        _cur_label = "Bs." if _currency == "BS" else "USD ($)"
+
+        elements.append(Paragraph("Instrucciones de Facturación", header_style))
+        _note = f"Moneda: {_cur_label}"
+        if _currency == "BS" and _rate:
+            _note += f" — Tasa aplicada: Bs.{_rate:,.2f} / $"
+        elements.append(Paragraph(_note, normal_style))
+        elements.append(Spacer(1, 8))
+
+        _hs = ParagraphStyle('MtxH', parent=styles['Normal'], fontSize=9, textColor=colors.white, fontName='Helvetica-Bold', alignment=1, leading=11)
+        _cl = ParagraphStyle('MtxL', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#00447C'), fontName='Helvetica-Bold', leading=11)
+        _cr = ParagraphStyle('MtxR', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#1e293b'), alignment=2, leading=11)
+        _cwhite = ParagraphStyle('MtxW', parent=_cr, textColor=colors.white, fontName='Helvetica-Bold')
+
+        mtx_data = [
+            [Paragraph('Concepto', _hs), Paragraph('Hardware y Software', _hs), '', Paragraph('Consultoría', _hs), '', Paragraph(f'Total ({_cur_label})', _hs)],
+            ['', Paragraph('Derecho de Uso', _hs), Paragraph('Infraestructura', _hs), Paragraph('Apoyo técnico', _hs), Paragraph('Soporte y Monitoreo', _hs), ''],
+        ]
+        for label, by_col, row_total in _rows:
+            mtx_data.append([
+                Paragraph(label, _cl),
+                *[Paragraph(_bm_fmt(by_col.get(c, 0), _currency, _rate), _cr) for c in _cols],
+                Paragraph(f"<b>{_bm_fmt(row_total, _currency, _rate)}</b>", _cr),
+            ])
+        mtx_data.append([
+            Paragraph('TOTAL GENERAL', _cwhite),
+            *[Paragraph(_bm_fmt(_total_by_col.get(c, 0), _currency, _rate), _cwhite) for c in _cols],
+            Paragraph(_bm_fmt(_total_general, _currency, _rate), ParagraphStyle('MtxGT', parent=_cr, fontName='Helvetica-Bold')),
+        ])
+        mtx_tbl = Table(mtx_data, colWidths=[3.0*cm, 2.7*cm, 2.7*cm, 2.7*cm, 2.9*cm, 3.0*cm])
+        _last = len(mtx_data) - 1
+        mtx_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#00447C')),
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#336699')),
+            ('SPAN', (1, 0), (2, 0)),
+            ('SPAN', (3, 0), (4, 0)),
+            ('SPAN', (0, 0), (0, 1)),
+            ('SPAN', (5, 0), (5, 1)),
+            ('BACKGROUND', (0, _last), (-1, _last), colors.HexColor('#1E293B')),
+            ('BACKGROUND', (5, _last), (5, _last), colors.HexColor('#F59E0B')),
+            ('TEXTCOLOR', (5, _last), (5, _last), colors.HexColor('#1E293B')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (-1, 1), 'CENTER'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(mtx_tbl)
+        elements.append(Spacer(1, 6))
+        elements.append(Paragraph("Montos no incluyen IVA.", footer_style))
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer.getvalue()
+
     # Consolidated setup items table
     items = billing_instruction.get('consolidated_items', [])
     exchange_rate = billing_instruction.get('exchange_rate', 0)

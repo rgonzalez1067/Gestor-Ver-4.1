@@ -488,7 +488,26 @@ async def get_pg_recurring_costs(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     return PG_RECURRING_COSTS_TABLE
 
-@router.get("/quotes/equipos-infra-status")
+@router.get("/quotes/{quote_id}/corp-billing-matrix")
+async def get_corp_billing_matrix(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Matriz Financiera Consolidada por tipo_corp para el modal de aprobación
+    de cotizaciones Corporativas (VPOS/VPOS_MULTIRIF/MPOS/MPOS Imple+POS).
+    Bajo /api/quotes (módulo cotizaciones) para que Ventas Corporativas acceda."""
+    await get_current_user(authorization)
+    from services.corp_billing_matrix import is_corp_matrix_eligible, compute_corp_billing_matrix
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    if not is_corp_matrix_eligible(quote):
+        return {"eligible": False}
+    services_list = await db.services.find(
+        {"tipo_corp": {"$exists": True, "$ne": ""}}, {"_id": 0, "name": 1, "tipo_corp": 1}
+    ).to_list(2000)
+    tipo_corp_map = {s["name"].lower().strip(): s["tipo_corp"] for s in services_list if s.get("tipo_corp")}
+    matrix = compute_corp_billing_matrix(quote, tipo_corp_map)
+    return {"eligible": True, **matrix}
+
+
 async def get_equipos_infra_status(authorization: Optional[str] = Header(None)):
     """Estado liviano de la acción 'Cotización Equipos Infra' para el interceptor
     del frontend al 'Enviar al Cliente'. Vive bajo /api/quotes (módulo

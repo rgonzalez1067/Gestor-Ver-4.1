@@ -688,6 +688,10 @@ async def approve_quote(
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
         }
+        # Matriz Financiera Consolidada (aprobación Corporativa): la configuración
+        # (moneda + filas) y los montos por tipo_corp que visó el aprobador.
+        if body.get("billing_matrix"):
+            billing_data["billing_instruction"]["billing_matrix"] = body["billing_matrix"]
     
     # Actualizar estado (solo si NO es regularización retroactiva)
     is_regul = is_regularization(current_status, "approve")
@@ -782,12 +786,24 @@ async def approve_quote(
     if _manual_attachments:
         _engine_extra_attachments.extend(_manual_attachments)
 
+    # Bloque HTML de la Matriz Financiera Consolidada (solo aprobación Corporativa
+    # elegible) — se inyecta en el cuerpo del correo a Administración.
+    _corp_matrix_html = None
+    _bm = billing_data.get("billing_instruction", {}).get("billing_matrix") if billing_data else None
+    if _bm:
+        try:
+            from services.corp_billing_matrix import build_corp_matrix_html
+            _corp_matrix_html = build_corp_matrix_html(_bm)
+        except Exception as _e:
+            logger.warning(f"[approve] No se pudo construir matriz HTML: {_e}")
+
     _engine_result = await _engine_or_legacy(
         "approve", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
         extra_attachments=_engine_extra_attachments or None,
         quote_pdf_bytes=_engine_pdf_quote_bytes,
         billing_pdf_bytes=_engine_pdf_billing_bytes,
+        injected_html_block=_corp_matrix_html,
     )
     if _engine_result is not None:
         email_results = _engine_result

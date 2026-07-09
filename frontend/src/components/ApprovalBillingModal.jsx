@@ -23,12 +23,25 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   const [rateSource, setRateSource] = useState('');
   const [rateLookupStatus, setRateLookupStatus] = useState('idle'); // idle | loading | found | not_found | manual
   const [manualRateMode, setManualRateMode] = useState(false);
+  const [corpMatrix, setCorpMatrix] = useState(null); // {eligible, columns, setup_by_corp, recurring_by_corp}
+  const [matrixRowMode, setMatrixRowMode] = useState('both'); // both | setup | recurring
+  const [matrixCurrency, setMatrixCurrency] = useState('USD'); // USD | BS
   const paymentFileRef = useRef(null);
   const approvalFileRef = useRef(null);
 
   const quote = useMemo(() => quotes?.find(q => q.quote_id === quoteId), [quotes, quoteId]);
   const isEquipmentQuote = quote?.quote_category === 'equipment';
   const isRepairQuote = quote?.quote_category === 'repair';
+
+  // Fetch matriz corporativa por tipo_corp (solo aplica a cotizaciones Corp elegibles)
+  useEffect(() => {
+    if (!open || !quoteId) { setCorpMatrix(null); return; }
+    setMatrixRowMode('both');
+    setMatrixCurrency('USD');
+    api.get(`/quotes/${quoteId}/corp-billing-matrix`)
+      .then(res => setCorpMatrix(res.data?.eligible ? res.data : null))
+      .catch(() => setCorpMatrix(null));
+  }, [open, quoteId]);
 
   // Set default billing date to today
   useEffect(() => {
@@ -172,6 +185,27 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   const grandTotalConIvaUsd = grandTotalUsd + ivaUsd;
   const grandTotalConIvaBs = grandTotalBs + ivaBs;
 
+  // Matriz Financiera Consolidada por tipo_corp (aprobación Corporativa)
+  const CORP_COLS = corpMatrix?.columns || ['Derecho de Uso', 'Infraestructura', 'Apoyo Técnico', 'Soporte y Monitoreo'];
+  const fmtMatrix = useCallback((usd) => {
+    if (matrixCurrency === 'BS') return `Bs. ${(usd * rateNum).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `$${(usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }, [matrixCurrency, rateNum]);
+  const matrixData = useMemo(() => {
+    if (!corpMatrix?.eligible) return null;
+    const setup = corpMatrix.setup_by_corp || {};
+    const recurring = corpMatrix.recurring_by_corp || {};
+    const showSetup = matrixRowMode === 'both' || matrixRowMode === 'setup';
+    const showRec = matrixRowMode === 'both' || matrixRowMode === 'recurring';
+    const rows = [];
+    if (showSetup) rows.push({ label: 'Setup', byCol: setup, total: CORP_COLS.reduce((s, c) => s + (setup[c] || 0), 0) });
+    if (showRec) rows.push({ label: 'Recurrentes', byCol: recurring, total: CORP_COLS.reduce((s, c) => s + (recurring[c] || 0), 0) });
+    const totalByCol = {};
+    CORP_COLS.forEach(c => { totalByCol[c] = (showSetup ? (setup[c] || 0) : 0) + (showRec ? (recurring[c] || 0) : 0); });
+    const totalGeneral = Object.values(totalByCol).reduce((s, v) => s + v, 0);
+    return { rows, totalByCol, totalGeneral, showSetup, showRec };
+  }, [corpMatrix, matrixRowMode]);
+
   const resetState = useCallback(() => {
     setPaymentFiles([]);
     setApprovalFiles([]);
@@ -260,6 +294,18 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
         has_payment_proof: paymentFiles.length > 0,
         has_approval_proof: approvalFiles.length > 0,
       };
+
+      // Matriz Financiera Consolidada (solo Corp elegible): moneda + filas + montos por tipo_corp
+      if (corpMatrix?.eligible) {
+        billingData.billing_matrix = {
+          row_mode: matrixRowMode,
+          currency: matrixCurrency,
+          exchange_rate: rateNum,
+          columns: CORP_COLS,
+          setup_by_corp: corpMatrix.setup_by_corp || {},
+          recurring_by_corp: corpMatrix.recurring_by_corp || {},
+        };
+      }
 
       const approveFormData = new FormData();
       approveFormData.append('payload', JSON.stringify(billingData));
@@ -462,7 +508,76 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                   : 'Conceptos de Setup y Productos (excluye mantenimiento mensual/recurrentes). Consolidados por similitud. IVA 16% calculado automáticamente.')}
             </p>
 
-            <div className="overflow-x-auto">
+            {/* ===== Matriz Financiera Consolidada (Corporativo) ===== */}
+            {corpMatrix?.eligible && matrixData && (
+              <div className="mb-4" data-testid="corp-billing-matrix">
+                {/* Toggles */}
+                <div className="flex flex-wrap items-center gap-4 mb-3">
+                  <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                    {[['both', 'Ambas'], ['setup', 'Solo Setup'], ['recurring', 'Solo Recurrente']].map(([val, lbl]) => (
+                      <button
+                        key={val}
+                        onClick={() => setMatrixRowMode(val)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${matrixRowMode === val ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        data-testid={`matrix-rowmode-${val}`}
+                      >{lbl}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                    {[['USD', '$ Dólares'], ['BS', 'Bs. Bolívares']].map(([val, lbl]) => (
+                      <button
+                        key={val}
+                        onClick={() => setMatrixCurrency(val)}
+                        disabled={val === 'BS' && rateNum <= 0}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:opacity-40 ${matrixCurrency === val ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        data-testid={`matrix-currency-${val.toLowerCase()}`}
+                      >{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse" data-testid="corp-matrix-table">
+                    <thead>
+                      <tr>
+                        <th rowSpan={2} className="px-3 py-2 text-left text-xs font-semibold text-white bg-[#00447C] border border-slate-300">Concepto</th>
+                        <th colSpan={2} className="px-3 py-2 text-center text-xs font-semibold text-white bg-[#00447C] border border-slate-300">Hardware y Software</th>
+                        <th colSpan={2} className="px-3 py-2 text-center text-xs font-semibold text-white bg-[#00447C] border border-slate-300">Consultoría</th>
+                        <th rowSpan={2} className="px-3 py-2 text-right text-xs font-semibold text-white bg-[#00447C] border border-slate-300">Total ({matrixCurrency === 'BS' ? 'Bs.' : 'USD'})</th>
+                      </tr>
+                      <tr>
+                        {CORP_COLS.map(c => (
+                          <th key={c} className="px-3 py-1.5 text-center text-[11px] font-semibold text-white bg-[#336699] border border-slate-300">{c}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matrixData.rows.map((r) => (
+                        <tr key={r.label} data-testid={`matrix-row-${r.label.toLowerCase()}`}>
+                          <td className="px-3 py-2 text-xs font-semibold text-[#00447C] border border-slate-200">{r.label}</td>
+                          {CORP_COLS.map(c => (
+                            <td key={c} className="px-3 py-2 text-right font-mono text-xs text-slate-800 border border-slate-200">{fmtMatrix(r.byCol[c] || 0)}</td>
+                          ))}
+                          <td className="px-3 py-2 text-right font-mono text-xs font-bold text-slate-900 border border-slate-200">{fmtMatrix(r.total)}</td>
+                        </tr>
+                      ))}
+                      <tr className="font-bold" data-testid="matrix-row-total">
+                        <td className="px-3 py-2 text-xs text-white bg-[#1E293B] border border-slate-300">TOTAL GENERAL</td>
+                        {CORP_COLS.map(c => (
+                          <td key={c} className="px-3 py-2 text-right font-mono text-xs text-white bg-[#1E293B] border border-slate-300">{fmtMatrix(matrixData.totalByCol[c] || 0)}</td>
+                        ))}
+                        <td className="px-3 py-2 text-right font-mono text-xs text-slate-900 bg-amber-400 border border-slate-300" data-testid="matrix-total-general">{fmtMatrix(matrixData.totalGeneral)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  Montos no incluyen IVA{matrixCurrency === 'BS' && rateNum > 0 ? ` · Tasa: Bs. ${rateNum.toFixed(2)}/$` : ''}.
+                </p>
+              </div>
+            )}
+
+            <div className="overflow-x-auto" style={{ display: corpMatrix?.eligible ? 'none' : 'block' }}>
               <table className="w-full text-sm" data-testid="billing-consolidation-table">
                 <thead>
                   <tr className="bg-slate-700 text-white">

@@ -550,6 +550,11 @@ async def try_dispatch(
         # plantilla (no al final absoluto, ni al inicio).
         if custom_block:
             body = _insert_before_footer(body, custom_block)
+        # Bloque HTML inyectado por el caller (ej: Matriz Financiera Consolidada
+        # de aprobación Corporativa) — se inserta antes del footer.
+        _injected_block = ctx.get("injected_html_block")
+        if _injected_block:
+            body = _insert_before_footer(body, _injected_block)
 
         # Anexos: PDFs auto-generados (sujetos al flag) + extra_attachments (siempre).
         attachments = []
