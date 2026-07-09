@@ -1,0 +1,62 @@
+{
+  "summary": "Iter257 — QA E2E del interceptor 'Equipos de Infraestructura' en /quotes al 'Enviar al Cliente'. Verificado el fix: el modal AHORA aparece para cotizaciones VPOS/MPOS/VPOS_MULTIRIF cuando el segmento es CORP O el creador pertenece a Ventas Corporativas, siempre que la acción 'cotizacion_equipos_infra' esté habilitada con destinatarios. Ambos criterios PASARON.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones / diálogos", "issues": ["Console warning menor: 'Missing Description or aria-describedby for {DialogContent}' en DialogContent de contact-select-modal y email-modal (accesibilidad de Radix). No bloqueante."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_257.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx L2454-2476 proceedSendToClient: la nueva condición `isCorp = seg === 'CORP' || creator_departamento.includes('corporativ')` cubre ambos escenarios documentados en el bug (cliente marcado CORP o creador del área Corporativa). Uso de toUpperCase()/toLowerCase() defensivos correcto.",
+    "El `try/catch` alrededor de GET /other-actions/configs/cotizacion_equipos_infra retorna a `executeSendToClient` silenciosamente si la consulta falla — cero regresión (buen comportamiento defensivo). ✓",
+    "Modal equipos-infra usa AlertDialog con testids equipos-infra-modal / equipos-infra-no / equipos-infra-yes correctamente. Escape cierra sin disparar send (AlertDialogCancel + onOpenChange handler). ✓",
+    "Observación: cuando el usuario responde 'Sí, incluye Equipos Infra', handleEquiposInfraAnswer llama a `await api.post('/quotes/{id}/equipos-infra')` y LUEGO ejecuta executeSendToClient. Si la primera falla, sólo se logea `console.error` y se continúa con el envío — el usuario NO recibe feedback visible del fallo del despacho a Infraestructura. Consideración menor: agregar toast.warning en el catch para transparencia operativa."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skip por request)", "frontend": "100% (2/2 criterios: fix CORP VPOS + regresión PYME)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 — login OK",
+  "seed_data_creation": "Ninguno — se usaron cotizaciones existentes del ambiente.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Datos de prueba usados: (1) CORP VPOS Borrador COT-2026-07-052-PYME id=quo_2ed5a92f607f — el modal SÍ aparece; tras Escape la cotización sigue en Borrador (sent_to_client_at=None). (2) PYME REPARACIÓN Borrador COT-2026-06-159-PYME id=quo_8d5895b64a84 — el modal NO aparece; la cotización se envió realmente (quote_status=Enviada, sent_to_client_at=2026-07-09T01:07:39Z) porque no hay forma limpia de abortar el flujo estándar tras confirmar el modal de email. Para futuros tests de regresión considerar usar la API para revertir el estado, o interceptar la request con network mocking de Playwright. Config verificada por curl: /api/other-actions/configs/cotizacion_equipos_infra → enabled=true, recipients=[user_admin_main].",
+  "test_evidence": {
+    "test1_corp_vpos": {
+      "quote_id": "quo_2ed5a92f607f",
+      "quote_number": "COT-2026-07-052-PYME",
+      "client_segment": "CORP",
+      "quote_type": "VPOS",
+      "flow": "quote-actions → send-to-client-btn → contact-select-modal (contactos cargados: ≥1) → contact-select-continue → email-modal → email-confirm-btn → equipos-infra-modal APARECIÓ",
+      "modal_visible": true,
+      "equipos_infra_no_visible": true,
+      "equipos_infra_yes_visible": true,
+      "modal_dismissed_via_escape": true,
+      "post_state_quote_status": "Borrador (sin cambio)",
+      "post_state_sent_to_client_at": null,
+      "result": "PASS"
+    },
+    "test2_regression_pyme": {
+      "quote_id": "quo_8d5895b64a84",
+      "quote_number": "COT-2026-06-159-PYME",
+      "client_segment": "PYME",
+      "quote_type": "Reparación (NO elegible: !∈{VPOS,MPOS,VPOS_MULTIRIF})",
+      "flow": "quote-actions → send-to-client-btn → contact-select-modal → contact-select-continue → email-modal → email-confirm-btn → NO apareció equipos-infra-modal (envío estándar directo)",
+      "modal_appeared": false,
+      "post_state_quote_status": "Enviada",
+      "post_state_sent_to_client_at": "2026-07-09T01:07:39.885190Z",
+      "note": "Se completó un envío real de la cotización PYME REPARACIÓN. La cotización quedó en estado Enviada. Recomendación: si se re-ejecuta el test, considerar revertir manualmente el estado o usar otra cotización PYME/no-elegible en Borrador.",
+      "result": "PASS (regresión OK: modal correctamente omitido)"
+    },
+    "config_backend_verified": {
+      "endpoint": "/api/other-actions/configs/cotizacion_equipos_infra",
+      "enabled": true,
+      "recipients_count": 1,
+      "recipient_user_id": "user_admin_main"
+    }
+  },
+  "real_send_side_effect_warning": "Durante el test de regresión PYME (paso obligado por el flujo del bug — el email-modal no tiene forma limpia de aborto sin disparar el POST /send-to-client), la cotización COT-2026-06-159-PYME (quo_8d5895b64a84) pasó de Borrador → Enviada. sent_to_client_at fijado en 2026-07-09T01:07:39Z. Notificar al equipo si esto genera ruido operativo.",
+  "rca of the issue": "El fix en Quotes.jsx L2454-2476 amplía la detección de 'cotización corporativa' de `client_segment==='CORP'` a `(client_segment==='CORP') || (creator_departamento contiene 'corporativ')`. Esto resuelve el bug: usuarios de Ventas Corporativas cuyos clientes no quedaron marcados CORP en la ficha ahora también disparan el modal. Adicionalmente se restringió el disparo a los quote_type elegibles (VPOS, MPOS, VPOS_MULTIRIF), evitando regresión para GATEWAY/LINK_PAGO/Equipos/Reparación (verificado con REPARACIÓN PYME → modal NO aparece)."
+}

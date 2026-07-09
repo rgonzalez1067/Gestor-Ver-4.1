@@ -2440,14 +2440,25 @@ export const Quotes = () => {
     openEmailModal('send-to-client', quoteId, contactSelectedEmails);
   };
 
-  // Intercepta "Enviar al Cliente": para cotizaciones CORP, si la acción
+  // Intercepta "Enviar al Cliente": para cotizaciones de tipo VPOS / MPOS /
+  // VPOS_MULTIRIF generadas por el segmento/área Corporativo, si la acción
   // "Cotización Equipos Infra" está configurada y activa, muestra primero el
-  // modal de Equipos de Infraestructura. Pyme/otros o acción desactivada →
+  // modal de Equipos de Infraestructura. Pyme/otros tipos o acción desactivada →
   // despacho directo (comportamiento estándar).
+  //
+  // FIX (jun 2026): antes solo se disparaba con `client_segment === 'CORP'`, por
+  // lo que las cotizaciones generadas por usuarios de Corporativo cuyo cliente
+  // no quedaba marcado como CORP no activaban el modal. Ahora se considera
+  // Corporativo si el segmento del cliente es CORP O el creador pertenece al
+  // departamento de Ventas Corporativas (origen inmutable `creator_departamento`).
   const proceedSendToClient = async (quoteId) => {
     const quote = quotes.find(q => q.quote_id === quoteId);
-    const isCorp = (quote?.client_segment || '').toUpperCase() === 'CORP';
-    if (isCorp) {
+    const qt = (quote?.quote_type || '').toUpperCase();
+    const isEligibleType = ['VPOS', 'MPOS', 'VPOS_MULTIRIF'].includes(qt);
+    const seg = (quote?.client_segment || '').toUpperCase();
+    const creatorDept = (quote?.creator_departamento || '').toLowerCase();
+    const isCorp = seg === 'CORP' || creatorDept.includes('corporativ');
+    if (isEligibleType && isCorp) {
       try {
         const res = await api.get('/other-actions/configs/cotizacion_equipos_infra');
         const cfg = res.data || {};
