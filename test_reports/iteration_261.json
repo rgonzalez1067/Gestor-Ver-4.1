@@ -1,0 +1,29 @@
+{
+  "summary": "Iter261 — Validación E2E del concepto 'Infraestructura' en Tipo Corp. Backend: 5/5 pytest PASS (crear/leer/borrar servicio con tipo_corp='Infraestructura'; PDF CORP VPOS incluye supercabecera 'Hardware y Software' subdividida en 'Derecho de Uso' + 'Infraestructura' con montos Set-up $42/$25.50, Recurrentes $0/$10, Totales $42/$35.50; PDF PYME NO contiene 'Infraestructura'). UI (Playwright, admin rgonzalez): el selector 'Tipo Corp' en la ficha de Medios de Pago muestra las 4 opciones en el orden correcto ['Derecho de Uso', 'Infraestructura', 'Apoyo Técnico', 'Soporte y Monitoreo'], al elegir 'Infraestructura' y guardar el POST /api/services responde 200 con tipo_corp='Infraestructura', el badge 'Infraestructura' aparece en la fila del catálogo, y el registro de prueba se eliminó al finalizar (DELETE 200). Todo el requerimiento (1) catálogo + (2) PDF CORP + (3) regresión PYME funciona correctamente.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter261_infraestructura_tipo_corp.py",
+    "/app/test_reports/pytest/iter261_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend gating correcto: DynamicQuotePDFGenerator.generate() sólo enruta a generate_vpos_corp() cuando client_segment='CORP' y quote_type∉{LINK_PAGO,GATEWAY}. Confirmado E2E: mismo payload con client_segment='PYME' produce el formato tradicional sin la matriz por tipo_corp (no aparece 'Infraestructura' en el PDF).",
+    "CORP_COLUMNS = ['Derecho de Uso','Infraestructura','Apoyo Técnico','Soporte y Monitoreo'] está correctamente definido en pdf_generator._create_corp_financial_summary y el SPAN de 'Hardware y Software' cubre las 2 primeras subcolumnas (Derecho de Uso + Infraestructura) según el requerimiento.",
+    "routes/services.py L193 valid_tipo_corp ahora incluye 'Infraestructura' — la importación por archivo también valida el nuevo valor.",
+    "frontend MediosPago.jsx TIPO_CORP_OPTIONS incluye 'Infraestructura' como 2ª opción (L37) con etiquetas y descripciones. La tabla del catálogo renderiza el badge con data-testid=tipo-corp-badge-{service_id} — accesible para pruebas automatizadas."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter261_infraestructura_tipo_corp.py"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest)", "frontend": "100% (8/8 checks UI Playwright)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Ninguno persistente. El test crea un Medio de Pago 'TEST_Infra_<uuid>' y otro 'UITEST Infra <ts>' y AMBOS los elimina al finalizar (verificado DELETE 200 en ambos casos).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature 'Infraestructura' en Tipo Corp está completamente funcional end-to-end. Evidencia clave: (a) POST /api/services con tipo_corp='Infraestructura' devuelve 200 y persiste; (b) POST /api/quotes/preview-pdf-with-template con template_type='vpos_corp' y client_segment='CORP' + items con tipo_corp='Infraestructura' produce un PDF de 5 páginas donde la Página 3 (COSTOS DE IMPLEMENTACIÓN) contiene la matriz completa con la nueva subcolumna 'Infraestructura' bajo 'Hardware y Software' y sus totales correctos ($42/$25.50/$0/$0/$67.50 Set-up, $0/$10/$0/$22.58/$32.58 Recurrentes, $42/$35.50/$0/$22.58/$100.08 Total); (c) mismo payload con client_segment='PYME' produce el PDF tradicional SIN la palabra 'Infraestructura' en cabeceras. Test file de regresión: /app/backend/tests/test_iter261_infraestructura_tipo_corp.py."
+}

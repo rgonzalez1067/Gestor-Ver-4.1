@@ -1311,8 +1311,9 @@ class DynamicQuotePDFGenerator:
         elements.append(Paragraph("COSTOS DE IMPLEMENTACIÓN", self.styles['TituloPortada']))
         elements.append(Spacer(1, 20))
         
-        # Definir columnas tipo_corp
-        CORP_COLUMNS = ["Derecho de Uso", "Apoyo Técnico", "Soporte y Monitoreo"]
+        # Definir columnas tipo_corp. "Infraestructura" es la 2ª subdivisión del
+        # bloque "Hardware y Software" (a la derecha de "Derecho de Uso").
+        CORP_COLUMNS = ["Derecho de Uso", "Infraestructura", "Apoyo Técnico", "Soporte y Monitoreo"]
         
         # Recopilar todos los items con sus tipo_corp
         # NOTA: setup_items ya incluye additional_items con tarifa_setup > 0 (los fusiona el frontend)
@@ -1360,91 +1361,101 @@ class DynamicQuotePDFGenerator:
         # Fila 0 (encabezado principal):  Concepto | Hardware y Software | Consultoría (colspan 2) | Total
         # Fila 1 (subencabezado):  "" | Derecho de Uso | Apoyo técnico | Soporte y Monitoreo | ""
         
+        # Construir tabla: Header con agrupación (6 columnas)
+        # Fila 0: Concepto | Hardware y Software (span 1-2) | Consultoría (span 3-4) | Total
+        # Fila 1: "" | Derecho de Uso | Infraestructura | Apoyo técnico | Soporte y Monitoreo | ""
+
         header_style = ParagraphStyle('CorpHeaderStyle', fontName='Helvetica-Bold', fontSize=11, textColor=colors.white, alignment=1)
         subheader_style = ParagraphStyle('CorpSubHeaderStyle', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=1)
         cell_style = ParagraphStyle('CorpCellStyle', fontName='Helvetica', fontSize=9, alignment=2)
         cell_bold_style = ParagraphStyle('CorpCellBoldStyle', fontName='Helvetica-Bold', fontSize=9, alignment=2)
         label_style = ParagraphStyle('CorpLabelStyle', fontName='Helvetica-Bold', fontSize=9, textColor=self.COLOR_AZUL)
-        
+
         # Headers
         row_header = [
             Paragraph("<b>Concepto</b>", header_style),
             Paragraph("<b>Hardware y<br/>Software</b>", header_style),
+            '',  # Merged with Hardware y Software
             Paragraph("<b>Consultoría</b>", header_style),
             '',  # Merged with Consultoría
             Paragraph("<b>Total</b>", header_style),
         ]
-        
+
         row_subheader = [
             '',
             Paragraph("<b>Derecho de Uso</b>", subheader_style),
+            Paragraph("<b>Infraestructura</b>", subheader_style),
             Paragraph("<b>Apoyo técnico</b>", subheader_style),
             Paragraph("<b>Soporte y<br/>Monitoreo</b>", subheader_style),
             '',
         ]
-        
+
         # Data rows
         row_setup = [
             Paragraph("Set-up", label_style),
             Paragraph(f"${setup_by_corp['Derecho de Uso']:,.2f}", cell_style),
+            Paragraph(f"${setup_by_corp['Infraestructura']:,.2f}", cell_style),
             Paragraph(f"${setup_by_corp['Apoyo Técnico']:,.2f}", cell_style),
             Paragraph(f"${setup_by_corp['Soporte y Monitoreo']:,.2f}", cell_style),
             Paragraph(f"${total_setup:,.2f}", cell_bold_style),
         ]
-        
+
         row_recurring = [
             Paragraph("* Recurrentes", label_style),
             Paragraph(f"${recurring_by_corp['Derecho de Uso']:,.2f}", cell_style),
+            Paragraph(f"${recurring_by_corp['Infraestructura']:,.2f}", cell_style),
             Paragraph(f"${recurring_by_corp['Apoyo Técnico']:,.2f}", cell_style),
             Paragraph(f"${recurring_by_corp['Soporte y Monitoreo']:,.2f}", cell_style),
             Paragraph(f"${total_recurring:,.2f}", cell_bold_style),
         ]
-        
+
         row_total = [
             Paragraph("<b>Total</b>", ParagraphStyle('CorpTotalLabel', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white)),
             Paragraph(f"<b>${total_by_col['Derecho de Uso']:,.2f}</b>", ParagraphStyle('CorpTotalCell', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=2)),
+            Paragraph(f"<b>${total_by_col['Infraestructura']:,.2f}</b>", ParagraphStyle('CorpTotalCellInfra', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=2)),
             Paragraph(f"<b>${total_by_col['Apoyo Técnico']:,.2f}</b>", ParagraphStyle('CorpTotalCell2', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=2)),
             Paragraph(f"<b>${total_by_col['Soporte y Monitoreo']:,.2f}</b>", ParagraphStyle('CorpTotalCell3', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=2)),
             Paragraph(f"<b>${grand_total:,.2f}</b>", ParagraphStyle('CorpGrandTotal', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white, alignment=2)),
         ]
-        
+
         table_data = [row_header, row_subheader, row_setup, row_recurring, row_total]
-        
-        col_widths = [85, 105, 100, 100, 90]
+
+        col_widths = [78, 82, 82, 88, 88, 72]
         table = Table(table_data, colWidths=col_widths)
-        
+
         COLOR_AMARILLO = colors.HexColor("#F59E0B")
-        
+
         table.setStyle(TableStyle([
             # Header row 0
             ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('SPAN', (2, 0), (3, 0)),  # Merge "Consultoría" across 2 columns
+            ('SPAN', (1, 0), (2, 0)),  # Merge "Hardware y Software" across 2 columns (Derecho de Uso + Infraestructura)
+            ('SPAN', (3, 0), (4, 0)),  # Merge "Consultoría" across 2 columns
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            
+
             # Subheader row 1
             ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#336699")),
             ('TEXTCOLOR', (0, 1), (-1, 1), colors.white),
             ('ALIGN', (0, 1), (-1, 1), 'CENTER'),
-            
+
             # Data rows
             ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor("#F0F4F8")),
             ('BACKGROUND', (0, 3), (-1, 3), colors.white),
-            
+
             # Total row
             ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor("#1E293B")),
             ('TEXTCOLOR', (0, 4), (-1, 4), colors.white),
-            # Highlight grand total cell in yellow
-            ('BACKGROUND', (4, 4), (4, 4), COLOR_AMARILLO),
-            ('TEXTCOLOR', (4, 4), (4, 4), colors.HexColor("#1E293B")),
-            
+            # Highlight grand total cell in yellow (col 5)
+            ('BACKGROUND', (5, 4), (5, 4), COLOR_AMARILLO),
+            ('TEXTCOLOR', (5, 4), (5, 4), colors.HexColor("#1E293B")),
+
             # Grid
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('LEFTPADDING', (0, 0), (-1, -1), 6),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
         ]))
         
         elements.append(table)

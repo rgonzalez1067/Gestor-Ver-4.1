@@ -190,7 +190,7 @@ async def import_services(file: UploadFile = File(...), authorization: Optional[
                         error_type='missing', message='El nombre del servicio es obligatorio',
                         suggested_action='Ingrese un nombre válido'))
 
-                valid_tipo_corp = ["Derecho de Uso", "Apoyo Técnico", "Soporte y Monitoreo"]
+                valid_tipo_corp = ["Derecho de Uso", "Infraestructura", "Apoyo Técnico", "Soporte y Monitoreo"]
                 if tipo_corp and tipo_corp not in valid_tipo_corp:
                     row_errors.append(ImportError(row=row_num, column='Tipo Corp', value=tipo_corp,
                         error_type='format', message=f'Valor inválido. Permitidos: {", ".join(valid_tipo_corp)}',

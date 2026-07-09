@@ -34,6 +34,7 @@ const PRODUCT_TYPES = [
 
 const TIPO_CORP_OPTIONS = [
   { id: 'Derecho de Uso', label: 'Derecho de Uso', description: 'Licencias o modelos de usufructo del software/hardware' },
+  { id: 'Infraestructura', label: 'Infraestructura', description: 'Infraestructura tecnológica asociada al servicio' },
   { id: 'Apoyo Técnico', label: 'Apoyo Técnico', description: 'Asistencia durante implementación o preventa' },
   { id: 'Soporte y Monitoreo', label: 'Soporte y Monitoreo', description: 'Mantenimiento continuo y vigilancia operativa' },
 ];
