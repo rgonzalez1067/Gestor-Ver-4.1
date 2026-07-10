@@ -118,7 +118,10 @@ const PROJECT_TYPE_FILTERS = [
   { value: 'VPOS', label: 'VPOS' },
   { value: 'MPOS', label: 'MPOS' },
   { value: 'GATEWAY', label: 'Payment Gateway' },
-  { value: 'LINK', label: 'Link de Pago' },
+  { value: 'LINK', label: 'Link de Pago (todas)' },
+  { value: 'LINK:link_pago', label: '› Solo Link de Pago', sub: true },
+  { value: 'LINK:tokenizador', label: '› Solo Tokenizador', sub: true },
+  { value: 'LINK:ambos', label: '› Solo Link/Tokenizador', sub: true },
 ];
 
 const Projects = () => {
@@ -383,7 +386,12 @@ const Projects = () => {
       : sponsorFilter === '__none__'
         ? !sponsorLabel
         : sponsorLabel === sponsorFilter;
-    const matchType = typeFilter === 'all' ? true : normalizeProjectType(p.quote_type) === typeFilter;
+    const matchType = typeFilter === 'all'
+      ? true
+      : typeFilter.startsWith('LINK:')
+        ? (normalizeProjectType(p.quote_type) === 'LINK'
+           && String(p.link_pago_variant || 'link_pago').toLowerCase() === typeFilter.split(':')[1])
+        : normalizeProjectType(p.quote_type) === typeFilter;
     const matchIntegrator = integratorFilter === 'all'
       ? true
       : integratorFilter === '__none__'
@@ -706,13 +714,13 @@ const Projects = () => {
             <div className="flex items-center gap-2">
               <CreditCard size={16} className="text-slate-400" />
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className={`w-[190px] ${typeFilter !== 'all' ? 'border-indigo-400 text-indigo-700' : ''}`} data-testid="project-type-filter">
+                <SelectTrigger className={`w-[210px] ${typeFilter !== 'all' ? 'border-indigo-400 text-indigo-700' : ''}`} data-testid="project-type-filter">
                   <SelectValue placeholder="Todos los tipos" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" data-testid="project-type-option-all">Todos los tipos</SelectItem>
                   {PROJECT_TYPE_FILTERS.map(t => (
-                    <SelectItem key={t.value} value={t.value} data-testid={`project-type-option-${t.value.toLowerCase()}`}>{t.label}</SelectItem>
+                    <SelectItem key={t.value} value={t.value} data-testid={`project-type-option-${t.value.toLowerCase()}`} className={t.sub ? 'pl-6 text-slate-500' : ''}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

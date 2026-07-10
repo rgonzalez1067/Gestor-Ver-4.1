@@ -1,0 +1,20 @@
+{
+  "summary": "Certified: /projects 'Tipo de Proyecto' filter now includes agrupada + 3 sub-options for Link de Pago variants. All 8 SelectItems (all, VPOS, MPOS, GATEWAY, LINK, LINK:link_pago, LINK:tokenizador, LINK:ambos) render with correct data-testids and labels. Isolation and grouped filtering match expectations exactly, and legacy VPOS/MPOS/GATEWAY/all regressions still work.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Projects.jsx L389-394 matchType: correctly short-circuits typeFilter.startsWith('LINK:') → normalizeProjectType==='LINK' && link_pago_variant matches suffix. Defaults null variant to 'link_pago' which is sensible legacy fallback.",
+    "PROJECT_TYPE_FILTERS (L117-125) uses `sub: true` flag mapped to `pl-6 text-slate-500` at L723 for visual indentation of the 3 sub-options — clean approach.",
+    "Projects.jsx is 1481 lines — well beyond the 700-line soft cap. Consider extracting filter definitions, filter bar UI, and matcher helpers into separate modules. Not blocking current change."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin). NOTE: task specified 'admin123.' with trailing dot which is INVALID; correct value from /app/memory/test_credentials.md is 'admin123' (no dot).",
+  "seed_data_creation": "None. Used pre-existing PRY-2026-07-013-PRI (link_pago), PRY-2026-07-002-PRI (tokenizador), PRY-2026-07-003-HAT (ambos).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Filter runtime results: 'Link de Pago (todas)' → exactly 3 projects (PRY-013, PRY-002, PRY-003) no extras. 'Solo Tokenizador' → only PRY-2026-07-002-PRI. 'Solo Link de Pago' → only PRY-2026-07-013-PRI. 'Solo Link/Tokenizador' → only PRY-2026-07-003-HAT. Regressions: VPOS=93 rows (no LINK), MPOS=16 rows (no LINK), GATEWAY=12 rows (no LINK), Todos los tipos=122 rows containing all 3 LINKs. Test used 'Todos los estados' to ensure PRY-013 (Por Asignar) is visible. data-testid selectors with colons (project-type-option-link:tokenizador) work fine when quoted in CSS attribute selector.",
+  "rca of the issue": "Not applicable — this is a feature validation, not a bug fix. Feature works end-to-end."
+}
