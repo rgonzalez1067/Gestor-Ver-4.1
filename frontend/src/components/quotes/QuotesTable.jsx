@@ -32,8 +32,12 @@ const STATUS_DISPLAY_NAMES = {
   'Enviada a Imple': 'En Implementación',
 };
 
-const getQuoteTypeName = (type) => {
+const LINK_VARIANT_LABELS = { link_pago: 'Link de Pago', tokenizador: 'Tokenizador', ambos: 'Link/Tokenizador' };
+const getQuoteTypeName = (type, variant) => {
   const map = { 'VPOS': 'VPOS', 'MPOS': 'MPOS', 'VPOS_MPOS': 'VPOS/MPOS', 'GATEWAY': 'Payment Gateway', 'LINK_PAGO': 'Link de Pago' };
+  if ((type || '').toUpperCase() === 'LINK_PAGO' && variant && LINK_VARIANT_LABELS[String(variant).toLowerCase()]) {
+    return LINK_VARIANT_LABELS[String(variant).toLowerCase()];
+  }
   return map[type] || type || 'N/A';
 };
 
@@ -270,7 +274,7 @@ export const QuotesTable = ({
             // Operaciones se rige por el comportamiento estándar (overrides según
             // estado del registro) igual que el resto de usuarios del sistema.
             const canEditNonConfig = canEdit && !(opsReadonly && isFastTrack);
-            const displayType = isRepair ? 'Reparación' : isFastTrack ? 'MPOS (Imple + POS)' : isEquipment ? (quote.equipment_type || 'Equipos') : getQuoteTypeName(quote.quote_type);
+            const displayType = isRepair ? 'Reparación' : isFastTrack ? 'MPOS (Imple + POS)' : isEquipment ? (quote.equipment_type || 'Equipos') : getQuoteTypeName(quote.quote_type, quote.link_pago_variant);
             const categoryColor = isRepair ? 'bg-orange-100 text-orange-700' : isFastTrack ? 'bg-violet-100 text-violet-700' : isEquipment ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700';
             const typeColor = isEquipment
               ? (quote.equipment_type === 'POS' || quote.equipment_type === 'Pinpad' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')
