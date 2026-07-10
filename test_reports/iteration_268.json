@@ -1,0 +1,28 @@
+{
+  "summary": "CERTIFIED: Nuevo bloque '¿Cliente nuevo?' en el cotizador Payment Gateway funciona exactamente como se especifica. Los 4 escenarios críticos pasaron: (1) visibilidad condicional del input, (2) validación obligatoriedad, (3) Ruta A (Sí, 5 medios) → tabla para 5 → $54.00 en rango 1, (4) Ruta B (No, 12) → tabla capada a 11 → $90.00 en rango 1.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx L1618-1621: pgEffectiveProductCount usa parseInt sin base explícita pasada al useMemo pero funciona porque radix 10 sí se pasa (parseInt(pgAccumulatedProducts, 10)). Correcto.",
+    "Quotes.jsx L1625-1632: validación en generatePgRecurringTable es correcta - primero pgMediosPagoCount>0, luego (si !pgIsNewClient) exige número > 0. Toast en español, mensaje claro.",
+    "Quotes.jsx L1639: Math.min(pgEffectiveProductCount, 11) aplica cap a la matriz correctamente. Getter puro (getPgFullRecurringTable) es idempotente.",
+    "QuoteWizardDialog.jsx L1359: onClick de 'Sí' hace setPgAccumulatedProducts('') y setPgShowRecurringTable(false) - limpieza correcta al volver a modo cliente nuevo.",
+    "QuoteWizardDialog.jsx L1367: onClick de 'No' NO resetea pgAccumulatedProducts (para no perder input del operador si alterna). También setea setPgShowRecurringTable(false) para forzar regenerar. Comportamiento defensivo correcto.",
+    "QuoteWizardDialog.jsx L1407-1408: etiqueta '· volumen total acumulado' solo aparece cuando !pgIsNewClient - buena UX contextual.",
+    "Quotes.jsx sigue pasando 4441 líneas - refactor pendiente (mencionado en iteraciones previas)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Ninguna. Se abrió wizard PG con FARMACIA SAN IGNACIO (primer cliente en dropdown) e integrador Stand Alone (primero en dropdown). Se agregaron 5 medios de pago desde 2 bancos (100% Banco: Tarjeta de Crédito/Débito PG; Amerant: Verificación Zelle PG; Bancamiga: Tarjeta de Crédito/Débito, Tarjetas de Crédito y Débito Internacionales, Verificación de P2C). No se guardó la cotización.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test results detallados: (1) Visibilidad: pg-client-new-block visible, botón 'Sí' default seleccionado, input pg-accumulated-products-input hidden con count=0. Al clicar pg-client-new-no aparece pg-accumulated-products-wrap + input. Al volver a pg-client-new-yes, el input vuelve a count=0 (unmounted). (2) Validación: con No seleccionado + input vacío + Generar → toast rojo 'Ingrese la nueva cantidad total de productos (mayor que cero)' y NO se muestra tabla. (3) Ruta A con Sí y 5 medios de pago (pgMediosPagoCount=5) → label 'Tabla calculada para 5 producto(s)' → Rango 1 (0-200) Total $ Base = $54.00 (columna 5 correcta). (4) Ruta B con No + 12 → label 'Tabla calculada para 11 producto(s) · volumen total acumulado' → Rango 1 Total $ Base = $90.00 (columna 11, capado desde 12 con Math.min). Además se validó que Ruta B (No, 12, capped 11) muestra $90 mientras que un lote de 1 medio con Sí mostró $30 (columna 1) - confirma que la diferencia Ruta A vs Ruta B opera exactamente como se espera.",
+  "rca of the issue": "No aplica - validación de nueva feature. Todo el flujo funcional cumple los criterios de aceptación al 100%."
+}

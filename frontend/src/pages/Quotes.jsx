@@ -185,6 +185,11 @@ export const Quotes = () => {
   const [ftEquipmentItems, setFtEquipmentItems] = useState([]);
   const [pgShowRecurringTable, setPgShowRecurringTable] = useState(false);
   const [pgFilteredProducts, setPgFilteredProducts] = useState([]);
+  // Cliente nuevo vs. existente para el cálculo de recurrentes de Payment Gateway.
+  // Nuevo (default) → usa la cantidad del lote actual; Existente → usa el volumen
+  // total acumulado ingresado manualmente (pgAccumulatedProducts).
+  const [pgIsNewClient, setPgIsNewClient] = useState(true);
+  const [pgAccumulatedProducts, setPgAccumulatedProducts] = useState('');
   // Detalle de sucursales (opcional para VPOS/MPOS/Fast Track)
   const [branchDetails, setBranchDetails] = useState([]);
   
@@ -1044,6 +1049,8 @@ export const Quotes = () => {
     setPgSelectedBankId('');
     setPgShowRecurringTable(false);
     setPgFilteredProducts([]);
+    setPgIsNewClient(true);
+    setPgAccumulatedProducts('');
   };
 
   // Handler para selección de integrador
@@ -1605,18 +1612,31 @@ export const Quotes = () => {
   // Count only medios de pago (exclude Persona Jurídica which is fixed)
   const pgMediosPagoCount = pgSetupItems.filter(item => !item.fixed).length;
 
+  // Cantidad efectiva de productos para la escala de recurrentes:
+  // - Cliente nuevo → cantidad del lote actual (pgMediosPagoCount).
+  // - Cliente existente → volumen total acumulado ingresado manualmente.
+  const pgAccNum = parseInt(pgAccumulatedProducts, 10);
+  const pgEffectiveProductCount = pgIsNewClient
+    ? pgMediosPagoCount
+    : (Number.isFinite(pgAccNum) && pgAccNum > 0 ? pgAccNum : 0);
+
   // Generate full recurring costs table for N products
   const generatePgRecurringTable = () => {
     if (!pgRecurringCostsTable || pgMediosPagoCount === 0) {
       toast.error('Agregue al menos un medio de pago para generar la tabla de recurrentes');
       return;
     }
+    if (!pgIsNewClient && !(Number.isFinite(pgAccNum) && pgAccNum > 0)) {
+      toast.error('Ingrese la nueva cantidad total de productos (mayor que cero)');
+      return;
+    }
     setPgShowRecurringTable(true);
   };
 
   const getPgFullRecurringTable = () => {
-    if (!pgRecurringCostsTable || pgMediosPagoCount === 0) return [];
-    const numProducts = Math.min(pgMediosPagoCount, 11);
+    if (!pgRecurringCostsTable || pgEffectiveProductCount === 0) return [];
+    // La matriz solo tiene columnas hasta 11 productos → se topa en 11.
+    const numProducts = Math.min(pgEffectiveProductCount, 11);
     return pgRecurringCostsTable.data.map(rangeRow => {
       const rangeInfo = pgRecurringCostsTable.ranges.find(r => r.rango === rangeRow.rango);
       const costData = rangeRow[String(numProducts)];
@@ -1739,8 +1759,10 @@ export const Quotes = () => {
         tarifa: parseFloat(item.tarifa) || 0,
         tipo_corp: findServiceTipoCorp(item.medio_pago_name)
       })),
-      pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
-        num_products: Math.min(pgMediosPagoCount, 11),
+      pg_recurring_cost: pgShowRecurringTable && pgEffectiveProductCount > 0 ? {
+        num_products: Math.min(pgEffectiveProductCount, 11),
+        is_new_client: pgIsNewClient,
+        accumulated_products: pgIsNewClient ? null : pgAccNum,
         rangos: getPgFullRecurringTable().map(r => ({
           rango_label: r.label,
           costo_base_total: r.base,
@@ -1775,8 +1797,10 @@ export const Quotes = () => {
       const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
 
       // Build recurring cost data (full table for N products)
-      const recurringData = pgShowRecurringTable && pgMediosPagoCount > 0 ? {
-        num_products: Math.min(pgMediosPagoCount, 11),
+      const recurringData = pgShowRecurringTable && pgEffectiveProductCount > 0 ? {
+        num_products: Math.min(pgEffectiveProductCount, 11),
+        is_new_client: pgIsNewClient,
+        accumulated_products: pgIsNewClient ? null : pgAccNum,
         table: getPgFullRecurringTable()
       } : null;
 
@@ -3513,6 +3537,16 @@ export const Quotes = () => {
       });
       setPgSetupItems(restoredSetup);
       setPgTransactionRange(quote.pg_transaction_range || null);
+      // Restaurar la ruta Cliente nuevo/existente del cálculo de recurrentes.
+      const _rc = quote.pg_recurring_cost;
+      if (_rc && _rc.is_new_client === false) {
+        setPgIsNewClient(false);
+        setPgAccumulatedProducts(String(_rc.accumulated_products || ''));
+      } else {
+        setPgIsNewClient(true);
+        setPgAccumulatedProducts('');
+      }
+      if (_rc && (_rc.rangos?.length || _rc.table?.length)) setPgShowRecurringTable(true);
     }
     
     // Restaurar estado de "Cliente en Producción"
@@ -4102,6 +4136,9 @@ export const Quotes = () => {
             totalNetoSetup, totalNetoRecurrente, ftHardwareSubtotal, grandTotal,
             pgSetupTotal,
             pgMediosPagoCount,
+            pgIsNewClient, setPgIsNewClient,
+            pgAccumulatedProducts, setPgAccumulatedProducts,
+            pgEffectiveProductCount,
             initializeSetupConcepts, initializeRecurringBasicConcepts, initializeRecurringOtherConcepts,
             findServicePrice, findServicePriceWithModel, handleBankSelect,
             addMedioPagoItem, addMultipleMediosPago, duplicateSetupItem, handleSubmitQuote,

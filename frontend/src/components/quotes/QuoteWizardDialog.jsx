@@ -48,6 +48,9 @@ export const QuoteWizardDialog = ({ ctx }) => {
     totalNetoSetup, totalNetoRecurrente, ftHardwareSubtotal, grandTotal,
     pgSetupTotal,
     pgMediosPagoCount,
+    pgIsNewClient, setPgIsNewClient,
+    pgAccumulatedProducts, setPgAccumulatedProducts,
+    pgEffectiveProductCount,
     // Functions
     initializeSetupConcepts, initializeRecurringBasicConcepts, initializeRecurringOtherConcepts,
     findServicePrice, findServicePriceWithModel, handleBankSelect,
@@ -1345,6 +1348,46 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     </p>
                   </div>
 
+                  {/* Validación condicional Cliente nuevo vs. existente (antes de calcular la tabla) */}
+                  <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg" data-testid="pg-client-new-block">
+                    <Label className="text-sm font-medium text-slate-700 mb-2 block">¿Cliente nuevo?</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button" size="sm"
+                        variant={pgIsNewClient ? 'default' : 'outline'}
+                        className={pgIsNewClient ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
+                        onClick={() => { setPgIsNewClient(true); setPgAccumulatedProducts(''); setPgShowRecurringTable(false); }}
+                        data-testid="pg-client-new-yes">
+                        Sí
+                      </Button>
+                      <Button
+                        type="button" size="sm"
+                        variant={!pgIsNewClient ? 'default' : 'outline'}
+                        className={!pgIsNewClient ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}
+                        onClick={() => { setPgIsNewClient(false); setPgShowRecurringTable(false); }}
+                        data-testid="pg-client-new-no">
+                        No
+                      </Button>
+                    </div>
+                    {!pgIsNewClient && (
+                      <div className="mt-3" data-testid="pg-accumulated-products-wrap">
+                        <Label className="text-sm font-medium text-slate-700 mb-1 block">
+                          ¿Cuál es la nueva cantidad de productos con esta adición?
+                        </Label>
+                        <Input
+                          type="number" min="1" step="1"
+                          value={pgAccumulatedProducts}
+                          onChange={(e) => { setPgAccumulatedProducts(e.target.value); setPgShowRecurringTable(false); }}
+                          placeholder="Ej. 12 (volumen total acumulado)"
+                          className="w-full md:w-64"
+                          data-testid="pg-accumulated-products-input" />
+                        <p className="text-xs text-slate-500 mt-1">
+                          Este número (volumen total acumulado del cliente) reemplaza la cantidad del lote actual para seleccionar la escala de precios de la tabla de recurrentes.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   {!pgShowRecurringTable ? (
                     <div className="text-center py-4">
                       <Button 
@@ -1361,7 +1404,8 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     <>
                       <div className="mb-3 flex items-center justify-between">
                         <p className="text-sm text-slate-600">
-                          Tabla calculada para <strong>{Math.min(pgMediosPagoCount, 11)}</strong> medio(s) de pago
+                          Tabla calculada para <strong>{Math.min(pgEffectiveProductCount, 11)}</strong> producto(s)
+                          {!pgIsNewClient && <span className="text-slate-400"> · volumen total acumulado</span>}
                         </p>
                         <Button 
                           variant="outline" size="sm"
