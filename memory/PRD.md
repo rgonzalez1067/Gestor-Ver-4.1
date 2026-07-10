@@ -3,7 +3,12 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Bug Fix: la LISTA de Cotizaciones no diferenciaba la variante Link de Pago/Tokenizador — Jun 2026
+### Enhancement: sub-opciones de variante en el filtro de Tipo de Proyecto — Jun 2026
+**Requerimiento:** en el filtro de tipo de /projects, mantener la opción agrupada de Link de Pago y agregar sub-opciones para aislar por variante.
+**Implementación:** `Projects.jsx` — `PROJECT_TYPE_FILTERS` ahora incluye "Link de Pago (todas)" (value 'LINK') + "› Solo Link de Pago" ('LINK:link_pago'), "› Solo Tokenizador" ('LINK:tokenizador'), "› Solo Link/Tokenizador" ('LINK:ambos') con flag `sub` para indentar. `matchType`: si typeFilter empieza con 'LINK:' filtra por normalizeProjectType==='LINK' && link_pago_variant coincidente; si no, comportamiento estándar.
+**QA:** testing_agent iteration_267 → **frontend 100%** — agrupada lista los 3; cada sub-opción aísla su proyecto (Tokenizador→PRY-002, Link→PRY-013, Ambos→PRY-003); regresión VPOS/MPOS/Gateway/Todos OK. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Síntoma:** 3 cotizaciones LINK_PAGO con variantes distintas mostraban todas el tipo "Link de Pago" en la grilla de /quotes.
 **RCA:** `QuotesTable.getQuoteTypeName(quote_type)` mapeaba LINK_PAGO→'Link de Pago' sin considerar `link_pago_variant`.
 **Fix:** `getQuoteTypeName(type, variant)` + `LINK_VARIANT_LABELS` (link_pago→'Link de Pago', tokenizador→'Tokenizador', ambos→'Link/Tokenizador'); `displayType` pasa `quote.link_pago_variant`. Solo cambia la ETIQUETA visible; la clave de filtro no se altera (las LINK_PAGO se siguen agrupando).
