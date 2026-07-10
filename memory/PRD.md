@@ -3,7 +3,16 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Bug Fix: no se adjuntaban todos los anexos del modal de Aprobación al correo — Jun 2026
+### Feature: Tipo de Proyecto refleja variante Link de Pago/Tokenizador/Ambos (filtro agrupado) — Jun 2026
+**Requerimiento:** el tipo del Proyecto debe registrar la variante real — "Link de Pago" (link_pago), "Tokenizador" (tokenizador), "Link/Tokenizador" (ambos) — pero el filtro de tipo "Link de Pago" en /projects debe agrupar las 3 variantes.
+**Implementación:**
+- Backend `quote_actions.py::_create_project_from_quote`: el proyecto hereda `link_pago_variant` de la cotización.
+- Frontend `ProjectTypeBadge.jsx`: nueva prop `variant`; `LINK_VARIANT_LABELS` sobreescribe SOLO el label cuando canonical==='LINK'; el data-testid sigue basado en quote_type (clave de filtro intacta).
+- `Projects.jsx`: pasa `variant={project.link_pago_variant}`; filtro sin cambios (normalizeProjectType LINK_PAGO→'LINK' agrupa las 3).
+- `ProjectDetail.jsx`: campo "Tipo de Proyecto" diferencia por variante.
+**QA:** testing_agent iteration_265 → **frontend 100% (4/4)** — badges por variante, filtro "Link de Pago" lista las 3, detalle correcto, sin regresión VPOS/MPOS/Gateway. ⚠️ PREVIEW; requiere REDEPLOY. Nota: proyectos LINK antiguos sin variante → fallback "Link de Pago".
+
+
 **Síntoma:** "se cargaron 3 anexos y solo llegó uno" al correo de Administración en la aprobación de cotizaciones.
 **RCA:** el modal tiene dos uploaders — "Comprobante de Pago Anticipado" (`payment_files`, SÍ se adjuntaba) y "Comprobante de Aprobación / Orden de Compra" (`approval_files`, SOLO se persistía en `quote.attachments`, NO se adjuntaba al correo).
 **Fix:** `approve_quote` acepta ahora `approval_files: List[UploadFile]` y los agrega a `_engine_extra_attachments` (junto a payment_files) → se anexan al correo, además de su persistencia (Step 1). Frontend envía `approval_files` en el FormData de /approve. Corregida una duplicación preexistente en la ruta legacy. Observabilidad: `email_log` graba `attachment_count` y `attachment_names`.
