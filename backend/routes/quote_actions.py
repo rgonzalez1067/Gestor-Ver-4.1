@@ -1476,6 +1476,7 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
         "contacto_cliente": contacto_cliente,
         "client_rif": client.get('rif', 'N/A'),
         "quote_type": quote.get('quote_type', 'N/A'),
+        "link_pago_variant": quote.get('link_pago_variant'),
         "total_usd": f"{quote.get('total_usd', 0):.2f}",
         "Monto_Total": f"{quote.get('total_usd', 0):,.2f}",
         "company_name": "Merchant Server",

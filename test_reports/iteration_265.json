@@ -1,0 +1,26 @@
+{
+  "summary": "Iter265 — Frontend-only verification of Link de Pago/Tokenizador variant display. PASS 100% en las 4 comprobaciones solicitadas. (1) Badges en la grilla /projects con statusFilter='Todos los estados' muestran la variante correcta: PRY-2026-07-013-PRI → 'Link de Pago', PRY-2026-07-002-PRI → 'Tokenizador', PRY-2026-07-003-HAT → 'Link/Tokenizador'. El data-testid del badge en los tres casos es 'project-type-badge-link_pago' (basado en quote_type, consistente con la especificación), mientras el TEXTO refleja la variante — comportamiento exactamente conforme a lo descrito. (2) Al aplicar el filtro de tipo 'Link de Pago' (data-testid='project-type-option-link'), la grilla muestra EXACTAMENTE 3 proyectos y los tres son PRY-013, PRY-002 y PRY-003 con sus etiquetas específicas intactas ('Link de Pago', 'Tokenizador', 'Link/Tokenizador'). Total badges visibles bajo LINK filter = 3, sin ruido de otros tipos. (3) ProjectDetail (data-testid='project-type-impl'): los tres detalles muestran respectivamente 'Link de Pago', 'Tokenizador' y 'Link/Tokenizador' (match=True). (4) Regresión — filtro VPOS muestra 95 badges 'VPOS' únicamente; filtro MPOS muestra 16 badges 'MPOS' (10 con testid mpos + 6 legacy fast_track, todos con label 'MPOS'). Ningún proyecto LINK/GATEWAY aparece bajo VPOS o MPOS. Los otros tipos se comportan correctamente y no se ven afectados.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ProjectTypeBadge.jsx (L54-74): diseño limpio. El data-testid mantiene la clave canónica (quote_type), y el LABEL se sobreescribe únicamente cuando canonical==='LINK' y hay variant. Esto satisface el requisito dual: el filtro (que busca por normalizeProjectType→'LINK') agrupa las 3 variantes sin depender del texto mostrado. Correcto.",
+    "Projects.jsx L386 (matchType con normalizeProjectType) y L1071 (ProjectTypeBadge quoteType={project.quote_type} variant={project.link_pago_variant}): la separación entre 'clave de filtro' (LINK) y 'texto mostrado' (variante) está bien resuelta. La opción del filtro L121 sigue mostrando 'Link de Pago' como etiqueta agrupadora — usuario entiende que agrupa las 3 variantes.",
+    "ProjectDetail.jsx L1357-1373: la lógica de derivación del 'Tipo de Proyecto' es consistente con el badge de la grilla — misma lookup por variant (tokenizador/ambos/link_pago). Fallback a project_type_impl legacy es adecuado para proyectos antiguos.",
+    "Warnings de consola (hydration: <span> cannot be a child of <tr>, y span→tbody): no son bloqueantes ni provienen de este fix; están presentes en la app en general (Iter previa los reporta también). No relacionados a este cambio.",
+    "Observación menor (no blocker): el data-testid del badge para las 3 variantes es idéntico ('project-type-badge-link_pago'). Si se necesitara distinguirlos automáticamente por selector (p.ej. en un test futuro), habría que apoyarse en el TEXTO del span. La especificación explícitamente dice 'el data-testid sigue basado en quoteType', así que esto es intencional."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (frontend only)", "frontend": "100% (4/4 checks)" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (nota: el problem statement decía 'admin123.' con punto — el password real es 'admin123' sin punto, confirmado en /app/memory/test_credentials.md)",
+  "seed_data_creation": "Ninguna. Se usaron los 3 proyectos preexistentes (PRY-013 prj_b1de58b795eb, PRY-002 prj_20a7f71d1e86, PRY-003 prj_8c56d2ac406d).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Para navegar al detalle de un proyecto 'Por Asignar' (como PRY-013), el botón 'Ver Detalle' de la grilla está DESHABILITADO cuando no hay implementador asignado (Iter39 rule). Solución usada: extraer el project_id desde el data-testid del botón 'assign-btn-{project_id}' o 'detail-btn-{project_id}' y navegar directo a /projects/{project_id}. Este truco funciona para admin porque backend no bloquea el GET del proyecto por estado 'Por asignar' — solo la UI restringe el botón.",
+  "rca of the issue": "N/A — feature verificada. Todos los criterios cumplen la especificación."
+}

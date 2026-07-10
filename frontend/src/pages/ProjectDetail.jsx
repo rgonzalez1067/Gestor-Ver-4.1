@@ -1360,7 +1360,12 @@ const ProjectDetail = () => {
                         if (qt === 'VPOS') return 'VPOS';
                         if (qt === 'MPOS' || qt === 'FAST_TRACK') return 'MPOS';
                         if (qt === 'GATEWAY') return 'Payment Gateway';
-                        if (qt === 'LINK_PAGO' || qt === 'LINK') return 'Link de Pago';
+                        if (qt === 'LINK_PAGO' || qt === 'LINK') {
+                          const v = String(project.link_pago_variant || '').toLowerCase();
+                          if (v === 'tokenizador') return 'Tokenizador';
+                          if (v === 'ambos') return 'Link/Tokenizador';
+                          return 'Link de Pago';
+                        }
                         // Fallback legacy al project_type_impl si no hay quote_type mapeable.
                         return project.project_type_impl === 'pos_fast_track' ? 'MPOS' :
                                project.project_type_impl === 'vpos_mpos' ? 'VPOS' :

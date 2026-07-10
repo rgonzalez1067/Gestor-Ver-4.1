@@ -1068,7 +1068,7 @@ const Projects = () => {
                             className="cursor-pointer hover:opacity-80 transition-opacity"
                             data-testid={`project-type-chip-${project.project_id}`}
                           >
-                            <ProjectTypeBadge quoteType={project.quote_type} />
+                            <ProjectTypeBadge quoteType={project.quote_type} variant={project.link_pago_variant} />
                           </button>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">{project.client_sede || '—'}</td>

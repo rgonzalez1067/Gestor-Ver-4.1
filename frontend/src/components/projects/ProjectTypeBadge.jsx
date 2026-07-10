@@ -36,15 +36,29 @@ const FALLBACK = {
   className: 'bg-slate-50 text-slate-500 border-slate-200',
 };
 
+// Etiquetas por variante de Link de Pago/Tokenizador (registran el tipo real
+// del producto, pero comparten la clave canónica 'LINK' para el filtro).
+const LINK_VARIANT_LABELS = {
+  link_pago: 'Link de Pago',
+  tokenizador: 'Tokenizador',
+  ambos: 'Link/Tokenizador',
+};
+
 /**
  * Badge para tipo de proyecto/cotización.
  * @param {string} quoteType  Uno de: 'VPOS' | 'MPOS' | 'GATEWAY' | 'LINK'
+ * @param {string} variant    (opcional) link_pago_variant: 'link_pago' | 'tokenizador' | 'ambos'
  * @param {string} size       'sm' (default) | 'xs'
  * @param {boolean} compact   true → solo texto, sin icono
  */
-export function ProjectTypeBadge({ quoteType, size = 'sm', compact = false }) {
+export function ProjectTypeBadge({ quoteType, variant, size = 'sm', compact = false }) {
   const key = (quoteType || '').toUpperCase();
-  const cfg = TYPE_CONFIG[TYPE_ALIASES[key] || key] || FALLBACK;
+  const canonical = TYPE_ALIASES[key] || key;
+  const cfg = TYPE_CONFIG[canonical] || FALLBACK;
+  // Para Link de Pago, el label refleja la variante real (Link/Tokenizador/Ambos).
+  const label = (canonical === 'LINK' && variant && LINK_VARIANT_LABELS[String(variant).toLowerCase()])
+    ? LINK_VARIANT_LABELS[String(variant).toLowerCase()]
+    : cfg.label;
   const Icon = cfg.icon;
   const sizeClasses = size === 'xs'
     ? 'px-1.5 py-0.5 text-[10px]'
@@ -55,7 +69,7 @@ export function ProjectTypeBadge({ quoteType, size = 'sm', compact = false }) {
       data-testid={`project-type-badge-${(quoteType || 'unknown').toLowerCase()}`}
     >
       {Icon && !compact && <Icon size={size === 'xs' ? 10 : 11} />}
-      {cfg.label}
+      {label}
     </span>
   );
 }
