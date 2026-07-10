@@ -4173,3 +4173,8 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - UI (QuoteWizardDialog.jsx): botones Sí/No (data-testid pg-client-new-yes/no), input condicional (pg-accumulated-products-input), label "Tabla calculada para N producto(s)".
 - Persistencia: is_new_client + accumulated_products se guardan dentro del dict flexible `pg_recurring_cost` (sin cambios de modelo backend); se restauran en loadQuoteForEdit.
 - Verificado testing_agent iter268 (100% frontend): Ruta A (Sí,5)→$54.00 rango1; Ruta B (No,12→cap 11)→$90.00 rango1; validación de obligatoriedad OK; visibilidad condicional OK.
+
+**Mejora: nota en PDF PG para cliente existente (Ruta B) · 2026-07-10:**
+- pdf_generator.py (~L2013, sección COSTOS RECURRENTES): la nota es condicional. Cliente nuevo → "Calculado para N medio(s) de pago" (tradicional). Cliente existente (is_new_client=False) → "Tarifas calculadas sobre un volumen total de <N> productos (cliente existente)."; si N>columna máxima añade "Se aplica la escala máxima disponible en la tabla (11 productos)."
+- Datos leídos de pg_recurring_cost (is_new_client, accumulated_products, num_products) que ya viajan en el payload del PDF. Sin cambios de modelo.
+- Verificado con test unitario del generador (pypdf extract): Ruta B(12) muestra "volumen total"+"12"+"escala máxima"+"11 productos"; Ruta A(5) muestra "Calculado para N medio(s) de pago" y NO "volumen total".

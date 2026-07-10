@@ -2010,10 +2010,18 @@ class DynamicQuotePDFGenerator:
         pg_rc = self.data.pg_recurring_cost
         if pg_rc and (pg_rc.get('rangos') or pg_rc.get('table')):
             num_products = pg_rc.get('num_products', 1)
-            elements.append(Paragraph(
-                f"Calculado para <b>{num_products}</b> medio(s) de pago",
-                ParagraphStyle('CalcPara', parent=self.styles['TextoNormal'], fontSize=9, spaceAfter=6)
-            ))
+            is_new_client = pg_rc.get('is_new_client', True)
+            accumulated = pg_rc.get('accumulated_products')
+            calc_style = ParagraphStyle('CalcPara', parent=self.styles['TextoNormal'], fontSize=9, spaceAfter=6)
+            if is_new_client is False and accumulated:
+                nota = f"Tarifas calculadas sobre un volumen total de <b>{int(accumulated)}</b> productos (cliente existente)."
+                if int(accumulated) > num_products:
+                    nota += f" Se aplica la escala máxima disponible en la tabla ({num_products} productos)."
+                elements.append(Paragraph(nota, calc_style))
+            else:
+                elements.append(Paragraph(
+                    f"Calculado para <b>{num_products}</b> medio(s) de pago", calc_style
+                ))
             
             rec_table_data = [['Rango', 'Transacciones', 'Total Base', 'Precio Tope por\nrango']]
             
