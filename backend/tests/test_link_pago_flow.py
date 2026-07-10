@@ -13,7 +13,7 @@ import pytest
 import requests
 from PyPDF2 import PdfReader
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://corp-pyme-sync.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://quote-impl-filter.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "rgonzalez@megasoft.com.ve"
 ADMIN_PASSWORD = "admin123"
 

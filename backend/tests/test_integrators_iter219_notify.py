@@ -14,7 +14,7 @@ import requests
 import pytest
 from pymongo import MongoClient
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://corp-pyme-sync.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://quote-impl-filter.preview.emergentagent.com").rstrip("/")
 INTEGRATOR_ID = "int_37e69d627065"  # Corporación XETUX (classified)
 ADMIN_EMAIL = "rgonzalez@megasoft.com.ve"
 ADMIN_PWD = "admin123"
