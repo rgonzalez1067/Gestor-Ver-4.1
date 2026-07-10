@@ -3,7 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-### Feature: Tipo de Proyecto refleja variante Link de Pago/Tokenizador/Ambos (filtro agrupado) — Jun 2026
+### Bug Fix: la LISTA de Cotizaciones no diferenciaba la variante Link de Pago/Tokenizador — Jun 2026
+**Síntoma:** 3 cotizaciones LINK_PAGO con variantes distintas mostraban todas el tipo "Link de Pago" en la grilla de /quotes.
+**RCA:** `QuotesTable.getQuoteTypeName(quote_type)` mapeaba LINK_PAGO→'Link de Pago' sin considerar `link_pago_variant`.
+**Fix:** `getQuoteTypeName(type, variant)` + `LINK_VARIANT_LABELS` (link_pago→'Link de Pago', tokenizador→'Tokenizador', ambos→'Link/Tokenizador'); `displayType` pasa `quote.link_pago_variant`. Solo cambia la ETIQUETA visible; la clave de filtro no se altera (las LINK_PAGO se siguen agrupando).
+**QA:** testing_agent iteration_266 → **frontend 100%** — cada fila LINK_PAGO muestra su variante; filtro agrupa las 8; sin regresión en VPOS/MPOS/Gateway/Reparación/Equipos. (Complementa iter265 que ya diferenciaba en Proyectos.) ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 **Requerimiento:** el tipo del Proyecto debe registrar la variante real — "Link de Pago" (link_pago), "Tokenizador" (tokenizador), "Link/Tokenizador" (ambos) — pero el filtro de tipo "Link de Pago" en /projects debe agrupar las 3 variantes.
 **Implementación:**
 - Backend `quote_actions.py::_create_project_from_quote`: el proyecto hereda `link_pago_variant` de la cotización.
