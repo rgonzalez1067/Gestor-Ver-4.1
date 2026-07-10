@@ -4155,3 +4155,11 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Verificado: testing_agent iter219 backend 4/4 (250 chars+acentos+\n→200; 350→400 controlado); render directo confirma "Información adicional" inmediatamente antes de la firma; self-test UI: modal abre, pega 350→trunca a 300, contador "300/300" en rojo. Integrador de prueba eliminado.
 - NOTA: cambios de backend; requieren RE-DESPLEGAR para PRODUCCIÓN.
 
+
+
+**Feature: sub-filtros de variante Link de Pago en pantalla Cotizaciones · 2026-07-10:**
+- Requerimiento: bajo la opción de categoría "· Implementación Link de Pago" (pantalla Cotizaciones), aislar las 3 variantes de Link de Pago.
+- Fix frontend (QuoteFilters.jsx): agregadas 3 sub-opciones indentadas con ids `implementation:LINK_PAGO:link_pago`, `:tokenizador`, `:ambos` → "› Solo Link de Pago / › Solo Tokenizador / › Solo Link/Tokenizador".
+- Lógica (quoteStatus.js `quoteMatchesFilters`): el value se parsea en `[baseCat, subType, variant]`; cuando hay `variant` se compara contra `quote.link_pago_variant` (default 'link_pago'). Aplica a la grilla y a los 6 KPIs reactivos (comparten el predicado).
+- Verificado (Playwright propio, admin): las 3 sub-opciones renderizan bajo Link de Pago; seleccionar "Solo Tokenizador" filtra 106→4 filas; sin errores de consola. Validación visual final por el usuario (a su pedido).
+- Nota: los sub-filtros previos en Projects.jsx (bajo "Tipo de Proyecto") se dejaron intactos por decisión del usuario.

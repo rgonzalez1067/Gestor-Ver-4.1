@@ -14,6 +14,9 @@ const QUOTE_FILTER_CATEGORIES = [
   { id: 'implementation:FAST_TRACK', name: '  · Implementación MPOS (Imple + POS)', indent: true },
   { id: 'implementation:GATEWAY', name: '  · Implementación PG', indent: true },
   { id: 'implementation:LINK_PAGO', name: '  · Implementación Link de Pago', indent: true },
+  { id: 'implementation:LINK_PAGO:link_pago', name: '      › Solo Link de Pago', indent: true },
+  { id: 'implementation:LINK_PAGO:tokenizador', name: '      › Solo Tokenizador', indent: true },
+  { id: 'implementation:LINK_PAGO:ambos', name: '      › Solo Link/Tokenizador', indent: true },
   { id: 'equipment', name: 'Equipos y Accesorios' },
   { id: 'repair', name: 'Reparaciones' },
 ];

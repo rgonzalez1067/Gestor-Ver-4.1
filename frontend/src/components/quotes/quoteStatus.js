@@ -42,7 +42,7 @@ export function quoteMatchesFilters(quote, filters, { includeStatus = true } = {
   if (includeStatus && filterStatus && filterStatus !== 'all' && getEffectiveStatus(quote) !== filterStatus) return false;
   if (filterCategory && filterCategory !== 'all') {
     const cat = quote.quote_category || 'implementation';
-    const [baseCat, subType] = filterCategory.split(':');
+    const [baseCat, subType, variant] = filterCategory.split(':');
     if (subType === 'FAST_TRACK') {
       const qt = (quote.quote_type || '').toUpperCase();
       if (cat !== 'fast_track' && !(cat === 'implementation' && qt === 'FAST_TRACK')) return false;
@@ -53,6 +53,11 @@ export function quoteMatchesFilters(quote, filters, { includeStatus = true } = {
       if (subType) {
         const qt = (quote.quote_type || '').toUpperCase();
         if (qt !== subType.toUpperCase()) return false;
+      }
+      // Sub-sub filtro por variante de Link de Pago (link_pago / tokenizador / ambos)
+      if (variant) {
+        const qv = String(quote.link_pago_variant || 'link_pago').toLowerCase();
+        if (qv !== variant.toLowerCase()) return false;
       }
     }
   }
