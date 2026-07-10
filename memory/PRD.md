@@ -4163,3 +4163,6 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Lógica (quoteStatus.js `quoteMatchesFilters`): el value se parsea en `[baseCat, subType, variant]`; cuando hay `variant` se compara contra `quote.link_pago_variant` (default 'link_pago'). Aplica a la grilla y a los 6 KPIs reactivos (comparten el predicado).
 - Verificado (Playwright propio, admin): las 3 sub-opciones renderizan bajo Link de Pago; seleccionar "Solo Tokenizador" filtra 106→4 filas; sin errores de consola. Validación visual final por el usuario (a su pedido).
 - Nota: los sub-filtros previos en Projects.jsx (bajo "Tipo de Proyecto") se dejaron intactos por decisión del usuario.
+
+**Ajuste: vencimiento de cotizaciones de Equipos y Accesorios = 5 días continuos · 2026-07-10:**
+- routes/quotes.py: en `generate_equipment_quote_pdf` (~L2046) y `regenerate_equipment_pdf` (~L2432) la fecha de vencimiento pasó de 15 a **5 días continuos** para Equipos y Accesorios (Verifone/Morefun/Accesorio). Reparaciones se mantiene en 15 días (`_vence_days = 5 if equipment_type != "Reparación" else 15`).

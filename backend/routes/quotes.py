@@ -2043,7 +2043,9 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     user_sede = current_user.get("sede", "PYME")
     quote_number = await generate_quote_number(user_sede)
     fecha = now.strftime("%d/%m/%Y")
-    vence = (now + timedelta(days=15)).strftime("%d/%m/%Y")
+    # Vencimiento: Equipos y Accesorios = 5 días continuos; Reparaciones = 15 días.
+    _vence_days = 5 if data.equipment_type != "Reparación" else 15
+    vence = (now + timedelta(days=_vence_days)).strftime("%d/%m/%Y")
 
     # Cargar logo de la empresa si existe
     logo_html = '<div class="brand">Gestor - Work Flow</div><div class="brand-sub">Procesos Integrales</div>'
@@ -2429,7 +2431,9 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
 
     now = datetime.now(timezone.utc)
     fecha = now.strftime("%d/%m/%Y")
-    vence = (now + timedelta(days=15)).strftime("%d/%m/%Y")
+    # Vencimiento: Equipos y Accesorios = 5 días continuos; Reparaciones = 15 días.
+    _vence_days = 5 if equipment_type != "Reparación" else 15
+    vence = (now + timedelta(days=_vence_days)).strftime("%d/%m/%Y")
 
     logo_html = '<div style="font-size:22px;font-weight:bold;color:#1e293b">Gestor - Work Flow</div>'
     logo_file = UPLOADS_DIR / "logo.png"
