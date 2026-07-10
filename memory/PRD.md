@@ -4166,3 +4166,10 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 
 **Ajuste: vencimiento de cotizaciones de Equipos y Accesorios = 5 días continuos · 2026-07-10:**
 - routes/quotes.py: en `generate_equipment_quote_pdf` (~L2046) y `regenerate_equipment_pdf` (~L2432) la fecha de vencimiento pasó de 15 a **5 días continuos** para Equipos y Accesorios (Verifone/Morefun/Accesorio). Reparaciones se mantiene en 15 días (`_vence_days = 5 if equipment_type != "Reparación" else 15`).
+
+**Feature: condicional Cliente nuevo/existente en cálculo de recurrentes PG · 2026-07-10:**
+- Cotizador Payment Gateway: bloque condicional ANTES de la Tabla de Recurrentes. Pregunta "¿Cliente nuevo?" (Sí/No, default Sí). Si No → input numérico obligatorio "¿Cuál es la nueva cantidad de productos con esta adición?" (>0, volumen total acumulado).
+- Lógica (Quotes.jsx): `pgEffectiveProductCount = pgIsNewClient ? pgMediosPagoCount : parseInt(pgAccumulatedProducts,10)`. `getPgFullRecurringTable` usa `Math.min(pgEffectiveProductCount, 11)` (la matriz PG solo tiene columnas 1..11; números mayores usan la columna 11). `generatePgRecurringTable` valida cantidad>0 cuando cliente existente.
+- UI (QuoteWizardDialog.jsx): botones Sí/No (data-testid pg-client-new-yes/no), input condicional (pg-accumulated-products-input), label "Tabla calculada para N producto(s)".
+- Persistencia: is_new_client + accumulated_products se guardan dentro del dict flexible `pg_recurring_cost` (sin cambios de modelo backend); se restauran en loadQuoteForEdit.
+- Verificado testing_agent iter268 (100% frontend): Ruta A (Sí,5)→$54.00 rango1; Ruta B (No,12→cap 11)→$90.00 rango1; validación de obligatoriedad OK; visibilidad condicional OK.
