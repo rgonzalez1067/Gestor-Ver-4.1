@@ -30,7 +30,8 @@ import {
   Tag,
   Plus,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  BookOpen
 } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -68,6 +69,7 @@ const menuItems = [
       { path: '/direct-projects', icon: Plus, label: 'Proyectos Directos' },
       { path: '/integrators', icon: UserCheck, label: 'Integradores' },
       { path: '/datos-imple', icon: Wrench, label: 'Datos de Imple' },
+      { path: '/condiciones-banco-mediopago', icon: BookOpen, label: 'Condiciones Banco/Medio de Pago' },
     ]
   },
   { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos', groupId: 'nuevos_productos' },

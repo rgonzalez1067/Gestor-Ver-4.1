@@ -45,6 +45,7 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import DirectProjectCreation from './pages/DirectProjectCreation';
 import DatosImple from './pages/DatosImple';
+import BankPaymentConditions from './pages/BankPaymentConditions';
 import NewProducts from './pages/NewProducts';
 import Inventory from './pages/Inventory';
 import TallerEquipos from './pages/TallerEquipos';
@@ -127,6 +128,11 @@ function AppRouter() {
       <Route path="/datos-imple" element={
         <ProtectedRoute>
           <DatosImple />
+        </ProtectedRoute>
+      } />
+      <Route path="/condiciones-banco-mediopago" element={
+        <ProtectedRoute>
+          <BankPaymentConditions />
         </ProtectedRoute>
       } />
       <Route path="/projects/:projectId" element={

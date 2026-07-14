@@ -57,6 +57,7 @@ from routes.calendar import router as calendar_router
 from routes.inbox import router as inbox_router
 from routes.connected_users import router as connected_users_router
 from routes.other_actions_config import router as other_actions_router
+from routes.bank_payment_conditions import router as bank_payment_conditions_router
 from services.notification_scheduler import start_scheduler, stop_scheduler
 from services.notification_service import start_ws_dispatcher, stop_ws_dispatcher, start_ws_reaper, stop_ws_reaper
 
@@ -324,7 +325,7 @@ api_router.include_router(sponsor_reports_router)
 api_router.include_router(direct_projects_router)
 api_router.include_router(project_sla_router)
 api_router.include_router(calendar_router)
-
+api_router.include_router(bank_payment_conditions_router)
 app.include_router(api_router)
 
 

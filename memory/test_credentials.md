@@ -16,10 +16,11 @@
 - Name: Rafael González
 
 ## Usuario Implementador (Jrojas)
-- Email: Jrojas@megasoft.com.ve
+- Email: jrojas@megasoft.com.ve  (⚠️ el email está en MINÚSCULAS en BD; el login usa match exacto)
 - Password: Test1234!
 - Role: user / Cargo: Implementador
-- Nota: password reseteado por el agente (2026-06-07) al validar el fix RBAC de catálogos (Proyectos Directos). El hash previo estaba desactualizado.
+- Permisos: `condiciones_banco_mediopago='read'` (SOLO CONSULTA) → útil para validar gobernanza RBAC del nuevo módulo Condiciones Banco/Medio de Pago.
+- Nota: password re-reseteado (2026-07-14) con config.hash_password al validar el módulo Condiciones Banco/Medio de Pago.
 
 ## Usuario Corporativo (antes "parachute") — AHORA role=user
 - Email: ragg1008@gmail.com
