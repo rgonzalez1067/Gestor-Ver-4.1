@@ -695,11 +695,14 @@ def _build_seguimiento_evolutiva_html(project: dict, bank_filter: str = None) ->
 
 
 
-async def resolve_project_template_vars(project: dict) -> dict:
+async def resolve_project_template_vars(project: dict, actor_user: dict = None) -> dict:
     """Resuelve todas las variables dinámicas de un proyecto para inyectar en plantillas.
     
     Args:
         project: Documento del proyecto de MongoDB
+        actor_user: (opcional) usuario que DETONA la notificación. Si se provee, la
+            firma {Firma_Notificacion_Global} refleja sus datos; si es None (flujos
+            SLA/automáticos) se usa el baseline institucional "CRM - Gestor".
     
     Returns:
         dict con todas las variables resueltas
@@ -930,11 +933,12 @@ async def resolve_project_template_vars(project: dict) -> dict:
     except Exception:
         quote_vars = {}
 
-    # Firma institucional global (baseline: CRM - Gestor para flujos sin actor;
-    # los flujos manuales la sobreescriben con el usuario que detona).
+    # Firma institucional global.
+    # - Con actor_user (flujo manual): firma del usuario que detona la notificación.
+    # - Sin actor_user (SLA/automáticos): baseline institucional "CRM - Gestor".
     try:
         from services.signature import build_signature_html
-        variables["Firma_Notificacion_Global"] = await build_signature_html(None)
+        variables["Firma_Notificacion_Global"] = await build_signature_html(actor_user)
     except Exception:
         pass
 

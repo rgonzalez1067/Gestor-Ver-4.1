@@ -1516,16 +1516,9 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     prefix_idx = min(send_count, len(NOTIFICATION_PREFIXES) - 1)
     prefix_label = NOTIFICATION_PREFIXES[prefix_idx]
 
-    # Resolver variables del proyecto
-    template_vars = await resolve_project_template_vars(project)
-    # Firma institucional: si hay usuario que detona, sobreescribir con sus datos
-    try:
-        from services.signature import build_signature_html
-        _actor = await get_current_user(authorization) if authorization else None
-        if _actor:
-            template_vars["Firma_Notificacion_Global"] = await build_signature_html(_actor)
-    except Exception:
-        pass
+    # Resolver variables del proyecto (firma = usuario que detona, si lo hay)
+    _actor = await get_current_user(authorization) if authorization else None
+    template_vars = await resolve_project_template_vars(project, actor_user=_actor)
 
     # Construir email con plantilla + prefijo dinámico
     email_data = await _resolve_notification_email(project, target, bank_name, send_count, template_vars, override_template_id=template_id)
@@ -1730,15 +1723,8 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
     entity_history = notification_history.get(history_key, [])
     send_count = len(entity_history)
 
-    # Resolver variables del proyecto
-    template_vars = await resolve_project_template_vars(project)
-    # Firma institucional con el usuario en sesión (igual que el envío real manual)
-    try:
-        from services.signature import build_signature_html
-        if current_user:
-            template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
-    except Exception:
-        pass
+    # Resolver variables del proyecto (firma = usuario en sesión)
+    template_vars = await resolve_project_template_vars(project, actor_user=current_user)
 
     # Construir email (sin enviar) con prefijo basado en conteo y plantilla seleccionada
     email_data = await _resolve_notification_email(project, body.target, body.bank_name, send_count, template_vars, override_template_id=body.template_id)
@@ -1790,11 +1776,8 @@ async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, author
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    # Resolver variables del proyecto
-    template_vars = await resolve_project_template_vars(project)
-    # La firma refleja al usuario que envía (no el baseline "CRM - Gestor").
-    from services.signature import build_signature_html
-    template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
+    # Resolver variables del proyecto (firma = usuario que envía)
+    template_vars = await resolve_project_template_vars(project, actor_user=current_user)
 
     # Renderizar asunto y mensaje con variables
     rendered_subject = _render_vars(body.subject, template_vars)
@@ -1836,10 +1819,7 @@ async def get_project_template_variables(project_id: str, bank: Optional[str] = 
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    template_vars = await resolve_project_template_vars(project)
-    # La firma refleja al usuario que envía (no el baseline "CRM - Gestor").
-    from services.signature import build_signature_html
-    template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
+    template_vars = await resolve_project_template_vars(project, actor_user=current_user)
     matrix_html = template_vars.get("Matriz_Bancos_Productos", "")
     if bank and (bank or "").strip():
         from services.project_template_vars import _build_matrix_html
@@ -2571,12 +2551,8 @@ async def send_adhoc_email(
     </div>
     """
 
-    # Resolve variables in adhoc emails too
-    template_vars = await resolve_project_template_vars(project)
-    # La firma debe reflejar al usuario que ENVÍA la notificación ad-hoc, no el
-    # baseline "CRM - Gestor" que trae resolve_project_template_vars.
-    from services.signature import build_signature_html
-    template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
+    # Resolve variables in adhoc emails too (firma = usuario que envía)
+    template_vars = await resolve_project_template_vars(project, actor_user=current_user)
     html = _render_vars(html, template_vars)
     html = _style_email_tables(html)
     full_subject = _render_vars(full_subject, template_vars)
@@ -2910,7 +2886,7 @@ async def _dispatch_implementer_response(project_id: str, ticket: str, current_u
         project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
         if not project:
             return
-        tvars = await resolve_project_template_vars(project)
+        tvars = await resolve_project_template_vars(project, actor_user=current_user)
         tvars["ticket_number"] = ticket
         tvars["Nro_Ticket"] = ticket
         tvars["usuario_ejecutor"] = (
@@ -2951,7 +2927,7 @@ async def _dispatch_project_status_action(project_id: str, new_status: str, note
         project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
         if not project:
             return
-        tvars = await resolve_project_template_vars(project)
+        tvars = await resolve_project_template_vars(project, actor_user=current_user)
         comentario = (note or "").strip()
         tvars["Comentario_Estado"] = comentario
         tvars["Comentario_Cierre"] = comentario

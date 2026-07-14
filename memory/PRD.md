@@ -4190,3 +4190,8 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Fix (routes/projects.py): tras resolve_project_template_vars, override `Firma_Notificacion_Global = await build_signature_html(current_user)` en send-adhoc-email (~L2578), preview-adhoc-email (~L1796) y get_project_template_variables (~L1841).
 - Verificado testing_agent iter269: 6/6 backend PASSED, aislamiento por usuario (admin=Rafael González, impl=jrojas email); 0 registros con "CRM - Gestor". Regresión permanente: backend/tests/test_iter269_adhoc_signature_user.py.
 - Backlog (no bloqueante, sugerido por QA): refactorizar resolve_project_template_vars para recibir actor_user opcional y disparar el override automáticamente (evita filtraciones si se agrega un nuevo endpoint manual).
+
+**Refactor: firma centralizada vía actor_user en resolve_project_template_vars · 2026-07-14:**
+- `resolve_project_template_vars(project, actor_user=None)`: si se pasa actor_user, la firma {Firma_Notificacion_Global} = build_signature_html(actor_user); si None (SLA/automáticos) → baseline "CRM - Gestor".
+- Se eliminaron los overrides manuales redundantes en routes/projects.py; ahora los 5 flujos manuales (send-notification, preview-notification, preview-adhoc-email, template-variables, send-adhoc-email) y los 2 dispatch helpers pasan actor_user=current_user. Evita filtraciones de "CRM - Gestor" si se agrega un nuevo endpoint manual.
+- Verificado: suite regresión test_iter269_adhoc_signature_user.py 6/6 PASSED tras el refactor (comportamiento preservado).
