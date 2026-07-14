@@ -4200,3 +4200,11 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - GET /banco-mediopago-condiciones/medios-pago ahora acepta `bank_id` opcional. Con bank_id, filtra los medios (Producto+setup) a los que el banco tiene certificados: match por nombre contra bank.products (excluye pre_production) — mismo criterio que Cotizaciones.
 - Frontend BankPaymentConditions.jsx: al cambiar de banco recarga los medios filtrados y resetea el medio seleccionado si ya no aplica.
 - Verificado: 30 medios (sin banco) → 6 para Banco de Venezuela (backend curl + frontend playwright).
+
+**Feature: Ciclo de Vida de Proyectos de Integración (Suspender/Reactivar) + Usuario Integrador + Certificados · 2026-07-14:**
+- Suspender/Reactivar (routes/integrators.py): POST /integrators/{id}/suspend (→Suspendido, conserva project_scope) y /reactivate (→En proceso). Ambos disparan Otra Acción. Frontend: botones suspend-project-*/reactivate-project-* (Integrators.jsx); filtro oculta Suspendido cuando !showAll (sale de vista activa, visible en "Ver Todos").
+- 2 nuevas Otras Acciones: integration_project_suspended, integration_project_reactivated (other_actions_config.py).
+- Destinatario transversal 'integrator_user' ("Usuario Integrador") → principal_contact_email del integrador; disponible en TODO el catálogo (dropdown OtherActionsConfig.jsx). Engine: dispatch_other_action(integrator=, extra_attachments=).
+- Repositorio de Certificados (global): POST/GET/DELETE /integrators/config/certificate (solo .jpg/.png/.pdf; almacenamiento local en UPLOADS_DIR + db.config type=integration_certificate). Se adjunta automáticamente en el correo de Cierre (_get_integration_certificate_attachment). UI: botón "Certificado" en header de Integradores.
+- Verificado testing_agent iter270: 7/7 backend + frontend OK. FIX crítico durante testing: else vacío en other_actions_engine.py (rompía TODAS las Otras Acciones) → corregido. Regresión: test_iter270_integrator_lifecycle.py.
+- PENDIENTE (acordado con usuario, otro requerimiento): "preparación/generación" del contenido del Certificado (hoy solo se adjunta el archivo subido).
