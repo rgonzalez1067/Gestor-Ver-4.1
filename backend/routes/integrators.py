@@ -354,10 +354,226 @@ async def close_integrator_project(integrator_id: str, authorization: Optional[s
         dispatch_result = await dispatch_other_action(
             "integration_project_closed", tpl_vars, current_user=current_user,
             fallback_subject=f"Cierre de Proyecto de Integración: {existing.get('name', '')} — {existing.get('app_name', '')}",
+            integrator=existing,
+            extra_attachments=await _get_integration_certificate_attachment(),
         )
     except Exception as e:
         logger.warning(f"[close] dispatch integration_project_closed falló: {e}")
     return {"status": "ok", "integrator": updated, "notification": dispatch_result}
+
+
+def _build_integrator_tpl_vars(intg: dict, actor_email: str) -> dict:
+    """Variables de plantilla para acciones de ciclo de vida de Integración."""
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    email_intg = (intg.get("principal_contact_email") or "").strip()
+    return {
+        "nombre_integrador": intg.get("name", ""), "Integrador": intg.get("name", ""),
+        "integrator_name": intg.get("name", ""),
+        "nombre_aplicativo": intg.get("app_name", ""), "app_name": intg.get("app_name", ""),
+        "tipo_integracion": intg.get("integration_type", ""), "tipo_integrador": intg.get("integrator_type", ""),
+        "modalidad_integracion": intg.get("integration_modality", ""),
+        "nombre_implementador": intg.get("implementador", ""), "Nombre_Implementador": intg.get("implementador", ""),
+        "email_integrador": email_intg, "Correo_Integrador": email_intg,
+        "usuario_ejecutor": actor_email, "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+    }
+
+
+# ============================================================
+# CICLO DE VIDA: Suspensión / Reactivación de Proyecto de Integración
+# ============================================================
+@router.post("/integrators/{integrator_id}/suspend")
+async def suspend_integrator_project(integrator_id: str, authorization: Optional[str] = Header(None)):
+    """Suspende un Proyecto de Integración activo → estatus 'Suspendido'.
+    Conserva toda la información histórica (incluido project_scope) y dispara la
+    'Otra Acción' de suspensión."""
+    current_user = await get_current_user(authorization)
+    role = (current_user or {}).get("role", "")
+    if role not in ("admin", "implementador", "coordinador", "gestor"):
+        raise HTTPException(status_code=403, detail="No tiene permisos para suspender proyectos")
+
+    existing = await db.integrators.find_one({"integrator_id": integrator_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+    if existing.get("integrator_status") == "Cerrado":
+        raise HTTPException(status_code=400, detail="Un proyecto cerrado no puede suspenderse")
+    if existing.get("integrator_status") == "Suspendido":
+        raise HTTPException(status_code=400, detail="El proyecto ya está suspendido")
+
+    actor = current_user.get("email") if current_user else ""
+    await db.integrators.update_one(
+        {"integrator_id": integrator_id},
+        {"$set": {
+            "integrator_status": "Suspendido",
+            "suspended_at": datetime.now(timezone.utc).isoformat(),
+            "suspended_by": actor,
+            "status_before_suspension": existing.get("integrator_status", "En proceso"),
+        }},
+    )
+    updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+
+    dispatch_result = None
+    try:
+        from services.other_actions_engine import dispatch_other_action
+        dispatch_result = await dispatch_other_action(
+            "integration_project_suspended",
+            _build_integrator_tpl_vars(existing, actor),
+            current_user=current_user,
+            fallback_subject=f"Suspensión de Proyecto de Integración: {existing.get('name', '')} — {existing.get('app_name', '')}",
+            integrator=existing,
+        )
+    except Exception as e:
+        logger.warning(f"[suspend] dispatch integration_project_suspended falló: {e}")
+    return {"status": "ok", "integrator": updated, "notification": dispatch_result}
+
+
+@router.post("/integrators/{integrator_id}/reactivate")
+async def reactivate_integrator_project(integrator_id: str, authorization: Optional[str] = Header(None)):
+    """Reactiva un Proyecto de Integración suspendido → estatus 'En proceso'.
+    Lo devuelve a la vista de proyectos activos y dispara la 'Otra Acción' de
+    reactivación."""
+    current_user = await get_current_user(authorization)
+    role = (current_user or {}).get("role", "")
+    if role not in ("admin", "implementador", "coordinador", "gestor"):
+        raise HTTPException(status_code=403, detail="No tiene permisos para reactivar proyectos")
+
+    existing = await db.integrators.find_one({"integrator_id": integrator_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+    if existing.get("integrator_status") != "Suspendido":
+        raise HTTPException(status_code=400, detail="Solo se pueden reactivar proyectos suspendidos")
+
+    actor = current_user.get("email") if current_user else ""
+    await db.integrators.update_one(
+        {"integrator_id": integrator_id},
+        {"$set": {
+            "integrator_status": "En proceso",
+            "reactivated_at": datetime.now(timezone.utc).isoformat(),
+            "reactivated_by": actor,
+        }},
+    )
+    updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+
+    dispatch_result = None
+    try:
+        from services.other_actions_engine import dispatch_other_action
+        dispatch_result = await dispatch_other_action(
+            "integration_project_reactivated",
+            _build_integrator_tpl_vars(existing, actor),
+            current_user=current_user,
+            fallback_subject=f"Reactivación de Proyecto de Integración: {existing.get('name', '')} — {existing.get('app_name', '')}",
+            integrator=existing,
+        )
+    except Exception as e:
+        logger.warning(f"[reactivate] dispatch integration_project_reactivated falló: {e}")
+    return {"status": "ok", "integrator": updated, "notification": dispatch_result}
+
+
+# ============================================================
+# REPOSITORIO DE CERTIFICADOS DE INTEGRACIÓN (Configuración)
+# ============================================================
+_CERT_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".pdf"}
+_CERT_MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".pdf": "application/pdf"}
+
+
+async def _get_integration_certificate_attachment() -> Optional[list]:
+    """Devuelve [{filename, content}] del certificado institucional guardado, o None."""
+    try:
+        doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
+        if not doc or not doc.get("filename"):
+            return None
+        fpath = UPLOADS_DIR / doc["filename"]
+        if not fpath.exists():
+            return None
+        return [{"filename": doc.get("original_name") or doc["filename"], "content": fpath.read_bytes()}]
+    except Exception as e:
+        logger.warning(f"[cert] no se pudo leer el certificado: {e}")
+        return None
+
+
+@router.get("/integrators/config/certificate")
+async def get_integration_certificate_info(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
+    if not doc or not doc.get("filename"):
+        return {"exists": False}
+    return {
+        "exists": True,
+        "original_name": doc.get("original_name", doc["filename"]),
+        "content_type": doc.get("content_type", ""),
+        "uploaded_at": doc.get("uploaded_at", ""),
+        "uploaded_by": doc.get("uploaded_by", ""),
+    }
+
+
+@router.post("/integrators/config/certificate")
+async def upload_integration_certificate(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Carga/reemplaza el Certificado de Integración institucional.
+    Formatos permitidos ESTRICTAMENTE: .jpg, .png, .pdf."""
+    current_user = await get_current_user(authorization)
+    role = (current_user or {}).get("role", "")
+    if role not in ("admin", "coordinador", "gestor"):
+        raise HTTPException(status_code=403, detail="No tiene permisos para gestionar el certificado")
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _CERT_ALLOWED_EXT:
+        raise HTTPException(status_code=400, detail="Formato no permitido. Solo se aceptan .jpg, .png y .pdf")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+
+    # Eliminar cualquier certificado previo (cualquier extensión).
+    for old in UPLOADS_DIR.glob("integration_certificate.*"):
+        try:
+            old.unlink()
+        except Exception:
+            pass
+
+    stored_name = f"integration_certificate{ext}"
+    (UPLOADS_DIR / stored_name).write_bytes(content)
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.config.update_one(
+        {"type": "integration_certificate"},
+        {"$set": {
+            "type": "integration_certificate",
+            "filename": stored_name,
+            "original_name": file.filename,
+            "content_type": _CERT_MIME.get(ext, file.content_type or ""),
+            "uploaded_at": now,
+            "uploaded_by": current_user.get("email"),
+        }},
+        upsert=True,
+    )
+    return {"status": "ok", "original_name": file.filename, "content_type": _CERT_MIME.get(ext, "")}
+
+
+@router.get("/integrators/config/certificate/download")
+async def download_integration_certificate(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
+    if not doc or not doc.get("filename"):
+        raise HTTPException(status_code=404, detail="No hay certificado cargado")
+    fpath = UPLOADS_DIR / doc["filename"]
+    if not fpath.exists():
+        raise HTTPException(status_code=404, detail="Archivo no encontrado en disco")
+    return FileResponse(str(fpath), media_type=doc.get("content_type") or "application/octet-stream",
+                        filename=doc.get("original_name") or doc["filename"])
+
+
+@router.delete("/integrators/config/certificate")
+async def delete_integration_certificate(authorization: Optional[str] = Header(None)):
+    current_user = await get_current_user(authorization)
+    role = (current_user or {}).get("role", "")
+    if role not in ("admin", "coordinador", "gestor"):
+        raise HTTPException(status_code=403, detail="No tiene permisos para eliminar el certificado")
+    for old in UPLOADS_DIR.glob("integration_certificate.*"):
+        try:
+            old.unlink()
+        except Exception:
+            pass
+    await db.config.delete_one({"type": "integration_certificate"})
+    return {"status": "ok"}
 
 
 class TestEnvironmentPayload(BaseModel):

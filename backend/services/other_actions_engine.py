@@ -42,6 +42,8 @@ async def dispatch_other_action(
     extra_cc: Optional[list] = None,
     project: Optional[dict] = None,
     prepend_signature_html: Optional[str] = None,
+    integrator: Optional[dict] = None,
+    extra_attachments: Optional[list] = None,
 ) -> dict:
     """Despacha la acción según la config dinámica. Ver reglas en el docstring
     del módulo.
@@ -119,8 +121,19 @@ async def dispatch_other_action(
                     f"[other-actions] {action_id} · Usuario Implementador (fallback): {fb_note} "
                     f"(proyecto {(project or {}).get('project_number', 's/n')}) → {rcpt_email}"
                 )
+        elif rtype == "integrator_user":
+            # "Usuario Integrador": el integrador asignado al proyecto. Mapea al
+            # correo de su Contacto Principal (principal_contact_email). Externo:
+            # sin user_id → siempre por email (no Centro de Mensajes).
+            email = ((integrator or {}).get("principal_contact_email") or "").strip()
+            if not email or '@' not in email:
+                skipped.append({"row_id": row.get("row_id"), "reason": "Integrador sin correo de contacto principal"})
+                continue
+            rcpt_email = email
+            rcpt_name = (integrator or {}).get("name") or email
+            rcpt_user_id = None
         else:
-            skipped.append({"row_id": row.get("row_id"), "reason": f"tipo no soportado: {rtype}"})
+            skipped.append({"row_id": row.get("row_id"), "reason": f"Tipo de destinatario no soportado: {rtype}"})
             continue
 
         tpl = await _load_template(row.get("template_id"))
@@ -168,6 +181,7 @@ async def dispatch_other_action(
                     html=body,
                     action=f"{action_id}_other",
                     cc=extra_cc or None,
+                    attachments=(extra_attachments or None),
                 )
             sent_count += 1
             sent_to.append(rcpt_email)

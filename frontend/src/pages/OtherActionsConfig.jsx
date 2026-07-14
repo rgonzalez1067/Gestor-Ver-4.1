@@ -25,6 +25,7 @@ function RecipientRow({ row, users, templates, onChange, onRemove }) {
             <SelectItem value="session_user">⚡ Usuario generador</SelectItem>
             <SelectItem value="session_executive">🧑‍💼 Ejecutivo generador</SelectItem>
             <SelectItem value="project_implementer">🛠️ Usuario Implementador</SelectItem>
+            <SelectItem value="integrator_user">🔌 Usuario Integrador</SelectItem>
           </SelectContent>
         </Select>
       </td>
@@ -49,6 +50,8 @@ function RecipientRow({ row, users, templates, onChange, onRemove }) {
               ? '— usuario que ejecuta la acción —'
               : row.type === 'project_implementer'
               ? '— implementador asignado al proyecto —'
+              : row.type === 'integrator_user'
+              ? '— integrador asignado (correo del contacto principal) —'
               : '— ejecutivo creador —'}
           </span>
         )}

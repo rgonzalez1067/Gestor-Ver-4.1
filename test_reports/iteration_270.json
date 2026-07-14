@@ -1,0 +1,42 @@
+{
+  "summary": "Iter270 — Gestión del Ciclo de Vida de Proyectos de Integración validada end-to-end. 7/7 backend tests PASSED tras corregir un SyntaxError bloqueante en services/other_actions_engine.py (else vacío) que impedía TODO dispatch de 'Otra Acción' en la app. Frontend: botones Suspender/Reactivar visibles con canEdit, filtro 'Ver Todos' revela suspendidos (515/64 respectivamente en show_all vs 5/0 default), diálogo Certificado abre y expone uploader restringido a .jpg/.png/.pdf, pantalla Configuración de Otras Acciones (/settings/other-actions) muestra las 2 acciones nuevas y la opción 'Usuario Integrador' está en el dropdown de tipo (code+backend PUT integrator_user OK, no fue expandida en UI porque requería click en 'Agregar destinatario' — evidencia por código: SelectItem value='integrator_user' L28 OtherActionsConfig.jsx). Dispatch real al 'Usuario Integrador' verificado: backend log '[other-actions] integration_project_suspended dispatched: sent=1, skipped=0'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard e Integrators (tablas)", "issues": ["React hydration warning: '<span> cannot be a child of <tbody>' y '<tr> cannot be a child of <span>' — proviene de wrappers <span data-ve-dynamic='true' style='display:contents'> insertados en tablas. No bloquea la funcionalidad pero contamina consola y puede degradar accesibilidad. Es un patrón usado por el visual-editor overlay."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter270_integrator_lifecycle.py",
+    "/app/test_reports/pytest/iter270_results.xml"
+  ],
+  "action_items": [
+    "Considerar aumentar la cobertura RBAC: agregar test 403 explícito con un rol no permitido (ej. rol=user sin cargo válido) para suspend/reactivate/cert. En esta iteración solo se probó admin.",
+    "Frontend: eliminar los <span style='display:contents'> del visual-editor overlay dentro de <tbody> para evitar hydration warnings (Dashboard L374, Integrators L1579, OtherActionsConfig L191).",
+    "Nota: durante testing quedó cargado un 'Certificado' de prueba .png/.pdf; ya fue eliminado por el test_accept_pdf_then_png_and_download_delete al finalizar. La config de other_action 'integration_project_suspended' quedó DESACTIVADA (enabled=false, recipients=[]) por test_cleanup_config."
+  ],
+  "critical_code_review_comments": [
+    "CRÍTICO (FIX aplicado por T1): services/other_actions_engine.py L135-137 tenía un `else:` seguido de línea en blanco y luego código sin indentar → SyntaxError en importación. Como TODOS los callers usan `from services.other_actions_engine import dispatch_other_action` dentro de try/except, el error se silenciaba a nivel de log (`[suspend] dispatch integration_project_suspended falló: expected an indented block after 'else' statement on line 135`). Efecto: TODAS las 'Otras Acciones' de la app estaban rotas silenciosamente (suspend/reactivate/close/impl/quote/etc). Fix: agregar `skipped.append(...); continue` como cuerpo del else para tipos de destinatario no soportados. Verificado con `python -c 'import ast; ast.parse(...)'` + suspensión real que ahora reporta sent=1.",
+    "backend/routes/integrators.py L474-548: certificado global implementado correctamente. Restringe a {.jpg,.jpeg,.png,.pdf}, borra cualquier archivo previo antes de escribir el nuevo (patrón glob), guarda config única `{type:'integration_certificate'}` en db.config. Bien encapsulado con `_get_integration_certificate_attachment()` que se usa en close_integrator_project (adjunto automático).",
+    "backend/services/other_actions_engine.py L124-134: resolución 'integrator_user' correcta — usa principal_contact_email, valida presencia de '@', sin user_id (canal siempre email). Bien documentado.",
+    "backend/routes/other_actions_config.py L263: ALLOWED_RECIPIENT_TYPES ya incluye 'integrator_user'. OK.",
+    "frontend/src/pages/Integrators.jsx L930-933: filtro cliente correcto — cuando !showAll oculta status='Suspendido' y no-clasificados. Coincide con la spec.",
+    "frontend/src/pages/OtherActionsConfig.jsx L28: opción `<SelectItem value='integrator_user'>🔌 Usuario Integrador</SelectItem>` presente en el dropdown de todos los rows (aplica a TODO el catálogo, no solo a las 2 nuevas acciones). Cumple requerimiento (D)."
+  ],
+  "updated_files": [
+    "/app/backend/services/other_actions_engine.py (fix SyntaxError: else vacío → skipped.append+continue)",
+    "/app/backend/tests/test_iter270_integrator_lifecycle.py (nuevo — 7 tests: catálogo, certificado, suspend/reactivate, integrator_user dispatch)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "verificado visualmente — botones, filtros, diálogo y catálogo OK"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna persistente. Test creó y borró un certificado de prueba y una config other_action que quedó DESACTIVADA (enabled=false, recipients=[]). Se seleccionaron integradores existentes con principal_contact_email para el ciclo suspend/reactivate — quedan en 'En proceso' al finalizar.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El fix del SyntaxError en other_actions_engine.py se aplicó DURANTE testing. IMPORTANTE: verificar que E1 (main agent) no revierta ese cambio sin darse cuenta — el `else:` fallback en L135-137 debe tener cuerpo (skipped.append+continue) o al menos un `pass`. Comando de regresión: `REACT_APP_BACKEND_URL='https://quote-impl-filter.preview.emergentagent.com' python -m pytest backend/tests/test_iter270_integrator_lifecycle.py -v` (7 tests, ~7s). El endpoint /api/other-actions/configs es PUT sobre /configs (sin action_id en URL); el action_id va en el body. Recipients requieren delivery_channel ('email'|'inbox') aunque el default sea 'email'.",
+  "rca of the issue": "RCA del SyntaxError: en services/other_actions_engine.py se añadió el bloque `elif rtype == 'integrator_user':` justo antes de un `else:` legacy cuyo cuerpo fue accidentalmente vaciado (probablemente durante el diff que agregó los nuevos tipos de destinatario). Python permite parsear el módulo hasta ese punto vía import lazy, PERO como todos los callers importan `dispatch_other_action` dentro de try/except, el SyntaxError se convertía en una advertencia en log: '[suspend] dispatch ... falló: expected an indented block after else statement on line 135'. Reproducción pre-fix: `POST /api/integrators/{id}/suspend` → 200 (estado cambia), pero `notification` retorna None y en logs aparece la advertencia. Post-fix: `notification: {dispatched: true, sent_count: 1, sent_to: [...principal_contact_email...]}`. Mitigación: agregar test de humo que verifique `POST /api/integrators/{id}/suspend` retorna `notification.dispatched != null` (ya cubierto en test_configure_and_dispatch_to_integrator_user)."
+}

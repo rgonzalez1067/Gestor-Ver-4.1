@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Calendar } from '../components/ui/calendar';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout, Lock, Eye, EyeOff, FlaskConical } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout, Lock, Eye, EyeOff, FlaskConical, PauseCircle, PlayCircle, ShieldCheck } from 'lucide-react';
 import { EntityEmailDialog } from '../components/EntityEmailDialog';
 import PurgeIntegratorsDialog from '../components/PurgeIntegratorsDialog';
 import api from '../utils/api';
@@ -832,6 +832,66 @@ export const Integrators = () => {
     }
   };
 
+  const handleSuspendProject = async (integratorId) => {
+    if (!window.confirm('¿Suspender este proyecto de integración? Pasará a estatus "Suspendido" y saldrá de la vista de proyectos activos.')) return;
+    try {
+      await api.post(`/integrators/${integratorId}/suspend`);
+      toast.success('Proyecto suspendido');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al suspender el proyecto');
+    }
+  };
+
+  const handleReactivateProject = async (integratorId) => {
+    if (!window.confirm('¿Reactivar este proyecto? Volverá a estatus "En proceso" y regresará a la vista de proyectos activos.')) return;
+    try {
+      await api.post(`/integrators/${integratorId}/reactivate`);
+      toast.success('Proyecto reactivado');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al reactivar el proyecto');
+    }
+  };
+
+  // Repositorio de Certificados de Integración (Configuración)
+  const [certDialogOpen, setCertDialogOpen] = useState(false);
+  const [certInfo, setCertInfo] = useState({ exists: false });
+  const [certUploading, setCertUploading] = useState(false);
+  const fetchCertInfo = async () => {
+    try { const r = await api.get('/integrators/config/certificate'); setCertInfo(r.data || { exists: false }); }
+    catch { setCertInfo({ exists: false }); }
+  };
+  const openCertDialog = () => { setCertDialogOpen(true); fetchCertInfo(); };
+  const handleCertUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'pdf'].includes(ext)) {
+      toast.error('Formato no permitido. Solo se aceptan .jpg, .png y .pdf');
+      e.target.value = '';
+      return;
+    }
+    setCertUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await api.post('/integrators/config/certificate', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success('Certificado cargado correctamente');
+      fetchCertInfo();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al cargar el certificado');
+    } finally {
+      setCertUploading(false);
+      e.target.value = '';
+    }
+  };
+  const handleCertDelete = async () => {
+    if (!window.confirm('¿Eliminar el certificado cargado?')) return;
+    try { await api.delete('/integrators/config/certificate'); toast.success('Certificado eliminado'); fetchCertInfo(); }
+    catch (err) { toast.error('Error al eliminar el certificado'); }
+  };
+
 
   // Implementador assignment with confirmation step
   const requestAssignImplementador = (integratorId, userId) => {
@@ -868,6 +928,9 @@ export const Integrators = () => {
     // Vista por defecto: solo proyectos clasificados (Nuevos, Componentes, Ampliaciones).
     // El operador activa "Ver Todos" para incluir el histórico sin clasificar y cerrados.
     if (!showAll && !CLASSIFIED_SCOPES.includes(intg.project_scope)) return false;
+    // Los proyectos Suspendidos salen de la vista ordinaria de proyectos activos
+    // (siguen visibles con "Ver Todos" / filtro de estatus = Tabla de Integradores).
+    if (!showAll && intg.integrator_status === 'Suspendido') return false;
     if (filterIntType && filterIntType !== 'all' && intg.integration_type !== filterIntType) return false;
     if (filterModality && filterModality !== 'all' && intg.integration_modality !== filterModality) return false;
     if (filterGestor && filterGestor !== 'all' && intg.gestor !== filterGestor) return false;
@@ -908,6 +971,37 @@ export const Integrators = () => {
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => openSummary()} data-testid="summary-btn" className="border-purple-200 text-purple-700 hover:bg-purple-50"><Filter size={16} className="mr-1" />Resumen</Button>
               <Button variant="outline" onClick={() => navigate('/integrators/communications')} data-testid="integrator-templates-btn" className="border-blue-200 text-blue-700 hover:bg-blue-50"><Layout size={16} className="mr-1" />Plantillas</Button>
+              {canEdit && (
+                <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
+                  <Button variant="outline" onClick={openCertDialog} data-testid="cert-config-btn" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"><ShieldCheck size={16} className="mr-1" />Certificado</Button>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle className="font-manrope text-lg flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600" />Certificado de Integración</DialogTitle></DialogHeader>
+                    <div className="space-y-4 mt-1">
+                      <p className="text-sm text-slate-500">Documento (aval) que se adjunta automáticamente en el correo de Cierre Exitoso de un Proyecto de Integración. Formatos permitidos: .jpg, .png, .pdf.</p>
+                      {certInfo.exists ? (
+                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2" data-testid="cert-current">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-emerald-800 truncate">{certInfo.original_name}</p>
+                            <p className="text-xs text-emerald-600">Cargado: {certInfo.uploaded_at ? new Date(certInfo.uploaded_at).toLocaleDateString('es-VE') : ''}</p>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <a href={`${process.env.REACT_APP_BACKEND_URL}/api/integrators/config/certificate/download`} target="_blank" rel="noreferrer">
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-700" title="Descargar" data-testid="cert-download-btn"><Download size={15} /></Button>
+                            </a>
+                            <Button size="sm" variant="ghost" onClick={handleCertDelete} className="h-8 w-8 p-0 text-red-500" title="Eliminar" data-testid="cert-delete-btn"><Trash2 size={15} /></Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400 italic" data-testid="cert-empty">No hay certificado cargado.</p>
+                      )}
+                      <div>
+                        <input type="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" onChange={handleCertUpload} disabled={certUploading} className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white file:cursor-pointer hover:file:bg-emerald-700" data-testid="cert-upload-input" />
+                        {certUploading && <p className="text-xs text-slate-400 mt-1">Cargando…</p>}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
               {isAdmin && (
                 <Button variant="outline" onClick={() => setPurgeDialogOpen(true)} data-testid="purge-integrators-btn"
                   className="border-rose-200 text-rose-700 hover:bg-rose-50"><Trash2 size={16} className="mr-1" />Vaciar BD</Button>
@@ -1618,6 +1712,12 @@ export const Integrators = () => {
                             {canEdit && <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>}
                             {canEdit && intg.integrator_status !== 'Cerrado' && (
                               <Button size="sm" variant="ghost" onClick={() => handleCloseProject(intg.integrator_id)} className="text-slate-500 hover:bg-slate-200 h-7 w-7 p-0" data-testid={`close-project-${intg.integrator_id}`} title="Cerrar Proyecto"><Lock size={13} /></Button>
+                            )}
+                            {canEdit && intg.integrator_status !== 'Cerrado' && intg.integrator_status !== 'Suspendido' && (
+                              <Button size="sm" variant="ghost" onClick={() => handleSuspendProject(intg.integrator_id)} className="text-amber-500 hover:bg-amber-50 h-7 w-7 p-0" data-testid={`suspend-project-${intg.integrator_id}`} title="Suspender Proyecto"><PauseCircle size={13} /></Button>
+                            )}
+                            {canEdit && intg.integrator_status === 'Suspendido' && (
+                              <Button size="sm" variant="ghost" onClick={() => handleReactivateProject(intg.integrator_id)} className="text-green-600 hover:bg-green-50 h-7 w-7 p-0" data-testid={`reactivate-project-${intg.integrator_id}`} title="Reactivar Proyecto"><PlayCircle size={13} /></Button>
                             )}
                             {canEdit && <Button size="sm" variant="ghost" onClick={() => handleDelete(intg.integrator_id)} className="text-red-500 hover:bg-red-50 h-7 w-7 p-0" data-testid={`delete-${intg.integrator_id}`}><Trash2 size={13} /></Button>}
                           </div>

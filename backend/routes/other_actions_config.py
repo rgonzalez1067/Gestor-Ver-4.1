@@ -130,6 +130,30 @@ OTHER_ACTIONS = [
         ],
     },
     {
+        "id": "integration_project_suspended",
+        "label": "Suspensión de Proyecto de Integración",
+        "description": "Se dispara al presionar 'Suspender Proyecto' en la ficha de un Proyecto de Integración activo (pantalla de Integradores). El proyecto pasa a estatus 'Suspendido'.",
+        "variables": [
+            "nombre_integrador", "Integrador", "integrator_name",
+            "nombre_aplicativo", "app_name", "tipo_integracion", "tipo_integrador",
+            "modalidad_integracion", "nombre_implementador", "Nombre_Implementador",
+            "email_integrador", "Correo_Integrador",
+            "usuario_ejecutor", "fecha_sistema", "Fecha_Sistema",
+        ],
+    },
+    {
+        "id": "integration_project_reactivated",
+        "label": "Reactivación de Proyecto de Integración",
+        "description": "Se dispara al presionar 'Reactivar Proyecto' en un Proyecto de Integración suspendido (pantalla de Integradores). El proyecto vuelve a estatus 'En proceso'.",
+        "variables": [
+            "nombre_integrador", "Integrador", "integrator_name",
+            "nombre_aplicativo", "app_name", "tipo_integracion", "tipo_integrador",
+            "modalidad_integracion", "nombre_implementador", "Nombre_Implementador",
+            "email_integrador", "Correo_Integrador",
+            "usuario_ejecutor", "fecha_sistema", "Fecha_Sistema",
+        ],
+    },
+    {
         "id": "test_environment_expired",
         "label": "Vencimiento de Ambiente de Pruebas",
         "description": "Se dispara automáticamente (en background) cuando el contador de días hábiles de una 'Asignación de Ambiente de Prueba' llega a cero (0), es decir, al alcanzar la Fecha Final de vigencia. Notifica a los usuarios parametrizados (correo o Centro de Mensajes) según la plantilla configurada.",
@@ -236,7 +260,7 @@ async def upsert_config(payload: OtherActionConfigPayload, authorization: Option
     if payload.action_id not in OTHER_ACTION_IDS:
         raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(OTHER_ACTION_IDS)}")
 
-    ALLOWED_RECIPIENT_TYPES = {"user", "session_user", "session_executive", "project_implementer"}
+    ALLOWED_RECIPIENT_TYPES = {"user", "session_user", "session_executive", "project_implementer", "integrator_user"}
     for r in payload.recipients:
         if r.type not in ALLOWED_RECIPIENT_TYPES:
             raise HTTPException(status_code=400, detail=f"Tipo de destinatario inválido: {r.type}")
