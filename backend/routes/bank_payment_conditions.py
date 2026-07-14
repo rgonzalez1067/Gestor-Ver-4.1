@@ -34,14 +34,28 @@ async def bpc_list_banks(authorization: Optional[str] = Header(None)):
 
 
 @router.get("/banco-mediopago-condiciones/medios-pago")
-async def bpc_list_medios_pago(authorization: Optional[str] = Header(None)):
+async def bpc_list_medios_pago(bank_id: Optional[str] = None, authorization: Optional[str] = Header(None)):
     """Medios de Pago que cumplen ESTRICTAMENTE Categoria='Producto' AND Tipo='Setup'
-    (en el esquema: service_type='Producto' AND application_type='setup')."""
+    (en el esquema: service_type='Producto' AND application_type='setup').
+
+    Si se recibe `bank_id`, se filtra además a los medios que ESE banco tiene
+    certificados (igual que en Cotizaciones): match por nombre contra los
+    `products` del banco, excluyendo los que están en pre_producción."""
     await require_permission(authorization, MODULE, "read")
     docs = await db.services.find(
         {"service_type": "Producto", "application_type": "setup"},
         {"_id": 0, "service_id": 1, "name": 1},
     ).to_list(2000)
+
+    if bank_id:
+        bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0, "products": 1})
+        certified = {
+            (p.get("product_name") or "").strip().lower()
+            for p in (bank or {}).get("products", [])
+            if not p.get("pre_production")
+        }
+        docs = [d for d in docs if (d.get("name") or "").strip().lower() in certified]
+
     docs.sort(key=lambda s: (s.get("name") or "").lower())
     return docs
 

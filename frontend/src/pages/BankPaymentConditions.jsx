@@ -24,17 +24,29 @@ export default function BankPaymentConditions() {
   useEffect(() => {
     (async () => {
       try {
-        const [b, m] = await Promise.all([
-          api.get('/banco-mediopago-condiciones/banks'),
-          api.get('/banco-mediopago-condiciones/medios-pago'),
-        ]);
+        const b = await api.get('/banco-mediopago-condiciones/banks');
         setBanks(b.data || []);
-        setMedios(m.data || []);
       } catch (e) {
-        toast.error('No se pudieron cargar los catálogos');
+        toast.error('No se pudieron cargar los bancos');
       }
     })();
   }, []);
+
+  // Al cambiar de banco, recargar solo los Medios de Pago que ese banco tiene
+  // certificados (mismo criterio que Cotizaciones) y resetear la selección.
+  useEffect(() => {
+    (async () => {
+      try {
+        const params = bankId ? { bank_id: bankId } : {};
+        const m = await api.get('/banco-mediopago-condiciones/medios-pago', { params });
+        const list = m.data || [];
+        setMedios(list);
+        setServiceId((prev) => (prev && list.some((s) => s.service_id === prev) ? prev : ''));
+      } catch (e) {
+        setMedios([]);
+      }
+    })();
+  }, [bankId]);
 
   const loadCondition = useCallback(async (bk, sv) => {
     if (!bk || !sv) { setConditions(''); return; }

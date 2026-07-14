@@ -4195,3 +4195,8 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - `resolve_project_template_vars(project, actor_user=None)`: si se pasa actor_user, la firma {Firma_Notificacion_Global} = build_signature_html(actor_user); si None (SLA/automáticos) → baseline "CRM - Gestor".
 - Se eliminaron los overrides manuales redundantes en routes/projects.py; ahora los 5 flujos manuales (send-notification, preview-notification, preview-adhoc-email, template-variables, send-adhoc-email) y los 2 dispatch helpers pasan actor_user=current_user. Evita filtraciones de "CRM - Gestor" si se agrega un nuevo endpoint manual.
 - Verificado: suite regresión test_iter269_adhoc_signature_user.py 6/6 PASSED tras el refactor (comportamiento preservado).
+
+**Mejora: filtro por banco (medios certificados) en Condiciones Banco/Medio de Pago · 2026-07-14:**
+- GET /banco-mediopago-condiciones/medios-pago ahora acepta `bank_id` opcional. Con bank_id, filtra los medios (Producto+setup) a los que el banco tiene certificados: match por nombre contra bank.products (excluye pre_production) — mismo criterio que Cotizaciones.
+- Frontend BankPaymentConditions.jsx: al cambiar de banco recarga los medios filtrados y resetea el medio seleccionado si ya no aplica.
+- Verificado: 30 medios (sin banco) → 6 para Banco de Venezuela (backend curl + frontend playwright).
