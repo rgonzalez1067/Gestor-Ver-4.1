@@ -1785,13 +1785,16 @@ class PreviewAdhocRequest(BaseModel):
 @router.post("/projects/{project_id}/preview-adhoc-email")
 async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, authorization: Optional[str] = Header(None)):
     """Vista previa de un correo ad-hoc con variables del proyecto resueltas."""
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
     # Resolver variables del proyecto
     template_vars = await resolve_project_template_vars(project)
+    # La firma refleja al usuario que envía (no el baseline "CRM - Gestor").
+    from services.signature import build_signature_html
+    template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
 
     # Renderizar asunto y mensaje con variables
     rendered_subject = _render_vars(body.subject, template_vars)
@@ -1828,12 +1831,15 @@ async def get_project_template_variables(project_id: str, bank: Optional[str] = 
     `bank` (opcional): si se especifica, la `matrix_html` ({Matriz_Bancos_Productos})
     se devuelve ya filtrada a ese banco — para que el editor de una notificación a
     Banco reciba la matriz automáticamente depurada (sin borrado manual)."""
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
     template_vars = await resolve_project_template_vars(project)
+    # La firma refleja al usuario que envía (no el baseline "CRM - Gestor").
+    from services.signature import build_signature_html
+    template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
     matrix_html = template_vars.get("Matriz_Bancos_Productos", "")
     if bank and (bank or "").strip():
         from services.project_template_vars import _build_matrix_html
@@ -2567,6 +2573,10 @@ async def send_adhoc_email(
 
     # Resolve variables in adhoc emails too
     template_vars = await resolve_project_template_vars(project)
+    # La firma debe reflejar al usuario que ENVÍA la notificación ad-hoc, no el
+    # baseline "CRM - Gestor" que trae resolve_project_template_vars.
+    from services.signature import build_signature_html
+    template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)
     html = _render_vars(html, template_vars)
     html = _style_email_tables(html)
     full_subject = _render_vars(full_subject, template_vars)
