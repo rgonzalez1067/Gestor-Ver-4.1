@@ -4,6 +4,16 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### NUEVO MÓDULO: Comunicaciones Masivas a Integradores (BCC) — Jun 2026
+- **Objetivo:** enviar comunicados/alertas a grupos de integradores con plantilla institucional y adjuntos, protegiendo la privacidad vía BCC (copia oculta).
+- **Frontend** (`components/MassCommunicationDialog.jsx`, botón "Comunicación Masiva" en `Integrators.jsx`): grilla de destinatarios (Integrador / Contacto / Correo) con checkbox maestro (solo marca filtrados con correo) + individuales; filas sin correo deshabilitadas; filtro por Tipo de Integración (CR/LP/PG/MP/TK); selector de plantilla (biblioteca `context=INTEGRADORES`); selector de documentos del repositorio (`entity-documents`); uploader de archivos locales; nota de privacidad BCC.
+- **Backend** (`routes/entity_communications.py`): `GET /api/integrators/mass/recipients?integration_type=` y `POST /api/integrators/mass/communication` (multipart: template_id, integrator_ids, internal_doc_ids, files). Envía UN correo con `To`=remitente institucional y todos los integradores en **BCC**; adjuntos = repositorio + locales (guard 422 si falta un doc). Rutas de dos segmentos para no colisionar con `/integrators/{id}`.
+- **BCC en `email_service.py`:** `send_email`/`_send_smtp` aceptan `bcc` (sobre SMTP sin cabecera Bcc → destinatarios ocultos); email_log guarda `bcc_count`. Soporte `bcc` también en Resend.
+- **RBAC:** nuevo permiso especial `integradores:mass_comm` (`permissions_catalog.py`); acceso solo admin o con el flag.
+- **QA:** testing_agent iter274 → 12/12 backend PASSED + frontend 100%. Métricas: 589 total / 281 con correo; PG=251; select-all PG=100; email_log bcc_count verificado. Test: `/app/backend/tests/test_iter274_mass_communication.py`.
+- **Nota:** en envío masivo las variables por-integrador ({nombre_integrador}, etc.) NO se resuelven (es broadcast); usar plantillas genéricas.
+
+
 ### Bug Fix: {Aplicativo_Integracion} no renderizaba en correo de Cierre — Jun 2026
 - **Síntoma:** el correo de Cierre de Proyecto de Integración mostraba el texto literal `{Aplicativo_Integracion}` (en asunto y cuerpo) en vez del nombre del aplicativo.
 - **RCA:** `close_integrator_project` (integrators.py) armaba su propio `tpl_vars` a mano y omitía la clave `Aplicativo_Integracion` (que sí existe en otros flujos). `_render` deja el literal cuando la clave no está mapeada.

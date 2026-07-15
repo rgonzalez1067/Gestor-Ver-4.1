@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
@@ -100,6 +100,9 @@ export const MassCommunicationDialog = ({ open, onOpenChange }) => {
           <DialogTitle className="flex items-center gap-2 text-blue-700">
             <Mail size={20} className="text-blue-500" />Comunicación Masiva a Integradores
           </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500">
+            Seleccione destinatarios, plantilla y adjuntos. El envío se realiza en copia oculta (BCC).
+          </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-5 gap-5 pr-1">
           <div className="lg:col-span-3 flex flex-col min-h-0">
