@@ -419,9 +419,16 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
       certificado que adjuntar (nunca retorna None por falta de depósito)."""
     base_path = None
     doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
-    if doc and doc.get("filename"):
+    if doc and doc.get("filename") and str(doc["filename"]).lower().endswith(".pdf"):
         fpath = UPLOADS_DIR / doc["filename"]
-        if fpath.exists() and str(doc["filename"]).lower().endswith(".pdf"):
+        # Si el archivo no está en disco (FS efímero tras redeploy) pero sí en Mongo,
+        # lo restauramos para poder estampar sobre TU PDF cargado.
+        if not fpath.exists() and doc.get("content_b64"):
+            try:
+                fpath.write_bytes(base64.b64decode(doc["content_b64"]))
+            except Exception as e:
+                logger.warning(f"[cert] no se pudo restaurar el PDF base desde Mongo: {e}")
+        if fpath.exists():
             base_path = fpath
     try:
         if base_path is None:
@@ -787,12 +794,30 @@ async def upload_integration_certificate(file: UploadFile = File(...), authoriza
             "filename": stored_name,
             "original_name": file.filename,
             "content_type": _CERT_MIME.get(ext, file.content_type or ""),
+            # Persistencia en Mongo: el FS del contenedor es efímero (se pierde en
+            # cada redeploy). Guardamos el contenido para restaurarlo al arranque.
+            "content_b64": base64.b64encode(content).decode("ascii"),
             "uploaded_at": now,
             "uploaded_by": current_user.get("email"),
         }},
         upsert=True,
     )
     return {"status": "ok", "original_name": file.filename, "content_type": _CERT_MIME.get(ext, "")}
+
+
+async def restore_integration_certificate():
+    """Restaura el PDF/imagen del depósito 'Certificado' desde Mongo hacia el disco
+    al arrancar el servidor (el FS del contenedor es efímero → sobrevive redeploys)."""
+    try:
+        doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
+        if not doc or not doc.get("filename") or not doc.get("content_b64"):
+            return
+        fpath = UPLOADS_DIR / doc["filename"]
+        if not fpath.exists():
+            fpath.write_bytes(base64.b64decode(doc["content_b64"]))
+            logger.info(f"[cert] certificado restaurado a disco: {doc['filename']}")
+    except Exception as e:
+        logger.warning(f"[cert] restore_integration_certificate falló: {e}")
 
 
 @router.get("/integrators/config/certificate/download")

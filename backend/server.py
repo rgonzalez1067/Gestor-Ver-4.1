@@ -80,6 +80,11 @@ async def _on_startup():
     except Exception as e:
         logging.warning(f"[startup] restore_corporate_anexos failed: {e}")
     try:
+        from routes.integrators import restore_integration_certificate
+        await restore_integration_certificate()
+    except Exception as e:
+        logging.warning(f"[startup] restore_integration_certificate failed: {e}")
+    try:
         # Precargar snapshot de feriados para el fallback síncrono del generador de PDF.
         from services.business_calendar import get_holiday_sets
         await get_holiday_sets()
