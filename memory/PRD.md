@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Bug Fix: {Aplicativo_Integracion} no renderizaba en correo de Cierre — Jun 2026
+- **Síntoma:** el correo de Cierre de Proyecto de Integración mostraba el texto literal `{Aplicativo_Integracion}` (en asunto y cuerpo) en vez del nombre del aplicativo.
+- **RCA:** `close_integrator_project` (integrators.py) armaba su propio `tpl_vars` a mano y omitía la clave `Aplicativo_Integracion` (que sí existe en otros flujos). `_render` deja el literal cuando la clave no está mapeada.
+- **Fix:** se agregaron `Aplicativo_Integracion` y alias con tilde `Aplicativo_Integración` al `tpl_vars` del cierre (mapeados a `app_name`), y se expuso `Aplicativo_Integracion` en el catálogo de variables.
+- **QA:** testing_agent iter273 → 3/3 PASSED. email_logs.subject renderiza el app_name real, sin literal. Test: `/app/backend/tests/test_iter273_aplicativo_integracion_var.py`.
+
+
 ### Modal Cierre estandarizado + variable {Medios_Certificados} — Jun 2026
 - **Modal "Comunicación y Anexos"** (paso 2 del Cierre de Proyecto de Integración, `Integrators.jsx`) reescrito para heredar la forma del modal "Personalizar Comunicación" (`QuoteModals.jsx`): header azul con ícono Mail, caja de contexto azul (Acción + Integrador), sección de anexos, y **Destinatarios adicionales (CC)** con `InternalEmailInput` (autocomplete de usuarios internos) + botón "+" y chips removibles; footer estándar. Los CC se envían como lista unida por coma a `extra_recipients`. Verificado por screenshot.
 - **{Medios_Certificados}**: nueva variable de plantilla generada al cierre (`integrators.py::_certified_products_bullets_html`) = lista HTML con viñetas (`<ul><li>`) de los Medios/Productos con certificación 'C'. Añadida a `tpl_vars` del cierre y al catálogo de variables de `integration_project_closed` (`other_actions_config.py`), junto con componente/version/Productos. El motor `_render` sustituye sin escapar → las viñetas se renderizan en el correo.
