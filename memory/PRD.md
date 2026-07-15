@@ -4219,3 +4219,9 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - models.py Integrator: expuestos cert_component/cert_version/cert_products/certified_at/by, closed_at/by, suspended_at/by, reactivated_at/by, status_before_suspension (antes se persistían pero se recortaban).
 - Verificado testing_agent iter271: 10/10 backend + 3/3 flujos UI. Regresión: test_iter271_close_integrator_project.py. Estado DB limpio.
 - Nota: seeds por inserción directa a Mongo DEBEN incluir integrator_type (obligatorio) o GET /integrators cae 500.
+
+**Bug fix (3 observaciones del usuario) · 2026-07-14:**
+- (1) Overflow en Configuración de Otras Acciones: OtherActionsConfig.jsx header con min-w-0/break-words/flex-wrap; sin desbordamiento horizontal (verificado 1280 y 390px).
+- (2) Badge 'Desactivada': ahora con tooltip (title) que explica que la acción no enviará notificaciones.
+- (3) CERTIFICADO NO LLEGABA (root cause): en other_actions_engine.py, cuando _load_template era None (destinatario sin plantilla) se hacía `continue` → no se enviaba nada. Fix: cuerpo genérico por defecto (subject=fallback_subject) para NO saltar el envío; los adjuntos (Certificado + anexos) viajan como extra_attachments. Post-fix: sent_count=1 con attachment_names incluyendo 'Certificado_*.pdf'. Además nota UI (oa-cert-note) en la acción de Cierre indicando adjunto automático + requisitos (activa + canal Correo + PDF en depósito).
+- Verificado testing_agent iter272: 5/5 backend + 3/3 UI. Regresión: test_iter272_close_cert_email.py.
