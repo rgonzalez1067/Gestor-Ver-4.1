@@ -138,8 +138,16 @@ async def dispatch_other_action(
 
         tpl = await _load_template(row.get("template_id"))
         if not tpl:
-            skipped.append({"row_id": row.get("row_id"), "reason": "Plantilla no encontrada"})
-            continue
+            # Sin plantilla seleccionada → cuerpo genérico por defecto. Evita el
+            # no-envío silencioso y garantiza que los adjuntos automáticos (p.ej.
+            # el Certificado de Integración) igual se despachen.
+            tpl = {
+                "subject": fallback_subject or "Notificación",
+                "body_html": (
+                    f"<p>{fallback_subject or 'Notificación del sistema'}.</p>"
+                    "<p>{Firma_Notificacion_Global}</p>"
+                ),
+            }
 
         # Firma institucional global: SIEMPRE refleja al usuario que ejecuta la
         # acción manual. Los template_vars de proyecto traen un baseline

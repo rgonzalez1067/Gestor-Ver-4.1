@@ -150,30 +150,42 @@ function ActionCard({ action, users, templates, existingCfg, onSaved }) {
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
         data-testid={`oa-action-toggle-${action.id}`}
       >
-        <div className="flex items-center gap-2 text-left">
-          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <div>
-            <span className="font-medium text-slate-800 text-sm">{action.label}</span>
-            {action.description && <p className="text-xs text-slate-500 mt-0.5">{action.description}</p>}
+        <div className="flex items-center gap-2 text-left min-w-0 flex-1">
+          {expanded ? <ChevronDown size={16} className="shrink-0" /> : <ChevronRight size={16} className="shrink-0" />}
+          <div className="min-w-0 flex-1">
+            <span className="font-medium text-slate-800 text-sm break-words">{action.label}</span>
+            {action.description && <p className="text-xs text-slate-500 mt-0.5 break-words">{action.description}</p>}
           </div>
-          {hasConfig && <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-xs">{existingCfg.recipients.length} dest.</Badge>}
-          {existingCfg && existingCfg.enabled === false && <Badge variant="secondary" className="bg-red-100 text-red-700 text-xs">Desactivada</Badge>}
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+            {hasConfig && <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-xs">{existingCfg.recipients.length} dest.</Badge>}
+            {existingCfg && existingCfg.enabled === false && (
+              <Badge variant="secondary" className="bg-red-100 text-red-700 text-xs" title="Acción desactivada: al ejecutarse NO se enviará ninguna notificación. Actívala con el interruptor 'Acción activa'.">Desactivada</Badge>
+            )}
+          </div>
         </div>
       </button>
 
       {expanded && (
         <div className="px-4 pb-4 border-t border-slate-100">
-          <div className="flex items-center justify-between mt-3 mb-1 bg-slate-50 rounded px-3 py-2">
-            <span className="text-sm font-medium text-slate-700">Acción activa (al desactivar no se envía ninguna notificación)</span>
+          <div className="flex items-center justify-between mt-3 mb-1 bg-slate-50 rounded px-3 py-2 gap-3">
+            <span className="text-sm font-medium text-slate-700 min-w-0">Acción activa <span className="text-xs text-slate-500 font-normal">(al desactivar no se envía ninguna notificación)</span></span>
             <Switch
               checked={enabled}
               onCheckedChange={(v) => { setEnabled(!!v); setDirty(true); }}
               data-testid={`oa-action-enabled-${action.id}`}
+              className="shrink-0"
             />
           </div>
 
+          {action.id === 'integration_project_closed' && (
+            <div className="mt-2 mb-1 flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded px-3 py-2 text-xs text-emerald-800" data-testid="oa-cert-note">
+              <span className="shrink-0">📎</span>
+              <span className="break-words">El <strong>Certificado PDF</strong> se adjunta automáticamente a esta notificación, tomándolo del depósito "Certificado" de la pantalla de Integradores. Requisitos: la acción debe estar <strong>activa</strong>, tener al menos un destinatario por <strong>canal Correo</strong>, y haber un PDF cargado en el depósito.</span>
+            </div>
+          )}
+
           {action.variables?.length > 0 && (
-            <p className="text-xs text-slate-500 mb-2 mt-2">
+            <p className="text-xs text-slate-500 mb-2 mt-2 break-words">
               Variables disponibles para la plantilla: {action.variables.map((v) => `{${v}}`).join(', ')}
             </p>
           )}

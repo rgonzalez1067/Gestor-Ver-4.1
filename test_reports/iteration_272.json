@@ -1,0 +1,36 @@
+{
+  "summary": "Iter272 — Validado el fix del BUG PRINCIPAL: el Certificado PDF SÍ llega al cierre de un Proyecto de Integración. 5/5 backend tests PASSED. (A) Con acción activa + destinatario integrator_user (canal email) + PDF en depósito → el cierre de qa_cert responde certificate_generated=true, notification.dispatched=true, sent_count=1 y email_logs.attachment_names incluye 'Certificado_QA_CERT.pdf'. (B) FALLBACK sin plantilla (template_id vacío) confirmado: antes se saltaba con 'Plantilla no encontrada' y no enviaba nada; ahora dispatch_other_action usa un cuerpo genérico por defecto (subject=fallback_subject, body con {Firma_Notificacion_Global}) y el correo se envía con el adjunto (sent_count=1, skipped no contiene 'Plantilla'). Frontend UI validado en Playwright: (1) NO hay overflow horizontal en /settings/other-actions ni en desktop (1280) ni en mobile (390) — scrollWidth == clientWidth — incluso con las 3 acciones de Integración expandidas (variables largas hacen wrap dentro del contenedor max-w-5xl). (2) Badge 'Desactivada' rojo aparece cuando enabled=false y tiene el title tooltip exacto: \"Acción desactivada: al ejecutarse NO se enviará ninguna notificación. Actívala con el interruptor 'Acción activa'.\". (3) data-testid='oa-cert-note' visible al expandir integration_project_closed con el texto de requisitos (activa + canal Correo + PDF en depósito).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (persistente desde iter270)", "issues": ["Warnings de hydration '<span> cannot be a child of <tbody>' / '<tr> cannot be a child of <span>' provenientes del wrapper del visual-editor (data-ve-dynamic) en Dashboard y OtherActionsConfig. No bloquea funcionalidad. Es el mismo warning reportado en iter270/271."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter272_close_cert_email.py",
+    "/app/test_reports/pytest/iter272_results.xml"
+  ],
+  "action_items": [
+    "No hay acciones pendientes. El bug del certificado no llegado por correo está RESUELTO y validado end-to-end (backend + email_logs + UI).",
+    "Opcional futuro: silenciar los warnings de hydration del visual-editor (data-ve-dynamic span envolviendo <tr>) — persisten desde iter270."
+  ],
+  "critical_code_review_comments": [
+    "services/other_actions_engine.py L139-150: el fallback (tpl = {'subject': fallback_subject, 'body_html': ...}) resuelve el bug raíz — antes hacía `continue` cuando _load_template era None, ahora garantiza envío + adjunto. Correcto y minimal.",
+    "routes/integrators.py L442-452 (close_integrator_project): attachments se construye con el PDF estampado del depósito PRIMERO, luego los anexos del Modal 2. Se pasa a dispatch_other_action como extra_attachments. Correcto.",
+    "pages/OtherActionsConfig.jsx L153-165: header con min-w-0/break-words/flex-wrap → soluciona el overflow horizontal reportado por el usuario. Verificado en Playwright a 1280 y 390 px.",
+    "pages/OtherActionsConfig.jsx L162: badge 'Desactivada' con title=... — verificado via DOM: `getAttribute('title')` retorna el texto explicativo esperado.",
+    "pages/OtherActionsConfig.jsx L180-185: oa-cert-note en verde (bg-emerald-50) con emoji 📎 y detalles de requisitos — se renderiza SOLO para integration_project_closed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter272_close_cert_email.py (nuevo — 5 tests: upload cert PDF, configure action, close+verify attachment, fallback sin plantilla, delete deposit)"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (3/3 checks UI validados)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Reseed automatico de qa_cert (integrator_type='Comercio', integration_modality='Directa', integration_type='e-commerce', project_scope='new', integrator_status='En proceso', principal_contact_email='qa_cert_dest@test.com', certifications={prod_c2p:'C',prod_biopago:'C'}). Al finalizar: qa_cert queda en estado LIMPIO ('En proceso'/'new') listo para nueva prueba; other_action_configs y email_logs de la acción integration_project_closed borrados; depósito de Certificado LIMPIO (test_99 lo elimina — si el main agent quiere reproducir la prueba manual, debe subir un PDF al depósito primero, tal como indica el brief).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El bug fix del certificado ha sido validado end-to-end. Test file: /app/backend/tests/test_iter272_close_cert_email.py — es autosuficiente (reseedea qa_cert). Requiere que el integrador qa_cert exista en la DB (si el main agent lo eliminó, hay que recrearlo). Ejecutar: `cd /app/backend && python -m pytest tests/test_iter272_close_cert_email.py -v`. El fallback engine (services/other_actions_engine.py L139-150) es la solución raíz — si en el futuro se modifica el _load_template flow, garantizar que el fallback siga presente. NOTA: session_token es el nombre del campo en /api/auth/login (NO 'token').",
+  "rca of the issue": "RCA CONFIRMADA — Bug reproducido y arreglado en iter272. Causa raíz: en services/other_actions_engine.py, cuando `_load_template(row.template_id)` devolvía None (destinatario sin plantilla seleccionada, template borrada, o template_id vacío), el engine hacía `continue` y saltaba TODA la fila con reason='Plantilla no encontrada' en skipped[]. Esto significaba que si el admin configuraba la acción 'Cierre de Proyecto de Integración' con un destinatario integrator_user pero SIN seleccionar plantilla (caso común porque el usuario probaba rápido), el correo NUNCA salía y el certificado adjunto tampoco llegaba, aunque el PDF estuviera en el depósito y la acción estuviera activa. Reproducción: PUT /api/other-actions/configs con recipients=[{type:'integrator_user', template_id:'', delivery_channel:'email'}], luego POST /integrators/qa_cert/close → antes: notification.sent_count=0, skipped=[{reason:'Plantilla no encontrada'}]. Mitigación aplicada (por el main agent, verificada por T1): en engine L139-150, cuando tpl es None, se usa un cuerpo por defecto {subject: fallback_subject, body_html: '<p>fallback_subject.</p><p>{Firma_Notificacion_Global}</p>'} para NO saltar el envío. Los adjuntos automáticos (Certificado + anexos del Modal 2) viajan sí o sí porque van fuera del tpl (extra_attachments → send_email attachments=). Post-fix verificado por curl y por pytest: sent_count=1, attachment_names incluye 'Certificado_QA_CERT.pdf'."
+}
