@@ -21,10 +21,11 @@ const EQUIPMENT_CATEGORIES = [
 ];
 
 // Tipos de hardware que aplican para categorías de equipos (Verifone y Morefun)
-const DEVICE_TYPES = ['POS', 'Pinpad'];
+// 'PinPad/Accesorio' es una categoría combinada: visible en Equipos Y en Accesorios.
+const DEVICE_TYPES = ['POS', 'Pinpad', 'PinPad/Accesorio'];
 
 // Tipos que se consideran accesorios
-const ACCESSORY_TYPES = ['Accesorio', 'Base'];
+const ACCESSORY_TYPES = ['Accesorio', 'Base', 'PinPad/Accesorio'];
 
 // Tipos para selección de modelo en reparaciones (POS y Pinpad)
 const REPAIR_MODEL_TYPES = ['POS', 'Pinpad'];

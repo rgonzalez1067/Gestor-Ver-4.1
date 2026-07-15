@@ -1,0 +1,58 @@
+{
+  "summary": "Iter 276 — Nuevas categorías combinadas 'PinPad/Accesorio' y 'PinPad/Licencia' en Bienes y Servicios: 7/7 pytest backend + 3/3 flujos UI verificados. Backend: POST /api/hardware acepta ambos tipos con asset_type=Bien; entrada de inventario para 'PinPad/Licencia' quantity=100 SIN seriales OK; entrada para 'PinPad/Accesorio' 25 uds SIN seriales OK; entrada para 'Pinpad' clásico SIN seriales devuelve 400 (comportamiento existente intacto) y CON seriales pasa; stock del almacén refleja quantity>=100 con requires_serial=false. Frontend: (a) Hardware /hardware → dropdown 'Tipo' expone las 12 opciones incluyendo 'PinPad/Accesorio' y 'PinPad/Licencia'; (b) Inventario /inventory → dialog de entrada NO muestra bloque de seriales (data-testid='serial-input' ausente) NI toggle 'precarga-toggle' cuando el ítem es PinPad/Licencia, submit registra movement (mov_a526a0ee, quantity=100, serials=[], item_type=PinPad/Licencia) con toast 'Entrada registrada'; (c) Visibilidad cruzada verificada por lógica: DEVICE_TYPES y ACCESSORY_TYPES ambos incluyen 'PinPad/Accesorio'. Cleanup: 0 hardware residual, 0 movimientos residuales.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (varias páginas)", "issues": ["Hydration warnings preexistentes en consola: '<tr> cannot contain <span>' y '<span> cannot be a child of <tbody>' — no relacionados a este feature (arrastre iter 274/275); no bloquean flujo."]},
+      {"screen": "Hardware / dialog Nuevo Registro", "issues": ["Warning a11y en consola: 'Missing Description or aria-describedby for {DialogContent}' en el modal de creación de hardware (falta DialogDescription). No bloqueante — mejora recomendada para lectores de pantalla."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter276_pinpad_categories.py",
+    "/app/test_reports/pytest/iter276_results.xml"
+  ],
+  "action_items": [
+    "(Opcional/a11y) Agregar <DialogDescription> al DialogContent de 'Nuevo Registro' en /app/frontend/src/pages/Hardware.jsx para eliminar el warning de accesibilidad de Radix. No bloqueante.",
+    "(Opcional) Los hydration warnings en /integrators y similares son preexistentes; convendría abordarlos en un ticket dedicado."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/hardware.py::valid_types (línea 169 y plantilla 350) incluye correctamente 'PinPad/Accesorio' y 'PinPad/Licencia' y el POST /api/hardware acepta str libre — coherente.",
+    "backend/models.py::SERIALIZED_TYPES=['pos','pinpad','mpos'] con match case-insensitive vía is_serialized() → 'PinPad/Accesorio' y 'PinPad/Licencia' NO son serializados: correcto y probado en 7 tests. El comportamiento de 'Pinpad' clásico se mantiene (400 si no hay seriales).",
+    "frontend/src/pages/Hardware.jsx::HARDWARE_TYPES agrupa por 'dispositivos' y 'servicios' — coherente con la intención del feature.",
+    "frontend/src/components/EquipmentQuoteWizard.jsx::DEVICE_TYPES y ACCESSORY_TYPES incluyen ambos 'PinPad/Accesorio' → visibilidad cruzada garantizada en el wizard. Comentario en el código lo explica bien.",
+    "frontend/src/pages/Inventory.jsx::entryNeedsSerial usa isSerializedType(type) + asset_type='Bien'. Para 'PinPad/Licencia' → false → sección de seriales oculta y submit habilitado sin seriales. Comportamiento verificado en UI real.",
+    "Sugerencia menor: extraer SERIALIZED_TYPES a una util compartida (o exportarla desde backend a través de un endpoint /api/config) para evitar la duplicación string entre backend/models.py y frontend/src/pages/Inventory.jsx — hoy están sincronizados manualmente."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter276_pinpad_categories.py (nuevo — 7 tests con fixtures autouse de cleanup)"
+  ],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100% (3/3 flujos UI verificados)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Hardware creados y ELIMINADOS: TEST_ITER276_Cable Conector PinPad (PinPad/Accesorio), TEST_ITER276_Licencia Encriptacion Estandar (PinPad/Licencia), TEST_ITER276_Pinpad Serializado (Pinpad). Adicional en UI: TEST_UI276_* y TEST_UI276B_* también eliminados. Movimientos de inventario correspondientes eliminados. Verificación final Mongo: 0 hardware residual, 0 movimientos residuales.",
+  "verified_metrics": {
+    "backend_pytest_pass": "7/7",
+    "hardware_create_pinpad_accesorio_status": 200,
+    "hardware_create_pinpad_licencia_status": 200,
+    "hardware_create_pinpad_serializado_status": 200,
+    "entry_pinpad_licencia_qty100_sin_serials_status": 200,
+    "entry_pinpad_accesorio_qty25_sin_serials_status": 200,
+    "entry_pinpad_sin_serials_status": 400,
+    "entry_pinpad_con_serials_status": 200,
+    "stock_licencia_qty_min": 100,
+    "stock_licencia_requires_serial": false,
+    "ui_hardware_dropdown_options_count": 12,
+    "ui_hardware_dropdown_has_pinpad_accesorio": true,
+    "ui_hardware_dropdown_has_pinpad_licencia": true,
+    "ui_entry_licencia_serial_input_visible": false,
+    "ui_entry_licencia_precarga_toggle_visible": false,
+    "ui_entry_licencia_movement_created": "mov_a526a0ee (qty=100, serials=[], item_type=PinPad/Licencia)",
+    "cross_visibility_devices": true,
+    "cross_visibility_accessories": true
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature completa. Reglas efectivas: (1) hardware.type es str libre — el backend acepta cualquier categoría pero valid_types (importación y template Excel) sí las lista. (2) is_serialized() usa SERIALIZED_TYPES=['pos','pinpad','mpos'] con match case-insensitive → sólo 'POS', 'Pinpad', 'mpos' exigen seriales; PinPad/Accesorio y PinPad/Licencia NO. (3) En EquipmentQuoteWizard, DEVICE_TYPES=['POS','Pinpad','PinPad/Accesorio'] y ACCESSORY_TYPES=['Accesorio','Base','PinPad/Accesorio'] garantizan visibilidad cruzada del ítem PinPad/Accesorio. data-testids clave usadas: add-hardware-button, hardware-type-select, entry-item, entry-qty, entry-acquisition-date, entry-submit, serial-input (visible sólo si serializado), precarga-toggle. El dialog Entrada requiere warehouse seleccionado + click en botón 'Entrada' (texto exacto). Warning pre-existente: falta DialogDescription en el modal de creación de Hardware.",
+  "rca of the issue": "N/A — sin bugs. Feature bien implementada tanto en backend como frontend."
+}

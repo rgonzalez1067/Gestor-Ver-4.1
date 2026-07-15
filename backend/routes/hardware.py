@@ -166,7 +166,7 @@ async def import_hardware(file: UploadFile = File(...), authorization: Optional[
             )
         
         # Tipos válidos
-        valid_types = ['Pinpad', 'POS', 'Cable', 'Base', 'Accesorio', 'Mantenimiento', 'Licencia', 'Consultoria', 'Componente', 'Pieza']
+        valid_types = ['Pinpad', 'POS', 'Cable', 'Base', 'Accesorio', 'PinPad/Accesorio', 'Mantenimiento', 'Licencia', 'PinPad/Licencia', 'Consultoria', 'Componente', 'Pieza']
         
         # Procesar cada fila
         for idx, row in df.iterrows():
@@ -347,15 +347,17 @@ async def get_hardware_import_template(authorization: Optional[str] = Header(Non
         
         # Añadir hoja con tipos válidos
         tipos_data = {
-            'Tipos Válidos': ['Pinpad', 'POS', 'Cable', 'Base', 'Accesorio', 'Mantenimiento', 'Licencia', 'Consultoria', 'Componente', 'Pieza'],
+            'Tipos Válidos': ['Pinpad', 'POS', 'Cable', 'Base', 'Accesorio', 'PinPad/Accesorio', 'Mantenimiento', 'Licencia', 'PinPad/Licencia', 'Consultoria', 'Componente', 'Pieza'],
             'Descripción': [
                 'Dispositivos Pinpad',
                 'Terminales POS',
                 'Cables de conexión',
                 'Bases y soportes',
                 'Accesorios varios',
+                'Accesorio PinPad (visible en Equipos y Accesorios)',
                 'Servicios de mantenimiento',
                 'Licencias de software',
+                'Licencia PinPad (activo lógico, sin serial en inventario)',
                 'Servicios de consultoría',
                 'Componentes electrónicos',
                 'Piezas mecánicas'

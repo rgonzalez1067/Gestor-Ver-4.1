@@ -27,9 +27,11 @@ const HARDWARE_TYPES = [
   { id: 'Cable', name: 'Cable', icon: Cable, color: 'bg-yellow-100 text-yellow-700', category: 'dispositivos' },
   { id: 'Base', name: 'Base', icon: Box, color: 'bg-purple-100 text-purple-700', category: 'dispositivos' },
   { id: 'Accesorio', name: 'Accesorio', icon: Package, color: 'bg-slate-100 text-slate-700', category: 'dispositivos' },
+  { id: 'PinPad/Accesorio', name: 'PinPad/Accesorio', icon: Package, color: 'bg-teal-100 text-teal-700', category: 'dispositivos' },
   // Servicios
   { id: 'Mantenimiento', name: 'Mantenimiento', icon: Wrench, color: 'bg-orange-100 text-orange-700', category: 'servicios' },
   { id: 'Licencia', name: 'Licencia', icon: Settings2, color: 'bg-cyan-100 text-cyan-700', category: 'servicios' },
+  { id: 'PinPad/Licencia', name: 'PinPad/Licencia', icon: Settings2, color: 'bg-sky-100 text-sky-700', category: 'servicios' },
   { id: 'Consultoria', name: 'Consultoría', icon: Settings2, color: 'bg-indigo-100 text-indigo-700', category: 'servicios' },
   // Repuestos
   { id: 'Componente', name: 'Componente', icon: Cog, color: 'bg-rose-100 text-rose-700', category: 'repuestos' },
