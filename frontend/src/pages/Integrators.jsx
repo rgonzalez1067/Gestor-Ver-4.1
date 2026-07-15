@@ -821,14 +821,65 @@ export const Integrators = () => {
     }
   };
 
-  const handleCloseProject = async (integratorId) => {
-    if (!window.confirm('¿Cerrar este proyecto de integración? Pasará a estado "Cerrado", perderá su etiqueta de color y saldrá de la vista por defecto.')) return;
+  // ===== Cierre de Proyecto de Integración (modales + certificado) =====
+  const [closeTarget, setCloseTarget] = useState(null);
+  const [closeModal1Open, setCloseModal1Open] = useState(false);
+  const [closeModal2Open, setCloseModal2Open] = useState(false);
+  const [closeComponente, setCloseComponente] = useState('');
+  const [closeVersion, setCloseVersion] = useState('');
+  const [closeFiles, setCloseFiles] = useState([]);
+  const [closeExtraRecipients, setCloseExtraRecipients] = useState('');
+  const [closing, setClosing] = useState(false);
+
+  const handleCloseProject = async (intg) => {
+    // Excepción Ambiente de Prueba: sin modales, cierre directo (bypass total).
+    if (intg?.project_scope === 'test_environment') {
+      if (!window.confirm('Este es un Ambiente de Prueba. Se cerrará directamente y se removerá de la vista de proyectos (sin certificado ni notificaciones). ¿Continuar?')) return;
+      try {
+        await api.post(`/integrators/${intg.integrator_id}/close`, new FormData());
+        toast.success('Ambiente de prueba cerrado');
+        fetchData();
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'Error al cerrar el proyecto');
+      }
+      return;
+    }
+    // Proyecto estándar → secuencia de modales
+    setCloseTarget(intg);
+    setCloseComponente('');
+    setCloseVersion('');
+    setCloseFiles([]);
+    setCloseExtraRecipients('');
+    setCloseModal1Open(true);
+  };
+
+  const proceedToCloseModal2 = () => {
+    if (!closeComponente.trim() || !closeVersion.trim()) {
+      toast.error('Componente y Versión del Componente son obligatorios');
+      return;
+    }
+    setCloseModal1Open(false);
+    setCloseModal2Open(true);
+  };
+
+  const submitCloseProject = async () => {
+    if (!closeTarget) return;
+    setClosing(true);
     try {
-      await api.post(`/integrators/${integratorId}/close`);
-      toast.success('Proyecto cerrado correctamente');
+      const fd = new FormData();
+      fd.append('componente', closeComponente.trim());
+      fd.append('version_componente', closeVersion.trim());
+      if (closeExtraRecipients.trim()) fd.append('extra_recipients', closeExtraRecipients.trim());
+      (closeFiles || []).forEach((f) => fd.append('files', f));
+      const res = await api.post(`/integrators/${closeTarget.integrator_id}/close`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success(res.data?.certificate_generated ? 'Proyecto cerrado y certificado generado' : 'Proyecto cerrado (sin PDF base en el depósito)');
+      setCloseModal2Open(false);
+      setCloseTarget(null);
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al cerrar el proyecto');
+    } finally {
+      setClosing(false);
     }
   };
 
@@ -1002,6 +1053,51 @@ export const Integrators = () => {
                   </DialogContent>
                 </Dialog>
               )}
+
+              {/* Modal 1: Datos Técnicos del Componente */}
+              <Dialog open={closeModal1Open} onOpenChange={setCloseModal1Open}>
+                <DialogContent className="max-w-md" data-testid="close-modal-1">
+                  <DialogHeader><DialogTitle className="font-manrope text-lg flex items-center gap-2"><Lock size={18} className="text-slate-600" />Cierre de Proyecto · Datos Técnicos</DialogTitle></DialogHeader>
+                  <div className="space-y-4 mt-1">
+                    <p className="text-sm text-slate-500">Integrador: <strong>{closeTarget?.name}</strong>{closeTarget?.app_name ? ` — ${closeTarget.app_name}` : ''}</p>
+                    <div>
+                      <Label className="text-sm font-medium text-slate-700 mb-1 block">Componente *</Label>
+                      <Input value={closeComponente} onChange={(e) => setCloseComponente(e.target.value)} placeholder="Ej: Plugin WooCommerce, API Rest, SDK Android" data-testid="close-componente-input" />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-slate-700 mb-1 block">Versión del Componente *</Label>
+                      <Input value={closeVersion} onChange={(e) => setCloseVersion(e.target.value)} placeholder="Ej: v2.4.1" data-testid="close-version-input" />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setCloseModal1Open(false)} data-testid="close-modal1-cancel">Cancelar</Button>
+                      <Button onClick={proceedToCloseModal2} className="bg-slate-800 hover:bg-slate-900 text-white" data-testid="close-modal1-next">Siguiente</Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Modal 2: Comunicación y Anexos */}
+              <Dialog open={closeModal2Open} onOpenChange={setCloseModal2Open}>
+                <DialogContent className="max-w-md" data-testid="close-modal-2">
+                  <DialogHeader><DialogTitle className="font-manrope text-lg flex items-center gap-2"><Mail size={18} className="text-slate-600" />Comunicación y Anexos</DialogTitle></DialogHeader>
+                  <div className="space-y-4 mt-1">
+                    <div>
+                      <Label className="text-sm font-medium text-slate-700 mb-1 block">Anexos complementarios</Label>
+                      <input type="file" multiple onChange={(e) => setCloseFiles(Array.from(e.target.files || []))} className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white file:cursor-pointer hover:file:bg-slate-800" data-testid="close-files-input" />
+                      {closeFiles.length > 0 && <p className="text-xs text-slate-500 mt-1">{closeFiles.length} archivo(s) seleccionado(s)</p>}
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-slate-700 mb-1 block">Destinatarios adicionales</Label>
+                      <Input value={closeExtraRecipients} onChange={(e) => setCloseExtraRecipients(e.target.value)} placeholder="correo1@dom.com, correo2@dom.com" data-testid="close-extra-recipients-input" />
+                      <p className="text-xs text-slate-400 mt-1">Se enviarán en copia junto al integrador (separados por coma).</p>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => { setCloseModal2Open(false); setCloseModal1Open(true); }} data-testid="close-modal2-back">Atrás</Button>
+                      <Button onClick={submitCloseProject} disabled={closing} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="close-modal2-submit">{closing ? 'Cerrando…' : 'Cerrar y Certificar'}</Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
               {isAdmin && (
                 <Button variant="outline" onClick={() => setPurgeDialogOpen(true)} data-testid="purge-integrators-btn"
                   className="border-rose-200 text-rose-700 hover:bg-rose-50"><Trash2 size={16} className="mr-1" />Vaciar BD</Button>
@@ -1711,7 +1807,7 @@ export const Integrators = () => {
                             </Button>
                             {canEdit && <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>}
                             {canEdit && intg.integrator_status !== 'Cerrado' && (
-                              <Button size="sm" variant="ghost" onClick={() => handleCloseProject(intg.integrator_id)} className="text-slate-500 hover:bg-slate-200 h-7 w-7 p-0" data-testid={`close-project-${intg.integrator_id}`} title="Cerrar Proyecto"><Lock size={13} /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => handleCloseProject(intg)} className="text-slate-500 hover:bg-slate-200 h-7 w-7 p-0" data-testid={`close-project-${intg.integrator_id}`} title="Cerrar Proyecto"><Lock size={13} /></Button>
                             )}
                             {canEdit && intg.integrator_status !== 'Cerrado' && intg.integrator_status !== 'Suspendido' && (
                               <Button size="sm" variant="ghost" onClick={() => handleSuspendProject(intg.integrator_id)} className="text-amber-500 hover:bg-amber-50 h-7 w-7 p-0" data-testid={`suspend-project-${intg.integrator_id}`} title="Suspender Proyecto"><PauseCircle size={13} /></Button>

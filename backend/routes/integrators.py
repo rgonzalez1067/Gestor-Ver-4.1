@@ -310,11 +310,103 @@ async def update_integrator(integrator_id: str, integrator: IntegratorCreate, au
     return updated
 
 
+def _certified_products_string(intg: dict) -> str:
+    """Concatena los nombres de los Medios de Pago con certificación 'C' (Certificado),
+    en el orden de la lista maestra, unidos por ' / '. (Regla del Valor 'C')."""
+    certs = intg.get("certifications") or {}
+    names = [p["name"] for p in INTEGRATOR_PRODUCTS if str(certs.get(p["id"], "")).strip().upper() == "C"]
+    return " / ".join(names)
+
+
+def _wrap_text_lines(text: str, font: str, size: float, max_width: float) -> list:
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    words = (text or "").split()
+    lines, cur = [], ""
+    for w in words:
+        test = (cur + " " + w).strip()
+        if stringWidth(test, font, size) <= max_width or not cur:
+            cur = test
+        else:
+            lines.append(cur); cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+async def _generate_integration_certificate_pdf(intg: dict, componente: str, version: str, productos_str: str):
+    """Genera el Certificado Digital estampando texto dinámico sobre el PDF base
+    resguardado en el depósito 'Certificado' (db.config type=integration_certificate).
+    NO usa rutas fijas ni archivos locales. Devuelve bytes o None si no hay PDF base."""
+    doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
+    if not doc or not doc.get("filename"):
+        return None
+    fpath = UPLOADS_DIR / doc["filename"]
+    if not fpath.exists() or not str(doc["filename"]).lower().endswith(".pdf"):
+        return None
+    try:
+        from pypdf import PdfReader, PdfWriter
+        from reportlab.pdfgen import canvas as rl_canvas
+        base = PdfReader(str(fpath))
+        page = base.pages[0]
+        w = float(page.mediabox.width)
+        h = float(page.mediabox.height)
+        name = intg.get("name", "")
+        app_name = intg.get("app_name", "")
+        buf = io.BytesIO()
+        c = rl_canvas.Canvas(buf, pagesize=(w, h))
+        cx = w / 2
+        y = h * 0.60
+        c.setFillColorRGB(0.12, 0.16, 0.22)
+        c.setFont("Helvetica", 14); c.drawCentredString(cx, y, "Certifica a:")
+        y -= 30
+        c.setFont("Helvetica-Bold", 22); c.drawCentredString(cx, y, name)
+        y -= 40
+        max_w = w * 0.78
+        body = (f"Por haber cumplido a cabalidad la integración y pruebas de la interfaz "
+                f"{componente} - Versión {version}")
+        for ln in _wrap_text_lines(body, "Helvetica", 13, max_w):
+            c.setFont("Helvetica", 13); c.drawCentredString(cx, y, ln); y -= 20
+        y -= 6
+        for ln in _wrap_text_lines(f"para los Productos: {productos_str}", "Helvetica-Oblique", 13, max_w):
+            c.setFont("Helvetica-Oblique", 13); c.drawCentredString(cx, y, ln); y -= 20
+        y -= 6
+        for ln in _wrap_text_lines(f"con el Aplicativo {app_name}", "Helvetica", 13, max_w):
+            c.setFont("Helvetica", 13); c.drawCentredString(cx, y, ln); y -= 20
+        y -= 24
+        c.setFont("Helvetica", 12); c.drawCentredString(cx, y, "Desarrollado por:")
+        y -= 24
+        c.setFont("Helvetica-Bold", 16); c.drawCentredString(cx, y, name)
+        c.save(); buf.seek(0)
+        overlay = PdfReader(buf)
+        writer = PdfWriter()
+        page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+        for extra in base.pages[1:]:
+            writer.add_page(extra)
+        out = io.BytesIO(); writer.write(out); out.seek(0)
+        return out.read()
+    except Exception as e:
+        logger.warning(f"[cert] no se pudo generar el certificado PDF: {e}")
+        return None
+
+
 @router.post("/integrators/{integrator_id}/close")
-async def close_integrator_project(integrator_id: str, authorization: Optional[str] = Header(None)):
-    """Cierre de Proyecto de Integración. Solo perfiles con permiso de edición.
-    Pasa el estado a 'Cerrado', elimina la etiqueta de alcance (project_scope=None)
-    para que pierda el color y salga de la vista por defecto del visor."""
+async def close_integrator_project(
+    integrator_id: str,
+    componente: Optional[str] = Form(None),
+    version_componente: Optional[str] = Form(None),
+    extra_recipients: Optional[str] = Form(None),
+    files: List[UploadFile] = File(default=[]),
+    authorization: Optional[str] = Header(None),
+):
+    """Cierre de Proyecto de Integración con generación automatizada de Certificado.
+
+    - Ambiente de Prueba (project_scope='test_environment'): BYPASS total — solo se
+      borra de la Vista de Proyectos (estatus 'Cerrado'). Sin modales/cert/correo/grilla.
+    - Estándar (new/component): el registro pasa a 'Certificado' (Vista de Integradores).
+    - Ampliación (expansion): reemplaza el registro certificado del mismo binomio
+      (nombre + integration_type) y consume el registro de ampliación.
+    """
     current_user = await get_current_user(authorization)
     role = (current_user or {}).get("role", "")
     if role not in ("admin", "implementador", "coordinador", "gestor"):
@@ -324,20 +416,79 @@ async def close_integrator_project(integrator_id: str, authorization: Optional[s
     if not existing:
         raise HTTPException(status_code=404, detail="Integrator not found")
 
-    await db.integrators.update_one(
-        {"integrator_id": integrator_id},
-        {"$set": {
-            "integrator_status": "Cerrado",
-            "project_scope": None,
-            "closed_at": datetime.now(timezone.utc).isoformat(),
-            "closed_by": current_user.get("email"),
-        }},
-    )
-    updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
-
-    # Correo automatizado de cierre (acción configurable en Otras Acciones).
-    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    now_iso = datetime.now(timezone.utc).isoformat()
     closed_by = current_user.get("email") if current_user else ""
+    scope = existing.get("project_scope")
+
+    # ---------- EXCEPCIÓN: Ambiente de Prueba (bypass total) ----------
+    if scope == "test_environment":
+        await db.integrators.update_one(
+            {"integrator_id": integrator_id},
+            {"$set": {"integrator_status": "Cerrado", "project_scope": None,
+                      "closed_at": now_iso, "closed_by": closed_by}},
+        )
+        updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+        return {"status": "ok", "bypass": True, "integrator": updated, "notification": None}
+
+    # ---------- ESTÁNDAR: requiere datos técnicos del Modal 1 ----------
+    componente = (componente or "").strip()
+    version_componente = (version_componente or "").strip()
+    if not componente or not version_componente:
+        raise HTTPException(status_code=400, detail="Componente y Versión del Componente son obligatorios")
+
+    productos_str = _certified_products_string(existing)
+
+    # Certificado PDF (estampado sobre el depósito) + anexos del Modal 2
+    attachments = []
+    cert_bytes = await _generate_integration_certificate_pdf(existing, componente, version_componente, productos_str)
+    if cert_bytes:
+        attachments.append({"filename": f"Certificado_{existing.get('name', 'Integracion')}.pdf", "content": cert_bytes})
+    for f in (files or []):
+        try:
+            content = await f.read()
+            if content:
+                attachments.append({"filename": f.filename, "content": content})
+        except Exception:
+            pass
+
+    extra_cc = [e.strip() for e in re.split(r"[,;\s]+", extra_recipients or "") if e.strip() and "@" in e]
+
+    # ---------- Persistencia / grillas ----------
+    cert_set = {
+        "cert_component": componente, "cert_version": version_componente,
+        "cert_products": productos_str, "certified_at": now_iso, "certified_by": closed_by,
+        "closed_at": now_iso, "closed_by": closed_by,
+        "integrator_status": "Certificado", "project_scope": None,
+    }
+
+    replaced = False
+    if scope == "expansion":
+        base = await db.integrators.find_one({
+            "name": existing.get("name"),
+            "integration_type": existing.get("integration_type"),
+            "integrator_status": "Certificado",
+            "integrator_id": {"$ne": integrator_id},
+        })
+        if base:
+            # Reemplazar el registro certificado existente con la info del cierre
+            await db.integrators.update_one(
+                {"integrator_id": base["integrator_id"]},
+                {"$set": {**cert_set, "app_name": existing.get("app_name", base.get("app_name", "")),
+                          "certifications": existing.get("certifications", base.get("certifications", {})),
+                          "updated_at": now_iso}},
+            )
+            await db.integrators.delete_one({"integrator_id": integrator_id})
+            target_id = base["integrator_id"]
+            replaced = True
+
+    if not replaced:
+        await db.integrators.update_one({"integrator_id": integrator_id}, {"$set": cert_set})
+        target_id = integrator_id
+
+    updated = await db.integrators.find_one({"integrator_id": target_id}, {"_id": 0})
+
+    # ---------- Notificación (Otras Acciones) con cert + anexos ----------
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
     tpl_vars = {
         "nombre_integrador": existing.get("name", ""), "Integrador": existing.get("name", ""),
         "integrator_name": existing.get("name", ""),
@@ -345,6 +496,9 @@ async def close_integrator_project(integrator_id: str, authorization: Optional[s
         "tipo_integracion": existing.get("integration_type", ""), "tipo_integrador": existing.get("integrator_type", ""),
         "modalidad_integracion": existing.get("integration_modality", ""),
         "nombre_implementador": existing.get("implementador", ""), "Nombre_Implementador": existing.get("implementador", ""),
+        "componente": componente, "Componente": componente,
+        "version_componente": version_componente, "Version_Componente": version_componente,
+        "productos_certificados": productos_str, "Productos_Certificados": productos_str, "Productos": productos_str,
         "cerrado_por": closed_by, "Cerrado_Por": closed_by,
         "usuario_ejecutor": closed_by, "fecha_sistema": now_str, "Fecha_Sistema": now_str,
     }
@@ -355,11 +509,16 @@ async def close_integrator_project(integrator_id: str, authorization: Optional[s
             "integration_project_closed", tpl_vars, current_user=current_user,
             fallback_subject=f"Cierre de Proyecto de Integración: {existing.get('name', '')} — {existing.get('app_name', '')}",
             integrator=existing,
-            extra_attachments=await _get_integration_certificate_attachment(),
+            extra_attachments=attachments or None,
+            extra_cc=extra_cc or None,
         )
     except Exception as e:
         logger.warning(f"[close] dispatch integration_project_closed falló: {e}")
-    return {"status": "ok", "integrator": updated, "notification": dispatch_result}
+    return {"status": "ok", "bypass": False, "replaced": replaced,
+            "productos_certificados": productos_str,
+            "certificate_generated": bool(cert_bytes),
+            "integrator": updated, "notification": dispatch_result}
+
 
 
 def _build_integrator_tpl_vars(intg: dict, actor_email: str) -> dict:

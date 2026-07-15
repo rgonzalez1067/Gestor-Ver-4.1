@@ -1,0 +1,45 @@
+{
+  "summary": "Iter271 — Cierre automatizado de Proyectos de Integración validado end-to-end. 10/10 backend tests PASSED cubriendo (A) depósito de Certificado, (B) BYPASS Ambiente de Prueba, (C) ESTÁNDAR NUEVO con validación 400 y éxito, (D) AMPLIACIÓN con replaced=true + 1 sola fila del binomio, (E) cierre sin PDF depósito → certificate_generated=false. Frontend Playwright validó los 3 flujos por UI: (1) Modal 1 rechaza Siguiente vacío y NO avanza; (2) Modal 1→Modal 2→submit cierra qa_close_new y sale de la vista de proyectos activos; (3) test_environment NO abre modales (confirm nativo); (4) expansion reemplaza el registro base dejando 1 fila con AppNuevaAmp+v3.0. Persistencia verificada por DB: qa_close_new='Certificado' con cert_component/version/products correctos, qa_close_base actualizado con datos NUEVOS del cierre de ampliación, qa_close_exp DELETED, qa_close_tenv 'Cerrado' sin campos de cert. productos_certificados='Verificación P2C / C2P' (concatenado con ' / '). Depósito PDF consumido dinámicamente (certificate_generated=true con PDF, false sin PDF). Se detectó y corrigió un bloqueador crítico en la seed inicial (falta integrator_type que rompía GET /integrators con 500 Response validation).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/integrators/{id} y /api/integrators", "issue": "El seed inicial provisto por el main agent (qa_close_new, qa_close_tenv, qa_close_base, qa_close_exp) NO incluía el campo obligatorio 'integrator_type', lo que provocaba 500 ResponseValidationError en TODA la grilla de integradores. T1 aplicó fix directo en Mongo agregando integrator_type='Comercio' + integration_modality='Directa'. El test file re-seedea automáticamente. Recomendación: la próxima vez que el main agent (o script de seed) cree integradores mediante inserción directa a Mongo (bypass del modelo), debe incluir integrator_type='Comercio' o el que corresponda."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators — tabla y row de QA_CLOSE_AMP", "issues": ["El modelo API Integrator NO expone cert_component / cert_version / cert_products / certified_at / certified_by (persistidos por el backend en /close pero recortados por response_model=Integrator en /app/backend/models.py L457). La UI nunca ve la metadata de certificación (componente/versión/productos), por lo que la fila 'Certificado' no muestra estos datos, solo el badge de estatus. No es un bug de esta iteración, pero es un gap a considerar si se quiere renderizar el resumen de la certificación en la grilla o en el detalle."]},
+      {"screen": "Dashboard/Integrators tablas", "issues": ["Persisten warnings de hydration '<span> cannot be a child of <tbody>' / '<tr> cannot be a child of <span>' del wrapper del visual-editor (reportado en iter270). No bloquea."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter271_close_integrator_project.py",
+    "/app/test_reports/pytest/iter271_results.xml"
+  ],
+  "action_items": [
+    "Extender el modelo Integrator (/app/backend/models.py) para exponer cert_component, cert_version, cert_products, certified_at, certified_by, closed_at, closed_by — hoy quedan escondidos por response_model=Integrator y el FE no puede pintar la información del certificado.",
+    "Asegurar que los scripts/utilidades de seed incluyan integrator_type (obligatorio en Pydantic Integrator); de lo contrario TODO GET /integrators cae 500.",
+    "Opcional: exponer productos_certificados / certificate_generated en la fila (badge o tooltip) para dar feedback al operador sobre el cierre."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/integrators.py L393-520 — close_integrator_project: lógica limpia, buena separación bypass vs estándar vs expansion. Correcto uso de re.split para extra_recipients y filtro de '@'.",
+    "backend/routes/integrators.py L457-486 — cert_set y bloque expansion: la operación replace preserva certifications de la ampliación y hace delete atómico del doc expansion. OK. Nota: el nuevo doc 'base' hereda app_name del expansion (correcto para reflejar 'datos NUEVOS').",
+    "backend/routes/integrators.py L336-390 — _generate_integration_certificate_pdf: bien encapsulado, retorna None si el depósito está vacío (permite cierre sin bloquear). Estampado con reportlab overlay sobre la primera página del PDF depósito.",
+    "backend/routes/integrators.py L313-318 — _certified_products_string: recorre INTEGRATOR_PRODUCTS y toma solo 'C'. Uppercase-safe. join(' / '). OK.",
+    "backend/models.py L457 — Integrator model: FALTAN campos de cierre/certificación (cert_component/version/products/closed_at/etc). Esto es un gap silencioso — los datos se persisten en Mongo pero se recortan al serializar. Ver action_items.",
+    "frontend/src/pages/Integrators.jsx L834-884 — flujo modal correcto: test_environment usa window.confirm y submitCloseProject usa FormData multipart con files[]. Validación cliente en proceedToCloseModal2 (obligatorios). data-testids todos presentes.",
+    "frontend/src/pages/Integrators.jsx L977-996 — filtro CLASSIFIED_SCOPES excluye correctamente Certificados (project_scope=null) del listado de 'Solo Proyectos'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter271_close_integrator_project.py (nuevo — 10 tests: cert deposit, bypass, standard, expansion, empty deposit; re-seed autouse fixture)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (3/3 flujos UI validados)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "El test file re-seedea qa_close_new, qa_close_tenv, qa_close_base, qa_close_exp en la DB (fixture autouse scope=module). Al finalizar el testing, T1 borró los 4 integradores QA_* y el depósito de certificado (db.config y /app/backend/uploads/integration_certificate.pdf). Estado final: LIMPIO.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El test file tests/test_iter271_close_integrator_project.py incluye un fixture autouse que re-seedea los 4 integradores QA — no requiere seed externo. Requiere MONGO_URL/DB_NAME (los carga desde backend/.env). Ejecutar: `cd /app/backend && python -m pytest tests/test_iter271_close_integrator_project.py -v`. NOTA CRÍTICA: en el modelo Integrator faltan cert_component/cert_version/cert_products — el test valida esos campos vía Mongo directo (no vía API). Si el main agent extiende el modelo, actualizar test_d2_only_one_row_of_binomio_remains para validar también por API. El backend engine para dispatch está OK (fix aplicado en iter270 sobre other_actions_engine.py L135 sigue en pie).",
+  "rca of the issue": "Bug de seed en integrator_type: los 4 integradores QA fueron insertados sin integrator_type='Comercio'. Como GET /integrators declara response_model=List[Integrator] y el campo es obligatorio en Pydantic, cualquier fila sin él dispara ResponseValidationError → 500 para TODO el listado. Reproducción: `curl /api/integrators` → 500. RCA en logs: 'Field required loc:(response,581,integrator_type)'. Mitigación aplicada: `db.integrators.update_many({integrator_id in [qa_close_*]}, $set: integrator_type='Comercio', integration_modality='Directa')`. Post-fix: 200 OK con las 4 filas."
+}
