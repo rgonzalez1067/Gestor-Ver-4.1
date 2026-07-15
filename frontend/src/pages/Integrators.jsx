@@ -16,6 +16,7 @@ import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter
 import { EntityEmailDialog } from '../components/EntityEmailDialog';
 import { InternalEmailInput } from '../components/InternalEmailInput';
 import { MassCommunicationDialog } from '../components/MassCommunicationDialog';
+import { IntegratorCertificatesCell } from '../components/IntegratorCertificatesCell';
 import PurgeIntegratorsDialog from '../components/PurgeIntegratorsDialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -168,10 +169,11 @@ export const Integrators = () => {
       if (showAll) params.append('show_all', 'true');
       const url = params.toString() ? `/integrators?${params}` : '/integrators';
 
-      const [intRes, usersRes, servicesRes, implRes, coordRes] = await Promise.all([
-        api.get(url), api.get('/auth/users'), api.get('/integrators/products'), api.get('/auth/implementadores'), api.get('/integrators/coordinators')
+      const [intRes, usersRes, servicesRes, implRes, coordRes, certRes] = await Promise.all([
+        api.get(url), api.get('/auth/users'), api.get('/integrators/products'), api.get('/auth/implementadores'), api.get('/integrators/coordinators'), api.get('/integrators/certificates/counts')
       ]);
       setIntegrators(intRes.data);
+      setCertCounts(certRes.data?.counts || {});
       setUsers(usersRes.data || []);
       setImplementadores(implRes.data || []);
       setCoordinators(coordRes.data || []);
@@ -179,6 +181,10 @@ export const Integrators = () => {
       setCertProducts(servicesRes.data || []);
     } catch { toast.error('Error al cargar datos'); }
     finally { setLoading(false); }
+  };
+
+  const fetchCertCounts = async () => {
+    try { const r = await api.get('/integrators/certificates/counts'); setCertCounts(r.data?.counts || {}); } catch { /* noop */ }
   };
 
   const handleSubmit = async (e) => {
@@ -834,6 +840,7 @@ export const Integrators = () => {
   const [closeNewRecipient, setCloseNewRecipient] = useState('');
   const [closing, setClosing] = useState(false);
   const [massCommOpen, setMassCommOpen] = useState(false);
+  const [certCounts, setCertCounts] = useState({});
 
   const addCloseRecipient = () => {
     const email = (closeNewRecipient || '').trim();
@@ -1836,6 +1843,9 @@ export const Integrators = () => {
                             </PopoverContent>
                           </Popover>
                         </td>
+                        <td className="px-2 py-2 text-center">
+                          <IntegratorCertificatesCell integratorId={intg.integrator_id} count={certCounts[intg.integrator_id] || 0} onChange={fetchCertCounts} />
+                        </td>
                         <td className="px-2 py-2" style={{ minWidth: '160px' }}>
                           <div className="flex items-center justify-center gap-1">
                             <Button size="sm" variant="ghost" onClick={() => setExpandedRow(expandedRow === intg.integrator_id ? null : intg.integrator_id)}
@@ -1886,7 +1896,7 @@ export const Integrators = () => {
                         ];
                         return (
                         <tr>
-                          <td colSpan={11} className="p-0">
+                          <td colSpan={12} className="p-0">
                             <div className="bg-slate-50 border-t border-slate-200 p-4" data-testid={`cert-matrix-${intg.integrator_id}`}>
                               <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                                 <Award size={14} className="text-purple-600" />Matriz de Servicios y Productos — {intg.name}

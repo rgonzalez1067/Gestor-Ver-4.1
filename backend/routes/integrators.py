@@ -570,6 +570,31 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
             return None
 
 
+async def _store_integrator_certificate(integrator_id: str, filename: str, content: bytes,
+                                        origin: str, origin_label: str, user: dict = None) -> str:
+    """Inserta un Certificado como NUEVA versión (INSERT acumulativo, nunca UPDATE/UPSERT).
+    Persiste el contenido en Mongo (el FS del contenedor es efímero)."""
+    cert_id = f"cert_{uuid.uuid4().hex[:12]}"
+    uname = ""
+    if user:
+        uname = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("email", "")
+    doc = {
+        "certificate_id": cert_id,
+        "integrator_id": integrator_id,
+        "original_name": filename,
+        "content_b64": base64.b64encode(content).decode("ascii"),
+        "content_type": "application/pdf",
+        "size": len(content),
+        "origin": origin,                # 'system' | 'manual'
+        "origin_label": origin_label,    # 'Sistema - Cierre Automático' | 'Manual - <usuario>'
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": (user or {}).get("email", "sistema"),
+        "created_by_name": uname or "Sistema",
+    }
+    await db.integrator_certificates.insert_one(doc)
+    return cert_id
+
+
 @router.post("/integrators/{integrator_id}/close")
 async def close_integrator_project(
     integrator_id: str,
@@ -666,6 +691,16 @@ async def close_integrator_project(
         await db.integrators.update_one({"integrator_id": integrator_id}, {"$set": cert_set})
         target_id = integrator_id
 
+    # Persistencia ACUMULATIVA del Certificado (nueva versión, sin sobreescribir el histórico).
+    if cert_bytes:
+        try:
+            await _store_integrator_certificate(
+                target_id, f"Certificado_{existing.get('name', 'Integracion')}.pdf",
+                cert_bytes, "system", "Sistema - Cierre Automático", current_user,
+            )
+        except Exception as e:
+            logger.warning(f"[cert] no se pudo persistir el certificado del cierre: {e}")
+
     updated = await db.integrators.find_one({"integrator_id": target_id}, {"_id": 0})
 
     # ---------- Notificación (Otras Acciones) con cert + anexos ----------
@@ -701,6 +736,73 @@ async def close_integrator_project(
             "productos_certificados": productos_str,
             "certificate_generated": bool(cert_bytes),
             "integrator": updated, "notification": dispatch_result}
+
+
+# ==================== REPOSITORIO MULTIVERSIÓN DE CERTIFICADOS ====================
+
+@router.get("/integrators/certificates/counts")
+async def integrator_certificate_counts(authorization: Optional[str] = Header(None)):
+    """Conteo de certificados por integrador (para el indicador en la grilla)."""
+    await get_current_user(authorization)
+    counts = {}
+    async for row in db.integrator_certificates.aggregate(
+        [{"$group": {"_id": "$integrator_id", "n": {"$sum": 1}}}]
+    ):
+        counts[row["_id"]] = row["n"]
+    return {"counts": counts}
+
+
+@router.get("/integrators/certificates/{certificate_id}/download")
+async def download_integrator_certificate(certificate_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    doc = await db.integrator_certificates.find_one({"certificate_id": certificate_id}, {"_id": 0})
+    if not doc or not doc.get("content_b64"):
+        raise HTTPException(status_code=404, detail="Certificado no encontrado")
+    data = base64.b64decode(doc["content_b64"])
+    return StreamingResponse(
+        io.BytesIO(data), media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{doc.get("original_name", "certificado.pdf")}"'},
+    )
+
+
+@router.get("/integrators/{integrator_id}/certificates")
+async def list_integrator_certificates(integrator_id: str, authorization: Optional[str] = Header(None)):
+    """Historial cronológico inverso (más reciente primero) de certificados del integrador."""
+    await get_current_user(authorization)
+    items = []
+    async for c in db.integrator_certificates.find(
+        {"integrator_id": integrator_id}, {"_id": 0, "content_b64": 0}
+    ).sort("created_at", -1):
+        items.append(c)
+    return {"certificates": items, "total": len(items)}
+
+
+@router.post("/integrators/{integrator_id}/certificates")
+async def upload_integrator_certificate_manual(
+    integrator_id: str,
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Carga manual de un Certificado (PDF) como NUEVA versión, sin sobreescribir."""
+    current_user = await get_current_user(authorization)
+    if (current_user or {}).get("role", "") not in ("admin", "implementador", "coordinador", "gestor"):
+        raise HTTPException(status_code=403, detail="No tiene permisos para cargar certificados")
+    intg = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0, "name": 1})
+    if not intg:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+    fname = file.filename or "certificado.pdf"
+    if not fname.lower().endswith(".pdf") or (file.content_type and "pdf" not in file.content_type.lower()):
+        raise HTTPException(status_code=400, detail="Solo se permiten archivos en formato PDF")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+    if content[:5] != b"%PDF-":
+        raise HTTPException(status_code=400, detail="El archivo no es un PDF válido")
+    uname = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
+    cert_id = await _store_integrator_certificate(
+        integrator_id, fname, content, "manual", f"Manual - {uname}", current_user,
+    )
+    return {"status": "ok", "certificate_id": cert_id, "original_name": fname}
 
 
 

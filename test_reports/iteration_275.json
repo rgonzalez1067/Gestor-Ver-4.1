@@ -1,0 +1,51 @@
+{
+  "summary": "Repositorio Multiversión de Certificados por Integrador — backend (7/7 pytest passed) + frontend E2E OK. Verificado: rechazo no-PDF/PDF inválido (400), 403 para non-admin (jrojas), no-sobreescritura (2 uploads ⇒ total=2 orden desc, ambos descargables application/pdf %PDF-), counts endpoint devuelve {integrator_id: n}, cierre de proyecto añade cert 'system' (Sistema - Cierre Automático) preservando manuales. UI: columna 'Certificados' con trigger contador, popover se abre y muestra items con fecha + origen, modal 'Agregar Certificado' rechaza .txt con toast y sube PDF con incremento del contador (0→1→2 sin reemplazar). Todos los datos de prueba fueron eliminados (integradores + integrator_certificates).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators grid", "issues": ["Hydration warnings preexistentes: '<tr> cannot contain <span>' y '<span> cannot be a child of tbody' aparecen en /integrators (arrastre de iter 274). No proviene del componente IntegratorCertificatesCell. No bloquea flujo."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter275_integrator_certificates_repo.py",
+    "/app/test_reports/pytest/iter275_results.xml"
+  ],
+  "action_items": [
+    "(Opcional / fuera de scope) Corregir el hydration warning en la tabla de /integrators (span mal anidado dentro de <tr>/<tbody>). Preexistente, no relacionado al feature de certificados."
+  ],
+  "critical_code_review_comments": [
+    "routes/integrators.py::_store_integrator_certificate — INSERT acumulativo correcto (siempre insert_one, nunca update/upsert). Content persistido en base64 en Mongo (FS efímero); campos origin/origin_label/created_by_name presentes.",
+    "POST /integrators/{id}/certificates — valida extensión .pdf, content_type y bytes iniciales %PDF-. Guardas 403 (role fuera de admin/implementador/coordinador/gestor) y 404 (integrador inexistente) correctas.",
+    "close_integrator_project — llama a _store_integrator_certificate con origin='system' contra target_id (respeta lógica de ampliación/reemplazo), sin borrar los certificados manuales previos.",
+    "IntegratorCertificatesCell.jsx — Popover Radix con portal funciona; modal separado usa DialogDescription (correcto a11y); pickFile valida .pdf en cliente antes de enviar; onChange dispara fetchCertCounts para actualizar contador de la grilla.",
+    "Rutas de segmento fijo (/integrators/certificates/counts, /integrators/certificates/{id}/download) van ANTES de /integrators/{id} en el router; no colisionan (verificado con integrator_id real)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter275_integrator_certificates_repo.py (nuevo — 7 tests, con teardown que borra integradores y sus certificados vía Mongo)"
+  ],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100% (todos los flujos críticos verificados)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve/admin123 · Non-admin (403): jrojas@megasoft.com.ve/Test1234! (email en minúscula obligatorio).",
+  "seed_data_creation": "1 integrador TEST_CERT_ITER275_* creado y ELIMINADO por el fixture (con sus 4 certs — 3 manuales + 1 system). 1 integrador TEST_CERT_UI_600e09 creado para UI E2E y ELIMINADO manualmente vía Mongo (con sus 2 certs). Verificación final: 0 integradores TEST_CERT_* y 0 documentos residuales en integrator_certificates.",
+  "verified_metrics": {
+    "manual_upload_pdf_valido": "200 status=ok, certificate_id cert_*",
+    "rechazo_txt": "400 'Solo se permiten archivos en formato PDF'",
+    "rechazo_pdf_sin_header": "400 'El archivo no es un PDF válido'",
+    "rbac_403_jrojas": "403 'No tiene permisos para cargar certificados'",
+    "no_overwrite_total": 3,
+    "orden_desc_verificado": true,
+    "download_pdf_bytes": "application/pdf %PDF-",
+    "close_incremento_contador": "3 → 4 (nuevo con origin='system')",
+    "manuales_coexisten_tras_cierre": 3,
+    "ui_counter_before_uploads": "0",
+    "ui_counter_after_upload_1": "1",
+    "ui_counter_after_upload_2": "2",
+    "ui_items_en_popover": 2,
+    "ui_toast_txt_rechazado": "Solo se permiten archivos en formato PDF"
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature completa y verificada. Endpoints CERTS: /integrators/certificates/counts (dict integrator_id→n), /integrators/certificates/{cert_id}/download (StreamingResponse application/pdf), /integrators/{id}/certificates (GET desc), POST /integrators/{id}/certificates (multipart, valida .pdf+%PDF-). El cierre POST /integrators/{id}/close inserta cert 'system' (Sistema - Cierre Automático) sobre target_id (respetando ampliación). data-testid del feature: certs-trigger-{id}, certs-popover-{id}, certs-add-{id}, cert-item-{cert_id}, cert-dl-{cert_id}, cert-upload-modal, cert-upload-input, cert-upload-confirm, cert-upload-cancel. Nota: el trigger Radix requiere click JS (element.click()) en playwright para abrir en portal correctamente; page.click puede impactar la fila expandible detrás.",
+  "rca of the issue": "N/A — sin issues bloqueantes."
+}
