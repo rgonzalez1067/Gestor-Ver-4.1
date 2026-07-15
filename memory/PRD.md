@@ -4208,3 +4208,14 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Repositorio de Certificados (global): POST/GET/DELETE /integrators/config/certificate (solo .jpg/.png/.pdf; almacenamiento local en UPLOADS_DIR + db.config type=integration_certificate). Se adjunta automáticamente en el correo de Cierre (_get_integration_certificate_attachment). UI: botón "Certificado" en header de Integradores.
 - Verificado testing_agent iter270: 7/7 backend + frontend OK. FIX crítico durante testing: else vacío en other_actions_engine.py (rompía TODAS las Otras Acciones) → corregido. Regresión: test_iter270_integrator_lifecycle.py.
 - PENDIENTE (acordado con usuario, otro requerimiento): "preparación/generación" del contenido del Certificado (hoy solo se adjunta el archivo subido).
+
+**Feature: Cierre automatizado de Proyectos de Integración + Certificado PDF · 2026-07-14:**
+- close_integrator_project (routes/integrators.py) ahora es multipart (componente, version_componente, extra_recipients, files[]). Flujos:
+  - Ambiente de Prueba (project_scope='test_environment'): BYPASS total → estatus 'Cerrado', sin modales/cert/correo/grilla.
+  - Estándar new/component: estatus 'Certificado', project_scope=null (aparece en Vista de Integradores, sale de proyectos activos).
+  - Ampliación (expansion): reemplaza el registro certificado del mismo binomio nombre+integration_type (una sola fila) y consume (delete) el doc de ampliación.
+- Certificado: _generate_integration_certificate_pdf estampa texto (Certifica a/{name}, interfaz {componente}-{version}, Productos {C-string}, Aplicativo {app_name}, Desarrollado por {name}) sobre el PDF del depósito (db.config type=integration_certificate). Productos = certifications con valor 'C' unidos por ' / '. Se adjunta + anexos del Modal 2 y se despacha vía dispatch_other_action (extra_attachments + extra_cc).
+- Frontend Integrators.jsx: Modal 1 (componente/versión obligatorios) → Modal 2 (anexos + destinatarios adicionales) → 'Cerrar y Certificar'. test_environment usa confirm directo (sin modales).
+- models.py Integrator: expuestos cert_component/cert_version/cert_products/certified_at/by, closed_at/by, suspended_at/by, reactivated_at/by, status_before_suspension (antes se persistían pero se recortaban).
+- Verificado testing_agent iter271: 10/10 backend + 3/3 flujos UI. Regresión: test_iter271_close_integrator_project.py. Estado DB limpio.
+- Nota: seeds por inserción directa a Mongo DEBEN incluir integrator_type (obligatorio) o GET /integrators cae 500.

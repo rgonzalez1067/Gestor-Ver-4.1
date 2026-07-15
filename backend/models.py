@@ -496,6 +496,19 @@ class Integrator(BaseModel):
     test_env_start_date: Optional[str] = None
     test_env_end_date: Optional[str] = None
     test_env_expiry_notified: bool = False
+    # Metadatos de cierre / certificación (poblados por /integrators/{id}/close).
+    cert_component: Optional[str] = None
+    cert_version: Optional[str] = None
+    cert_products: Optional[str] = None
+    certified_at: Optional[str] = None
+    certified_by: Optional[str] = None
+    closed_at: Optional[str] = None
+    closed_by: Optional[str] = None
+    suspended_at: Optional[str] = None
+    suspended_by: Optional[str] = None
+    reactivated_at: Optional[str] = None
+    reactivated_by: Optional[str] = None
+    status_before_suspension: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):
