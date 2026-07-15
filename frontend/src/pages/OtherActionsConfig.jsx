@@ -180,7 +180,7 @@ function ActionCard({ action, users, templates, existingCfg, onSaved }) {
           {action.id === 'integration_project_closed' && (
             <div className="mt-2 mb-1 flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded px-3 py-2 text-xs text-emerald-800" data-testid="oa-cert-note">
               <span className="shrink-0">📎</span>
-              <span className="break-words">El <strong>Certificado PDF</strong> se adjunta automáticamente a esta notificación, tomándolo del depósito "Certificado" de la pantalla de Integradores. Requisitos: la acción debe estar <strong>activa</strong>, tener al menos un destinatario por <strong>canal Correo</strong>, y haber un PDF cargado en el depósito.</span>
+              <span className="break-words">El <strong>Certificado PDF</strong> se genera y adjunta automáticamente a esta notificación. Si hay un PDF base cargado en el depósito "Certificado" (pantalla de Integradores) se estampa sobre él; de lo contrario se emite un certificado corporativo completo. Requisitos: la acción debe estar <strong>activa</strong> y tener al menos un destinatario por <strong>canal Correo</strong> (el Centro de Mensajes no transporta adjuntos).</span>
             </div>
           )}
 

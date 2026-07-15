@@ -3,6 +3,13 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+
+### Bug Fix DEFINITIVO: Certificado PDF no se adjuntaba al Cerrar Proyecto de Integración — Jun 2026
+**Síntoma:** al cerrar un Proyecto de Integración, el Certificado PDF no llegaba adjunto al correo (persistía pese al fix previo iter272 del "cuerpo por defecto").
+**RCA (vía email_logs):** el último cierre adjuntaba logo + cronogramas pero NUNCA el Certificado. `_generate_integration_certificate_pdf` (integrators.py) retornaba `None` cuando el depósito "Certificado" (db.config type=integration_certificate) estaba vacío o contenía una imagen (jpg/png) en vez de un PDF base → no había bytes que adjuntar. El fix previo (cuerpo por defecto sin plantilla) no atacaba esta causa.
+**Fix:** `_generate_integration_certificate_pdf` ahora SIEMPRE produce un certificado. Nuevo `_build_standalone_certificate_pdf` genera un Certificado corporativo COMPLETO desde cero (landscape A4, logo Mega Soft, título, "Se certifica a:", componente/versión, productos, aplicativo, "Desarrollado por", fecha de emisión) cuando no hay PDF base válido; si hay PDF base en el depósito, se estampa sobre él (comportamiento previo). Nota del frontend (`OtherActionsConfig.jsx`) actualizada: el certificado se genera automáticamente (PDF base opcional); el Centro de Mensajes no transporta adjuntos.
+**QA:** E2E vía curl (integrador de prueba `test_close_cert_001`) → `certificate_generated=true`, email_log del destinatario por Correo con `attachment_names=['Certificado_QA Cert Integrador.pdf']`, status=sent. PDF validado visualmente (analyze_file). Config UI verificada por screenshot: "Cierre" muestra 2 dest. con nombres/plantilla correctos, sin desbordamiento. ⚠️ PREVIEW; requiere REDEPLOY para producción.
+
 ### Enhancement: sub-opciones de variante en el filtro de Tipo de Proyecto — Jun 2026
 **Requerimiento:** en el filtro de tipo de /projects, mantener la opción agrupada de Link de Pago y agregar sub-opciones para aislar por variante.
 **Implementación:** `Projects.jsx` — `PROJECT_TYPE_FILTERS` ahora incluye "Link de Pago (todas)" (value 'LINK') + "› Solo Link de Pago" ('LINK:link_pago'), "› Solo Tokenizador" ('LINK:tokenizador'), "› Solo Link/Tokenizador" ('LINK:ambos') con flag `sub` para indentar. `matchType`: si typeFilter empieza con 'LINK:' filtra por normalizeProjectType==='LINK' && link_pago_variant coincidente; si no, comportamiento estándar.

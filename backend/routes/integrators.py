@@ -333,20 +333,104 @@ def _wrap_text_lines(text: str, font: str, size: float, max_width: float) -> lis
     return lines
 
 
-async def _generate_integration_certificate_pdf(intg: dict, componente: str, version: str, productos_str: str):
-    """Genera el Certificado Digital estampando texto dinámico sobre el PDF base
-    resguardado en el depósito 'Certificado' (db.config type=integration_certificate).
-    NO usa rutas fijas ni archivos locales. Devuelve bytes o None si no hay PDF base."""
-    doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
-    if not doc or not doc.get("filename"):
-        return None
-    fpath = UPLOADS_DIR / doc["filename"]
-    if not fpath.exists() or not str(doc["filename"]).lower().endswith(".pdf"):
-        return None
+def _build_standalone_certificate_pdf(intg: dict, componente: str, version: str, productos_str: str) -> bytes:
+    """Construye un Certificado de Integración corporativo COMPLETO desde cero
+    (sin depender de un PDF base en el depósito). Garantiza que siempre exista un
+    certificado que adjuntar al cierre del proyecto."""
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import cm
+    from reportlab.lib.utils import ImageReader
+
+    name = intg.get("name", "")
+    app_name = intg.get("app_name", "")
+    fecha = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    W, H = landscape(A4)
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=(W, H))
+    cx = W / 2
+
+    # Marco corporativo (doble borde)
+    c.setStrokeColorRGB(0.12, 0.23, 0.37)
+    c.setLineWidth(3); c.rect(1.2 * cm, 1.2 * cm, W - 2.4 * cm, H - 2.4 * cm)
+    c.setLineWidth(1); c.rect(1.5 * cm, 1.5 * cm, W - 3.0 * cm, H - 3.0 * cm)
+
+    # Logo institucional
+    logo = UPLOADS_DIR / "notif_logo.jpg"
+    top = H - 2.6 * cm
     try:
+        if logo.exists():
+            img = ImageReader(str(logo))
+            iw, ih = img.getSize()
+            disp_w = 4.5 * cm
+            disp_h = disp_w * ih / iw
+            c.drawImage(img, cx - disp_w / 2, top - disp_h, disp_w, disp_h,
+                        mask='auto', preserveAspectRatio=True)
+            top = top - disp_h - 0.4 * cm
+    except Exception:
+        pass
+
+    y = top - 0.6 * cm
+    c.setFillColorRGB(0.12, 0.16, 0.22)
+    c.setFont("Helvetica-Bold", 28); c.drawCentredString(cx, y, "CERTIFICADO DE INTEGRACIÓN")
+    y -= 0.5 * cm
+    c.setStrokeColorRGB(0.12, 0.23, 0.37); c.setLineWidth(1.5)
+    c.line(cx - 6 * cm, y, cx + 6 * cm, y)
+    y -= 1.1 * cm
+
+    c.setFont("Helvetica", 14); c.drawCentredString(cx, y, "Se certifica a:")
+    y -= 0.95 * cm
+    c.setFont("Helvetica-Bold", 24); c.drawCentredString(cx, y, name)
+    y -= 1.05 * cm
+
+    max_w = W * 0.74
+    body = (f"Por haber cumplido a cabalidad la integración y pruebas de la interfaz "
+            f"{componente} - Versión {version}")
+    c.setFont("Helvetica", 13)
+    for ln in _wrap_text_lines(body, "Helvetica", 13, max_w):
+        c.drawCentredString(cx, y, ln); y -= 0.6 * cm
+    if productos_str:
+        y -= 0.15 * cm
+        for ln in _wrap_text_lines(f"para los Productos: {productos_str}", "Helvetica-Oblique", 13, max_w):
+            c.setFont("Helvetica-Oblique", 13); c.drawCentredString(cx, y, ln); y -= 0.6 * cm
+    y -= 0.1 * cm
+    c.setFont("Helvetica", 13)
+    for ln in _wrap_text_lines(f"con el Aplicativo {app_name}", "Helvetica", 13, max_w):
+        c.drawCentredString(cx, y, ln); y -= 0.6 * cm
+
+    y -= 0.7 * cm
+    c.setFont("Helvetica", 12); c.drawCentredString(cx, y, "Desarrollado por:")
+    y -= 0.65 * cm
+    c.setFont("Helvetica-Bold", 16); c.drawCentredString(cx, y, name)
+
+    c.setFont("Helvetica", 11); c.setFillColorRGB(0.3, 0.3, 0.3)
+    c.drawCentredString(cx, 2.05 * cm, f"Emitido el {fecha}")
+    c.save(); buf.seek(0)
+    return buf.read()
+
+
+async def _generate_integration_certificate_pdf(intg: dict, componente: str, version: str, productos_str: str):
+    """Genera el Certificado de Integración para adjuntar al cierre.
+
+    - Si existe un PDF base en el depósito 'Certificado' (db.config
+      type=integration_certificate), estampa el texto dinámico sobre él.
+    - Si NO existe un PDF base (o es una imagen / archivo no-PDF), construye un
+      Certificado corporativo COMPLETO desde cero, de modo que SIEMPRE haya un
+      certificado que adjuntar (nunca retorna None por falta de depósito)."""
+    base_path = None
+    doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
+    if doc and doc.get("filename"):
+        fpath = UPLOADS_DIR / doc["filename"]
+        if fpath.exists() and str(doc["filename"]).lower().endswith(".pdf"):
+            base_path = fpath
+    try:
+        if base_path is None:
+            # Sin PDF base válido → certificado autónomo corporativo.
+            return _build_standalone_certificate_pdf(intg, componente, version, productos_str)
+
         from pypdf import PdfReader, PdfWriter
         from reportlab.pdfgen import canvas as rl_canvas
-        base = PdfReader(str(fpath))
+        base = PdfReader(str(base_path))
         page = base.pages[0]
         w = float(page.mediabox.width)
         h = float(page.mediabox.height)
@@ -386,8 +470,12 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
         out = io.BytesIO(); writer.write(out); out.seek(0)
         return out.read()
     except Exception as e:
-        logger.warning(f"[cert] no se pudo generar el certificado PDF: {e}")
-        return None
+        logger.warning(f"[cert] fallo estampando sobre depósito, se genera certificado autónomo: {e}")
+        try:
+            return _build_standalone_certificate_pdf(intg, componente, version, productos_str)
+        except Exception as e2:
+            logger.error(f"[cert] no se pudo generar el certificado autónomo: {e2}")
+            return None
 
 
 @router.post("/integrators/{integrator_id}/close")
