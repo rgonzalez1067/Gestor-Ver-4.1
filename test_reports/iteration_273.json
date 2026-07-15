@@ -1,0 +1,28 @@
+{
+  "summary": "Iter273 — Verificado el BUG FIX: la variable {Aplicativo_Integracion} SE RENDERIZA correctamente en el correo de Cierre de Proyecto de Integración. 3/3 tests PASSED. Se creó un integrador de prueba 'qa_verify_273' con app_name='QA-APP-VERIFY-273', se configuró la acción 'integration_project_closed' con destinatario integrator_user usando la plantilla real 'cierre_Proy_int' (subject='Certificación de Integración de la Aplicación {Aplicativo_Integracion} de {Integrador}'). Tras POST /api/integrators/qa_verify_273/close con form-data (componente='Plugin QA', version_componente='v1.0'): response 200 con certificate_generated=true, notification.dispatched=true, sent_count=1. En MongoDB email_logs el último documento con action='integration_project_closed' quedó con subject='Certificación de Integración de la Aplicación QA-APP-VERIFY-273 de QA Verify 273 Integrator' — variable renderizada correctamente y sin texto literal '{Aplicativo_Integracion}'. También se validó que el html_preview no contiene el literal '{Aplicativo_Integracion}' ni '{Medios_Certificados}'. Como el html_preview se guarda truncado a 500 chars (corte antes del <ul>), se hizo verificación best-effort de {Medios_Certificados} — pasa por ausencia del literal (aceptable según brief). Limpieza: se eliminó el integrador de prueba y los email_logs con app_name=QA-APP-VERIFY-273.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter273_aplicativo_integracion_var.py",
+    "/app/test_reports/pytest/iter273_results.xml"
+  ],
+  "action_items": [
+    "Ninguna. El bug fix está confirmado — {Aplicativo_Integracion} y {Aplicativo_Integración} (con tilde) están presentes en tpl_vars del cierre (routes/integrators.py L677) y se renderizan correctamente tanto en subject como en body via notification_engine._render."
+  ],
+  "critical_code_review_comments": [
+    "routes/integrators.py L677: se agregan ambas claves 'Aplicativo_Integracion' y 'Aplicativo_Integración' (con tilde) mapeadas a existing.get('app_name',''). Correcto — asegura compatibilidad con plantillas que usen cualquier forma.",
+    "routes/integrators.py L684: 'medios_certificados' y 'Medios_Certificados' están mapeados a _certified_products_bullets_html(existing) que genera <ul style='...'><li>...</li></ul> (definido en L325-332). Renderización HTML correcta (notification_engine._render hace replace sin escapar HTML — L en services/notification_engine.py).",
+    "Consistencia: los otros flujos (routes/integrators.py L2449 y _build_integrator_tpl_vars L707+) también incluyen 'Aplicativo_Integracion' — el fix del cierre alinea el comportamiento con el resto del módulo.",
+    "SUGERENCIA MENOR (no bloqueante): considerar centralizar la construcción de tpl_vars del integrador en una única función helper para evitar futuros olvidos de variables entre flujos (close, notify, otros). Actualmente el diccionario se replica en varios puntos."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter273_aplicativo_integracion_var.py (nuevo — 3 tests que reseeden integrador de prueba, configuran acción, cierran proyecto, validan subject y html_preview de email_logs, y limpian)"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "N/A (skipped por brief)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (session_token via POST /api/auth/login)",
+  "seed_data_creation": "Integrador de prueba qa_verify_273 con app_name='QA-APP-VERIFY-273' upserted en colección 'integrators' — eliminado en teardown junto con los email_logs asociados. NO se dejan residuos de prueba en la base.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug del render de {Aplicativo_Integracion} en el cierre de proyecto CONFIRMADO como resuelto. Test suite: /app/backend/tests/test_iter273_aplicativo_integracion_var.py — es autosuficiente (upsert integrador + cleanup). NOTA: email_logs.html_preview está truncado a 500 chars, por eso el bullet-list <ul><li> de {Medios_Certificados} no siempre aparece en el preview — verificación se hace por ausencia del literal. El subject sí llega completo y es la fuente de verdad para {Aplicativo_Integracion}. Para debug futuro del render completo, considerar leer el HTML previo al truncado directamente en send_email() antes de que se recorte para email_logs.",
+  "rca of the issue": "RCA CONFIRMADA — el diccionario tpl_vars del handler close_integrator_project (routes/integrators.py) omitía las claves 'Aplicativo_Integracion' y 'Aplicativo_Integración'; en consecuencia notification_engine._render dejaba el texto literal '{Aplicativo_Integracion}' en el subject y body porque no había mapping. FIX APLICADO: L677 añade ambas variantes mapeadas a existing.get('app_name',''). Verificado end-to-end: subject='Certificación de Integración de la Aplicación QA-APP-VERIFY-273 de QA Verify 273 Integrator' (sin literal). REPRODUCCIÓN: upsert integrador con app_name distintivo → configurar action integration_project_closed con plantilla cierre_Proy_int → POST /api/integrators/{id}/close → leer email_logs.subject."
+}

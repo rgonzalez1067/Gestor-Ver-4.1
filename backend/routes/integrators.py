@@ -674,6 +674,7 @@ async def close_integrator_project(
         "nombre_integrador": existing.get("name", ""), "Integrador": existing.get("name", ""),
         "integrator_name": existing.get("name", ""),
         "nombre_aplicativo": existing.get("app_name", ""), "app_name": existing.get("app_name", ""),
+        "Aplicativo_Integracion": existing.get("app_name", ""), "Aplicativo_Integración": existing.get("app_name", ""),
         "tipo_integracion": existing.get("integration_type", ""), "tipo_integrador": existing.get("integrator_type", ""),
         "modalidad_integracion": existing.get("integration_modality", ""),
         "nombre_implementador": existing.get("implementador", ""), "Nombre_Implementador": existing.get("implementador", ""),
