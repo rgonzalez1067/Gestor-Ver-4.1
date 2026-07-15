@@ -487,9 +487,9 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                 c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_intf), comp_txt)
             a_prod = anchors.get("Productos:")
             if a_prod and productos_str:
-                # Productos en la LÍNEA SIGUIENTE, alineados bajo "para los Productos:".
-                px = float(anchors.get("para", a_prod)["x0"])
-                avail = R_MARGIN - px
+                # Productos en la LÍNEA SIGUIENTE, CENTRADOS en la página.
+                cxp = w / 2
+                avail = w - 200
                 yb = _yb(a_prod) - 24
                 lines = []; cur = ""
                 for wd in productos_str.split():
@@ -502,7 +502,7 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                     lines.append(cur)
                 c.setFont("Helvetica-Bold", 18)
                 for i, ln in enumerate(lines):
-                    c.drawString(px, yb - i * 22, ln)
+                    c.drawCentredString(cxp, yb - i * 22, ln)
             a_app = anchors.get("Aplicativo")
             if a_app and app_name:
                 x = float(a_app["x1"]) + 8
@@ -510,14 +510,12 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                 limit = (float(a_des["x0"]) - 6) if a_des else R_MARGIN
                 fs = _fit_font(app_name, 20, limit - x)
                 c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_app), app_name)
-            a_por = anchors.get("por"); a_des2 = anchors.get("desarrollado")
+            a_por = anchors.get("por")
             if a_por and name:
-                # Nombre del integrador (desarrollador) en la LÍNEA SIGUIENTE, centrado bajo la frase.
-                left = float(a_des2["x0"]) if a_des2 else float(a_por["x0"])
-                cx2 = (left + float(a_por["x1"])) / 2
-                fs = _fit_font(name, 20, R_MARGIN - left)
+                # Nombre del integrador (desarrollador) en la LÍNEA SIGUIENTE, CENTRADO en la página.
+                fs = _fit_font(name, 20, w - 160)
                 c.setFont("Helvetica-Bold", fs)
-                c.drawCentredString(cx2, _yb(a_por) - 24, name)
+                c.drawCentredString(w / 2, _yb(a_por) - 24, name)
             a_car = anchors.get("Caracas,")
             if a_car:
                 fecha = datetime.now(timezone.utc).strftime("%d/%m/%Y")
