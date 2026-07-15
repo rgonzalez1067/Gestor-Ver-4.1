@@ -9,7 +9,7 @@
     "integration_issues": [],
     "design_issues": [
       {"screen": "Global (login/dashboard/project detail)", "issues": ["Pre-existing console warnings: <span> inside <tr>/<tbody>/<th>/<td> hydration warnings and DialogContent missing Description/aria-describedby. Non-blocking, already reported in iter228."]},
-      {"screen": "EmailPreviewDialog", "issues": ["Embedded template images point to a different preview host (https://integrator-hub-6.preview.emergentagent.com/api/projects/images/*.png) instead of REACT_APP_BACKEND_URL. In the current preview host they resolve but generate ERR_UNKNOWN_URL_SCHEME log noise; consider using a relative /api/projects/images path or REACT_APP_BACKEND_URL prefix to be environment-agnostic. Non-blocking for send confirmation feature."]}
+      {"screen": "EmailPreviewDialog", "issues": ["Embedded template images point to a different preview host (https://dept-migration-bug.preview.emergentagent.com/api/projects/images/*.png) instead of REACT_APP_BACKEND_URL. In the current preview host they resolve but generate ERR_UNKNOWN_URL_SCHEME log noise; consider using a relative /api/projects/images path or REACT_APP_BACKEND_URL prefix to be environment-agnostic. Non-blocking for send confirmation feature."]}
     ]
   },
   "test_report_links": [],

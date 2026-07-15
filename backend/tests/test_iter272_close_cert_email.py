@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv("/app/backend/.env")
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://integrator-hub-6.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dept-migration-bug.preview.emergentagent.com').rstrip('/')
 API = f"{BASE_URL}/api"
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
