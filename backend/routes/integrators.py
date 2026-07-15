@@ -474,47 +474,50 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
             a_cert = anchors.get("Certifica"); a_ca = anchors.get("a:")
             if a_cert:
                 cx = (float(a_cert["x0"]) + float((a_ca or a_cert)["x1"])) / 2
-                c.setFont("Helvetica-Bold", 22)
-                c.drawCentredString(cx, h - float(a_cert["bottom"]) - 40, name)
+                fs = _fit_font(name, 30, w - 160)
+                c.setFont("Helvetica-Bold", fs)
+                c.drawCentredString(cx, h - float(a_cert["bottom"]) - 44, name)
             a_intf = anchors.get("interfaz,")
             comp_txt = f"{componente} - Versión {version}".strip(" -")
             if a_intf and comp_txt:
                 x = float(a_intf["x1"]) + 8
                 a_para = anchors.get("para")
                 limit = (float(a_para["x0"]) - 6) if a_para else R_MARGIN
-                fs = _fit_font(comp_txt, 13, limit - x)
+                fs = _fit_font(comp_txt, 20, limit - x)
                 c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_intf), comp_txt)
             a_prod = anchors.get("Productos:")
             if a_prod and productos_str:
-                x0 = float(a_prod["x1"]) + 8
-                yb = _yb(a_prod)
-                first_w = R_MARGIN - x0
-                cont_x = float(anchors.get("para", a_prod)["x0"])
-                cont_w = R_MARGIN - cont_x
-                lines = []; cur = ""; maxw = first_w
+                # Productos en la LÍNEA SIGUIENTE, alineados bajo "para los Productos:".
+                px = float(anchors.get("para", a_prod)["x0"])
+                avail = R_MARGIN - px
+                yb = _yb(a_prod) - 24
+                lines = []; cur = ""
                 for wd in productos_str.split():
                     test = (cur + " " + wd).strip()
-                    if stringWidth(test, "Helvetica-Bold", 12) <= maxw or not cur:
+                    if stringWidth(test, "Helvetica-Bold", 18) <= avail or not cur:
                         cur = test
                     else:
-                        lines.append(cur); cur = wd; maxw = cont_w
+                        lines.append(cur); cur = wd
                 if cur:
                     lines.append(cur)
-                c.setFont("Helvetica-Bold", 12)
+                c.setFont("Helvetica-Bold", 18)
                 for i, ln in enumerate(lines):
-                    c.drawString(x0 if i == 0 else cont_x, yb - i * 16, ln)
+                    c.drawString(px, yb - i * 22, ln)
             a_app = anchors.get("Aplicativo")
             if a_app and app_name:
                 x = float(a_app["x1"]) + 8
                 a_des = anchors.get("desarrollado")
                 limit = (float(a_des["x0"]) - 6) if a_des else R_MARGIN
-                fs = _fit_font(app_name, 13, limit - x)
+                fs = _fit_font(app_name, 20, limit - x)
                 c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_app), app_name)
-            a_por = anchors.get("por")
+            a_por = anchors.get("por"); a_des2 = anchors.get("desarrollado")
             if a_por and name:
-                x = float(a_por["x1"]) + 8
-                fs = _fit_font(name, 13, R_MARGIN - x)
-                c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_por), name)
+                # Nombre del integrador (desarrollador) en la LÍNEA SIGUIENTE, centrado bajo la frase.
+                left = float(a_des2["x0"]) if a_des2 else float(a_por["x0"])
+                cx2 = (left + float(a_por["x1"])) / 2
+                fs = _fit_font(name, 20, R_MARGIN - left)
+                c.setFont("Helvetica-Bold", fs)
+                c.drawCentredString(cx2, _yb(a_por) - 24, name)
             a_car = anchors.get("Caracas,")
             if a_car:
                 fecha = datetime.now(timezone.utc).strftime("%d/%m/%Y")
