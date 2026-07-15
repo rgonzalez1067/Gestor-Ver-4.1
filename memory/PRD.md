@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### NUEVO: Repositorio Multiversión de Certificados por Integrador — Jun 2026
+- **Objetivo:** histórico acumulativo de Certificados PDF por integrador (nunca sobreescribe); carga manual + almacenamiento automático en el cierre.
+- **Backend** (`routes/integrators.py`, colección `integrator_certificates`): `_store_integrator_certificate` (INSERT acumulativo, contenido en base64 en Mongo). Endpoints: `GET /api/integrators/certificates/counts`, `GET /api/integrators/certificates/{cert_id}/download`, `GET /api/integrators/{id}/certificates` (orden desc), `POST /api/integrators/{id}/certificates` (carga manual, valida .pdf + cabecera %PDF-, RBAC). El cierre (`close_integrator_project`) inserta el certificado generado con `origin='system'` ('Sistema - Cierre Automático') contra `target_id` (respeta ampliación/reemplazo) sin borrar manuales. Rutas de segmento fijo antes de `/integrators/{id}` (sin colisión).
+- **Frontend** (`components/IntegratorCertificatesCell.jsx`, columna 'Certificados' en `Integrators.jsx`): indicador con contador (icono+N) → popover con historial cronológico inverso (descarga, fecha/hora, origen) + botón 'Agregar' → micro-modal uploader SOLO PDF; el contador de la grilla se refresca (`fetchCertCounts`).
+- **QA:** testing_agent iter275 → 7/7 backend + frontend 100%. Verificado: no-overwrite (total sube sin reemplazar, ambos descargables), acumulación por cierre (contador +1, origin system coexiste con manuales), rechazo .txt/PDF inválido (400), RBAC 403, contador UI 0→1→2. Test: `/app/backend/tests/test_iter275_integrator_certificates_repo.py`.
+
+
 ### NUEVO MÓDULO: Comunicaciones Masivas a Integradores (BCC) — Jun 2026
 - **Objetivo:** enviar comunicados/alertas a grupos de integradores con plantilla institucional y adjuntos, protegiendo la privacidad vía BCC (copia oculta).
 - **Frontend** (`components/MassCommunicationDialog.jsx`, botón "Comunicación Masiva" en `Integrators.jsx`): grilla de destinatarios (Integrador / Contacto / Correo) con checkbox maestro (solo marca filtrados con correo) + individuales; filas sin correo deshabilitadas; filtro por Tipo de Integración (CR/LP/PG/MP/TK); selector de plantilla (biblioteca `context=INTEGRADORES`); selector de documentos del repositorio (`entity-documents`); uploader de archivos locales; nota de privacidad BCC.
