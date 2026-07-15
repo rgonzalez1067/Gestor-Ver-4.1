@@ -14,6 +14,7 @@ import { Calendar } from '../components/ui/calendar';
 import { ImportResultPanel } from '../components/ImportResultPanel';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout, Lock, Eye, EyeOff, FlaskConical, PauseCircle, PlayCircle, ShieldCheck } from 'lucide-react';
 import { EntityEmailDialog } from '../components/EntityEmailDialog';
+import { InternalEmailInput } from '../components/InternalEmailInput';
 import PurgeIntegratorsDialog from '../components/PurgeIntegratorsDialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -828,8 +829,16 @@ export const Integrators = () => {
   const [closeComponente, setCloseComponente] = useState('');
   const [closeVersion, setCloseVersion] = useState('');
   const [closeFiles, setCloseFiles] = useState([]);
-  const [closeExtraRecipients, setCloseExtraRecipients] = useState('');
+  const [closeExtraList, setCloseExtraList] = useState([]);
+  const [closeNewRecipient, setCloseNewRecipient] = useState('');
   const [closing, setClosing] = useState(false);
+
+  const addCloseRecipient = () => {
+    const email = (closeNewRecipient || '').trim();
+    if (!email || !email.includes('@')) return;
+    if (!closeExtraList.includes(email)) setCloseExtraList([...closeExtraList, email]);
+    setCloseNewRecipient('');
+  };
 
   const handleCloseProject = async (intg) => {
     // Excepción Ambiente de Prueba: sin modales, cierre directo (bypass total).
@@ -849,7 +858,8 @@ export const Integrators = () => {
     setCloseComponente('');
     setCloseVersion('');
     setCloseFiles([]);
-    setCloseExtraRecipients('');
+    setCloseExtraList([]);
+    setCloseNewRecipient('');
     setCloseModal1Open(true);
   };
 
@@ -869,7 +879,7 @@ export const Integrators = () => {
       const fd = new FormData();
       fd.append('componente', closeComponente.trim());
       fd.append('version_componente', closeVersion.trim());
-      if (closeExtraRecipients.trim()) fd.append('extra_recipients', closeExtraRecipients.trim());
+      if (closeExtraList.length > 0) fd.append('extra_recipients', closeExtraList.join(', '));
       (closeFiles || []).forEach((f) => fd.append('files', f));
       const res = await api.post(`/integrators/${closeTarget.integrator_id}/close`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(res.data?.certificate_generated ? 'Proyecto cerrado y certificado generado' : 'Proyecto cerrado (sin PDF base en el depósito)');
@@ -1076,24 +1086,63 @@ export const Integrators = () => {
                 </DialogContent>
               </Dialog>
 
-              {/* Modal 2: Comunicación y Anexos */}
+              {/* Modal 2: Comunicación y Anexos — estandarizado (forma de "Personalizar Comunicación") */}
               <Dialog open={closeModal2Open} onOpenChange={setCloseModal2Open}>
                 <DialogContent className="max-w-md" data-testid="close-modal-2">
-                  <DialogHeader><DialogTitle className="font-manrope text-lg flex items-center gap-2"><Mail size={18} className="text-slate-600" />Comunicación y Anexos</DialogTitle></DialogHeader>
-                  <div className="space-y-4 mt-1">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-blue-700">
+                      <Mail size={20} className="text-blue-500" />
+                      Comunicación y Anexos
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                      <p>Acción: <strong>Cierre de Proyecto de Integración</strong></p>
+                      {closeTarget && <p className="text-xs text-blue-600 mt-0.5">Integrador: {closeTarget.name}{closeTarget.app_name ? ` — ${closeTarget.app_name}` : ''}</p>}
+                    </div>
                     <div>
-                      <Label className="text-sm font-medium text-slate-700 mb-1 block">Anexos complementarios</Label>
-                      <input type="file" multiple onChange={(e) => setCloseFiles(Array.from(e.target.files || []))} className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white file:cursor-pointer hover:file:bg-slate-800" data-testid="close-files-input" />
+                      <Label className="text-sm font-medium">Anexos complementarios <span className="text-xs text-slate-400">(opcional)</span></Label>
+                      <input type="file" multiple onChange={(e) => setCloseFiles(Array.from(e.target.files || []))} className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white file:cursor-pointer hover:file:bg-slate-800" data-testid="close-files-input" />
                       {closeFiles.length > 0 && <p className="text-xs text-slate-500 mt-1">{closeFiles.length} archivo(s) seleccionado(s)</p>}
                     </div>
                     <div>
-                      <Label className="text-sm font-medium text-slate-700 mb-1 block">Destinatarios adicionales</Label>
-                      <Input value={closeExtraRecipients} onChange={(e) => setCloseExtraRecipients(e.target.value)} placeholder="correo1@dom.com, correo2@dom.com" data-testid="close-extra-recipients-input" />
-                      <p className="text-xs text-slate-400 mt-1">Se enviarán en copia junto al integrador (separados por coma).</p>
+                      <Label className="text-sm font-medium">Destinatarios adicionales (CC)</Label>
+                      <div className="flex gap-2 mt-1 items-start">
+                        <div className="flex-1">
+                          <InternalEmailInput
+                            value={closeNewRecipient}
+                            onChange={(v) => setCloseNewRecipient(v)}
+                            onEnter={addCloseRecipient}
+                            placeholder="correo@ejemplo.com — o escriba para buscar usuario interno"
+                            testId="close-cc-input"
+                          />
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={addCloseRecipient}
+                          disabled={!closeNewRecipient.trim() || !closeNewRecipient.includes('@')}
+                          data-testid="close-add-cc-btn" className="mt-0">
+                          <Plus size={14} />
+                        </Button>
+                      </div>
+                      {closeExtraList.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {closeExtraList.map((email, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full" data-testid={`close-cc-chip-${idx}`}>
+                              {email}
+                              <button onClick={() => setCloseExtraList(closeExtraList.filter((e) => e !== email))} className="hover:text-red-500 ml-0.5">
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-slate-400 mt-1">Se enviarán en copia junto al integrador.</p>
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-3 pt-3 border-t">
                       <Button variant="outline" onClick={() => { setCloseModal2Open(false); setCloseModal1Open(true); }} data-testid="close-modal2-back">Atrás</Button>
-                      <Button onClick={submitCloseProject} disabled={closing} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="close-modal2-submit">{closing ? 'Cerrando…' : 'Cerrar y Certificar'}</Button>
+                      <Button onClick={submitCloseProject} disabled={closing} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="close-modal2-submit">
+                        <ShieldCheck size={14} className="mr-1.5" />
+                        {closing ? 'Cerrando…' : 'Cerrar y Certificar'}
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>

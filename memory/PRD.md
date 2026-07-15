@@ -4,6 +4,11 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Modal Cierre estandarizado + variable {Medios_Certificados} — Jun 2026
+- **Modal "Comunicación y Anexos"** (paso 2 del Cierre de Proyecto de Integración, `Integrators.jsx`) reescrito para heredar la forma del modal "Personalizar Comunicación" (`QuoteModals.jsx`): header azul con ícono Mail, caja de contexto azul (Acción + Integrador), sección de anexos, y **Destinatarios adicionales (CC)** con `InternalEmailInput` (autocomplete de usuarios internos) + botón "+" y chips removibles; footer estándar. Los CC se envían como lista unida por coma a `extra_recipients`. Verificado por screenshot.
+- **{Medios_Certificados}**: nueva variable de plantilla generada al cierre (`integrators.py::_certified_products_bullets_html`) = lista HTML con viñetas (`<ul><li>`) de los Medios/Productos con certificación 'C'. Añadida a `tpl_vars` del cierre y al catálogo de variables de `integration_project_closed` (`other_actions_config.py`), junto con componente/version/Productos. El motor `_render` sustituye sin escapar → las viñetas se renderizan en el correo.
+
+
 ### Certificado de Integración: estampado por anclas sobre plantilla MegaSoft + persistencia del depósito — Jun 2026
 **Contexto:** el usuario cargó su plantilla institucional "Certificado Integración en Blanco.pdf" (landscape 792×612) que YA trae etiquetas fijas impresas ("Certifica a:", "...pruebas de la interfaz,", "Productos:", "con el Aplicativo", "desarrollado por", firmas Carlos Hernández/Doris Collazo, "Caracas,"). El overlay genérico anterior re-escribía esas etiquetas → solapamiento.
 **Fix (integrators.py::_generate_integration_certificate_pdf):** cuando hay PDF base, se leen las ANCLAS del template con pdfplumber y se estampan SOLO los valores dinámicos junto a cada etiqueta: nombre bajo "Certifica a:"; componente+versión tras "interfaz,"; productos tras "Productos:" (con wrap); aplicativo tras "con el Aplicativo"; nombre del integrador tras "desarrollado por"; fecha tras "Caracas,". Autoajuste de fuente para no invadir la etiqueta siguiente. Fallback a overlay centrado si el template no trae etiquetas; y a certificado autónomo si no hay depósito.

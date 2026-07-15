@@ -310,12 +310,26 @@ async def update_integrator(integrator_id: str, integrator: IntegratorCreate, au
     return updated
 
 
-def _certified_products_string(intg: dict) -> str:
-    """Concatena los nombres de los Medios de Pago con certificación 'C' (Certificado),
-    en el orden de la lista maestra, unidos por ' / '. (Regla del Valor 'C')."""
+def _certified_products_names(intg: dict) -> list:
+    """Lista de nombres de Medios de Pago / Productos con certificación 'C' (Certificado),
+    en el orden de la lista maestra. (Regla del Valor 'C')."""
     certs = intg.get("certifications") or {}
-    names = [p["name"] for p in INTEGRATOR_PRODUCTS if str(certs.get(p["id"], "")).strip().upper() == "C"]
-    return " / ".join(names)
+    return [p["name"] for p in INTEGRATOR_PRODUCTS if str(certs.get(p["id"], "")).strip().upper() == "C"]
+
+
+def _certified_products_string(intg: dict) -> str:
+    """Nombres de los Medios/Productos certificados unidos por ' / '."""
+    return " / ".join(_certified_products_names(intg))
+
+
+def _certified_products_bullets_html(intg: dict) -> str:
+    """Lista enumerada con viñetas (HTML) de los Medios/Productos certificados,
+    para la variable {Medios_Certificados} de la plantilla de Cierre."""
+    names = _certified_products_names(intg)
+    if not names:
+        return ""
+    items = "".join(f'<li style="margin:3px 0;">{n}</li>' for n in names)
+    return f'<ul style="margin:8px 0 8px 20px; padding:0; list-style-type:disc;">{items}</ul>'
 
 
 def _wrap_text_lines(text: str, font: str, size: float, max_width: float) -> list:
@@ -603,6 +617,7 @@ async def close_integrator_project(
         raise HTTPException(status_code=400, detail="Componente y Versión del Componente son obligatorios")
 
     productos_str = _certified_products_string(existing)
+    medios_bullets = _certified_products_bullets_html(existing)
 
     # Certificado PDF (estampado sobre el depósito) + anexos del Modal 2
     attachments = []
@@ -665,6 +680,7 @@ async def close_integrator_project(
         "componente": componente, "Componente": componente,
         "version_componente": version_componente, "Version_Componente": version_componente,
         "productos_certificados": productos_str, "Productos_Certificados": productos_str, "Productos": productos_str,
+        "medios_certificados": medios_bullets, "Medios_Certificados": medios_bullets,
         "cerrado_por": closed_by, "Cerrado_Por": closed_by,
         "usuario_ejecutor": closed_by, "fecha_sistema": now_str, "Fecha_Sistema": now_str,
     }

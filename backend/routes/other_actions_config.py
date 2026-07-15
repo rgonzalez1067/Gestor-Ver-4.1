@@ -126,6 +126,8 @@ OTHER_ACTIONS = [
             "nombre_aplicativo", "app_name", "tipo_integracion", "tipo_integrador",
             "modalidad_integracion", "nombre_implementador", "Nombre_Implementador",
             "email_implementador", "Correo_Implementador",
+            "componente", "Componente", "version_componente", "Version_Componente",
+            "Productos", "Productos_Certificados", "Medios_Certificados",
             "cerrado_por", "Cerrado_Por", "usuario_ejecutor", "fecha_sistema", "Fecha_Sistema",
         ],
     },
