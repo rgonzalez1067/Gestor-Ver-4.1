@@ -4,6 +4,14 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### NUEVO: Categorías combinadas PinPad/Accesorio y PinPad/Licencia en Bienes y Servicios — Jun 2026
+- **Alta de categorías:** el catálogo de hardware (`db.hardware`, campo `type`) admite dos tipos nuevos: 'PinPad/Accesorio' (grupo dispositivos) y 'PinPad/Licencia' (grupo servicios). Agregados a `valid_types`/plantilla en `hardware.py` y al dropdown `HARDWARE_TYPES` en `Hardware.jsx`.
+- **Regla A (visibilidad cruzada):** en `EquipmentQuoteWizard.jsx`, `DEVICE_TYPES` y `ACCESSORY_TYPES` ahora incluyen 'PinPad/Accesorio' → el ítem aparece tanto en Cotizaciones de Equipos como de Accesorios (OR).
+- **Regla B (exención de seriales):** `is_serialized()` (backend `inventory.py`) e `isSerializedType()` (frontend `Inventory.jsx`) usan SERIALIZED_TYPES=['pos','pinpad','mpos'] con match exacto → 'PinPad/Licencia' y 'PinPad/Accesorio' NO exigen seriales; la entrada de inventario se guarda solo con cantidad. El 'Pinpad'/'POS' clásico sigue exigiendo seriales.
+- **QA:** testing_agent iter276 → 7/7 backend + 3/3 UI. Verificado: ambos tipos en dropdown; entrada PinPad/Licencia 100 uds sin seriales OK; Pinpad clásico sin seriales=400 (intacto); visibilidad cruzada. Test: `/app/backend/tests/test_iter276_pinpad_categories.py`.
+- **Nota técnica (deuda menor):** SERIALIZED_TYPES está duplicado en backend y frontend; convendría exponerlo vía endpoint de config para evitar desincronización.
+
+
 ### NUEVO: Repositorio Multiversión de Certificados por Integrador — Jun 2026
 - **Objetivo:** histórico acumulativo de Certificados PDF por integrador (nunca sobreescribe); carga manual + almacenamiento automático en el cierre.
 - **Backend** (`routes/integrators.py`, colección `integrator_certificates`): `_store_integrator_certificate` (INSERT acumulativo, contenido en base64 en Mongo). Endpoints: `GET /api/integrators/certificates/counts`, `GET /api/integrators/certificates/{cert_id}/download`, `GET /api/integrators/{id}/certificates` (orden desc), `POST /api/integrators/{id}/certificates` (carga manual, valida .pdf + cabecera %PDF-, RBAC). El cierre (`close_integrator_project`) inserta el certificado generado con `origin='system'` ('Sistema - Cierre Automático') contra `target_id` (respeta ampliación/reemplazo) sin borrar manuales. Rutas de segmento fijo antes de `/integrators/{id}` (sin colisión).

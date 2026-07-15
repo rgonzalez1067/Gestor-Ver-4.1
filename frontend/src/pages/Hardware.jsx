@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -422,6 +422,9 @@ export const Hardware = () => {
                     <DialogTitle className="font-manrope text-2xl">
                       {editingHardware ? 'Editar Registro' : 'Nuevo Registro'}
                     </DialogTitle>
+                    <DialogDescription className="text-sm text-slate-500">
+                      Complete los datos del bien o servicio. El tipo define su comportamiento en cotizaciones e inventario.
+                    </DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
