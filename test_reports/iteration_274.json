@@ -1,0 +1,49 @@
+{
+  "summary": "Comunicación Masiva a Integradores (BCC) — backend + frontend E2E OK. 12/12 backend pytest passed; UI flow (abrir modal, filtrar por PG, seleccionar-todos, plantilla, envío) funciona y muestra toast de éxito. Verificación en MongoDB email_logs (to=SENDER_EMAIL, bcc_count=N, status=sent) confirma el patrón BCC. Se limpiaron todos los datos de prueba (integradores TEST_MASS_* + email_logs + bitacora).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "MassCommunicationDialog", "issues": ["Radix warning a11y: 'Missing Description or aria-describedby={undefined} for DialogContent'. No bloquea funcionalidad; agregar <DialogDescription> mejora accesibilidad."]},
+      {"screen": "Integrators grid (fuera de mass-comm)", "issues": ["Hydration warnings en consola: '<tr> cannot contain <span>' / '<span> tbody' provenientes del listado de integradores (NO del modal masivo). No es defecto del feature bajo prueba."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter274_mass_communication.py",
+    "/app/test_reports/pytest/iter274_results.xml"
+  ],
+  "action_items": [
+    "(Opcional) Agregar <DialogDescription> al MassCommunicationDialog para eliminar el warning a11y de Radix.",
+    "(Fuera de scope) Revisar hydration warning del listado de integradores (tabla con <span> mal anidado)."
+  ],
+  "critical_code_review_comments": [
+    "entity_communications.py send_mass_communication: implementación correcta — bcc a integradores, to=SENDER_EMAIL, guard 422 para adjuntos faltantes, guard 400 para lista vacía o sin correos válidos.",
+    "email_service.send_email: bcc se pasa correctamente al sobre SMTP sin cabecera Bcc (privacidad garantizada). email_log guarda bcc_count.",
+    "MassCommunicationDialog.jsx: master-check solo marca filas visibles con has_email (correcto). Send-btn disabled si !templateId || selectedIds.size===0 (correcto)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter274_mass_communication.py (nuevo — 12 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12)",
+    "frontend": "100% (todos los flujos críticos verificados)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve/admin123. Non-admin (403): jrojas@megasoft.com.ve/Test1234! (email en minúscula obligatorio).",
+  "seed_data_creation": "3 integradores TEST_MASS_* (PG, 2 con email, 1 sin email) creados y ELIMINADOS al final del test. Email_logs y bitacora del envío UI también limpiados post-test.",
+  "verified_metrics": {
+    "recipients_total_no_filter": 589,
+    "recipients_with_email": 281,
+    "recipients_PG_filter_total": 251,
+    "master_select_all_selected_in_PG": 100,
+    "email_log_verified_bcc_count": 2,
+    "toast_success_message": "Comunicación masiva enviada en BCC a 1 integrador(es)."
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature Comunicación Masiva a Integradores completa y verificada. Endpoints backend en dos segmentos /integrators/mass/recipients y /integrators/mass/communication (no colisionan con /integrators/{id}). Permiso 'integradores:mass_comm' definido en permissions_catalog.py y respetado en _require_mass_comm. jrojas (non-admin sin flag) devuelve 403 como esperado. Plantilla usada: 'int_tpl_mpy7df1m' (Desarrollo y Certificación Tokenizador). El data-testid del email en fila usa 'mass-row-{id}' y 'mass-check-{id}'.",
+  "rca of the issue": "N/A — no se encontraron issues bloqueantes."
+}

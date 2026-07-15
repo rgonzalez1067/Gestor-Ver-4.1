@@ -15,6 +15,7 @@ import { ImportResultPanel } from '../components/ImportResultPanel';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout, Lock, Eye, EyeOff, FlaskConical, PauseCircle, PlayCircle, ShieldCheck } from 'lucide-react';
 import { EntityEmailDialog } from '../components/EntityEmailDialog';
 import { InternalEmailInput } from '../components/InternalEmailInput';
+import { MassCommunicationDialog } from '../components/MassCommunicationDialog';
 import PurgeIntegratorsDialog from '../components/PurgeIntegratorsDialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -832,6 +833,7 @@ export const Integrators = () => {
   const [closeExtraList, setCloseExtraList] = useState([]);
   const [closeNewRecipient, setCloseNewRecipient] = useState('');
   const [closing, setClosing] = useState(false);
+  const [massCommOpen, setMassCommOpen] = useState(false);
 
   const addCloseRecipient = () => {
     const email = (closeNewRecipient || '').trim();
@@ -1151,6 +1153,7 @@ export const Integrators = () => {
                 <Button variant="outline" onClick={() => setPurgeDialogOpen(true)} data-testid="purge-integrators-btn"
                   className="border-rose-200 text-rose-700 hover:bg-rose-50"><Trash2 size={16} className="mr-1" />Vaciar BD</Button>
               )}
+              {(isAdmin || hasSpecial('integradores:mass_comm')) && <Button variant="outline" onClick={() => setMassCommOpen(true)} data-testid="mass-comm-btn" className="border-blue-200 text-blue-700 hover:bg-blue-50"><Mail size={16} className="mr-1" />Comunicación Masiva</Button>}
               {isAdmin && <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>}
               <Button variant="outline" onClick={handleExportExcel} data-testid="export-excel-btn"><FileSpreadsheet size={16} className="mr-1" />Excel</Button>
               <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn"><FileText size={16} className="mr-1" />PDF</Button>
@@ -2551,6 +2554,9 @@ export const Integrators = () => {
         onOpenChange={setPurgeDialogOpen}
         onSuccess={fetchData}
       />
+
+      {/* Comunicación Masiva a Integradores (BCC) */}
+      <MassCommunicationDialog open={massCommOpen} onOpenChange={setMassCommOpen} />
 
       {/* Notification Dialog Genérico */}
       {notifyIntegrator && (

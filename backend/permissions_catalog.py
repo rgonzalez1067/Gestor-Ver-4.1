@@ -106,6 +106,10 @@ SPECIAL_PERMISSIONS = [
     {"id": "proyectos:manage_email_templates", "module": "proyectos",
      "label": "Gestionar Plantillas de Correo",
      "description": "Habilita el gestor global de plantillas de correo de implementación (botón 'Plantillas') en el panel principal de Proyectos."},
+    # Integradores — Comunicación Masiva (BCC)
+    {"id": "integradores:mass_comm", "module": "integradores",
+     "label": "Comunicación Masiva a Integradores",
+     "description": "Habilita el envío de comunicaciones masivas en copia oculta (BCC) a grupos de integradores, con plantilla de la biblioteca y adjuntos (repositorio + archivos locales)."},
 ]
 
 SPECIAL_FLAG_IDS = [s["id"] for s in SPECIAL_PERMISSIONS]

@@ -464,6 +464,178 @@ async def send_integrator_email(
     }
 
 
+# ==================== COMUNICACIÓN MASIVA A INTEGRADORES (BCC) ====================
+
+INTEGRATION_TYPE_LABELS = {
+    "CR": "CR — Caja Registradora",
+    "LP": "LP — Link de Pago",
+    "PG": "PG — Payment Gateway",
+    "MP": "MP — Android (Mobile POS)",
+    "TK": "TK — Tokenizador",
+}
+
+
+def _integrator_contact_name(intg: dict) -> str:
+    contacts = intg.get("contacts") or []
+    if isinstance(contacts, list) and contacts:
+        return (contacts[0].get("name") or "").strip()
+    return ""
+
+
+async def _require_mass_comm(current_user: dict):
+    """Función especial: solo admin o quien tenga el flag 'integradores:mass_comm'."""
+    if current_user.get("role") == "admin":
+        return
+    if "integradores:mass_comm" in (current_user.get("special_permissions") or []):
+        return
+    raise HTTPException(status_code=403, detail="No tiene habilitada la función de Comunicación Masiva a Integradores")
+
+
+@router.get("/integrators/mass/recipients")
+async def list_mass_recipients(integration_type: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Lista los integradores para la grilla de selección de la Comunicación Masiva.
+    Filtra opcionalmente por tipo de integración (CR/LP/PG/MP/TK)."""
+    current_user = await get_current_user(authorization)
+    await _require_mass_comm(current_user)
+    q = {}
+    if integration_type and integration_type not in ("ALL", "", "TODOS"):
+        q["integration_type"] = integration_type
+    items = []
+    cursor = db.integrators.find(
+        q, {"_id": 0, "integrator_id": 1, "name": 1, "email": 1, "contacts": 1, "integration_type": 1}
+    ).sort("name", 1)
+    async for intg in cursor:
+        email = (intg.get("email") or "").strip()
+        it = intg.get("integration_type") or ""
+        items.append({
+            "integrator_id": intg.get("integrator_id"),
+            "name": intg.get("name", ""),
+            "contact": _integrator_contact_name(intg),
+            "email": email,
+            "has_email": bool(email and "@" in email),
+            "integration_type": it,
+            "integration_type_label": INTEGRATION_TYPE_LABELS.get(it, it or "—"),
+        })
+    return {
+        "recipients": items,
+        "total": len(items),
+        "with_email": sum(1 for i in items if i["has_email"]),
+        "integration_types": [{"code": k, "label": v} for k, v in INTEGRATION_TYPE_LABELS.items()],
+    }
+
+
+@router.post("/integrators/mass/communication")
+async def send_mass_communication(
+    template_id: str = Form(...),
+    integrator_ids: str = Form(...),
+    internal_doc_ids: str = Form(default="[]"),
+    files: List[UploadFile] = File(default=[]),
+    authorization: Optional[str] = Header(None),
+):
+    """Envía una comunicación masiva a los integradores seleccionados usando una
+    plantilla de la biblioteca (context=INTEGRADORES). Todos los correos viajan en
+    BCC (copia oculta) para preservar la privacidad; los adjuntos (repositorio +
+    archivos locales) son idénticos para todo el lote."""
+    current_user = await get_current_user(authorization)
+    await _require_mass_comm(current_user)
+
+    try:
+        ids = json.loads(integrator_ids)
+        assert isinstance(ids, list)
+    except (json.JSONDecodeError, ValueError, AssertionError):
+        raise HTTPException(status_code=400, detail="Lista de integradores inválida")
+    if not ids:
+        raise HTTPException(status_code=400, detail="Debe seleccionar al menos un integrador")
+
+    # Destinatarios (correos únicos y válidos) de los integradores seleccionados.
+    recipients, seen = [], set()
+    cursor = db.integrators.find({"integrator_id": {"$in": ids}}, {"_id": 0, "email": 1})
+    async for intg in cursor:
+        e = (intg.get("email") or "").strip()
+        if e and "@" in e and e.lower() not in seen:
+            recipients.append(e); seen.add(e.lower())
+    if not recipients:
+        raise HTTPException(status_code=400, detail="Ninguno de los integradores seleccionados tiene un correo válido")
+
+    tpl = await db.email_templates.find_one({"template_id": template_id}, {"_id": 0})
+    if not tpl:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    variables = {
+        "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+        "Firma_Notificacion_Global": await build_signature_html(current_user),
+    }
+    subject = _render_vars(tpl.get("subject", "") or "Comunicación", variables)
+    html = _render_vars(tpl.get("body_html", "") or tpl.get("body", "") or "", variables)
+
+    # Adjuntos: archivos locales + documentos del repositorio (entity_documents).
+    upload_dir = "/app/backend/uploads/entity_emails/integradores_masivo"
+    os.makedirs(upload_dir, exist_ok=True)
+    email_attachments, attachment_names = [], []
+    for f in files:
+        if f and f.filename:
+            content = await f.read()
+            safe_name = f"{uuid.uuid4().hex[:8]}_{f.filename}"
+            path = os.path.join(upload_dir, safe_name)
+            save_pdf_dual(path, content, os.path.relpath(path, "/app/backend/uploads"))
+            email_attachments.append({"filename": f.filename, "content": content})
+            attachment_names.append(f.filename)
+
+    try:
+        doc_ids = json.loads(internal_doc_ids or "[]")
+    except (json.JSONDecodeError, ValueError):
+        doc_ids = []
+    missing = []
+    for did in doc_ids:
+        doc = await db.entity_documents.find_one({"document_id": did}, {"_id": 0})
+        if not doc:
+            missing.append(did); continue
+        content_bytes = load_attachment_bytes(doc.get("url", ""))
+        if content_bytes is None:
+            missing.append(doc.get("filename") or did); continue
+        email_attachments.append({"filename": doc["filename"], "content": content_bytes})
+        attachment_names.append(doc["filename"])
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail="No se pudo adjuntar el/los documento(s): " + ", ".join(str(m) for m in missing)
+                   + ". El envío fue abortado para evitar un correo sin anexos.",
+        )
+
+    from config import SENDER_EMAIL
+    result = await send_email(
+        to=[SENDER_EMAIL],
+        subject=subject,
+        html=html,
+        action="integrator_mass_communication",
+        attachments=email_attachments or None,
+        bcc=recipients,
+    )
+
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.bitacora.insert_one({
+        "entry_id": f"bit_{uuid.uuid4().hex[:12]}",
+        "action": "integrator_mass_communication",
+        "description": f"[Comunicación masiva] '{subject}' → {len(recipients)} integrador(es) en BCC"
+                       + (f" ({len(attachment_names)} adjunto(s))" if attachment_names else ""),
+        "date": now[:10], "created_at": now,
+        "created_by": current_user.get("email", ""), "created_by_name": user_name,
+        "recipients_count": len(recipients), "template_id": template_id,
+        "attachments": attachment_names, "email_status": result.get("status"),
+    })
+
+    return {
+        "status": result.get("status"),
+        "recipients_count": len(recipients),
+        "attachments_count": len(attachment_names),
+        "subject": subject,
+        "message": f"Comunicación masiva enviada en BCC a {len(recipients)} integrador(es).",
+    }
+
+
+
 @router.post("/integrators/{integrator_id}/preview-email")
 async def preview_integrator_email(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
     current_user = await get_current_user(authorization)

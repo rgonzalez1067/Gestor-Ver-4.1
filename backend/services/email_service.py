@@ -185,11 +185,12 @@ def _send_smtp(
     sender: str,
     attachments: list = None,
     cc: List[str] = None,
+    bcc: List[str] = None,
 ) -> dict:
     """Envío síncrono vía SMTP (se ejecuta en thread aparte)."""
     msg = MIMEMultipart("mixed")
     msg["From"] = sender
-    msg["To"] = ", ".join(to)
+    msg["To"] = ", ".join(to) if to else sender
     msg["Subject"] = subject
     if cc:
         msg["Cc"] = ", ".join(cc)
@@ -241,8 +242,9 @@ def _send_smtp(
             part.add_header("Content-Disposition", "attachment", filename=fname)
             msg.attach(part)
 
-    # All recipients for sendmail (TO + CC)
-    all_recipients = list(to) + (cc or [])
+    # All recipients for sendmail (TO + CC + BCC). El Bcc NO se agrega como cabecera
+    # para preservar la privacidad: los destinatarios en copia oculta no se ven entre sí.
+    all_recipients = list(to) + (cc or []) + (bcc or [])
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
         server.ehlo()
@@ -382,15 +384,17 @@ async def send_email(
     attachments: list = None,
     sender: str = None,
     cc: List[str] = None,
+    bcc: List[str] = None,
 ) -> dict:
     """
-    Envía un email con soporte para CC.
+    Envía un email con soporte para CC y BCC (copia oculta).
     Prioridad: 1) SMTP propio  2) Resend  3) Simulado.
     """
     sender = sender or SENDER_EMAIL
     # Filter empty emails
     to = [e for e in to if e and e.strip() and '@' in e]
     cc = [e for e in (cc or []) if e and e.strip() and '@' in e]
+    bcc = [e for e in (bcc or []) if e and e.strip() and '@' in e]
 
     # Homologar el espaciado del cuerpo con la Vista Previa (márgenes compactos
     # en <p>) antes de anexar el footer y enviar.
@@ -441,6 +445,7 @@ async def send_email(
         "from": sender,
         "to": to,
         "cc": cc,
+        "bcc_count": len(bcc),
         "subject": subject,
         "html_preview": html[:500],
         "has_attachment": bool(attachments),
@@ -453,7 +458,7 @@ async def send_email(
     if SMTP_AVAILABLE:
         try:
             result = await asyncio.to_thread(
-                _send_smtp, to, subject, html, sender, attachments, cc
+                _send_smtp, to, subject, html, sender, attachments, cc, bcc
             )
             email_log["status"] = "sent"
             email_log["method"] = "smtp"
@@ -477,7 +482,9 @@ async def send_email(
             api_key = await get_resend_api_key()
             if api_key:
                 resend.api_key = api_key
-                params = {"from": sender, "to": to, "subject": subject, "html": html}
+                params = {"from": sender, "to": to or [sender], "subject": subject, "html": html}
+                if bcc:
+                    params["bcc"] = bcc
                 if attachments:
                     import base64 as _b64
                     rs_atts = []
