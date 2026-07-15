@@ -581,18 +581,31 @@ async def update_pg_defaults(data: dict, authorization: Optional[str] = Header(N
     return {"message": "Configuración actualizada", "costo": costo}
 
 
+# Condición para detectar cotizaciones LEGACY sin origen inmutable registrado.
+# El fallback por miembros/propietario SOLO aplica a estos históricos; el
+# backfill de startup (`backfill_quote_origin`) las va sellando con su origen.
+_LEGACY_NO_ORIGIN = [
+    {"creator_departamento": {"$exists": False}},
+    {"creator_departamento": None},
+    {"creator_departamento": ""},
+]
+
+
 def _dept_visibility_or(dept_name, member_ids, self_id):
     """Ramas $or para visibilidad colaborativa por departamento.
-    Se basa en el ORIGEN INMUTABLE `creator_departamento` (blindado ante
-    transferencias del creador), con fallback a los miembros ACTUALES del
-    depto para históricos sin el campo, y siempre las propias del usuario."""
+    REGLA ESTRICTA DE PERTENENCIA: una cotización pertenece 100% al departamento
+    en el que fue creada (`creator_departamento`). Si el creador se transfiere de
+    departamento, sus cotizaciones NO lo siguen al nuevo depto. El fallback por
+    `created_by_user_id` (miembros actuales + propio usuario) SOLO aplica a
+    históricos legacy que aún no tienen registrado su origen."""
     branches = [
         {"creator_departamento": {"$regex": f"^{re.escape(dept_name)}$", "$options": "i"}},
     ]
-    if member_ids:
-        branches.append({"created_by_user_id": {"$in": member_ids}})
-    if self_id:
-        branches.append({"created_by_user_id": self_id})
+    fallback_ids = list(member_ids or [])
+    if self_id and self_id not in fallback_ids:
+        fallback_ids.append(self_id)
+    if fallback_ids:
+        branches.append({"created_by_user_id": {"$in": fallback_ids}, "$or": _LEGACY_NO_ORIGIN})
     return branches
 
 
@@ -681,7 +694,9 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
                 team_ids.append(user_id)
             query["$or"] = [
                 {"creator_departamento": {"$regex": "ventas corporativ", "$options": "i"}},
-                {"created_by_user_id": {"$in": team_ids}},
+                # Fallback SOLO legacy (sin origen inmutable): no arrastra las
+                # cotizaciones de un creador que fue transferido fuera del equipo.
+                {"created_by_user_id": {"$in": team_ids}, "$or": _LEGACY_NO_ORIGIN},
             ]
         elif is_admin_dept:
             # Administración: visibilidad por SEDE (PYME/CORP/TBP) sin importar
@@ -730,10 +745,14 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
                 ).to_list(500)
                 team_user_ids = [u["user_id"] for u in team_users]
                 query["$or"] = [
+                    # Ejecutivos del depto por ORIGEN inmutable
                     {"creator_departamento": {"$regex": f"^{re.escape(user_depto)}$", "$options": "i"},
                      "creator_cargo": {"$regex": "ejecutivo", "$options": "i"}},
-                    {"created_by_user_id": {"$in": team_user_ids}},
-                    {"created_by_user_id": user_id},
+                    # Propias del coordinador ANCLADAS al depto de origen
+                    {"creator_departamento": {"$regex": f"^{re.escape(user_depto)}$", "$options": "i"},
+                     "created_by_user_id": user_id},
+                    # Fallback SOLO legacy (sin origen): miembros actuales + self
+                    {"created_by_user_id": {"$in": team_user_ids + [user_id]}, "$or": _LEGACY_NO_ORIGIN},
                 ]
             else:
                 query["created_by_user_id"] = user_id
@@ -857,26 +876,37 @@ async def get_quote(quote_id: str, authorization: Optional[str] = Header(None)):
             if (quote.get("client_segment") or "").upper() != user_sede:
                 raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (restricción de sede para Administración)")
         elif "ventas corporativ" in depto_norm:
-            # Equipo de Ventas Corporativas: acceso por ORIGEN INMUTABLE del
-            # creador (consistente con la lista). Fallback al depto actual del
-            # creador solo si la cotización no tiene `creator_departamento`.
-            creator_id = quote.get("created_by_user_id")
-            if creator_id and creator_id != current_user.get("user_id"):
-                origin = (quote.get("creator_departamento") or "")
-                if not origin:
-                    creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
-                    origin = ((creator or {}).get("departamento") or "")
+            # Ventas Corporativas: acceso por ORIGEN INMUTABLE. Regla estricta:
+            # si la cotización nació en otro departamento, ni el propio creador
+            # (ya transferido) la ve desde este contexto.
+            origin = (quote.get("creator_departamento") or "")
+            if origin:
                 if "ventas corporativ" not in origin.lower():
                     raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (privacidad por departamento)")
-        else:
-            creator_id = quote.get("created_by_user_id")
-            if creator_id and creator_id != current_user.get("user_id"):
-                origin = quote.get("creator_departamento")
-                if not origin:
+            else:
+                # Legacy sin origen: fallback al depto actual del creador / propio
+                creator_id = quote.get("created_by_user_id")
+                if creator_id and creator_id != current_user.get("user_id"):
                     creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
-                    origin = (creator or {}).get("departamento") or ""
-                if not user_depto or user_depto.strip().lower() != (origin or "").strip().lower():
+                    origin2 = ((creator or {}).get("departamento") or "")
+                    if "ventas corporativ" not in origin2.lower():
+                        raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (privacidad por departamento)")
+        else:
+            # Regla estricta de pertenencia: la cotización pertenece al depto de
+            # ORIGEN. El acceso se ancla a `creator_departamento` sin importar si
+            # el solicitante es el creador (que pudo haberse transferido).
+            origin = quote.get("creator_departamento")
+            if origin:
+                if not user_depto or user_depto.strip().lower() != origin.strip().lower():
                     raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (privacidad por departamento)")
+            else:
+                # Legacy sin origen: fallback al depto actual del creador / propio
+                creator_id = quote.get("created_by_user_id")
+                if creator_id and creator_id != current_user.get("user_id"):
+                    creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
+                    origin2 = (creator or {}).get("departamento") or ""
+                    if not user_depto or user_depto.strip().lower() != origin2.strip().lower():
+                        raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (privacidad por departamento)")
     if isinstance(quote['created_at'], str):
         quote['created_at'] = datetime.fromisoformat(quote['created_at'])
     return quote

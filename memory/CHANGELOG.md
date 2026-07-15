@@ -1267,3 +1267,12 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - FALLO 1 (causa raíz real): exportCurrentQuoteToPDF (Quotes.jsx L2168) elegía endpoint LEGACY /api/quotes/generate-pdf cuando hasTemplate/useTemplateForPDF era false -> Exportar generaba un PDF desactualizado/PyME, mientras Previsualizar (preview-pdf-with-template) y Guardar (create-with-pdf) daban Corp. Fix: Exportar ahora usa SIEMPRE /api/quotes/generate-pdf-with-template -> los 3 botones idénticos.
 - FALLO 2: regenerate-pdf (usado por Modificar) preserva el segmento CORP del registro original y ya no falla por campos None (coerción None->'' en strings y cantidad_cajas None->1).
 - Verificado: testing_agent iteration_124, 6/6 pytest -> GATEWAY CORP=5 / LINK_PAGO CORP=6 / PyME=8 en los 3 endpoints; regenerate-pdf conserva CORP en GATEWAY y LINK_PAGO (incl. cotización real quo_05e569ead910).
+
+**Bug fix P0: Pertenencia estática de Cotizaciones al transferir usuario de departamento · 2026-07-16:**
+- Regla estricta (opción a acordada con usuario): una cotización pertenece 100% al departamento de ORIGEN (`creator_departamento`). Si el creador se transfiere de departamento, sus cotizaciones NO lo siguen al nuevo depto (ni él ni su nuevo equipo las ven).
+- routes/quotes.py:
+  - `_dept_visibility_or`: el fallback por `created_by_user_id` (miembros actuales + self) ahora aplica SOLO a históricos legacy sin origen (`_LEGACY_NO_ORIGIN`). Afecta ramas gerente/ejecutivo/perfil RBAC.
+  - Bloque Ventas Corporativas (GET /quotes): fallback por team_ids condicionado a legacy.
+  - Bloque Coordinador: rama ejecutivos por origen + propias del coordinador ancladas al depto de origen + fallback legacy.
+  - GET /quotes/{id} (detalle): acceso anclado a `creator_departamento` sin bypass por ser el creador (estricto); fallback al depto actual del creador solo para legacy sin origen.
+- Verificado con query real contra Mongo (quote origen 'Operaciones'): leak al nuevo depto = 0; visibilidad al depto origen = 1. Backend levanta OK.
