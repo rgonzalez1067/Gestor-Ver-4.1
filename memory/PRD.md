@@ -4,6 +4,14 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Certificado de Integración: estampado por anclas sobre plantilla MegaSoft + persistencia del depósito — Jun 2026
+**Contexto:** el usuario cargó su plantilla institucional "Certificado Integración en Blanco.pdf" (landscape 792×612) que YA trae etiquetas fijas impresas ("Certifica a:", "...pruebas de la interfaz,", "Productos:", "con el Aplicativo", "desarrollado por", firmas Carlos Hernández/Doris Collazo, "Caracas,"). El overlay genérico anterior re-escribía esas etiquetas → solapamiento.
+**Fix (integrators.py::_generate_integration_certificate_pdf):** cuando hay PDF base, se leen las ANCLAS del template con pdfplumber y se estampan SOLO los valores dinámicos junto a cada etiqueta: nombre bajo "Certifica a:"; componente+versión tras "interfaz,"; productos tras "Productos:" (con wrap); aplicativo tras "con el Aplicativo"; nombre del integrador tras "desarrollado por"; fecha tras "Caracas,". Autoajuste de fuente para no invadir la etiqueta siguiente. Fallback a overlay centrado si el template no trae etiquetas; y a certificado autónomo si no hay depósito.
+**Persistencia:** `upload_integration_certificate` ahora guarda `content_b64` en Mongo; nuevo `restore_integration_certificate()` (registrado en server.py startup) restaura el PDF a disco al arrancar → el depósito sobrevive redeploys (el FS del contenedor es efímero). El certificado subido ANTES de este fix debe resubirse UNA vez tras el próximo deploy.
+**Dep:** +pdfplumber==0.11.9 (requirements.txt).
+**QA:** estampado validado visualmente (analyze_file: 6 campos sin solapamiento/desborde) + E2E por endpoint `/close` → `certificate_generated=true`, email_log `attachment_names=['Certificado_….pdf']`, status=sent. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix DEFINITIVO: Certificado PDF no se adjuntaba al Cerrar Proyecto de Integración — Jun 2026
 **Síntoma:** al cerrar un Proyecto de Integración, el Certificado PDF no llegaba adjunto al correo (persistía pese al fix previo iter272 del "cuerpo por defecto").
 **RCA (vía email_logs):** el último cierre adjuntaba logo + cronogramas pero NUNCA el Certificado. `_generate_integration_certificate_pdf` (integrators.py) retornaba `None` cuando el depósito "Certificado" (db.config type=integration_certificate) estaba vacío o contenía una imagen (jpg/png) en vez de un PDF base → no había bytes que adjuntar. El fix previo (cuerpo por defecto sin plantilla) no atacaba esta causa.

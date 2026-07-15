@@ -437,36 +437,106 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
 
         from pypdf import PdfReader, PdfWriter
         from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.pdfbase.pdfmetrics import stringWidth
         base = PdfReader(str(base_path))
         page = base.pages[0]
         w = float(page.mediabox.width)
         h = float(page.mediabox.height)
         name = intg.get("name", "")
         app_name = intg.get("app_name", "")
+
+        # Anclas del template: posición de cada etiqueta fija impresa.
+        anchors: dict = {}
+        try:
+            import pdfplumber
+            with pdfplumber.open(str(base_path)) as _pdf:
+                for _wd in _pdf.pages[0].extract_words():
+                    anchors.setdefault(_wd["text"], _wd)
+        except Exception as _e:
+            logger.warning(f"[cert] no se pudieron leer anclas del template: {_e}")
+
         buf = io.BytesIO()
         c = rl_canvas.Canvas(buf, pagesize=(w, h))
-        cx = w / 2
-        y = h * 0.60
         c.setFillColorRGB(0.12, 0.16, 0.22)
-        c.setFont("Helvetica", 14); c.drawCentredString(cx, y, "Certifica a:")
-        y -= 30
-        c.setFont("Helvetica-Bold", 22); c.drawCentredString(cx, y, name)
-        y -= 40
-        max_w = w * 0.78
-        body = (f"Por haber cumplido a cabalidad la integración y pruebas de la interfaz "
-                f"{componente} - Versión {version}")
-        for ln in _wrap_text_lines(body, "Helvetica", 13, max_w):
-            c.setFont("Helvetica", 13); c.drawCentredString(cx, y, ln); y -= 20
-        y -= 6
-        for ln in _wrap_text_lines(f"para los Productos: {productos_str}", "Helvetica-Oblique", 13, max_w):
-            c.setFont("Helvetica-Oblique", 13); c.drawCentredString(cx, y, ln); y -= 20
-        y -= 6
-        for ln in _wrap_text_lines(f"con el Aplicativo {app_name}", "Helvetica", 13, max_w):
-            c.setFont("Helvetica", 13); c.drawCentredString(cx, y, ln); y -= 20
-        y -= 24
-        c.setFont("Helvetica", 12); c.drawCentredString(cx, y, "Desarrollado por:")
-        y -= 24
-        c.setFont("Helvetica-Bold", 16); c.drawCentredString(cx, y, name)
+        R_MARGIN = w - 45
+
+        def _yb(word, dy=3.0):
+            return h - float(word["bottom"]) + dy
+
+        def _fit_font(text, base_size, avail, font="Helvetica-Bold", floor=8):
+            fs = base_size
+            while fs > floor and stringWidth(text, font, fs) > avail:
+                fs -= 1
+            return fs
+
+        if anchors.get("Certifica") or anchors.get("Productos:"):
+            # Template MegaSoft con etiquetas fijas → rellenar SOLO valores dinámicos.
+            a_cert = anchors.get("Certifica"); a_ca = anchors.get("a:")
+            if a_cert:
+                cx = (float(a_cert["x0"]) + float((a_ca or a_cert)["x1"])) / 2
+                c.setFont("Helvetica-Bold", 22)
+                c.drawCentredString(cx, h - float(a_cert["bottom"]) - 40, name)
+            a_intf = anchors.get("interfaz,")
+            comp_txt = f"{componente} - Versión {version}".strip(" -")
+            if a_intf and comp_txt:
+                x = float(a_intf["x1"]) + 8
+                a_para = anchors.get("para")
+                limit = (float(a_para["x0"]) - 6) if a_para else R_MARGIN
+                fs = _fit_font(comp_txt, 13, limit - x)
+                c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_intf), comp_txt)
+            a_prod = anchors.get("Productos:")
+            if a_prod and productos_str:
+                x0 = float(a_prod["x1"]) + 8
+                yb = _yb(a_prod)
+                first_w = R_MARGIN - x0
+                cont_x = float(anchors.get("para", a_prod)["x0"])
+                cont_w = R_MARGIN - cont_x
+                lines = []; cur = ""; maxw = first_w
+                for wd in productos_str.split():
+                    test = (cur + " " + wd).strip()
+                    if stringWidth(test, "Helvetica-Bold", 12) <= maxw or not cur:
+                        cur = test
+                    else:
+                        lines.append(cur); cur = wd; maxw = cont_w
+                if cur:
+                    lines.append(cur)
+                c.setFont("Helvetica-Bold", 12)
+                for i, ln in enumerate(lines):
+                    c.drawString(x0 if i == 0 else cont_x, yb - i * 16, ln)
+            a_app = anchors.get("Aplicativo")
+            if a_app and app_name:
+                x = float(a_app["x1"]) + 8
+                a_des = anchors.get("desarrollado")
+                limit = (float(a_des["x0"]) - 6) if a_des else R_MARGIN
+                fs = _fit_font(app_name, 13, limit - x)
+                c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_app), app_name)
+            a_por = anchors.get("por")
+            if a_por and name:
+                x = float(a_por["x1"]) + 8
+                fs = _fit_font(name, 13, R_MARGIN - x)
+                c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_por), name)
+            a_car = anchors.get("Caracas,")
+            if a_car:
+                fecha = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+                c.setFont("Helvetica", 12); c.drawString(float(a_car["x1"]) + 6, _yb(a_car), fecha)
+        else:
+            # Fallback: template sin etiquetas → overlay centrado completo.
+            cx = w / 2; y = h * 0.60
+            c.setFont("Helvetica", 14); c.drawCentredString(cx, y, "Certifica a:")
+            y -= 30; c.setFont("Helvetica-Bold", 22); c.drawCentredString(cx, y, name)
+            y -= 40; max_w = w * 0.78
+            body = (f"Por haber cumplido a cabalidad la integración y pruebas de la interfaz "
+                    f"{componente} - Versión {version}")
+            for ln in _wrap_text_lines(body, "Helvetica", 13, max_w):
+                c.setFont("Helvetica", 13); c.drawCentredString(cx, y, ln); y -= 20
+            y -= 6
+            for ln in _wrap_text_lines(f"para los Productos: {productos_str}", "Helvetica-Oblique", 13, max_w):
+                c.setFont("Helvetica-Oblique", 13); c.drawCentredString(cx, y, ln); y -= 20
+            y -= 6
+            for ln in _wrap_text_lines(f"con el Aplicativo {app_name}", "Helvetica", 13, max_w):
+                c.setFont("Helvetica", 13); c.drawCentredString(cx, y, ln); y -= 20
+            y -= 24; c.setFont("Helvetica", 12); c.drawCentredString(cx, y, "Desarrollado por:")
+            y -= 24; c.setFont("Helvetica-Bold", 16); c.drawCentredString(cx, y, name)
         c.save(); buf.seek(0)
         overlay = PdfReader(buf)
         writer = PdfWriter()
