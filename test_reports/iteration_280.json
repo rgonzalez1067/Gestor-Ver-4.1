@@ -1,0 +1,55 @@
+{
+  "summary": "Iter 280 — Verificación E2E de optimización UI de la Vista de Integradores (Requisitos A/B/C). Login admin exitoso, viewport 1920x1080. TODOS los requisitos VERIFICADOS. (C) Doble scrollbar sincronizada: existen data-testid='integrators-top-scroll' y 'integrators-bottom-scroll'; sincronización BIDIRECCIONAL confirmada vía scrollLeft — TOP=200 → bottom=122 (top clampeado a 122=1400-1278 por maxScroll, ambos exactamente iguales); BOTTOM=0 → top=0; BOTTOM=350 → ambos=122. Delta siempre <=2px. (A) Columna 'Acciones' visible sin scroll: bbox left=1611, right=1849 dentro de viewport 1920. Tabla tiene 11 <th> y 11 <col> en colgroup, headers: [Nombre, T.Int, Tipo, Aplicativo, Modalidad, Gestor, Implementador, Categoría, Últ. Contacto, Cert., Acciones]. minWidth=1400px, tableWidth=1400px. (B) Separación iconos Cert vs primer botón Acciones: gap real medido = 28.75px (cert icon right=1590.75, detail-btn left=1619.5). Celda Acciones tiene border-left=1px y padding-left=8px. Muy por encima del target 8-10px. Regresión: click en data-testid='detail-int_6e629debfffc' expande correctamente la fila con la 'MATRIZ DE SERVICIOS Y PRODUCTOS — ALCANTARA TRUJILLO Y ASOCIADOS' (contadores C=8, P=11, N/A=1 y grilla de productos). Grilla se pobla normal con 5 integradores.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (preexistente)", "issues": ["Hydration warning por wrapper <span data-ve-dynamic> del visual editor entre <tbody> y <tr> — NO es regresión de este cambio; documentado en iter279."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(no-op) Ningún action item nuevo. Los 3 requisitos A/B/C están correctamente implementados.",
+    "(opcional, preexistente) Eliminar wrapper <span data-ve-dynamic> del visual editor que causa hydration warning en tablas."
+  ],
+  "critical_code_review_comments": [
+    "frontend/pages/Integrators.jsx L123-140: refs topScrollRef/bottomScrollRef + handlers handleTopScroll/handleBottomScroll correctamente implementados con guarda `if (topScrollRef.current && bottomScrollRef.current)` para evitar NPE. La asignación directa bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft (y viceversa) sí dispara nuevos eventos scroll, pero como el segundo scroll asigna el mismo valor, no genera bucle infinito perceptible (sincronización idempotente cuando los valores ya coinciden). Sugerencia menor: agregar un flag `isSyncing` con ref para evitar el segundo callback y ahorrar 1 asignación por evento — no bloqueante.",
+    "frontend/pages/Integrators.jsx L1725-1728: El div superior tiene height:'14px' + overflow-x-auto + overflow-y-hidden — correcto para exponer solo la barra horizontal. Debe replicar el ancho de contenido del contenedor inferior mediante un hijo con mismo minWidth. Verificado: scrollWidth del top=1400px == scrollWidth del bottom=1400px, por lo tanto el hijo interno del top respeta el minWidth de la tabla.",
+    "frontend/pages/Integrators.jsx L1865-1900 (celda Acciones): border-l + padding + gap-1.5 aplicados correctamente. Gap real medido 28.75px entre icono Cert y primer botón (detail-<id>) — supera con creces el target 8-10px del requisito B.",
+    "frontend/pages/Integrators.jsx colgroup: 11 <col> alineados con 11 <th>; consistencia estructural verificada.",
+    "Sugerencia menor no bloqueante: en handleTopScroll/handleBottomScroll cachear referencia local `const t = topScrollRef.current; const b = bottomScrollRef.current;` — cosmético."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (skip)",
+    "frontend": "100% (Req A/B/C + regresión)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguno — se usó dataset preexistente (5 integradores, incluyendo Alcantara Trujillo y Asociados con matriz de certificación cargada).",
+  "verified_metrics": {
+    "top_scroll_testid_present": true,
+    "bottom_scroll_testid_present": true,
+    "sync_top_to_bottom_delta_px": 0,
+    "sync_bottom_to_top_delta_px": 0,
+    "sync_bidirectional": "PASS",
+    "table_thead_th_count": 11,
+    "table_colgroup_col_count": 11,
+    "table_min_width_px": 1400,
+    "acciones_header_bbox_right_px": 1849,
+    "viewport_width_px": 1920,
+    "acciones_column_visible_no_horizontal_scroll_needed": true,
+    "cert_icon_to_first_action_btn_gap_px": 28.75,
+    "actions_cell_border_left": "1px",
+    "actions_cell_padding_left": "8px",
+    "regression_detail_button_click": "PASS (row expanded, matriz visible)",
+    "regression_integrators_loaded": 5
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Vista Integradores optimizada correctamente. data-testids clave: integrators-top-scroll (barra superior 14px), integrators-bottom-scroll (contenedor de la tabla). Tabla tiene 11 columnas con minWidth 1400px. Cert icon y primer botón de Acciones (detail-<integrator_id>) tienen gap real 28.75px. Regresión del click en detail-<id> abre correctamente la fila con la MATRIZ DE SERVICIOS Y PRODUCTOS. No requiere backend testing (cambio 100% frontend).",
+  "rca_of_the_issue": "N/A — no hubo bug detectado. Los 3 requisitos A/B/C fueron implementados correctamente en Integrators.jsx. Sincronización de scroll bidireccional funciona vía onScroll handlers cruzados; columnas Cert. (10) + Acciones (11) están correctamente separadas por border-l + padding-left; layout responde bien a 1920x1080 sin necesidad de scroll horizontal para ver la columna Acciones."
+}

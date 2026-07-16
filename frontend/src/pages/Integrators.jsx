@@ -119,6 +119,24 @@ export const Integrators = () => {
   const [importFile, setImportFile] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
   const dropRef = useRef(null);
+  // Doble barra de scroll horizontal SINCRONIZADA (superior + inferior) para la grilla.
+  const topScrollRef = useRef(null);
+  const bottomScrollRef = useRef(null);
+  const scrollSyncing = useRef(false);
+  const handleTopScroll = () => {
+    if (scrollSyncing.current) { scrollSyncing.current = false; return; }
+    if (topScrollRef.current && bottomScrollRef.current) {
+      scrollSyncing.current = true;
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+  const handleBottomScroll = () => {
+    if (scrollSyncing.current) { scrollSyncing.current = false; return; }
+    if (topScrollRef.current && bottomScrollRef.current) {
+      scrollSyncing.current = true;
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+    }
+  };
   const [certFilters, setCertFilters] = useState({});
   // Bitácora
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
@@ -1703,19 +1721,24 @@ export const Integrators = () => {
 
           {/* Table */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrators-table">
-            <div className="overflow-x-auto">
-              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1150px' }}>
+            {/* Barra de scroll horizontal SUPERIOR, sincronizada con la inferior */}
+            <div ref={topScrollRef} onScroll={handleTopScroll} className="overflow-x-auto overflow-y-hidden border-b border-slate-100" style={{ height: '14px' }} data-testid="integrators-top-scroll">
+              <div style={{ minWidth: '1400px', height: '1px' }} />
+            </div>
+            <div ref={bottomScrollRef} onScroll={handleBottomScroll} className="overflow-x-auto" data-testid="integrators-bottom-scroll">
+              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1400px' }}>
                 <colgroup>
-                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '16%' }} />
                   <col style={{ width: '5%' }} />
-                  <col style={{ width: '6%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '5%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '8%' }} />
                   <col style={{ width: '9%' }} />
                   <col style={{ width: '9%' }} />
-                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '5%' }} />
+                  <col style={{ width: '17%' }} />
                 </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
@@ -1728,12 +1751,13 @@ export const Integrators = () => {
                     <th className="px-2 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Implementador</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Categoría</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Últ. Contacto</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Cert.</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredIntegrators.length === 0 ? (
-                    <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
+                    <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
                   ) : filteredIntegrators.map((intg) => {
                     const closed = intg.integrator_status === 'Cerrado';
                     // Solo los proyectos clasificados por el nuevo flujo llevan etiqueta.
@@ -1843,11 +1867,11 @@ export const Integrators = () => {
                             </PopoverContent>
                           </Popover>
                         </td>
-                        <td className="px-2 py-2 text-center">
+                        <td className="px-2 py-2 text-center pr-3">
                           <IntegratorCertificatesCell integratorId={intg.integrator_id} count={certCounts[intg.integrator_id] || 0} onChange={fetchCertCounts} />
                         </td>
-                        <td className="px-2 py-2" style={{ minWidth: '160px' }}>
-                          <div className="flex items-center justify-center gap-1">
+                        <td className="px-2 py-2 border-l border-slate-100" style={{ minWidth: '200px' }}>
+                          <div className="flex items-center justify-center gap-1.5">
                             <Button size="sm" variant="ghost" onClick={() => setExpandedRow(expandedRow === intg.integrator_id ? null : intg.integrator_id)}
                               className="text-purple-600 hover:bg-purple-50 h-7 px-1.5" data-testid={`detail-${intg.integrator_id}`}>
                               <Award size={13} />{expandedRow === intg.integrator_id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
