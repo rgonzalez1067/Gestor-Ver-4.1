@@ -1,0 +1,48 @@
+{
+  "summary": "Iter282 — Backend regression tests for bug fix: correos a Integradores ahora usan el remitente configurado (impl_merchant@megasoft.com.ve) en vez del default global (gestor@megasoft.com.ve). 4/4 pytest passed. Se verificó: (1) GET /api/config/email-senders devuelve assignments.integradores == impl_merchant@megasoft.com.ve y ese correo está en senders activos; (2) resolve_sender_for_area('integradores') retorna impl_merchant@megasoft.com.ve (invalidando el caché primero); (3) POST /api/integrators/{id}/send-email inserta en email_logs un registro action='integrator_notification' con from == impl_merchant@megasoft.com.ve (NO el default); (4) POST /api/integrators/mass/communication inserta email_logs action='integrator_mass_communication' con from == impl_merchant@megasoft.com.ve, to == [impl_merchant@megasoft.com.ve] (mass_sender) y bcc_count >= 1 (destinatarios en BCC preservando privacidad). El envío real SMTP funcionó (status='sent', method=smtp) en preview.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_integrator_email_sender_fix.py",
+    "/app/test_reports/pytest/iter282_integrator_sender.xml"
+  ],
+  "action_items": [
+    "(no-op) Bug fix validado: entity_communications._send_and_log y send_mass_communication pasan correctamente sender=resolve_sender_for_area('integradores') a send_email, y email_logs registra el 'from' correcto."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/entity_communications.py L316-408 (_send_and_log): correctamente acepta parámetro `sender` y lo propaga a send_email. Mantiene compatibilidad hacia atrás (default None) para no romper llamadas existentes en otros contextos (send_email hace fallback a SENDER_EMAIL).",
+    "backend/routes/entity_communications.py L457-461 (send_integrator_email): resuelve sender='integradores' antes de llamar _send_and_log. Correcto.",
+    "backend/routes/entity_communications.py L638-648 (send_mass_communication): resuelve mass_sender una vez y lo usa tanto en to=[mass_sender or SENDER_EMAIL] como en sender=mass_sender. El fallback `or SENDER_EMAIL` es defensivo — inofensivo porque resolve_sender_for_area ya retorna SENDER_EMAIL si no hay asignación. Verificado empíricamente: to=[impl_merchant], bcc_count=1.",
+    "backend/services/email_service.py L102-118 (resolve_sender_for_area): correcto — valida que el correo asignado esté en la lista de senders activos antes de devolverlo; si no, cae al SENDER_EMAIL. Caché de 60s bien invalidada por invalidate_senders_cache al guardar config.",
+    "backend/services/email_service.py L440-455 (email_log): el campo 'from' se persiste antes de intentar el envío por SMTP/Resend, garantizando que quede registrado aunque falle el envío real. La aserción del test depende de esto.",
+    "Sugerencia menor (no bloqueante): en send_mass_communication L641 el fallback `or SENDER_EMAIL` es teóricamente redundante ya que resolve_sender_for_area nunca retorna vacío. Se puede simplificar a `to=[mass_sender]`. No afecta funcionalidad."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (4/4 pytest)",
+    "frontend": "N/A (skipped por review_request)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "El test envía un correo real a qa_test@example.com (destinatario ficticio) usando el integrador limpio 'int_704a5dd1b54b' (jose.obando@wisvenezuela.com) y un envío masivo con la plantilla int_tpl_mpy7df1m ('Desarrollo y Certificación Tokenizador'). Se registran filas de email_logs pero no se contaminan integradores ni plantillas.",
+  "verified_metrics": {
+    "config_assignments_integradores": "impl_merchant@megasoft.com.ve",
+    "resolve_sender_for_area_integradores": "impl_merchant@megasoft.com.ve",
+    "individual_send_from_field": "impl_merchant@megasoft.com.ve",
+    "individual_send_status": "sent (SMTP)",
+    "mass_send_from_field": "impl_merchant@megasoft.com.ve",
+    "mass_send_to_field": "[impl_merchant@megasoft.com.ve]",
+    "mass_send_bcc_count": 1,
+    "mass_send_status": "sent"
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El fix del remitente para área 'integradores' está validado end-to-end. Test file reutilizable: /app/backend/tests/test_integrator_email_sender_fix.py (4 tests). Constantes clave: EXPECTED_SENDER='impl_merchant@megasoft.com.ve', DEFAULT_SENDER='gestor@megasoft.com.ve'. Los tests limpian la caché de senders (invalidate_senders_cache) antes de probar resolve_sender_for_area. Si el default cambia en el futuro, actualizar constantes. La aserción se hace directo contra db.email_logs porque el endpoint sólo devuelve email_status y no expone el 'from' en la respuesta.",
+  "rca_of_the_issue": "Antes del fix, entity_communications.py::_send_and_log y send_mass_communication llamaban send_email(...) sin pasar el parámetro `sender`, por lo cual send_email caía al fallback `sender = sender or SENDER_EMAIL` (gestor@megasoft.com.ve). El fix agrega parámetro `sender` a _send_and_log y en cada punto de llamada se resuelve con resolve_sender_for_area('integradores' o 'nuevos_productos'). Adicionalmente el masivo también usa el sender resuelto como 'to' para que los destinatarios reales viajen en BCC. Verificación: 4/4 pytest passed con evidencia directa en db.email_logs (from == impl_merchant@megasoft.com.ve)."
+}

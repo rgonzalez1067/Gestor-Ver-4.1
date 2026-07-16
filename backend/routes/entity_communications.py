@@ -13,7 +13,7 @@ import logging
 
 from config import db, get_current_user
 from services.pdf_storage import save_pdf_dual, load_attachment_bytes, storage_name_from_upload_url
-from services.email_service import send_email
+from services.email_service import send_email, resolve_sender_for_area
 from services.signature import build_signature_html
 
 router = APIRouter()
@@ -323,6 +323,7 @@ async def _send_and_log(
     current_user: dict,
     folder: str,
     action_key: str,
+    sender: str = None,
 ):
     """Core de envío: renderiza variables, guarda adjuntos, envía y devuelve metadatos de bitácora."""
     if not to_list:
@@ -403,6 +404,7 @@ async def _send_and_log(
         html=html,
         action=action_key,
         attachments=email_attachments if email_attachments else None,
+        sender=sender,
     )
 
     attachments_names = [f["filename"] for f in saved_files + internal_files_info]
@@ -455,6 +457,7 @@ async def send_integrator_email(
     meta = await _send_and_log(
         to_list, subject, message, variables, files, internal_doc_ids,
         current_user, folder=f"integrators/{integrator_id}", action_key="integrator_notification",
+        sender=await resolve_sender_for_area("integradores"),
     )
 
     # Registrar en bitácora del integrador
@@ -633,13 +636,15 @@ async def send_mass_communication(
         )
 
     from config import SENDER_EMAIL
+    mass_sender = await resolve_sender_for_area("integradores")
     result = await send_email(
-        to=[SENDER_EMAIL],
+        to=[mass_sender or SENDER_EMAIL],
         subject=subject,
         html=html,
         action="integrator_mass_communication",
         attachments=email_attachments or None,
         bcc=recipients,
+        sender=mass_sender,
     )
 
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
@@ -719,6 +724,7 @@ async def send_new_product_email(
     meta = await _send_and_log(
         to_list, subject, message, variables, files, internal_doc_ids,
         current_user, folder=f"new_products/{product_id}", action_key="new_product_notification",
+        sender=await resolve_sender_for_area("nuevos_productos"),
     )
 
     # Registrar en bitácora de evolución
