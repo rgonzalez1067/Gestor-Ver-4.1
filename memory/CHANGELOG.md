@@ -1276,3 +1276,11 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
   - Bloque Coordinador: rama ejecutivos por origen + propias del coordinador ancladas al depto de origen + fallback legacy.
   - GET /quotes/{id} (detalle): acceso anclado a `creator_departamento` sin bypass por ser el creador (estricto); fallback al depto actual del creador solo para legacy sin origen.
 - Verificado con query real contra Mongo (quote origen 'Operaciones'): leak al nuevo depto = 0; visibilidad al depto origen = 1. Backend levanta OK.
+
+**Bug fix P0: Coexistencia de Integradores ante Ambiente de Pruebas (no canibalizar perfil comercial) · 2026-07-16:**
+- Root cause: `assign_test_environment` sobrescribía `integrator_status` de 'Certificado' a 'En proceso' (el wizard de cotizaciones QuoteWizardDialog.jsx:841 filtra por status==='Certificado' → integrador bloqueado para cotizar). Y `close_integrator_project` (bypass test_environment) ponía `integrator_status='Cerrado'` → archivaba/canibalizaba el registro maestro.
+- Fix routes/integrators.py:
+  - `assign_test_environment`: PRESERVA `integrator_status` actual (solo activa 'En proceso' si estaba Cerrado/vacío); setea `project_scope='test_environment'` + fechas; guarda snapshot `status_before_test_env`/`scope_before_test_env`. El badge morado/contador se deriva de project_scope, no del status.
+  - `close` (test_environment): restaura `integrator_status` al snapshot previo (fallback 'En proceso', nunca 'Cerrado'), `project_scope=None` (sale de la cola de proyectos), unset de campos test env; NO archiva ni borra el documento maestro.
+- Coexistencia lograda: integrador visible en Grilla de Integradores + Vista de Proyectos, elegible para cotizaciones durante y después del test env.
+- Verificado testing_agent iter277: 7/7 backend OK (incluye regresión de cierre estándar new/component). Regresión: tests/test_iter277_integrator_test_env_persistence.py.
