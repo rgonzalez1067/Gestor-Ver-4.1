@@ -472,6 +472,30 @@ const Projects = () => {
     culminado: countStatus('Culminado'),
   };
 
+  // === Desglose de AVANCE (criticidad temporal) para tooltips de KPIs ===
+  // Reutiliza los MISMOS umbrales del semáforo SLA por etapa (backend calcula
+  // `business_days_in_state` con el Calendario Laboral). Cada tarjeta se desglosa
+  // sobre su MISMO subconjunto, por lo que la suma de los 3 niveles == total.
+  const _stageKeyOf = (p) => {
+    if (!p.assigned_to_name) return 'por_asignar';
+    if (!p.ticket_number) return 'asignado';
+    return 'en_gestion';
+  };
+  const _avanceLevel = (p) => {
+    const c = (slaConfig && slaConfig[_stageKeyOf(p)]) || {};
+    const w = Number(c.warning_days ?? 2);
+    const d = Number(c.delay_days ?? 4);
+    const days = Number(p.business_days_in_state ?? 0);
+    if (days >= d) return 'critico';
+    if (days >= w) return 'medio';
+    return 'al_dia';
+  };
+  const avanceBreakdown = (subset) => {
+    const bd = { al_dia: 0, medio: 0, critico: 0 };
+    for (const p of (subset || [])) bd[_avanceLevel(p)]++;
+    return bd;
+  };
+
   // Indicador de Avance Global: promedio del % de avance (rollup_progress.global_progress)
   // sobre el MISMO set filtrado que la grilla. Proyectos sin avance cuentan como 0%.
   const globalProgress = filtered.length
@@ -615,22 +639,53 @@ const Projects = () => {
           {/* Stats Cards */}
           <div className="grid grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
             {[
-              { label: 'Total', value: kpi.total, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all' },
-              { label: 'Por Asignar', value: kpi.por_asignar, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar' },
-              { label: 'Asignado', value: kpi.asignado, cls: 'bg-sky-50 border-sky-200 text-sky-700', filter: 'Asignado' },
-              { label: 'En Gestión', value: kpi.en_gestion, cls: 'bg-indigo-50 border-indigo-200 text-indigo-700', filter: 'En Gestión' },
-              { label: 'Suspendido', value: kpi.suspendido, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'Suspendido' },
-              { label: 'Implementado Parcial', value: kpi.parcial, cls: 'bg-violet-50 border-violet-200 text-violet-700', filter: 'Implementado parcial' },
-              { label: 'Culminado', value: kpi.culminado, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado' },
-            ].map(s => (
-              <div key={s.label}
-                className={`p-3 rounded-lg border cursor-pointer transition-all ${s.cls} ${statusFilter === s.filter ? 'ring-2 ring-offset-1 ring-current' : 'hover:shadow-sm'}`}
-                onClick={() => setStatusFilter(s.filter)}
-                data-testid={`stat-${s.label.toLowerCase().replace(/\s/g, '-')}`}>
-                <p className="text-xl font-bold leading-none" data-testid={`stat-value-${s.label.toLowerCase().replace(/\s/g, '-')}`}>{s.value}</p>
-                <p className="text-xs leading-tight mt-1.5">{s.label}</p>
-              </div>
-            ))}
+              { label: 'Total', value: kpi.total, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all', subset: filtered },
+              { label: 'Por Asignar', value: kpi.por_asignar, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar', subset: baseFiltered.filter(p => p.status === 'Por asignar') },
+              { label: 'Asignado', value: kpi.asignado, cls: 'bg-sky-50 border-sky-200 text-sky-700', filter: 'Asignado', subset: baseFiltered.filter(p => p.status === 'Asignado') },
+              { label: 'En Gestión', value: kpi.en_gestion, cls: 'bg-indigo-50 border-indigo-200 text-indigo-700', filter: 'En Gestión', subset: baseFiltered.filter(p => p.status === 'En Gestión') },
+              { label: 'Suspendido', value: kpi.suspendido, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'Suspendido', subset: baseFiltered.filter(p => p.status === 'Suspendido') },
+              { label: 'Implementado Parcial', value: kpi.parcial, cls: 'bg-violet-50 border-violet-200 text-violet-700', filter: 'Implementado parcial', subset: baseFiltered.filter(p => p.status === 'Implementado parcial') },
+              { label: 'Culminado', value: kpi.culminado, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado', subset: baseFiltered.filter(p => p.status === 'Culminado') },
+            ].map(s => {
+              const key = s.label.toLowerCase().replace(/\s/g, '-');
+              const bd = avanceBreakdown(s.subset);
+              return (
+              <TooltipProvider key={s.label} delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${s.cls} ${statusFilter === s.filter ? 'ring-2 ring-offset-1 ring-current' : 'hover:shadow-sm'}`}
+                      onClick={() => setStatusFilter(s.filter)}
+                      data-testid={`stat-${key}`}>
+                      <p className="text-xl font-bold leading-none" data-testid={`stat-value-${key}`}>{s.value}</p>
+                      <p className="text-xs leading-tight mt-1.5">{s.label}</p>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-slate-900/95 text-white border border-slate-700 shadow-xl px-3 py-2 rounded-lg" data-testid={`kpi-tooltip-${key}`}>
+                    <p className="text-[11px] font-semibold mb-1.5 text-slate-100 uppercase tracking-wide">Resumen de Avance</p>
+                    <div className="space-y-1 text-xs min-w-[160px]">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />Al día</span>
+                        <span className="font-bold tabular-nums" data-testid={`kpi-tt-aldia-${key}`}>{bd.al_dia}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />Retraso Medio</span>
+                        <span className="font-bold tabular-nums" data-testid={`kpi-tt-medio-${key}`}>{bd.medio}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />Retraso Crítico</span>
+                        <span className="font-bold tabular-nums" data-testid={`kpi-tt-critico-${key}`}>{bd.critico}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 border-t border-slate-700 mt-1 pt-1 text-slate-300">
+                        <span>Total</span>
+                        <span className="font-bold tabular-nums" data-testid={`kpi-tt-total-${key}`}>{bd.al_dia + bd.medio + bd.critico}</span>
+                      </div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              );
+            })}
           </div>
 
           {/* Indicador de Avance Global (reactivo al filtro activo) */}

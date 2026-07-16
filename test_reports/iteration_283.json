@@ -1,0 +1,44 @@
+{
+  "summary": "Iter283 — Frontend test of the new KPI tooltips 'Resumen de Avance' on /projects. Login OK. All 7 KPI cards (total, por-asignar, asignado, en-gestión, suspendido, implementado-parcial, culminado) render with correct data-testid. Tooltip appears on hover (~200ms), shows breakdown Al día / Retraso Medio / Retraso Crítico + Total. PRUEBA DE FUEGO MATEMÁTICA: PASSED en las 7 tarjetas (stat_value == al_dia+medio+critico == tt_total). Click en tarjeta aplica setStatusFilter correctamente (En Gestión → Total=42). Tooltip desaparece al retirar el cursor (verificado con mouse.move con steps y click), sin residuos en DOM (state pasa de 'delayed-open' a elemento removido). Sin errores nuevos de consola.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/projects KPI tooltips", "issues": ["Observación (no bloqueante, fuera del alcance): con la data actual TODAS las tarjetas muestran 100% Retraso Crítico (0/0/N). Esto es consecuencia de que business_days_in_state en BD es >= delay_days (4) para prácticamente todos los proyectos, y _stageKeyOf cae a 'en_gestion' por defecto para estados finales (Culminado/Suspendido/Implementado parcial). El comportamiento cumple la regla matemática solicitada, pero la utilidad del desglose para estados finales podría revisarse en una iteración futura (mostrar 'n/a' o mapear a otra métrica para estados cerrados)."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_283.json"],
+  "action_items": [
+    "(no-op) Feature validada end-to-end. La regla matemática suma==total==tt_total se cumple para las 7 tarjetas.",
+    "(opcional, futura iteración) Considerar tratamiento especial del tooltip en estados finales (Culminado/Suspendido/Implementado parcial) donde el semáforo temporal por etapa 'en_gestion' no aplica conceptualmente."
+  ],
+  "critical_code_review_comments": [
+    "Projects.jsx L479-497: _stageKeyOf/_avanceLevel/avanceBreakdown limpio y sin efectos secundarios. Fallback slaConfig 2/4 correcto cuando la config aún no cargó.",
+    "Projects.jsx L642-687: cada tarjeta pasa su MISMO subset al helper (Total→filtered, estados→baseFiltered.filter(status)), garantizando por construcción que la suma de niveles == total (invariante crítico de la nueva UX). Verificado empíricamente en las 7 tarjetas.",
+    "Uso adecuado de TooltipProvider + delayDuration=200 y TooltipContent oscuro con data-testid único por tarjeta y por celda (aldia/medio/critico/total). Todos los testids son estables.",
+    "Menor (no bloqueante): se instancia un TooltipProvider por tarjeta (7 en total). Podría envolverse todo el grid con un único TooltipProvider a nivel superior sin cambios funcionales (micro-optimización).",
+    "Menor (no bloqueante, pre-existente): warnings de hydration (<span> dentro de <tbody>, <tr> dentro de <span>) provenientes del wrapper del editor visual — declarado como 'no-regresión' en el review request."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (skipped)", "frontend": "100% (7/7 KPI cards passed math rule; hover/mouseout/click-filter OK)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Solo lectura sobre datos existentes (116 proyectos activos).",
+  "verified_metrics": {
+    "cards": {
+      "total": {"stat": 116, "al_dia": 0, "medio": 0, "critico": 116, "tt_total": 116, "match": true},
+      "por-asignar": {"stat": 9, "al_dia": 0, "medio": 0, "critico": 9, "tt_total": 9, "match": true},
+      "asignado": {"stat": 63, "al_dia": 0, "medio": 0, "critico": 63, "tt_total": 63, "match": true},
+      "en-gestión": {"stat": 42, "al_dia": 0, "medio": 0, "critico": 42, "tt_total": 42, "match": true},
+      "suspendido": {"stat": 1, "al_dia": 0, "medio": 0, "critico": 1, "tt_total": 1, "match": true},
+      "implementado-parcial": {"stat": 0, "al_dia": 0, "medio": 0, "critico": 0, "tt_total": 0, "match": true},
+      "culminado": {"stat": 11, "al_dia": 0, "medio": 0, "critico": 11, "tt_total": 11, "match": true}
+    },
+    "click_filter_engestion_applies": true,
+    "tooltip_disappears_on_mouseleave": true,
+    "console_errors_new": 0
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El feature de tooltips 'Resumen de Avance' en /projects está 100% funcional según spec. Testids clave: stat-<key>, stat-value-<key>, kpi-tooltip-<key>, kpi-tt-{aldia,medio,critico,total}-<key>. Keys: total, por-asignar, asignado, en-gestión, suspendido, implementado-parcial, culminado. Nota Playwright: para que el tooltip Radix cierre al hacer mouseout, usar page.mouse.move(x, y, steps=N) o click, no un move directo (Radix necesita eventos intermedios de pointer para disparar el cierre)."
+}
