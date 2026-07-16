@@ -1299,3 +1299,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Fix routes/quote_action_customization.py `_attach_allowed_emails`: autorizados EFECTIVOS = (emails vivos por id ∪ emails denormalizados) ∩ correos de usuarios ACTUALES. Si queda vacío ⇒ "todos". Poda ids y correos de cuentas inexistentes; sincroniza enforcement con la UI de configuración.
 - Verificado testing_agent iter279: backend 5/5 (incluye inyección de correo fantasma en Mongo → podado a []; mixed ghost+valid → conserva solo el válido) + frontend E2E con agodoy. Sin regresiones (approve sigue restringido a joliveros, usuario válido).
 - IMPORTANTE: requiere REDEPLOY para llegar a producción; al desplegar, las restricciones fantasma se auto-sanan en la primera lectura de overrides.
+
+**UI/UX Vista de Integradores — layout extendido + doble scrollbar + separación de iconos · 2026-07-16:**
+- pages/Integrators.jsx (100% frontend):
+  - (A) Layout extendido: colgroup corregido a 11 columnas (se agregó header/columna 'Cert.' que faltaba; colSpan vacío 10→11); tabla minWidth 1400px con tableLayout fixed; en 1920x1080 la columna 'Acciones' queda visible sin scroll lateral.
+  - (B) Separación de iconos: celda 'Acciones' con border-l + padding-left y gap-1.5; celda 'Cert.' con pr-3. Gap real medido ~28px (target 8-10px), sin solapamiento con el botón de desglose de matriz (Award).
+  - (C) Doble barra de scroll horizontal SINCRONIZADA: barra superior (data-testid integrators-top-scroll) + contenedor inferior (integrators-bottom-scroll) con refs topScrollRef/bottomScrollRef y handlers handleTopScroll/handleBottomScroll (flag scrollSyncing anti-loop). Sincronización bidireccional verificada.
+- Verificado testing_agent iter280: A/B/C OK + regresión (expand de matriz, carga de grilla). Sin regresiones. Requiere REDEPLOY para producción.
