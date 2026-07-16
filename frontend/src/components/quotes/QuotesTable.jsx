@@ -88,18 +88,20 @@ export const QuotesTable = ({
     if (!ov) return { label: defaultLabel, hidden: false, disabled: false, tooltip: null };
     if (!ov.enabled) return { label: ov.custom_label || defaultLabel, hidden: true, disabled: true, tooltip: 'Acción desactivada' };
     const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
-    const allowedUserIds = ov.allowed_user_ids || [];
-    const allowedUserEmails = (ov.allowed_user_emails || []).map((e) => (e || '').toLowerCase());
-    const emailLc = (currentUserEmail || '').toLowerCase();
-    // Autorización robusta a deploys y a borrado+recreación: valida por user_id O
-    // por email (estable, case-insensitive).
-    const isAuthorized = allowedUserIds.includes(currentUserId) || (!!emailLc && allowedUserEmails.includes(emailLc));
-    if ((allowedUserIds.length || allowedUserEmails.length) && !isAdmin && !isAuthorized) {
+    // Autorización ESTABLE por CORREO (insensible a mayúsculas/espacios y robusta
+    // ante borrado+recreación de usuarios, donde el user_id cambia). El backend
+    // resuelve `allowed_user_emails` contra los usuarios ACTUALES y descarta IDs
+    // obsoletos; si la lista queda VACÍA (sin autorizados o todos obsoletos), la
+    // acción es para TODOS ("vacío = todos").
+    const allowedUserEmails = (ov.allowed_user_emails || []).map((e) => (e || '').trim().toLowerCase()).filter(Boolean);
+    const emailLc = (currentUserEmail || '').trim().toLowerCase();
+    const isAuthorized = !!emailLc && allowedUserEmails.includes(emailLc);
+    if (allowedUserEmails.length && !isAdmin && !isAuthorized) {
       return { label: ov.custom_label || defaultLabel, hidden: false, disabled: true, tooltip: 'No autorizado para esta acción' };
     }
     // Fallback legacy: algunos overrides viejos pueden tener required_cargos
     const cargosReq = ov.required_cargos || [];
-    if (!allowedUserIds.length && !allowedUserEmails.length && cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) {
+    if (!allowedUserEmails.length && cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) {
       return { label: ov.custom_label || defaultLabel, hidden: false, disabled: true, tooltip: `Solo cargos: ${cargosReq.join(', ')}` };
     }
     return { label: ov.custom_label || defaultLabel, hidden: false, disabled: false, tooltip: null };
@@ -115,11 +117,10 @@ export const QuotesTable = ({
       if (!ca.enabled) return false;
       if (ca.business_type !== biz) return false;
       if (ca.product_subcategory && ca.product_subcategory !== sub) return false;
-      const allowedUserIds = ca.allowed_user_ids || [];
-      const allowedUserEmails = (ca.allowed_user_emails || []).map((e) => (e || '').toLowerCase());
-      const emailLc = (currentUserEmail || '').toLowerCase();
-      if (allowedUserIds.length || allowedUserEmails.length) {
-        const isAuthorized = allowedUserIds.includes(currentUserId) || (!!emailLc && allowedUserEmails.includes(emailLc));
+      const allowedUserEmails = (ca.allowed_user_emails || []).map((e) => (e || '').trim().toLowerCase()).filter(Boolean);
+      const emailLc = (currentUserEmail || '').trim().toLowerCase();
+      if (allowedUserEmails.length) {
+        const isAuthorized = !!emailLc && allowedUserEmails.includes(emailLc);
         if (!isAdmin && !isAuthorized) return false;
         return true;
       }

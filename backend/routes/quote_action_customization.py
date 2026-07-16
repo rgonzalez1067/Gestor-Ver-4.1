@@ -127,8 +127,17 @@ async def _attach_allowed_emails(items: list[dict]) -> list[dict]:
         cur = db.users.find({"user_id": {"$in": list(all_ids)}}, {"_id": 0, "user_id": 1, "email": 1})
         id_to_email = {u["user_id"]: (u.get("email") or "").strip().lower() async for u in cur}
     for it in items:
-        live = [id_to_email[uid] for uid in (it.get("allowed_user_ids") or []) if id_to_email.get(uid)]
+        raw_ids = it.get("allowed_user_ids") or []
+        # PODA de IDs obsoletos (usuarios borrados/recreados): solo conservamos
+        # los que resuelven a un usuario ACTUAL. Esto evita "restricciones
+        # fantasma" que el admin no ve en la UI (que también resuelve por ID) pero
+        # que el motor de permisos sí aplicaba, bloqueando a usuarios recreados.
+        resolvable_ids = sorted({uid for uid in raw_ids if id_to_email.get(uid)})
+        live = [id_to_email[uid] for uid in resolvable_ids]
+        # `allowed_user_emails` denormalizados son la identidad ESTABLE (sobreviven
+        # al cambio de user_id por recreación). Se conservan aunque el ID cambie.
         stored = [(e or "").strip().lower() for e in (it.get("allowed_user_emails") or []) if e]
+        it["allowed_user_ids"] = resolvable_ids
         it["allowed_user_emails"] = sorted(set(live) | set(stored))
     return items
 

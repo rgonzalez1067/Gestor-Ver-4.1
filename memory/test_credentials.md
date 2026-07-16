@@ -75,3 +75,11 @@
   de visibilidad: la grilla GET /projects devuelve solo sus 3 proyectos, y
   GET /projects/{id} de un proyecto ajeno/huérfano responde 403. Password
   reseteado por el agente para QA.
+
+## Usuario Ejecutivo agodoy — pruebas de Actions Override Equipos (Jul 2026)
+- Email: agodoy@megasoft.com.ve
+- Password: Test1234!  (reseteado por el agente para QA con config.hash_password)
+- Role: user / Cargo: Ejecutivo / Departamento: Ventas Pyme / Sede: PYME
+- user_id: user_54999f93a974 (fue RECREADO; su user_id viejo user_a8e3874291c8 quedó obsoleto en overrides)
+- special_permissions: cotizaciones:impl_pyme, cotizaciones:equipos, proyectos:create, integradores:create
+- Nota: sirve para validar el fix de "Actions Override" (autorización por correo estable, no por user_id volátil).
