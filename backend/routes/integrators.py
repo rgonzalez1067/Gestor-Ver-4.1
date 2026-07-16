@@ -627,10 +627,22 @@ async def close_integrator_project(
 
     # ---------- EXCEPCIÓN: Ambiente de Prueba (bypass total) ----------
     if scope == "test_environment":
+        # AISLAMIENTO EN EL CIERRE: cerrar un Ambiente de Prueba SOLO lo remueve de
+        # la Vista de Proyectos activos. NUNCA archiva (Cerrado) ni borra el registro
+        # maestro del integrador: se restaura su perfil comercial/permanente previo
+        # (p.ej. 'Certificado') y sale de la cola de proyectos (project_scope=None),
+        # permaneciendo 100% visible en la Grilla de Integradores y elegible para
+        # cotizaciones.
+        restored_status = existing.get("status_before_test_env") or "En proceso"
+        if restored_status == "Cerrado":
+            restored_status = "En proceso"
         await db.integrators.update_one(
             {"integrator_id": integrator_id},
-            {"$set": {"integrator_status": "Cerrado", "project_scope": None,
-                      "closed_at": now_iso, "closed_by": closed_by}},
+            {"$set": {"integrator_status": restored_status, "project_scope": None,
+                      "test_env_closed_at": now_iso, "test_env_closed_by": closed_by},
+             "$unset": {"test_env_start_date": "", "test_env_end_date": "",
+                        "test_env_expiry_notified": "", "test_env_assigned_at": "",
+                        "status_before_test_env": "", "scope_before_test_env": ""}},
         )
         updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
         return {"status": "ok", "bypass": True, "integrator": updated, "notification": None}
@@ -1059,16 +1071,26 @@ async def assign_test_environment(integrator_id: str, payload: TestEnvironmentPa
         raise HTTPException(status_code=400, detail="Formato de fecha inválido (use YYYY-MM-DD)")
     if end < start:
         raise HTTPException(status_code=400, detail="La Fecha Final no puede ser anterior a la Fecha de Inicio")
+    # NO canibalizar el perfil comercial/permanente: preservamos el estatus actual
+    # del integrador (p.ej. 'Certificado' → sigue elegible para cotizaciones). Solo
+    # activamos el ciclo si estaba Cerrado o sin estatus. El badge morado y el
+    # contador de días se derivan de project_scope='test_environment', no del estatus.
+    prev_status = existing.get("integrator_status")
+    set_data = {
+        "project_scope": "test_environment",
+        "test_env_start_date": start.isoformat(),
+        "test_env_end_date": end.isoformat(),
+        "test_env_expiry_notified": False,
+        "test_env_assigned_at": datetime.now(timezone.utc).isoformat(),
+        # Snapshot para restaurar el perfil al cerrar el Ambiente de Prueba.
+        "status_before_test_env": prev_status,
+        "scope_before_test_env": existing.get("project_scope"),
+    }
+    if not prev_status or prev_status == "Cerrado":
+        set_data["integrator_status"] = "En proceso"
     await db.integrators.update_one(
         {"integrator_id": integrator_id},
-        {"$set": {
-            "project_scope": "test_environment",
-            "integrator_status": "En proceso",
-            "test_env_start_date": start.isoformat(),
-            "test_env_end_date": end.isoformat(),
-            "test_env_expiry_notified": False,
-            "test_env_assigned_at": datetime.now(timezone.utc).isoformat(),
-        }, "$unset": {"closed_at": "", "closed_by": ""}},
+        {"$set": set_data, "$unset": {"closed_at": "", "closed_by": ""}},
     )
     updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
     return {"status": "ok", "integrator": updated}

@@ -1,0 +1,56 @@
+{
+  "summary": "Iter 277 — Bug Fix P0 Persistencia/Coexistencia de Integradores ante Ambiente de Pruebas: 7/7 tests pytest backend PASADOS. Escenarios cubiertos: (1) assign-test-environment sobre integrador 'Certificado' preserva integrator_status='Certificado' (NO se pisa a 'En proceso'), setea project_scope='test_environment' y guarda status_before_test_env='Certificado' [200 OK]; (2) grilla default GET /api/integrators sigue devolviendo el integrador con test env activo, con integrator_status='Certificado' → elegibilidad para wizard de cotizaciones intacta; (3) close bypass sobre project_scope='test_environment' devuelve 200 con bypass=true, restaura integrator_status='Certificado' (NUNCA 'Cerrado'), project_scope=null, unset de status_before_test_env; (4) el documento maestro persiste tras close (no eliminado); (5) el registro cerrado sigue apareciendo en la grilla default; (6) regresión — cierre estándar (project_scope='new') sin componente/versión devuelve 400 con mensaje 'Componente y Versión del Componente son obligatorios'; (7) cierre estándar OK con componente+versión pasa a integrator_status='Certificado' y project_scope=null. Escenario integral (round-trip) verificado. Cleanup completo: 0 registros TEST_ITER277_* residuales en db.integrators.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter277_integrator_test_env_persistence.py",
+    "/app/test_reports/pytest/iter277_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/integrators.py::assign_test_environment (L1058-1096) preserva correctamente integrator_status del integrador. Solo lo sobreescribe a 'En proceso' si prev_status es None o 'Cerrado' (L1089). Guarda status_before_test_env=prev_status y scope_before_test_env — snapshot correcto para restaurar. Comentario en el código explica bien la intención (elegibilidad para cotizaciones y badge morado derivado de project_scope, no del status).",
+    "backend/routes/integrators.py::close_integrator_project bloque test_environment (L628-648) restaura status_before_test_env con fallback 'En proceso' si venía o quedó 'Cerrado', pone project_scope=None, unset de campos de test env y snapshot, NO archiva, NO elimina el documento. Devuelve bypass=True. Semántica alineada con la regla P0.",
+    "backend/routes/integrators.py::get_integrators (L90-141) default query excluye SOLO integrator_status='Cerrado' — correcto para que el integrador con test env activo (status 'Certificado') siga apareciendo en la grilla.",
+    "Sugerencia menor no bloqueante: en el bloque de restauración (L636-638) se convierte 'Cerrado' a 'En proceso' como fallback. Esto cubre el edge case de un integrador que hubiera sido guardado como 'Cerrado' antes del snapshot; el snapshot idealmente nunca guarda 'Cerrado' (assign no aceptaría un ya archivado). Documentar el edge case en comentario in-line ayudaría a futuros mantenedores.",
+    "Sugerencia menor no bloqueante: la regla de negocio 'wizard de cotizaciones filtra por integrator_status===\"Certificado\"' vive en frontend/src/components/quotes/QuoteWizardDialog.jsx (L841-843) — considerar exponer una util centralizada 'isEligibleForQuotes(integrator)' para que la definición viva en un único punto en caso de cambiar la política.",
+    "El endpoint close es multipart/form-data (UploadFile files=[]) — bien mapeado. En el bypass test_environment se ignora componente/version incluso si vienen, lo cual es correcto (bypass total)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter277_integrator_test_env_persistence.py (nuevo — 7 tests con setup/teardown)"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7)",
+    "frontend": "N/A (testing_type=backend only per review request)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (session_token vía POST /api/auth/login).",
+  "seed_data_creation": "Creados y ELIMINADOS al final de cada test: TEST_ITER277_assign_cert_preserve, TEST_ITER277_listing_active, TEST_ITER277_close_restore, TEST_ITER277_close_still_in_grid, TEST_ITER277_std_close_missing_comp, TEST_ITER277_std_close_ok, TEST_ITER277_round_trip. Verificación final Mongo: 0 residuos con nombre 'TEST_ITER277*'.",
+  "verified_metrics": {
+    "backend_pytest_pass": "7/7",
+    "assign_test_env_status_preserved_certificado": true,
+    "status_before_test_env_snapshot_saved": "Certificado",
+    "project_scope_after_assign": "test_environment",
+    "grid_default_returns_test_env_integrator": true,
+    "close_test_env_status_code": 200,
+    "close_test_env_bypass_flag": true,
+    "close_test_env_final_status": "Certificado",
+    "close_test_env_project_scope": null,
+    "close_test_env_document_persists": true,
+    "close_test_env_status_never_cerrado": true,
+    "standard_close_missing_component_status": 400,
+    "standard_close_missing_component_detail": "Componente y Versión del Componente son obligatorios",
+    "standard_close_ok_final_status": "Certificado",
+    "round_trip_verified": true,
+    "residual_test_data": 0
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug P0 completamente resuelto y verificado por 7 tests pytest. Puntos clave: (1) assign_test_environment preserva integrator_status y solo lo mueve a 'En proceso' si el previo era None o 'Cerrado' (L1078-1090). (2) close_integrator_project con scope='test_environment' hace bypass total (L628-648) devolviendo {status:'ok', bypass:True, integrator, notification:None} — NO invoca cert/email/PDF, restaura status_before_test_env, project_scope=None. (3) get_integrators default excluye solo 'Cerrado' → el integrador con test env activo permanece visible. (4) Endpoint close es multipart/form-data: enviar data={} files=[] es válido para bypass. (5) Wizard de cotizaciones (frontend) filtra por integrator_status==='Certificado' — regla intencional preexistente. Test file autoconsistente: carga REACT_APP_BACKEND_URL desde /app/frontend/.env si no está en env. Usa nombres 'TEST_ITER277_*' con teardown en cada test.",
+  "rca of the issue": "N/A — bug ya corregido por el main agent en dos funciones de /app/backend/routes/integrators.py: (a) assign_test_environment (L1058-1096) ahora preserva integrator_status del integrador salvo edge cases (None/'Cerrado') y guarda snapshot en status_before_test_env; (b) close_integrator_project bloque test_environment (L628-648) restaura status_before_test_env (fallback 'En proceso' si viene o quedaría 'Cerrado'), setea project_scope=None y NO archiva NUNCA. La regla de negocio de coexistencia (Grilla + Vista de Proyectos + Elegibilidad cotizaciones) queda garantizada. Todos los tests pasan verde. No se requieren cambios adicionales."
+}
