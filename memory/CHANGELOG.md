@@ -1312,3 +1312,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Frontend components/DocumentViewerModal.jsx (NUEVO): modal lightbox (iframe para PDF, img para PNG/JPG, fallback para otros) + helper downloadEntityDocument (descarga blob autenticada respetando nombre/extensión). DialogDescription sr-only para a11y.
 - Integrado en: pages/EntityTemplatesConfig.jsx (tarjetas de documentos, botones entity-doc-view/download) y components/MassCommunicationDialog.jsx (filas del repositorio, botones mass-doc-view/download con stopPropagation para no alterar el checkbox).
 - Verificado testing_agent iter281: backend 6/6 (attachment/inline/token/401/404/round-trip PDF bytes) + frontend E2E (visor abre/cierra 4x sin crash, regresión crítica del checkbox intacta). Sin issues. Requiere REDEPLOY para producción.
+
+**Bug fix: remitente de correos a Integradores (usaba gestor@ global en vez del área configurada) · 2026-07-16:**
+- Root cause: routes/entity_communications.py `_send_and_log` y `send_mass_communication` llamaban a send_email SIN pasar `sender`, cayendo al SENDER_EMAIL global (gestor@megasoft.com.ve) en vez del remitente asignado al área 'integradores' (impl_merchant@megasoft.com.ve).
+- Fix: se importó resolve_sender_for_area; `_send_and_log` recibe `sender` y lo propaga; send_integrator_email pasa sender=resolve_sender_for_area('integradores'); send_new_product_email pasa 'nuevos_productos'; send_mass_communication resuelve mass_sender y lo usa en to=[mass_sender] + sender=mass_sender (BCC intacto).
+- Verificado testing_agent iter282: 4/4 backend. email_logs 'from'==impl_merchant@ para envío individual y masivo; SMTP real 'sent'. Requiere REDEPLOY para producción.
