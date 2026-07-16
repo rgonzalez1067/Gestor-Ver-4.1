@@ -1317,3 +1317,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Root cause: routes/entity_communications.py `_send_and_log` y `send_mass_communication` llamaban a send_email SIN pasar `sender`, cayendo al SENDER_EMAIL global (gestor@megasoft.com.ve) en vez del remitente asignado al área 'integradores' (impl_merchant@megasoft.com.ve).
 - Fix: se importó resolve_sender_for_area; `_send_and_log` recibe `sender` y lo propaga; send_integrator_email pasa sender=resolve_sender_for_area('integradores'); send_new_product_email pasa 'nuevos_productos'; send_mass_communication resuelve mass_sender y lo usa en to=[mass_sender] + sender=mass_sender (BCC intacto).
 - Verificado testing_agent iter282: 4/4 backend. email_logs 'from'==impl_merchant@ para envío individual y masivo; SMTP real 'sent'. Requiere REDEPLOY para producción.
+
+**Feature: Tooltips 'Resumen de Avance' en KPIs de Proyectos · 2026-07-16:**
+- pages/Projects.jsx (100% frontend): hover sobre cada tarjeta KPI muestra tooltip oscuro (delay 200ms) con desglose Al día (verde) / Retraso Medio (amarillo) / Retraso Crítico (rojo) + Total.
+- Cálculo: `_avanceLevel` clasifica por `business_days_in_state` (backend, calendario laboral) vs umbrales SLA por etapa (warning_days/delay_days, slaConfig, fallback 2/4). Estados terminales (Culminado/Implementado parcial/Anulado/Cancelado/Finalizado) → 'al_dia' (no muestran crítico falso).
+- Consistencia garantizada: cada tarjeta desglosa su MISMO subset (Total→filtered; estados→baseFiltered.filter(status)) ⇒ suma == total de la tarjeta.
+- Verificado testing_agent iter283: prueba de fuego matemática PASSED en las 7 tarjetas; tooltip aparece/desaparece sin residuos; click filtra; sin errores de consola. Requiere REDEPLOY para producción.

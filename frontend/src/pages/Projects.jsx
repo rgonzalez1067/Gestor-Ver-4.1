@@ -482,6 +482,10 @@ const Projects = () => {
     return 'en_gestion';
   };
   const _avanceLevel = (p) => {
+    // Estados terminales/cerrados no tienen criticidad temporal pendiente: se
+    // contabilizan como "Al día" (evita mostrar 'Crítico' en proyectos cerrados).
+    const FINISHED = ['Culminado', 'Implementado parcial', 'Anulado', 'Cancelado', 'Finalizado'];
+    if (FINISHED.includes(p.status)) return 'al_dia';
     const c = (slaConfig && slaConfig[_stageKeyOf(p)]) || {};
     const w = Number(c.warning_days ?? 2);
     const d = Number(c.delay_days ?? 4);
