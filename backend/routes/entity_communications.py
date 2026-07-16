@@ -1,7 +1,8 @@
 """Rutas genéricas de comunicaciones para Integradores y Nuevos Productos.
 Reutiliza la misma arquitectura de Clientes, parametrizada por `context`.
 """
-from fastapi import APIRouter, HTTPException, Header, Form, File, UploadFile
+from fastapi import APIRouter, HTTPException, Header, Form, File, UploadFile, Response, Query
+from urllib.parse import quote as _url_quote
 from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel
@@ -222,6 +223,34 @@ async def delete_entity_document(document_id: str, authorization: Optional[str] 
 
     await db.entity_documents.delete_one({"document_id": document_id})
     return {"message": "Documento eliminado"}
+
+
+@router.get("/entity-documents/{document_id}/download")
+async def download_entity_document(
+    document_id: str,
+    inline: bool = False,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Sirve el contenido del documento para VISOR (inline=true) o DESCARGA
+    (attachment). Acepta `token` por query para permitir la previsualización en
+    iframe/img del navegador (que no envían el header Authorization)."""
+    auth = authorization or (f"Bearer {token}" if token else None)
+    await get_current_user(auth)
+    doc = await db.entity_documents.find_one({"document_id": document_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    content = load_attachment_bytes(doc.get("url", ""))
+    if content is None:
+        raise HTTPException(status_code=404, detail="Archivo no localizable en el almacenamiento")
+    filename = doc.get("filename") or "documento"
+    ctype = doc.get("content_type") or "application/octet-stream"
+    disposition = "inline" if inline else "attachment"
+    headers = {
+        "Content-Disposition": f"{disposition}; filename*=UTF-8''{_url_quote(filename)}",
+        "Content-Length": str(len(content)),
+    }
+    return Response(content=content, media_type=ctype, headers=headers)
 
 
 # ==================== VARIABLES DE RENDERIZADO ====================

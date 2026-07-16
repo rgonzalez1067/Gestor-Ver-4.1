@@ -4,8 +4,9 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
-import { ArrowLeft, FileText, Upload, Trash2, Plus, Save, Pencil, FileUp } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, Trash2, Plus, Save, Pencil, FileUp, Eye, Download } from 'lucide-react';
 import { RichTextEditor } from '../components/RichTextEditor';
+import { DocumentViewerModal, downloadEntityDocument } from '../components/DocumentViewerModal';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +42,8 @@ export const EntityTemplatesConfig = ({
   const [docForm, setDocForm] = useState({ name: '', description: '', category: 'General' });
   const [docFile, setDocFile] = useState(null);
   const fileRef = useRef(null);
+  const [viewerDoc, setViewerDoc] = useState(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const fetchTemplates = () => api.get(`/email-templates?context=${context}`).then(r => setTemplates(r.data || [])).catch(() => {});
   const fetchDocuments = () => api.get(`/entity-documents?context=${context}`).then(r => setDocuments(r.data || [])).catch(() => {});
@@ -221,14 +224,19 @@ export const EntityTemplatesConfig = ({
                     <p className="text-sm font-semibold text-slate-800 truncate">{doc.name}</p>
                     <p className="text-[10px] text-slate-400 truncate">{doc.filename} | {doc.category}</p>
                   </div>
+                  <Button variant="ghost" size="sm" onClick={() => { setViewerDoc(doc); setViewerOpen(true); }} className="h-8 w-8 p-0 text-slate-400 hover:text-blue-600 shrink-0" title="Visualizar documento" data-testid={`entity-doc-view-${doc.document_id}`}>
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => downloadEntityDocument(doc)} className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600 shrink-0" title="Descargar documento" data-testid={`entity-doc-download-${doc.document_id}`}>
+                    <Download className="w-4 h-4" />
+                  </Button>
                   {isAdmin && (
-                    <Button variant="ghost" size="sm" onClick={() => deleteDocument(doc)} className="text-slate-300 hover:text-rose-500">
+                    <Button variant="ghost" size="sm" onClick={() => deleteDocument(doc)} className="h-8 w-8 p-0 text-slate-300 hover:text-rose-500 shrink-0" title="Eliminar documento">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   )}
                 </div>
-              ))}
-              {documents.length === 0 && (
+              ))}              {documents.length === 0 && (
                 <div className="col-span-full text-center py-12 text-slate-400">
                   <FileUp className="w-10 h-10 mx-auto mb-2 opacity-40" />
                   <p>No hay documentos cargados.</p>
@@ -264,6 +272,7 @@ export const EntityTemplatesConfig = ({
           </div>
         )}
       </main>
+      <DocumentViewerModal open={viewerOpen} onOpenChange={setViewerOpen} doc={viewerDoc} />
     </div>
   );
 };

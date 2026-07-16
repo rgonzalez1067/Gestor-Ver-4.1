@@ -1,0 +1,60 @@
+{
+  "summary": "Iter 281 — E2E verification of Document Viewer (Preview) + Direct Download in Communications Library (INTEGRADORES) and MassCommunicationDialog. Backend: 6/6 pytest passed on GET /api/entity-documents/{id}/download (attachment header 200 with correct filename; ?inline=true&token=<session_token> without Authorization header 200 with Content-Disposition=inline; no auth → 401; invalid token → 401; non-existent doc → 404; upload→download round-trip returns exact PDF bytes with content-type application/pdf). Frontend Biblioteca: navigation to /integrators/communications → Documentos de Comunicación tab; found 2 doc cards; PDF card view button opens DocumentViewerModal with iframe pointing to /api/entity-documents/<id>/download?inline=true&token=<jwt>; modal opens/closes 4 consecutive times without app crash. Frontend Comunicador Masivo: opened via data-testid='mass-comm-btn' from /integrators; mass-doc rows have view/download side-by-side with checkbox. Verified: PDF view button opens same DocumentViewerModal with iframe (fallback shows doc-viewer-unsupported for XLSX). CRITICAL REGRESSION CHECK PASSED: clicking view/download DOES NOT alter checkbox (state=unchecked before/after); clicking the label toggles state correctly (unchecked→checked→unchecked). Templates select still loads. `e.stopPropagation()` on view/download buttons is working as intended.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (preexistente, no regresión)", "issues": ["Hydration warning por wrapper <span data-ve-dynamic> del visual editor entre <tbody> y <tr> — documentado desde iter279."]},
+      {"screen": "DocumentViewerModal", "issues": ["Warning menor de accesibilidad: 'Missing Description or aria-describedby={undefined} for DialogContent'. Sugerencia: agregar <DialogDescription> visualmente oculto o aria-describedby en DialogContent. No bloqueante."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_entity_doc_viewer_download.py",
+    "/app/test_reports/pytest/iter281_doc_viewer.xml"
+  ],
+  "action_items": [
+    "(no-op) La funcionalidad de visor y descarga está correctamente implementada tanto en Biblioteca como en Comunicador Masivo.",
+    "(opcional, cosmético) Agregar <DialogDescription> o aria-describedby a DocumentViewerModal para silenciar el warning de accesibilidad Radix."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/entity_communications.py L228-253: download_entity_document correctamente acepta token por query (?token=...) o Authorization header, y respeta el flag inline para Content-Disposition. Usa filename*=UTF-8'' quoted para soportar nombres con caracteres especiales. Correcto uso de load_attachment_bytes y validación 404 cuando el archivo no existe físicamente aunque el registro Mongo exista.",
+    "frontend/components/DocumentViewerModal.jsx L34: buena decisión de usar token por query para el iframe/img porque el navegador no envía Authorization en esos elementos. Encoding con encodeURIComponent previene inyección en la URL. Usar `key={doc.document_id}` en el iframe fuerza re-mount al cambiar de documento — correcto.",
+    "frontend/components/DocumentViewerModal.jsx L13-28: downloadEntityDocument descarga vía axios blob y respeta el filename original. Bien manejado el cleanup con revokeObjectURL y toast de error en catch.",
+    "frontend/components/MassCommunicationDialog.jsx L175-176: uso correcto de `e.stopPropagation()` en los botones view/download para evitar que el click borbotee al label parent y toggle el checkbox. Verificado empíricamente por playwright.",
+    "Sugerencia menor: en downloadEntityDocument no hay logging del error real (solo un catch → toast). Para depuración sería útil console.error(err) antes del toast. No bloqueante.",
+    "Sugerencia menor: DocumentViewerModal no tiene <DialogDescription>; Radix loguea un warning en consola. Agregar un descriptor oculto o pasar aria-describedby={undefined} explícito para silenciar."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (6/6 pytest)",
+    "frontend": "100% (Biblioteca + Comunicador Masivo + regresión checkbox)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Test PDF creado y eliminado por el fixture pytest (TEST_Manual_Soporte_2026.pdf, contexto INTEGRADORES). El repositorio real ya contenía 1 PDF real (Procedimiento_de_Certificacion_en_la_Plataforma_MS.pdf) + 1 XLSX (Cronograma de trabajo Tokenizador.xlsx) usados para probar el fallback de formato no soportado.",
+  "verified_metrics": {
+    "backend_download_with_header": "200 attachment; %PDF bytes match",
+    "backend_download_inline_token": "200 inline; %PDF bytes served",
+    "backend_download_no_auth": 401,
+    "backend_download_invalid_token": 401,
+    "backend_download_nonexistent": 404,
+    "backend_upload_delete_roundtrip": "PASS",
+    "biblioteca_docs_found": 2,
+    "biblioteca_pdf_viewer_iframe_present": true,
+    "biblioteca_viewer_open_close_iterations": 4,
+    "mass_comm_docs_found": 2,
+    "mass_comm_pdf_viewer_iframe_present": true,
+    "mass_comm_xlsx_unsupported_fallback": true,
+    "mass_comm_view_does_not_toggle_checkbox": true,
+    "mass_comm_download_does_not_toggle_checkbox": true,
+    "mass_comm_label_still_toggles_checkbox": true,
+    "mass_comm_templates_select_loads": true
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "La funcionalidad de visor + descarga (iter281) está correctamente implementada. data-testids clave: entity-doc-<id>, entity-doc-view-<id>, entity-doc-download-<id> en /integrators/communications; mass-doc-<id>, mass-doc-view-<id>, mass-doc-download-<id> en MassCommunicationDialog abierto desde /integrators (btn mass-comm-btn). Modal común: doc-viewer-modal / doc-viewer-iframe / doc-viewer-img / doc-viewer-unsupported / doc-viewer-close / doc-viewer-download. La URL del preview usa ?inline=true&token=<localStorage.session_token>. Test file: /app/backend/tests/test_entity_doc_viewer_download.py (6 tests).",
+  "rca_of_the_issue": "N/A — no hubo bug detectado. Todos los requisitos A/B del review_request están correctamente implementados y verificados."
+}

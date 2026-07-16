@@ -4,9 +4,10 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Send, Mail, Search, Paperclip, Users, FileText } from 'lucide-react';
+import { Send, Mail, Search, Paperclip, Users, FileText, Eye, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { DocumentViewerModal, downloadEntityDocument } from './DocumentViewerModal';
 
 const TYPE_OPTIONS = [
   { code: 'ALL', label: 'Todos los tipos' },
@@ -29,6 +30,8 @@ export const MassCommunicationDialog = ({ open, onOpenChange }) => {
   const [localFiles, setLocalFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [viewerDoc, setViewerDoc] = useState(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -94,6 +97,7 @@ export const MassCommunicationDialog = ({ open, onOpenChange }) => {
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden flex flex-col" data-testid="mass-comm-dialog">
         <DialogHeader>
@@ -163,10 +167,14 @@ export const MassCommunicationDialog = ({ open, onOpenChange }) => {
               <div className="mt-1 border border-slate-200 rounded-lg p-2 space-y-1 max-h-32 overflow-auto">
                 {docs.length === 0 ? <p className="text-xs text-slate-400">Repositorio vacío</p>
                   : docs.map(d => (
-                    <label key={d.document_id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-slate-50 p-1 rounded" data-testid={`mass-doc-${d.document_id}`}>
-                      <Checkbox checked={selectedDocs.has(d.document_id)} onCheckedChange={() => toggleDoc(d.document_id)} />
-                      <span className="truncate">{d.filename}</span>
-                    </label>
+                    <div key={d.document_id} className="flex items-center gap-1 text-xs hover:bg-slate-50 p-1 rounded" data-testid={`mass-doc-${d.document_id}`}>
+                      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                        <Checkbox checked={selectedDocs.has(d.document_id)} onCheckedChange={() => toggleDoc(d.document_id)} />
+                        <span className="truncate">{d.filename}</span>
+                      </label>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setViewerDoc(d); setViewerOpen(true); }} className="p-1 text-slate-400 hover:text-blue-600 shrink-0" title="Visualizar" data-testid={`mass-doc-view-${d.document_id}`}><Eye size={14} /></button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); downloadEntityDocument(d); }} className="p-1 text-slate-400 hover:text-emerald-600 shrink-0" title="Descargar" data-testid={`mass-doc-download-${d.document_id}`}><Download size={14} /></button>
+                    </div>
                   ))}
               </div>
             </div>
@@ -193,6 +201,8 @@ export const MassCommunicationDialog = ({ open, onOpenChange }) => {
         </div>
       </DialogContent>
     </Dialog>
+    <DocumentViewerModal open={viewerOpen} onOpenChange={setViewerOpen} doc={viewerDoc} />
+    </>
   );
 };
 
