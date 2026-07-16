@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Download, FileText } from 'lucide-react';
 import { toast } from 'sonner';
@@ -42,6 +42,7 @@ export const DocumentViewerModal = ({ open, onOpenChange, doc }) => {
             <FileText size={16} className="text-blue-600 shrink-0" />
             <span className="truncate">{doc.name || doc.filename}</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">Vista previa embebida del documento {doc.filename}</DialogDescription>
         </DialogHeader>
         <div className="flex-1 min-h-0 bg-slate-100">
           {pdf ? (
