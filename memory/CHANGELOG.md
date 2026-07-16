@@ -1293,3 +1293,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Verificado testing_agent iter278: backend 5/5 + frontend E2E con agodoy (send_to_client/collect/factura/etc ENABLED, approve DISABLED correcto, 0 errores 403). Credenciales agodoy en test_credentials.md.
 
 **Backlog (acordado 2026-07-16):** Botón "Sanear referencias obsoletas" en Configuración (usa endpoint admin existente /api/admin/executives/reassign + /api/admin/executives/orphaned) para limpiar/reasignar de un clic IDs obsoletos en overrides/cotizaciones/proyectos de usuarios recreados. NO es requisito del fix (el pruning en lectura ya resuelve el síntoma); es higiene de datos preventiva. Prioridad: P3.
+
+**Bug fix (REFUERZO) Actions Override Equipos — poda de autorizados a usuarios ACTUALES · 2026-07-16:**
+- Ampliación de la causa raíz: además de IDs obsoletos, los overrides retenían CORREOS denormalizados (allowed_user_emails) de usuarios ya inexistentes (borrados/recreados). Esos autorizados "fantasma" no se ven en la UI (resuelve por usuario actual) pero el motor los aplicaba → agodoy bloqueado aunque la config se viera vacía.
+- Fix routes/quote_action_customization.py `_attach_allowed_emails`: autorizados EFECTIVOS = (emails vivos por id ∪ emails denormalizados) ∩ correos de usuarios ACTUALES. Si queda vacío ⇒ "todos". Poda ids y correos de cuentas inexistentes; sincroniza enforcement con la UI de configuración.
+- Verificado testing_agent iter279: backend 5/5 (incluye inyección de correo fantasma en Mongo → podado a []; mixed ghost+valid → conserva solo el válido) + frontend E2E con agodoy. Sin regresiones (approve sigue restringido a joliveros, usuario válido).
+- IMPORTANTE: requiere REDEPLOY para llegar a producción; al desplegar, las restricciones fantasma se auto-sanan en la primera lectura de overrides.
