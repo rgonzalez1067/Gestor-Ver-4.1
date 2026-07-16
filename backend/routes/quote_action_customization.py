@@ -112,33 +112,39 @@ async def _resolve_emails_for_ids(ids: list) -> list:
 
 
 async def _attach_allowed_emails(items: list[dict]) -> list[dict]:
-    """Adjunta `allowed_user_emails` (en minúsculas) para hacer la autorización
-    robusta a deploys y a borrado+recreación de usuarios.
+    """Adjunta `allowed_user_emails` (en minúsculas) con la identidad ESTABLE y la
+    poda a usuarios ACTUALES, para que la autorización sea robusta ante deploys y
+    borrado/recreación de usuarios.
 
-    Combina dos fuentes:
-      1) Los emails DENORMALIZADOS guardados en el documento (`allowed_user_emails`),
-         estables aunque el `user_id` cambie.
-      2) La resolución EN VIVO de `allowed_user_ids` → email (cubre configs viejas
-         guardadas antes de denormalizar y refleja cambios de email).
+    Regla efectiva (single source of truth): el conjunto de autorizados solo puede
+    contener correos de usuarios que EXISTEN hoy en la tabla de usuarios. Si tras la
+    poda no queda ningún autorizado actual, la acción queda para TODOS ("vacío =
+    todos"). Esto sincroniza lo que ENFORZA el motor con lo que MUESTRA la UI de
+    configuración (que resuelve por usuario actual) y elimina las "restricciones
+    fantasma" de IDs/correos de usuarios ya inexistentes.
     """
     all_ids = {uid for it in items for uid in (it.get("allowed_user_ids") or [])}
     id_to_email = {}
     if all_ids:
         cur = db.users.find({"user_id": {"$in": list(all_ids)}}, {"_id": 0, "user_id": 1, "email": 1})
         id_to_email = {u["user_id"]: (u.get("email") or "").strip().lower() async for u in cur}
+    # Universo de correos de usuarios ACTUALES (lower-case) para podar autorizados
+    # a solo cuentas existentes.
+    current_emails = set()
+    async for u in db.users.find({}, {"_id": 0, "email": 1}):
+        em = (u.get("email") or "").strip().lower()
+        if em:
+            current_emails.add(em)
     for it in items:
         raw_ids = it.get("allowed_user_ids") or []
-        # PODA de IDs obsoletos (usuarios borrados/recreados): solo conservamos
-        # los que resuelven a un usuario ACTUAL. Esto evita "restricciones
-        # fantasma" que el admin no ve en la UI (que también resuelve por ID) pero
-        # que el motor de permisos sí aplicaba, bloqueando a usuarios recreados.
-        resolvable_ids = sorted({uid for uid in raw_ids if id_to_email.get(uid)})
-        live = [id_to_email[uid] for uid in resolvable_ids]
-        # `allowed_user_emails` denormalizados son la identidad ESTABLE (sobreviven
-        # al cambio de user_id por recreación). Se conservan aunque el ID cambie.
-        stored = [(e or "").strip().lower() for e in (it.get("allowed_user_emails") or []) if e]
-        it["allowed_user_ids"] = resolvable_ids
-        it["allowed_user_emails"] = sorted(set(live) | set(stored))
+        resolvable_ids = {uid for uid in raw_ids if id_to_email.get(uid)}
+        live = {id_to_email[uid] for uid in resolvable_ids}
+        stored = {(e or "").strip().lower() for e in (it.get("allowed_user_emails") or []) if e}
+        # Autorizados EFECTIVOS = (correos vivos ∪ denormalizados) ∩ usuarios actuales.
+        effective = sorted((live | stored) & current_emails)
+        it["allowed_user_emails"] = effective
+        # IDs consistentes con los correos efectivos (evita fantasmas en la UI).
+        it["allowed_user_ids"] = sorted({uid for uid in resolvable_ids if id_to_email.get(uid) in effective})
     return items
 
 

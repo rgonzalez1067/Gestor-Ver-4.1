@@ -1,0 +1,60 @@
+{
+  "summary": "Iter 279 — REFUERZO Actions Override para Cotizaciones de Equipos. Backend 5/5 pytest PASS y frontend E2E verificado con agodoy@megasoft.com.ve. Cobertura nueva sobre iter278: (a) _attach_allowed_emails ahora también poda EMAILS DENORMALIZADOS obsoletos (no solo IDs); (b) PUT con user_id de joliveros (user_4f7c4697b820) sobre equipos|clientes_pyme|invoice → GET devuelve allowed_user_emails=['joliveros@megasoft.com.ve'] (restricción legítima persiste); (c) Regresión verificada: override preexistente equipos|clientes_pyme|approve sigue restringido a joliveros; (d) Inyectando directamente en Mongo un correo fantasma (ghost@example.invalid) en allowed_user_emails → GET lo poda a []; (e) Mixed ghost+valid → ghost pruned, joliveros preserved. Frontend E2E con agodoy sobre cotización COT-2026-07-066-PYME (quo_95800b8fba48, ABASTISIMO, Equipos PYME → resuelve a equipos|clientes_pyme|*): 'Enviar al Cliente' ENABLED, 'Aprobación' DISABLED con tooltip 'No autorizado para esta acción' (restringida a joliveros), 'Factura / Proforma' ENABLED, 'Registrar pago' (custom_label del override collect) ENABLED, 'Validar Pago Equipos' (custom action) ENABLED, 'Marcar como Entregada' ENABLED, 'Modificar Cotización' ENABLED, 'Eliminar Cotización' ENABLED. Cero 403 sobre endpoints de acción u overrides.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones (no relacionado)", "issues": ["Preexistente iter278: 403 recurrente en /api/notifications/recent-activity?limit=5 y /api/config/templates para role=user. Hydration warning por wrapper <span data-ve-dynamic> del visual editor entre <tbody> y <tr>. No son regresiones del fix; documentado."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter279_actions_override_stale_email_prune.py",
+    "/app/test_reports/pytest/iter279_results.xml"
+  ],
+  "action_items": [
+    "(no-op) 403 preexistentes en /api/notifications/recent-activity y /api/config/templates para role=user — no bloquean el flujo del fix.",
+    "(opcional) Eliminar wrapper <span data-ve-dynamic> del visual editor dentro de <tbody> en QuotesTable — genera hydration warning."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/quote_action_customization.py::_attach_allowed_emails (L114-148): implementación correcta y elegante. La intersección `effective = (live | stored) & current_emails` garantiza que TANTO IDs obsoletos como correos denormalizados fantasma quedan podados. `allowed_user_ids` se reduce a los que resuelven a un correo en el set effective (evita fantasmas en la UI). Verificado con inyección directa en Mongo — el pruning ocurre en tiempo de GET, no requiere migración de datos.",
+    "backend/routes/quote_action_customization.py::upsert_override (L162-180): denormaliza correctamente allowed_user_emails vía _resolve_emails_for_ids. Combinado con _attach_allowed_emails al leer, garantiza consistencia bidireccional.",
+    "frontend/components/quotes/QuotesTable.jsx::getActionMeta (L84-108): el gate por email con trim+lowercase está correcto. 'vacío = todos' aplica cuando allowedUserEmails.length===0 (L99). Verificado UI: agodoy pasa el gate para todas las acciones con override vacío o solo con IDs obsoletos.",
+    "Sugerencia menor no bloqueante (repetida de iter278): en QuotesTable.jsx L96 y L120 se repite `(list||[]).map((e)=>(e||'').trim().toLowerCase()).filter(Boolean)`. Extraer un helper `normalizeAllowedEmails(list)` reduce duplicación (DRY).",
+    "Sugerencia menor no bloqueante: _attach_allowed_emails hace un scan completo de la colección users por cada request (L133-137). Con crecimiento del tenant esto podría volverse lento; considerar cachear el conjunto de correos actuales con TTL corto (30-60s) o convertirlo en lookup por _id/user_id sin escanear toda la colección. No es urgente."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter279_actions_override_stale_email_prune.py (nuevo — 5 pytest tests con cleanup autouse, incluye inyección directa a Mongo para simular datos legacy con correos fantasma)"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5)",
+    "frontend": "100% (todas las aserciones pasan: send_to_client/invoice/collect/deliver/modify/delete ENABLED, approve DISABLED con tooltip correcto)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve/admin123 (session_token). Usuario objetivo: agodoy@megasoft.com.ve/Test1234! (user_54999f93a974). Usuario válido de control: joliveros@megasoft.com.ve (user_4f7c4697b820 — confirmado via /api/auth/users).",
+  "seed_data_creation": "Creados y ELIMINADOS al final vía fixture cleanup autouse (module scope): overrides temporales equipos|clientes_pyme|send_to_client y equipos|clientes_pyme|invoice. Se verificó al final del run que ningún override de prueba quedó residual. NO se modificó el override preexistente equipos|clientes_pyme|approve (restricción a joliveros, verificado antes y después).",
+  "verified_metrics": {
+    "backend_pytest_pass": "5/5",
+    "stale_ids_pruned": true,
+    "stale_denormalized_emails_pruned": true,
+    "valid_user_id_joliveros_denormalizes_email": true,
+    "regression_approve_still_restricted_to_joliveros": true,
+    "mixed_ghost_plus_valid_correctly_pruned": true,
+    "frontend_agodoy_send_to_client_enabled": true,
+    "frontend_agodoy_invoice_enabled": true,
+    "frontend_agodoy_collect_enabled_with_custom_label": "Registrar pago",
+    "frontend_agodoy_deliver_enabled": true,
+    "frontend_agodoy_modify_enabled": true,
+    "frontend_agodoy_delete_enabled": true,
+    "frontend_agodoy_approve_disabled": true,
+    "frontend_approve_tooltip": "No autorizado para esta acción",
+    "frontend_403_on_action_endpoints": 0,
+    "frontend_403_preexistentes_no_relacionados": ["/api/notifications/recent-activity?limit=5", "/api/config/templates"]
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug de Actions Override RESUELTO (refuerzo). Puntos clave: (1) La poda ahora aplica a IDs obsoletos Y a correos denormalizados fantasma; verificado por inyección directa a Mongo (test_ghost_denormalized_email_pruned). (2) Regla efectiva: allowed_user_emails EFECTIVO = ((emails resueltos por id vivo) ∪ (emails denormalizados guardados)) ∩ (correos de usuarios ACTUALES). Si queda vacío → 'todos'. Vive en backend/routes/quote_action_customization.py::_attach_allowed_emails (L114-148). (3) Frontend QuotesTable.jsx::getActionMeta (L84-108) hace gate por email. (4) Overrides Equipos preexistentes verificados: equipos|_|collect, equipos|clientes_pyme|collect, equipos|clientes_corp|collect (todos, custom_label='Registrar pago'), equipos|clientes_pyme|approve (SOLO joliveros@megasoft.com.ve). (5) agodoy user_id=user_54999f93a974; joliveros user_id=user_4f7c4697b820. (6) Los 403 en /api/notifications/recent-activity y /api/config/templates son PREEXISTENTES a este fix.",
+  "rca_of_the_issue": "RCA extendido: además del problema de user_ids obsoletos (iter278), quedaba una brecha teórica: los `allowed_user_emails` denormalizados en las cotizaciones ANTES del fix podían contener correos de usuarios ya borrados. Aunque el nuevo PUT resuelve los correos frescos, los documentos legacy podrían retener correos fantasma. El refuerzo aplicado a _attach_allowed_emails realiza la intersección con `current_emails` (correos de usuarios ACTUALES) en tiempo de GET, garantizando que el motor de permisos NUNCA aplique restricciones sobre correos de usuarios inexistentes. Consecuencia: si un override tenía autorizado solo a un usuario borrado (por id obsoleto o por email fantasma), queda automáticamente 'vacío = todos'. Verificado con inyección directa a Mongo — no requiere migración; la poda ocurre en cada lectura. Regresión de restricciones legítimas verificada: joliveros (usuario ACTUAL) no se poda, sigue bloqueando a agodoy en approve."
+}
