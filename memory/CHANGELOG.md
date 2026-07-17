@@ -1323,3 +1323,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Cálculo: `_avanceLevel` clasifica por `business_days_in_state` (backend, calendario laboral) vs umbrales SLA por etapa (warning_days/delay_days, slaConfig, fallback 2/4). Estados terminales (Culminado/Implementado parcial/Anulado/Cancelado/Finalizado) → 'al_dia' (no muestran crítico falso).
 - Consistencia garantizada: cada tarjeta desglosa su MISMO subset (Total→filtered; estados→baseFiltered.filter(status)) ⇒ suma == total de la tarjeta.
 - Verificado testing_agent iter283: prueba de fuego matemática PASSED en las 7 tarjetas; tooltip aparece/desaparece sin residuos; click filtra; sin errores de consola. Requiere REDEPLOY para producción.
+
+**Bug fix (UI): footer fijo + scroll interno en editor de Plantillas de Integradores · 2026-07-16:**
+- pages/EntityTemplatesConfig.jsx: DialogContent del editor de plantillas ahora es flex-column con max-h-[90vh] y p-0; header/footer con shrink-0; cuerpo (entity-template-body) flex-1 min-h-0 overflow-y-auto (scroll interno); DialogFooter con border-t + bg-white (sticky por ser último ítem no-growing). Botón Guardar con data-testid entity-template-save-btn.
+- Resuelve el desborde del botón 'Guardar' fuera del viewport en plantillas con mucho HTML; ya no requiere zoom-out.
+- Verificado testing_agent iter284 a 1366x768 y 1280x720 (inyectando ~12k chars): Guardar visible, scroll interno independiente, footer fijo, clickeable, sin empujar la página. Sin regresiones. Requiere REDEPLOY.
