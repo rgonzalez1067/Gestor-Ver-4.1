@@ -478,6 +478,15 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                     return words[i + n - 1]
             return None
 
+        def _find_phrase_first(tokens):
+            """Igual que `_find_phrase` pero devuelve la PRIMERA palabra de la secuencia."""
+            toks = [t.lower() for t in tokens]
+            n = len(toks)
+            for i in range(len(words) - n + 1):
+                if all(words[i + k]["text"].lower().strip(",.:;") == toks[k] for k in range(n)):
+                    return words[i]
+            return None
+
         buf = io.BytesIO()
         c = rl_canvas.Canvas(buf, pagesize=(w, h))
         c.setFillColorRGB(0.12, 0.16, 0.22)
@@ -496,6 +505,8 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
         # Anclas del NUEVO formato V4.
         a_al = _find_phrase(["certifica", "al"])
         a_bajo = _find_phrase(["bajo", "la"]) or _find_phrase(["con", "la"])
+        a_eco = _find_phrase_first(["del", "ecosistema"])
+        a_body = _find_phrase_first(["por", "haber"])
         a_app = _find_phrase(["con", "su", "aplicativo"])
         a_med = _find_phrase(["medios", "de", "pago", "certificados"])
 
@@ -513,12 +524,26 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                     fsn = _fit_font(name, 26, w - 160, font="Times-Bold")
                     c.setFont("Times-Bold", fsn)
                     c.drawCentredString(w / 2, h - (float(a_al["bottom"]) + 34), name)
-            # C. "bajo la {Componente} - Versión {Versión}"
+            # C. "bajo la {Componente} - Versión {Versión} del Ecosistema"
             comp_txt = f"{componente} - Versión {version}".strip(" -")
-            if a_bajo and comp_txt:
-                # B. Estilo estándar del cuerpo (serif), ajuste horizontal hasta ' del Ecosistema'.
+            if comp_txt and a_eco:
+                # V5 (opción b): la línea técnica arranca desde el margen izquierdo del
+                # párrafo y fluye "de forma corrida" hasta justo antes de " del Ecosistema",
+                # en la misma línea base y con la tipografía del cuerpo (serif).
+                left_x = float(a_body["x0"]) if a_body else 115.0
+                gap = 6.0
+                avail = float(a_eco["x0"]) - gap - left_x
+                fs = _fit_font(comp_txt, 14, avail, font="Times-Roman")
+                c.setFont("Times-Roman", fs)
+                # Alineado a la derecha (termina justo antes de "del"), fluyendo corrido.
+                x_start = float(a_eco["x0"]) - gap - stringWidth(comp_txt, "Times-Roman", fs)
+                if x_start < left_x:
+                    x_start = left_x
+                c.drawString(x_start, _baseline(a_eco, fs), comp_txt)
+            elif a_bajo and comp_txt:
+                # Fallback (template sin ancla 'del Ecosistema'): contiguo a "bajo la".
                 x = float(a_bajo["x1"]) + 8
-                fs = _fit_font(comp_txt, 18, R_MARGIN - x, font="Times-Roman")
+                fs = _fit_font(comp_txt, 14, R_MARGIN - x, font="Times-Roman")
                 c.setFont("Times-Roman", fs)
                 c.drawString(x, _baseline(a_bajo, fs), comp_txt)
             # D. "con su aplicativo {Nombre del Aplicativo}"
@@ -529,14 +554,15 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                 c.drawString(x, _baseline(a_app, fs), app_name)
             # E. "Medios de pago certificados: {Medios_certificados}"
             if a_med and productos_str:
-                # C (V5). Arial MT (equivalente nativo: Helvetica) 20pt FIJO. Prohibido
-                # recortar o reducir la fuente: SIEMPRE word-wrap en tantas líneas como
-                # sea necesario, apoyándose en el ancho útil de la página.
-                MED_FONT, MED_FS = "Helvetica", 20
+                # C (V5). Arial MT (equivalente nativo: Helvetica) con word-wrap. Se baja
+                # a 18pt y se aplica un margen de seguridad derecho más amplio (~750pt) para
+                # garantizar que listas largas NUNCA se desborden de la página.
+                MED_FONT, MED_FS = "Helvetica", 18
+                MED_R_MARGIN = w - 92
                 x0 = float(a_med["x1"]) + 8
                 label_x0 = float(a_med["x0"])
-                avail1 = R_MARGIN - x0
-                avail_rest = R_MARGIN - label_x0
+                avail1 = MED_R_MARGIN - x0
+                avail_rest = MED_R_MARGIN - label_x0
                 line_h = MED_FS + 6
                 parts = productos_str.split(" / ")
                 lines, cur = [], ""

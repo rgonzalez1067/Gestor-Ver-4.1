@@ -1342,3 +1342,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
   - C. Medios_certificados en Helvetica (equivalente nativo de Arial MT) 20pt FIJO; PROHIBIDO recortar/reducir fuente → word-wrap multilínea automático usando el ancho útil de la página (1ª línea tras la etiqueta, siguientes desde el x0 de la etiqueta).
   - Nombre centrado en Times-Bold.
 - Verificado por generación directa + inspección char-level (pdfplumber): tipo=Times-Bold 32pt; medios=Helvetica 20pt; prueba de estrés 10 medios → 3 líneas sin recorte ni overflow (max x1 796.6 ≤ 842). Requiere REDEPLOY.
+
+**Bug fix P0 · Certificado PDF V5 — línea técnica y medios de pago · 2026-06:**
+- routes/integrators.py `_generate_integration_certificate_pdf`:
+  - Línea técnica (Componente - Versión): antes se anclaba tras "bajo la" y se desbordaba el borde derecho (palabra "Rest" en x≈843 > página 842). Ahora se ancla a la frase estática " del Ecosistema" (nuevo helper `_find_phrase_first`) y fluye desde el margen izquierdo del párrafo ("Por haber") hasta justo antes de "del", con Times-Roman 14pt (autoshrink a floor 8). Fallback a "bajo la" si no existe el ancla.
+  - Medios de pago: bajado de 20pt a Helvetica 18pt con word-wrap y margen de seguridad derecho ampliado (w-92 ≈ 750pt en vez de w-45 ≈ 797). Listas largas envuelven sin desbordar.
+- Verificado (self-test, render real sobre PDF de muestra + extracción de coordenadas): línea técnica termina en x=566.3 < "del"(572.3); medios de pago max x=731.4 << 750. Sin overflow.
