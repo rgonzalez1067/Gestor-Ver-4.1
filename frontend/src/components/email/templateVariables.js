@@ -87,6 +87,7 @@ export const VARIABLE_CATEGORIES = [
       { key: 'Telefono_Implementador', label: 'Teléfono del implementador' },
       { key: 'Integrador', label: 'Nombre del integrador' },
       { key: 'Aplicativo_Integracion', label: 'App de integración' },
+      { key: 'Interfaz_Integrada', label: 'Interfaz integrada (Componente - Versión)' },
       { key: 'Nombre_Sucursal', label: 'Sucursal(es)' },
       { key: 'Cantidad_Cajas', label: 'Cantidad de cajas' },
       { key: 'Matriz_Bancos_Productos', label: 'Tabla de bancos y productos' },
