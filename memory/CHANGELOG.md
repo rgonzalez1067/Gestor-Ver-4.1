@@ -1328,3 +1328,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - pages/EntityTemplatesConfig.jsx: DialogContent del editor de plantillas ahora es flex-column con max-h-[90vh] y p-0; header/footer con shrink-0; cuerpo (entity-template-body) flex-1 min-h-0 overflow-y-auto (scroll interno); DialogFooter con border-t + bg-white (sticky por ser último ítem no-growing). Botón Guardar con data-testid entity-template-save-btn.
 - Resuelve el desborde del botón 'Guardar' fuera del viewport en plantillas con mucho HTML; ya no requiere zoom-out.
 - Verificado testing_agent iter284 a 1366x768 y 1280x720 (inyectando ~12k chars): Guardar visible, scroll interno independiente, footer fijo, clickeable, sin empujar la página. Sin regresiones. Requiere REDEPLOY.
+
+**Feature: Certificado PDF V4 — inyección por frases-ancla sobre nuevo template · 2026-07-16:**
+- routes/integrators.py `_generate_integration_certificate_pdf`: reescrito el estampado para el nuevo formato V4 (landscape 842x595). Motor de matching por FRASE (`_find_phrase` sobre pdfplumber extract_words) + reportlab overlay alineado a la línea base del template.
+- Inyecciones: (A) "Certifica al" → {Tipo de Integrador} = 'Comercio' si integrator_type empieza por 'comerc', si no 'Integrador'; (B) {Nombre} CENTRADO en la línea inferior; (C) "bajo la" (fallback "con la") → "{Componente} - Versión {Versión}" (Modal 1); (D) "con su aplicativo" → {app_name}; (E) "Medios de pago certificados" → productos_str (medios 'C' unidos por ' / ', con wrap si excede el ancho).
+- Degradación segura: si el template no tiene las frases V4 (p.ej. plantilla vieja), cae al certificado autónomo/overlay existente.
+- Verificado por generación directa + extracción de texto real (pdfplumber) para tipo Integrador y Comercio: las 5 inyecciones aparecen tras sus frases guía. Requiere REDEPLOY para producción (el template V4 ya está en el depósito).

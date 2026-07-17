@@ -459,23 +459,33 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
         name = intg.get("name", "")
         app_name = intg.get("app_name", "")
 
-        # Anclas del template: posición de cada etiqueta fija impresa.
-        anchors: dict = {}
+        # Palabras del template con su posición, para anclar por FRASE.
+        words = []
         try:
             import pdfplumber
             with pdfplumber.open(str(base_path)) as _pdf:
-                for _wd in _pdf.pages[0].extract_words():
-                    anchors.setdefault(_wd["text"], _wd)
+                words = _pdf.pages[0].extract_words()
         except Exception as _e:
             logger.warning(f"[cert] no se pudieron leer anclas del template: {_e}")
+
+        def _find_phrase(tokens):
+            """Última palabra (dict) de la primera secuencia consecutiva que coincide
+            con `tokens` (case-insensitive, ignorando puntuación). None si no hay match."""
+            toks = [t.lower() for t in tokens]
+            n = len(toks)
+            for i in range(len(words) - n + 1):
+                if all(words[i + k]["text"].lower().strip(",.:;") == toks[k] for k in range(n)):
+                    return words[i + n - 1]
+            return None
 
         buf = io.BytesIO()
         c = rl_canvas.Canvas(buf, pagesize=(w, h))
         c.setFillColorRGB(0.12, 0.16, 0.22)
         R_MARGIN = w - 45
 
-        def _yb(word, dy=3.0):
-            return h - float(word["bottom"]) + dy
+        def _baseline(word, fs):
+            # Alinea la línea base del texto nuevo con la del texto del template.
+            return h - float(word["bottom"]) + 0.20 * fs
 
         def _fit_font(text, base_size, avail, font="Helvetica-Bold", floor=8):
             fs = base_size
@@ -483,57 +493,64 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                 fs -= 1
             return fs
 
-        if anchors.get("Certifica") or anchors.get("Productos:"):
-            # Template MegaSoft con etiquetas fijas → rellenar SOLO valores dinámicos.
-            a_cert = anchors.get("Certifica"); a_ca = anchors.get("a:")
-            if a_cert:
-                cx = (float(a_cert["x0"]) + float((a_ca or a_cert)["x1"])) / 2
-                fs = _fit_font(name, 30, w - 160)
+        # Anclas del NUEVO formato V4.
+        a_al = _find_phrase(["certifica", "al"])
+        a_bajo = _find_phrase(["bajo", "la"]) or _find_phrase(["con", "la"])
+        a_app = _find_phrase(["con", "su", "aplicativo"])
+        a_med = _find_phrase(["medios", "de", "pago", "certificados"])
+
+        if a_al or a_bajo or a_app or a_med:
+            # A. "Certifica al {Tipo de Integrador}" (Integrador | Comercio)
+            if a_al:
+                tipo_raw = (intg.get("integrator_type") or "").strip().lower()
+                tipo = "Comercio" if tipo_raw.startswith("comerc") else "Integrador"
+                fs = 30
                 c.setFont("Helvetica-Bold", fs)
-                c.drawCentredString(cx, h - float(a_cert["bottom"]) - 44, name)
-            a_intf = anchors.get("interfaz,")
+                c.drawString(float(a_al["x1"]) + 12, _baseline(a_al, fs), tipo)
+                # B. Nombre del integrador CENTRADO, línea inmediatamente inferior.
+                if name:
+                    fsn = _fit_font(name, 26, w - 160)
+                    c.setFont("Helvetica-Bold", fsn)
+                    c.drawCentredString(w / 2, h - (float(a_al["bottom"]) + 34), name)
+            # C. "bajo la {Componente} - Versión {Versión}"
             comp_txt = f"{componente} - Versión {version}".strip(" -")
-            if a_intf and comp_txt:
-                x = float(a_intf["x1"]) + 8
-                a_para = anchors.get("para")
-                limit = (float(a_para["x0"]) - 6) if a_para else R_MARGIN
-                fs = _fit_font(comp_txt, 20, limit - x)
-                c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_intf), comp_txt)
-            a_prod = anchors.get("Productos:")
-            if a_prod and productos_str:
-                # Productos en la LÍNEA SIGUIENTE, CENTRADOS en la página.
-                cxp = w / 2
-                avail = w - 200
-                yb = _yb(a_prod) - 24
-                lines = []; cur = ""
-                for wd in productos_str.split():
-                    test = (cur + " " + wd).strip()
-                    if stringWidth(test, "Helvetica-Bold", 18) <= avail or not cur:
-                        cur = test
-                    else:
-                        lines.append(cur); cur = wd
-                if cur:
-                    lines.append(cur)
-                c.setFont("Helvetica-Bold", 18)
-                for i, ln in enumerate(lines):
-                    c.drawCentredString(cxp, yb - i * 22, ln)
-            a_app = anchors.get("Aplicativo")
+            if a_bajo and comp_txt:
+                x = float(a_bajo["x1"]) + 8
+                fs = _fit_font(comp_txt, 16, R_MARGIN - x)
+                c.setFont("Helvetica-Bold", fs)
+                c.drawString(x, _baseline(a_bajo, fs), comp_txt)
+            # D. "con su aplicativo {Nombre del Aplicativo}"
             if a_app and app_name:
                 x = float(a_app["x1"]) + 8
-                a_des = anchors.get("desarrollado")
-                limit = (float(a_des["x0"]) - 6) if a_des else R_MARGIN
-                fs = _fit_font(app_name, 20, limit - x)
-                c.setFont("Helvetica-Bold", fs); c.drawString(x, _yb(a_app), app_name)
-            a_por = anchors.get("por")
-            if a_por and name:
-                # Nombre del integrador (desarrollador) en la LÍNEA SIGUIENTE, CENTRADO en la página.
-                fs = _fit_font(name, 20, w - 160)
+                fs = _fit_font(app_name, 16, R_MARGIN - x)
                 c.setFont("Helvetica-Bold", fs)
-                c.drawCentredString(w / 2, _yb(a_por) - 24, name)
-            a_car = anchors.get("Caracas,")
-            if a_car:
-                fecha = datetime.now(timezone.utc).strftime("%d/%m/%Y")
-                c.setFont("Helvetica", 12); c.drawString(float(a_car["x1"]) + 6, _yb(a_car), fecha)
+                c.drawString(x, _baseline(a_app, fs), app_name)
+            # E. "Medios de pago certificados: {Medios_certificados}" (join por ' / ')
+            if a_med and productos_str:
+                x0 = float(a_med["x1"]) + 8
+                avail1 = R_MARGIN - x0
+                fs = _fit_font(productos_str, 14, avail1, floor=9)
+                if stringWidth(productos_str, "Helvetica-Bold", fs) <= avail1:
+                    c.setFont("Helvetica-Bold", fs)
+                    c.drawString(x0, _baseline(a_med, fs), productos_str)
+                else:
+                    fs = 12
+                    line_h = fs + 5
+                    parts = productos_str.split(" / ")
+                    lines, cur = [], ""
+                    for tok in parts:
+                        test = (cur + " / " + tok) if cur else tok
+                        avail = avail1 if not lines else (R_MARGIN - float(a_med["x0"]))
+                        if stringWidth(test, "Helvetica-Bold", fs) <= avail or not cur:
+                            cur = test
+                        else:
+                            lines.append(cur); cur = tok
+                    if cur:
+                        lines.append(cur)
+                    c.setFont("Helvetica-Bold", fs)
+                    for i, ln in enumerate(lines):
+                        lx = x0 if i == 0 else float(a_med["x0"])
+                        c.drawString(lx, _baseline(a_med, fs) - i * line_h, ln)
         else:
             # Fallback: template sin etiquetas → overlay centrado completo.
             cx = w / 2; y = h * 0.60
