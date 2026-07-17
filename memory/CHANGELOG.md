@@ -1359,3 +1359,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
   - F. Fecha: nuevo ancla "Caracas," → inyecta fecha del servidor (UTC-4 Venezuela) en formato extendido español, Times-Roman 16pt.
   - Nuevo ancla a_caracas; se reutiliza _find_phrase_first para el interlineado del cuerpo.
 - Verificado (self-test, código real): Prueba A (3 medios) 1 línea 19pt; Prueba B (12 medios) 3 líneas auto-escaladas a 12pt sin overflow ni truncado. Todo <= página 842.
+
+**Bug fix · Variable `Interfaz_Integrada` no visible en editor de plantillas · 2026-06:**
+- Causa raíz: el editor de plantillas (EmailTemplatesEditor / TemplatesAdminDialog) toma su paleta de la fuente única frontend `VARIABLE_CATEGORIES` (templateVariables.js), no del catálogo backend. La variable solo se había añadido al backend.
+- Fix: `Interfaz_Integrada` agregada a VARIABLE_CATEGORIES → categoría 'Implementación (Técnico)' (label 'Interfaz integrada (Componente - Versión)'), disponible en ambos editores de plantillas.
+- Verificado testing_agent iter285: 3/3 (backend catálogo + paleta editor + hint OtherActionsConfig). 100%.
