@@ -502,83 +502,106 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                 fs -= 1
             return fs
 
-        # Anclas del NUEVO formato V4.
+        # Anclas del formato V7 (por FRASE, sobre el template base real).
         a_al = _find_phrase(["certifica", "al"])
         a_bajo = _find_phrase(["bajo", "la"]) or _find_phrase(["con", "la"])
         a_eco = _find_phrase_first(["del", "ecosistema"])
         a_body = _find_phrase_first(["por", "haber"])
         a_app = _find_phrase(["con", "su", "aplicativo"])
         a_med = _find_phrase(["medios", "de", "pago", "certificados"])
+        a_caracas = _find_phrase(["caracas"])
+
+        def _draw_centered(text, top, fs, font):
+            """Dibuja `text` centrado en la página, en la línea cuya coord. 'top'
+            (medida desde el borde superior, estilo pdfplumber) se indica."""
+            c.setFont(font, fs)
+            c.drawCentredString(w / 2.0, h - float(top) - 0.8 * fs, text)
+
+        # Interlineado del cuerpo (hay una línea en blanco entre 'Por haber' y 'del Ecosistema').
+        if a_body and a_eco:
+            body1_top = float(a_body["top"]); eco_top = float(a_eco["top"])
+            LH = (eco_top - body1_top) / 2.0
+        else:
+            body1_top, eco_top, LH = 229.4, 277.1, 23.85
+        comp_top = body1_top + LH   # Cuerpo Línea 2 (línea en blanco): Componente/Versión.
+        app_top = eco_top + LH      # Cuerpo Línea 4 (línea en blanco): Nombre del Aplicativo.
 
         if a_al or a_bajo or a_app or a_med:
-            # A. "Certifica al {Tipo de Integrador}" (Integrador | Comercio)
+            # A. Línea 1: "Certifica al {Tipo}"  → Times New Roman 28pt REGULAR, contiguo.
             if a_al:
                 tipo_raw = (intg.get("integrator_type") or "").strip().lower()
                 tipo = "Comercio" if tipo_raw.startswith("comerc") else "Integrador"
-                # A. Times New Roman 32pt FIJO (sin autoajuste), contiguo a "Certifica al".
-                fs = 32
-                c.setFont("Times-Bold", fs)
-                c.drawString(float(a_al["x1"]) + 12, _baseline(a_al, fs), tipo)
-                # Nombre del integrador CENTRADO, línea inmediatamente inferior.
+                c.setFont("Times-Roman", 28)
+                c.drawString(float(a_al["x1"]) + 12, _baseline(a_al, 28), tipo)
+                # B. Línea 2: {Nombre del Integrador} → Times New Roman 28pt BOLD, CENTRADO.
                 if name:
-                    fsn = _fit_font(name, 26, w - 160, font="Times-Bold")
+                    fsn = _fit_font(name, 28, w - 160, font="Times-Bold", floor=16)
                     c.setFont("Times-Bold", fsn)
                     c.drawCentredString(w / 2, h - (float(a_al["bottom"]) + 34), name)
-            # C. "bajo la {Componente} - Versión {Versión} del Ecosistema"
+            # C. Cuerpo Línea 2 (blanco): {Componente} - Versión {Versión}
+            #    → Arial (Helvetica) 19pt BOLD, CENTRADO.
             comp_txt = f"{componente} - Versión {version}".strip(" -")
-            if comp_txt and a_eco:
-                # V5 (opción b): la línea técnica arranca desde el margen izquierdo del
-                # párrafo y fluye "de forma corrida" hasta justo antes de " del Ecosistema",
-                # en la misma línea base y con la tipografía del cuerpo (serif).
-                left_x = float(a_body["x0"]) if a_body else 115.0
-                gap = 6.0
-                avail = float(a_eco["x0"]) - gap - left_x
-                fs = _fit_font(comp_txt, 14, avail, font="Times-Roman")
-                c.setFont("Times-Roman", fs)
-                # Alineado a la derecha (termina justo antes de "del"), fluyendo corrido.
-                x_start = float(a_eco["x0"]) - gap - stringWidth(comp_txt, "Times-Roman", fs)
-                if x_start < left_x:
-                    x_start = left_x
-                c.drawString(x_start, _baseline(a_eco, fs), comp_txt)
-            elif a_bajo and comp_txt:
-                # Fallback (template sin ancla 'del Ecosistema'): contiguo a "bajo la".
+            if comp_txt and (a_body and a_eco):
+                fsc = _fit_font(comp_txt, 19, w - 160, font="Helvetica-Bold", floor=10)
+                _draw_centered(comp_txt, comp_top, fsc, "Helvetica-Bold")
+            elif comp_txt and a_bajo:
+                # Fallback: contiguo a "bajo la" si no se hallaron anclas de cuerpo.
                 x = float(a_bajo["x1"]) + 8
-                fs = _fit_font(comp_txt, 14, R_MARGIN - x, font="Times-Roman")
-                c.setFont("Times-Roman", fs)
-                c.drawString(x, _baseline(a_bajo, fs), comp_txt)
-            # D. "con su aplicativo {Nombre del Aplicativo}"
-            if a_app and app_name:
-                x = float(a_app["x1"]) + 8
-                fs = _fit_font(app_name, 16, R_MARGIN - x)
-                c.setFont("Helvetica-Bold", fs)
-                c.drawString(x, _baseline(a_app, fs), app_name)
-            # E. "Medios de pago certificados: {Medios_certificados}"
+                fsc = _fit_font(comp_txt, 19, R_MARGIN - x, font="Helvetica-Bold", floor=10)
+                c.setFont("Helvetica-Bold", fsc)
+                c.drawString(x, _baseline(a_bajo, fsc), comp_txt)
+            # D. Cuerpo Línea 4 (blanco): {Nombre del Aplicativo}
+            #    → Arial (Helvetica) 19pt BOLD, CENTRADO.
+            if app_name and (a_eco or a_app):
+                fsa = _fit_font(app_name, 19, w - 160, font="Helvetica-Bold", floor=10)
+                if a_eco:
+                    _draw_centered(app_name, app_top, fsa, "Helvetica-Bold")
+                else:
+                    c.setFont("Helvetica-Bold", fsa)
+                    c.drawString(float(a_app["x1"]) + 8, _baseline(a_app, fsa), app_name)
+            # E. Bloque Medios de pago → Arial (Helvetica) 19pt BOLD, máx 3 líneas con
+            #    word-wrap y REDUCCIÓN DINÁMICA de fuente (auto-scale) si desborda.
             if a_med and productos_str:
-                # C (V5). Arial MT (equivalente nativo: Helvetica) con word-wrap. Se baja
-                # a 18pt y se aplica un margen de seguridad derecho más amplio (~750pt) para
-                # garantizar que listas largas NUNCA se desborden de la página.
-                MED_FONT, MED_FS = "Helvetica", 18
-                MED_R_MARGIN = w - 92
-                x0 = float(a_med["x1"]) + 8
-                label_x0 = float(a_med["x0"])
+                MED_FONT = "Helvetica-Bold"
+                MED_R_MARGIN = 715.0  # margen derecho físico del template (cuerpo llega a ~702)
+                label_x1 = float(a_med["x1"]); label_x0 = float(a_med["x0"])
+                x0 = label_x1 + 8
                 avail1 = MED_R_MARGIN - x0
                 avail_rest = MED_R_MARGIN - label_x0
-                line_h = MED_FS + 6
                 parts = productos_str.split(" / ")
-                lines, cur = [], ""
-                for idx, tok in enumerate(parts):
-                    test = (cur + " / " + tok) if cur else tok
-                    avail = avail1 if not lines else avail_rest
-                    if stringWidth(test, MED_FONT, MED_FS) <= avail or not cur:
-                        cur = test
-                    else:
-                        lines.append(cur); cur = tok
-                if cur:
-                    lines.append(cur)
+
+                def _wrap_med(fs):
+                    lines, cur = [], ""
+                    for tok in parts:
+                        test = (cur + " / " + tok) if cur else tok
+                        avail = avail1 if not lines else avail_rest
+                        if stringWidth(test, MED_FONT, fs) <= avail or not cur:
+                            cur = test
+                        else:
+                            lines.append(cur); cur = tok
+                    if cur:
+                        lines.append(cur)
+                    return lines
+
+                MED_FS = 19
+                lines = _wrap_med(MED_FS)
+                while len(lines) > 3 and MED_FS > 9:
+                    MED_FS -= 1
+                    lines = _wrap_med(MED_FS)
+                line_h = MED_FS + 6
                 c.setFont(MED_FONT, MED_FS)
                 for i, ln in enumerate(lines):
                     lx = x0 if i == 0 else label_x0
                     c.drawString(lx, _baseline(a_med, MED_FS) - i * line_h, ln)
+            # F. Pie: fecha del servidor contigua a "Caracas," → Times New Roman 16pt REGULAR.
+            if a_caracas:
+                from datetime import datetime as _dtc, timezone as _tzc, timedelta as _tdc
+                _meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+                          "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+                _now = _dtc.now(_tzc.utc) - _tdc(hours=4)  # hora de Venezuela (UTC-4)
+                _fecha = f"{_now.day} de {_meses[_now.month - 1]} de {_now.year}"
+                c.setFont("Times-Roman", 16)
+                c.drawString(float(a_caracas["x1"]) + 6, _baseline(a_caracas, 16), _fecha)
         else:
             # Fallback: template sin etiquetas → overlay centrado completo.
             cx = w / 2; y = h * 0.60

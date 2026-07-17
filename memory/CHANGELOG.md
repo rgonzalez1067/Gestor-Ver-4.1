@@ -1348,3 +1348,14 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
   - Línea técnica (Componente - Versión): antes se anclaba tras "bajo la" y se desbordaba el borde derecho (palabra "Rest" en x≈843 > página 842). Ahora se ancla a la frase estática " del Ecosistema" (nuevo helper `_find_phrase_first`) y fluye desde el margen izquierdo del párrafo ("Por haber") hasta justo antes de "del", con Times-Roman 14pt (autoshrink a floor 8). Fallback a "bajo la" si no existe el ancla.
   - Medios de pago: bajado de 20pt a Helvetica 18pt con word-wrap y margen de seguridad derecho ampliado (w-92 ≈ 750pt en vez de w-45 ≈ 797). Listas largas envuelven sin desbordar.
 - Verificado (self-test, render real sobre PDF de muestra + extracción de coordenadas): línea técnica termina en x=566.3 < "del"(572.3); medios de pago max x=731.4 << 750. Sin overflow.
+
+**Feature P0 · Certificado PDF V7 — reestructuración tipográfica y auto-escala de medios · 2026-06:**
+- routes/integrators.py `_generate_integration_certificate_pdf` reescrito según spec V7 (verificado contra template base real de db.config con render del código real):
+  - A. Tipo de Integrador: Times-Roman 28pt regular, contiguo a "Certifica al".
+  - B. Nombre del Integrador: Times-Bold 28pt, CENTRADO (línea inferior). Auto-shrink solo si excede ancho.
+  - C. Componente/Versión: Helvetica-Bold (Arial) 19pt, CENTRADO en la línea en blanco (cuerpo L2, top≈253), calculada por interlineado entre anclas "por haber" y "del ecosistema".
+  - D. Nombre del Aplicativo: Helvetica-Bold 19pt, CENTRADO en línea en blanco (cuerpo L4, top≈301).
+  - E. Medios de pago: Helvetica-Bold 19pt base, word-wrap máx 3 líneas con REDUCCIÓN DINÁMICA de fuente (auto-scale 19→floor 9) hasta caber; margen derecho físico 715pt. Nunca trunca palabras.
+  - F. Fecha: nuevo ancla "Caracas," → inyecta fecha del servidor (UTC-4 Venezuela) en formato extendido español, Times-Roman 16pt.
+  - Nuevo ancla a_caracas; se reutiliza _find_phrase_first para el interlineado del cuerpo.
+- Verificado (self-test, código real): Prueba A (3 medios) 1 línea 19pt; Prueba B (12 medios) 3 líneas auto-escaladas a 12pt sin overflow ni truncado. Todo <= página 842.
