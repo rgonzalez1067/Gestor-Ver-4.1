@@ -176,12 +176,12 @@ export const EntityTemplatesConfig = ({
             </div>
 
             <Dialog open={tplDialogOpen} onOpenChange={setTplDialogOpen}>
-              <DialogContent className="max-w-3xl" data-testid="entity-template-dialog">
-                <DialogHeader>
+              <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden" data-testid="entity-template-dialog">
+                <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-slate-100">
                   <DialogTitle>{editingTpl ? 'Editar' : 'Nueva'} Plantilla</DialogTitle>
                   <DialogDescription>Estas plantillas son específicas del módulo y no interfieren con otros.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1 min-h-0 overflow-y-auto px-6 py-4" data-testid="entity-template-body">
                   <div><Label className="text-xs">Nombre</Label><Input value={tplForm.name} onChange={e => setTplForm({...tplForm, name: e.target.value})} /></div>
                   <div><Label className="text-xs">Asunto</Label><Input value={tplForm.subject} onChange={e => setTplForm({...tplForm, subject: e.target.value})} /></div>
                   <div>
@@ -200,9 +200,9 @@ export const EntityTemplatesConfig = ({
                     {variablesHint && <p className="text-[10px] text-slate-400 mt-1">Variables: {variablesHint}</p>}
                   </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="px-6 py-4 border-t border-slate-100 bg-white shrink-0">
                   <Button variant="outline" onClick={() => setTplDialogOpen(false)}>Cancelar</Button>
-                  <Button onClick={saveTemplate}><Save className="w-4 h-4 mr-1" /> Guardar</Button>
+                  <Button onClick={saveTemplate} data-testid="entity-template-save-btn"><Save className="w-4 h-4 mr-1" /> Guardar</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

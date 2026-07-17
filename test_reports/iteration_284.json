@@ -1,0 +1,54 @@
+{
+  "summary": "Iter284 — Frontend-only verification of the sticky-footer layout fix in the Integrator Templates edit dialog (EntityTemplatesConfig / context=INTEGRADORES). Tested at 1366x768 and 1280x720 with both an existing large-content template and after injecting ~12,398 chars of HTML into the editor. PASS on all acceptance criteria: (1) 'Guardar' visible in viewport immediately upon opening — no page zoom-out needed; (2) body has internal overflow-y (scrollHeight > clientHeight) and scrolls independently; (3) footer stays fixed at same y-coordinate during body scroll; (4) window.scrollY remains 0 (dialog does not push page); (5) Guardar clickable — created a TEST_ template, dialog closed and 'Plantilla creada' toast shown, then cleaned up. Regression: entity-upload-doc-dialog opens and closes normally.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_284.json"],
+  "action_items": [
+    "(no-op) Layout fix verified end-to-end at 1366x768 and 1280x720. Ready to close ticket."
+  ],
+  "critical_code_review_comments": [
+    "EntityTemplatesConfig.jsx L179-207: Correct flex-column layout — DialogContent 'max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden'; DialogHeader/DialogFooter with shrink-0; body div 'flex-1 min-h-0 overflow-y-auto px-6 py-4'. The min-h-0 on the flex child is the key detail that enables internal scrolling — implemented correctly.",
+    "Footer uses border-t + bg-white + shrink-0, which visually separates it from scrolling content and keeps it anchored — no absolute/sticky positioning needed (natural flex behavior). Clean solution.",
+    "Pre-existing (non-regression, already noted in iter283): hydration warning from visual-editor wrapper (<span> inside <tbody>, <tr> inside <span>) on /integrators. Not introduced by this fix.",
+    "Menor observation: DialogFooter here uses shadcn's default flex layout (buttons right-aligned) which is consistent with other dialogs — good UX consistency."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (skipped)", "frontend": "100% (6/6 checks passed at both 1366x768 and 1280x720)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Created TEST_layout_fix_<ts> template to verify Guardar submit — subsequently deleted by the test to leave DB clean.",
+  "verified_metrics": {
+    "1366x768": {
+      "save_btn_initial_box": {"x": 942, "y": 680.59, "width": 100, "height": 32},
+      "save_btn_bottom_y": 712.59,
+      "viewport_height": 768,
+      "in_viewport": true,
+      "body_scrollHeight_after_inject": 714,
+      "body_clientHeight": 511,
+      "internal_scroll_available": true,
+      "footer_y_after_body_scroll_to_bottom": 680.59,
+      "footer_stayed_put": true,
+      "window_scrollY": 0
+    },
+    "1280x720": {
+      "save_btn_box": {"x": 899, "y": 635, "width": 100, "height": 32},
+      "save_btn_bottom_y": 667,
+      "viewport_height": 720,
+      "in_viewport": true,
+      "body_scrollHeight_after_inject": 714,
+      "body_clientHeight": 468,
+      "internal_scroll_available": true,
+      "footer_stayed_put_after_scroll": true
+    },
+    "save_button_clickable": true,
+    "new_template_created_via_guardar": true,
+    "toast_after_save": "Plantilla creada",
+    "regression_upload_doc_dialog_opens": true
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Layout fix (sticky footer) in EntityTemplatesConfig dialog is fully working at 1366x768 and 1280x720. Testids used: entity-template-dialog, entity-template-body (scroll container), entity-template-save-btn, entity-new-template-btn, entity-tpl-card-<id>, entity-tab-plantillas, entity-tab-documentos, entity-upload-doc-btn, entity-upload-doc-dialog. Same component also mounts for context=NUEVOS_PRODUCTOS (NewProductTemplatesConfig) — fix applies automatically because it's a shared component. To inject large HTML into RichTextEditor for scroll testing: locate '[contenteditable=\"true\"]' inside entity-template-body and set innerHTML then dispatch InputEvent('input', {bubbles:true})."
+}
