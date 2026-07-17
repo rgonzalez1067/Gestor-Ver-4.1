@@ -504,20 +504,22 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
             if a_al:
                 tipo_raw = (intg.get("integrator_type") or "").strip().lower()
                 tipo = "Comercio" if tipo_raw.startswith("comerc") else "Integrador"
-                fs = 30
-                c.setFont("Helvetica-Bold", fs)
+                # A. Times New Roman 32pt FIJO (sin autoajuste), contiguo a "Certifica al".
+                fs = 32
+                c.setFont("Times-Bold", fs)
                 c.drawString(float(a_al["x1"]) + 12, _baseline(a_al, fs), tipo)
-                # B. Nombre del integrador CENTRADO, línea inmediatamente inferior.
+                # Nombre del integrador CENTRADO, línea inmediatamente inferior.
                 if name:
-                    fsn = _fit_font(name, 26, w - 160)
-                    c.setFont("Helvetica-Bold", fsn)
+                    fsn = _fit_font(name, 26, w - 160, font="Times-Bold")
+                    c.setFont("Times-Bold", fsn)
                     c.drawCentredString(w / 2, h - (float(a_al["bottom"]) + 34), name)
             # C. "bajo la {Componente} - Versión {Versión}"
             comp_txt = f"{componente} - Versión {version}".strip(" -")
             if a_bajo and comp_txt:
+                # B. Estilo estándar del cuerpo (serif), ajuste horizontal hasta ' del Ecosistema'.
                 x = float(a_bajo["x1"]) + 8
-                fs = _fit_font(comp_txt, 16, R_MARGIN - x)
-                c.setFont("Helvetica-Bold", fs)
+                fs = _fit_font(comp_txt, 18, R_MARGIN - x, font="Times-Roman")
+                c.setFont("Times-Roman", fs)
                 c.drawString(x, _baseline(a_bajo, fs), comp_txt)
             # D. "con su aplicativo {Nombre del Aplicativo}"
             if a_app and app_name:
@@ -525,32 +527,32 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
                 fs = _fit_font(app_name, 16, R_MARGIN - x)
                 c.setFont("Helvetica-Bold", fs)
                 c.drawString(x, _baseline(a_app, fs), app_name)
-            # E. "Medios de pago certificados: {Medios_certificados}" (join por ' / ')
+            # E. "Medios de pago certificados: {Medios_certificados}"
             if a_med and productos_str:
+                # C (V5). Arial MT (equivalente nativo: Helvetica) 20pt FIJO. Prohibido
+                # recortar o reducir la fuente: SIEMPRE word-wrap en tantas líneas como
+                # sea necesario, apoyándose en el ancho útil de la página.
+                MED_FONT, MED_FS = "Helvetica", 20
                 x0 = float(a_med["x1"]) + 8
+                label_x0 = float(a_med["x0"])
                 avail1 = R_MARGIN - x0
-                fs = _fit_font(productos_str, 14, avail1, floor=9)
-                if stringWidth(productos_str, "Helvetica-Bold", fs) <= avail1:
-                    c.setFont("Helvetica-Bold", fs)
-                    c.drawString(x0, _baseline(a_med, fs), productos_str)
-                else:
-                    fs = 12
-                    line_h = fs + 5
-                    parts = productos_str.split(" / ")
-                    lines, cur = [], ""
-                    for tok in parts:
-                        test = (cur + " / " + tok) if cur else tok
-                        avail = avail1 if not lines else (R_MARGIN - float(a_med["x0"]))
-                        if stringWidth(test, "Helvetica-Bold", fs) <= avail or not cur:
-                            cur = test
-                        else:
-                            lines.append(cur); cur = tok
-                    if cur:
-                        lines.append(cur)
-                    c.setFont("Helvetica-Bold", fs)
-                    for i, ln in enumerate(lines):
-                        lx = x0 if i == 0 else float(a_med["x0"])
-                        c.drawString(lx, _baseline(a_med, fs) - i * line_h, ln)
+                avail_rest = R_MARGIN - label_x0
+                line_h = MED_FS + 6
+                parts = productos_str.split(" / ")
+                lines, cur = [], ""
+                for idx, tok in enumerate(parts):
+                    test = (cur + " / " + tok) if cur else tok
+                    avail = avail1 if not lines else avail_rest
+                    if stringWidth(test, MED_FONT, MED_FS) <= avail or not cur:
+                        cur = test
+                    else:
+                        lines.append(cur); cur = tok
+                if cur:
+                    lines.append(cur)
+                c.setFont(MED_FONT, MED_FS)
+                for i, ln in enumerate(lines):
+                    lx = x0 if i == 0 else label_x0
+                    c.drawString(lx, _baseline(a_med, MED_FS) - i * line_h, ln)
         else:
             # Fallback: template sin etiquetas → overlay centrado completo.
             cx = w / 2; y = h * 0.60

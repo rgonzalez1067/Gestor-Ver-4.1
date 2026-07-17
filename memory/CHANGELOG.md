@@ -1334,3 +1334,11 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Inyecciones: (A) "Certifica al" → {Tipo de Integrador} = 'Comercio' si integrator_type empieza por 'comerc', si no 'Integrador'; (B) {Nombre} CENTRADO en la línea inferior; (C) "bajo la" (fallback "con la") → "{Componente} - Versión {Versión}" (Modal 1); (D) "con su aplicativo" → {app_name}; (E) "Medios de pago certificados" → productos_str (medios 'C' unidos por ' / ', con wrap si excede el ancho).
 - Degradación segura: si el template no tiene las frases V4 (p.ej. plantilla vieja), cae al certificado autónomo/overlay existente.
 - Verificado por generación directa + extracción de texto real (pdfplumber) para tipo Integrador y Comercio: las 5 inyecciones aparecen tras sus frases guía. Requiere REDEPLOY para producción (el template V4 ya está en el depósito).
+
+**Feature: Certificado PDF V5 — tipografía y multilínea · 2026-07-16:**
+- routes/integrators.py `_generate_integration_certificate_pdf`:
+  - A. {Tipo de Integrador} en Times-Bold 32pt FIJO (sin autoajuste), contiguo a "Certifica al".
+  - B. {Componente} - Versión {Versión} en Times-Roman (cuerpo serif) con ajuste horizontal hasta antes de "del Ecosistema" (2ª línea).
+  - C. Medios_certificados en Helvetica (equivalente nativo de Arial MT) 20pt FIJO; PROHIBIDO recortar/reducir fuente → word-wrap multilínea automático usando el ancho útil de la página (1ª línea tras la etiqueta, siguientes desde el x0 de la etiqueta).
+  - Nombre centrado en Times-Bold.
+- Verificado por generación directa + inspección char-level (pdfplumber): tipo=Times-Bold 32pt; medios=Helvetica 20pt; prueba de estrés 10 medios → 3 líneas sin recorte ni overflow (max x1 796.6 ≤ 842). Requiere REDEPLOY.
