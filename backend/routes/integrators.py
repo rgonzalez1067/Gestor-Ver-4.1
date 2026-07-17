@@ -785,6 +785,7 @@ async def close_integrator_project(
 
     # ---------- Notificación (Otras Acciones) con cert + anexos ----------
     now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    interfaz_integrada = f"{componente} - Versión {version_componente}".strip(" -")
     tpl_vars = {
         "nombre_integrador": existing.get("name", ""), "Integrador": existing.get("name", ""),
         "integrator_name": existing.get("name", ""),
@@ -795,6 +796,7 @@ async def close_integrator_project(
         "nombre_implementador": existing.get("implementador", ""), "Nombre_Implementador": existing.get("implementador", ""),
         "componente": componente, "Componente": componente,
         "version_componente": version_componente, "Version_Componente": version_componente,
+        "Interfaz_Integrada": interfaz_integrada,
         "productos_certificados": productos_str, "Productos_Certificados": productos_str, "Productos": productos_str,
         "medios_certificados": medios_bullets, "Medios_Certificados": medios_bullets,
         "cerrado_por": closed_by, "Cerrado_Por": closed_by,

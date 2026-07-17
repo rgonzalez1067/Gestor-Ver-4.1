@@ -127,6 +127,7 @@ OTHER_ACTIONS = [
             "modalidad_integracion", "nombre_implementador", "Nombre_Implementador",
             "email_implementador", "Correo_Implementador",
             "componente", "Componente", "version_componente", "Version_Componente",
+            "Interfaz_Integrada",
             "Aplicativo_Integracion",
             "Productos", "Productos_Certificados", "Medios_Certificados",
             "cerrado_por", "Cerrado_Por", "usuario_ejecutor", "fecha_sistema", "Fecha_Sistema",
