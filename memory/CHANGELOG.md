@@ -1364,3 +1364,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Causa raíz: el editor de plantillas (EmailTemplatesEditor / TemplatesAdminDialog) toma su paleta de la fuente única frontend `VARIABLE_CATEGORIES` (templateVariables.js), no del catálogo backend. La variable solo se había añadido al backend.
 - Fix: `Interfaz_Integrada` agregada a VARIABLE_CATEGORIES → categoría 'Implementación (Técnico)' (label 'Interfaz integrada (Componente - Versión)'), disponible en ambos editores de plantillas.
 - Verificado testing_agent iter285: 3/3 (backend catálogo + paleta editor + hint OtherActionsConfig). 100%.
+
+**UI · Rediseño del menú de Configuración General (Settings.jsx) · 2026-06:**
+- Los 9 accesos de configuración (Footer, Remitentes, Calendario, Notificaciones Push, Acciones de Cotizaciones, Otras Acciones, SLA, Centro de Respaldos, Usuarios Conectados) se reemplazaron por un GRID moderno de 2-por-fila (grid-cols-1 md:grid-cols-2), tiles clicables uniformes con chip de icono a color por acento, hover lift+shadow, rounded-xl. Se eliminó la mezcla de marcos (azul border-2 / amarillo / ninguno) → borde uniforme border-slate-200.
+- 'Anexos Corporativos de Cotización' (CorporateAnexosCard) MOVIDO desde su ubicación previa a DENTRO del colapsable 'Configuración General' (debajo del grid).
+- Tarjeta 'Refresco del Reporte de Embudo': marco amarillo border-2 → border neutro border-slate-200 (mantiene acento ámbar en icono/botón).
+- Iconos nuevos importados: Bell (Notificaciones), Gauge (SLA). Rutas y data-testid de navegación preservados.
+- Verificado self-test: render del grid + Anexos/Funnel dentro de General + navegación de tiles OK (/settings/other-actions, /settings/project-sla).

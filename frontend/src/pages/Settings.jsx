@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi, DatabaseBackup, PenLine, CalendarDays } from 'lucide-react';
+import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi, DatabaseBackup, PenLine, CalendarDays, Bell, Gauge } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import { ContingencyAttachmentsExport } from '../components/ContingencyAttachmentsExport';
@@ -540,9 +540,6 @@ export const Settings = () => {
           {/* Contingencia: Export Streaming de Anexos (Admin) */}
           <ContingencyAttachmentsExport />
 
-          {/* Gestor de Anexos Corporativos (Tarifas Link de Pago / Tokenizador) */}
-          <CorporateAnexosCard />
-
           {/* Configuración de Correos Section - POR SEDE */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
@@ -754,314 +751,66 @@ export const Settings = () => {
 
           {generalConfigOpen && (
           <div data-testid="general-config-body">
-          {/* Pie de Página Global Section */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="global-footer-card">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <FileText size={20} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900 font-manrope">
-                    Gestión de Footer Global
-                  </h2>
-                  <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-                    Define el pie de página institucional (cláusulas de confidencialidad,
-                    responsabilidad ambiental, etc.) que se anexará automáticamente al final de
-                    cada correo despachado por el ecosistema MegaNexus.
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => navigate('/settings/email-footer')}
-                variant="outline"
-                className="flex-shrink-0"
-                data-testid="open-email-footer-btn"
-              >
-                Configurar
-                <ChevronRight size={16} className="ml-1" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Remitentes de Correo (Admin) — multi-sender por área */}
+          {/* ===== Grid moderno de accesos de configuración (2 por fila) ===== */}
           {(() => {
             let isAdminUser = false;
             try {
               const u = JSON.parse(localStorage.getItem('user') || '{}');
               isAdminUser = u?.role === 'admin' || u?.is_admin === true;
             } catch { /* noop */ }
-            if (!isAdminUser) return null;
+
+            const ACCENTS = {
+              slate:   { chip: 'bg-slate-100 text-slate-600',     ring: 'hover:border-slate-300' },
+              blue:    { chip: 'bg-blue-100 text-blue-600',       ring: 'hover:border-blue-300' },
+              indigo:  { chip: 'bg-indigo-100 text-indigo-600',   ring: 'hover:border-indigo-300' },
+              sky:     { chip: 'bg-sky-100 text-sky-600',         ring: 'hover:border-sky-300' },
+              violet:  { chip: 'bg-violet-100 text-violet-600',   ring: 'hover:border-violet-300' },
+              emerald: { chip: 'bg-emerald-100 text-emerald-600', ring: 'hover:border-emerald-300' },
+              rose:    { chip: 'bg-rose-100 text-rose-600',       ring: 'hover:border-rose-300' },
+            };
+
+            const tiles = [
+              { key: 'footer', icon: FileText, accent: 'slate', title: 'Footer Global', desc: 'Pie de página institucional anexado a cada correo del ecosistema.', route: '/settings/email-footer', testid: 'open-email-footer-btn' },
+              { key: 'senders', adminOnly: true, icon: Mail, accent: 'blue', title: 'Remitentes de Correo', desc: 'Direcciones remitentes por área (Proyectos e Integradores).', route: '/settings/email-senders', testid: 'open-email-senders-btn' },
+              { key: 'calendar', icon: CalendarDays, accent: 'indigo', title: 'Calendario Laboral', desc: 'Días festivos; los SLAs cuentan solo días hábiles.', route: '/settings/work-calendar', testid: 'open-work-calendar-btn' },
+              { key: 'notifications', icon: Bell, accent: 'sky', title: 'Notificaciones Push', desc: '16 eventos con prioridad configurable (campana + toast).', route: '/settings/notifications', testid: 'open-notifications-config-btn' },
+              { key: 'action-notifications', icon: ShieldCheck, accent: 'blue', title: 'Acciones de Cotizaciones', desc: 'Destinatarios y plantilla por acción del flujo comercial.', route: '/settings/action-notifications', testid: 'open-action-notifications-btn' },
+              { key: 'other-actions', icon: Settings2, accent: 'violet', title: 'Otras Acciones', desc: 'Notificaciones de Nuevos Productos y Proyectos de Integración.', route: '/settings/other-actions', testid: 'open-other-actions-btn' },
+              { key: 'project-sla', icon: Gauge, accent: 'emerald', title: 'Tiempos y SLA de Proyectos', desc: 'Matriz del semáforo y disparadores automáticos por etapa.', route: '/settings/project-sla', testid: 'open-project-sla-btn' },
+              { key: 'backup', adminOnly: true, icon: DatabaseBackup, accent: 'indigo', title: 'Centro de Respaldos', desc: 'Exporta e importa datos maestros (12 entidades) en JSON/ZIP.', route: '/settings/backup-center', testid: 'open-backup-center-btn' },
+              { key: 'connected', adminOnly: true, icon: Wifi, accent: 'rose', title: 'Usuarios Conectados', desc: 'Sesiones activas en tiempo real (auto-refresh cada 15s).', route: '/settings/connected-users', testid: 'open-connected-users-btn' },
+            ];
+
             return (
-            <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="email-senders-card">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Mail size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900 font-manrope">
-                      Remitentes de Correo
-                    </h2>
-                    <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-                      Administra varias direcciones remitentes del dominio institucional y asígnalas
-                      automáticamente por área. Los correos de <strong>Proyectos</strong> e
-                      <strong> Integradores</strong> saldrán desde la dirección que definas aquí.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => navigate('/settings/email-senders')}
-                  variant="outline"
-                  className="flex-shrink-0"
-                  data-testid="open-email-senders-btn"
-                >
-                  Configurar
-                  <ChevronRight size={16} className="ml-1" />
-                </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" data-testid="config-tiles-grid">
+                {tiles.filter((t) => !t.adminOnly || isAdminUser).map((t) => {
+                  const a = ACCENTS[t.accent] || ACCENTS.slate;
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => navigate(t.route)}
+                      data-testid={t.testid}
+                      className={`group flex items-start gap-3 text-left bg-white rounded-xl border border-slate-200 p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${a.ring}`}
+                    >
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105 ${a.chip}`}>
+                        <Icon size={22} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base font-semibold text-slate-900 font-manrope leading-tight">{t.title}</h3>
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{t.desc}</p>
+                      </div>
+                      <ChevronRight size={18} className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-1" />
+                    </button>
+                  );
+                })}
               </div>
-            </div>
             );
           })()}
 
-          {/* Calendario Laboral — días festivos (días hábiles en SLAs/Proyectos) */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="work-calendar-card">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <CalendarDays size={20} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900 font-manrope">
-                    Calendario Laboral
-                  </h2>
-                  <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-                    Administra los <strong>días festivos</strong> no laborables. El seguimiento de
-                    proyectos y los <strong>SLAs</strong> contarán solo días hábiles, descontando
-                    automáticamente fines de semana y los feriados aquí registrados.
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => navigate('/settings/work-calendar')}
-                variant="outline"
-                className="flex-shrink-0"
-                data-testid="open-work-calendar-btn"
-              >
-                Configurar
-                <ChevronRight size={16} className="ml-1" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Notificaciones Push Section */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="notifications-config-card">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Mail size={20} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900 font-manrope">
-                    Notificaciones Push
-                  </h2>
-                  <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-                    Activa o desactiva los 16 eventos del sistema que disparan notificaciones
-                    push en tiempo real (campana + toast). Ajusta la prioridad (Alta / Media / Baja)
-                    por cada uno.
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => navigate('/settings/notifications')}
-                variant="outline"
-                className="flex-shrink-0"
-                data-testid="open-notifications-config-btn"
-              >
-                Configurar
-                <ChevronRight size={16} className="ml-1" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Configuración de Acciones de Cotizaciones (Fase 1 — Motor Dinámico) */}
-          <div className="bg-white rounded-lg border-2 border-blue-200 p-6 mb-6" data-testid="action-notifications-card">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <ShieldCheck size={24} className="text-blue-600 flex-shrink-0" />
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
-                    Configuración de Acciones de Cotizaciones
-                  </h2>
-                  <p className="text-sm text-slate-600 max-w-2xl">
-                    Define qué destinatarios reciben qué plantilla en cada acción del flujo
-                    (Enviar al Cliente, Aprobar, Enviar a Implementación, etc.) por tipo de
-                    negocio y sub-categoría de producto. Motor dinámico que reemplaza la
-                    rigidez del código actual.
-                  </p>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
-                    Motor activo · fallback seguro a la lógica legacy
-                  </Badge>
-                </div>
-              </div>
-              <Button
-                onClick={() => navigate('/settings/action-notifications')}
-                variant="outline"
-                className="flex-shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
-                data-testid="open-action-notifications-btn"
-              >
-                Configurar
-                <ChevronRight size={16} className="ml-1" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Configuración de otras Acciones (desacople de correos hardcode) */}
-          <div className="bg-white rounded-lg border-2 border-blue-200 p-6 mb-6" data-testid="other-actions-card">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <Settings2 size={24} className="text-blue-600 flex-shrink-0" />
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
-                    Configuración de otras Acciones
-                  </h2>
-                  <p className="text-sm text-slate-600 max-w-2xl">
-                    Parametriza los destinatarios internos, la plantilla y el canal de envío
-                    (Correo o Centro de Mensajes) de las notificaciones automáticas de
-                    Nuevos Productos (cambio de fase) y Proyectos de Integración (creación),
-                    que antes estaban fijas en el código.
-                  </p>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
-                    Motor dinámico · fallback seguro a la lógica legacy
-                  </Badge>
-                </div>
-              </div>
-              <Button
-                onClick={() => navigate('/settings/other-actions')}
-                variant="outline"
-                className="flex-shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
-                data-testid="open-other-actions-btn"
-              >
-                Configurar
-                <ChevronRight size={16} className="ml-1" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Configuración de Tiempos y SLA de Proyectos (semáforo + motor de acciones) */}
-          <div className="bg-white rounded-lg border-2 border-blue-200 p-6 mb-6" data-testid="project-sla-card">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <Settings2 size={24} className="text-blue-600 flex-shrink-0" />
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
-                    Configuración de Tiempos y SLA de Proyectos
-                  </h2>
-                  <p className="text-sm text-slate-600 max-w-2xl">
-                    Parametriza la matriz de días del semáforo (Verde → Amarillo → Rojo) por etapa del
-                    proyecto y configura las acciones automáticas (correo o Centro de Mensajes) que se
-                    disparan cuando un proyecto cambia su color de alerta de tiempo.
-                  </p>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
-                    Semáforo configurable · 6 disparadores automáticos
-                  </Badge>
-                </div>
-              </div>
-              <Button
-                onClick={() => navigate('/settings/project-sla')}
-                variant="outline"
-                className="flex-shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
-                data-testid="open-project-sla-btn"
-              >
-                Configurar
-                <ChevronRight size={16} className="ml-1" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Centro de Respaldos (Admin) — Exportación/Importación unificada */}
-          {(() => {
-            let isAdminUser = false;
-            try {
-              const u = JSON.parse(localStorage.getItem('user') || '{}');
-              isAdminUser = u?.role === 'admin' || u?.is_admin === true;
-            } catch { /* noop */ }
-            if (!isAdminUser) return null;
-            return (
-            <div className="bg-white rounded-lg border-2 border-indigo-200 p-6 mb-6" data-testid="backup-center-card">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <DatabaseBackup size={24} className="text-indigo-600 flex-shrink-0" />
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
-                      Centro de Respaldos
-                    </h2>
-                    <p className="text-sm text-slate-600 max-w-2xl">
-                      Exporta (Backup) e importa (Restauración) de forma centralizada los datos maestros:
-                      Clientes, Bancos, Medios de Pago, Bienes y Servicios, Categoría Comercial, Inventarios
-                      (Movimientos, Almacenes, Asignación de Seriales y Auditoría), Equipos en Reparación,
-                      Permisos de Usuarios e Integradores. Exportación masiva en ZIP y modo "Reemplazo total"
-                      para dejar un entorno idéntico al respaldo.
-                    </p>
-                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
-                      12 entidades · JSON · upsert / réplica
-                    </Badge>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => navigate('/settings/backup-center')}
-                  variant="outline"
-                  className="flex-shrink-0 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-                  data-testid="open-backup-center-btn"
-                >
-                  Abrir
-                  <ChevronRight size={16} className="ml-1" />
-                </Button>
-              </div>
-            </div>
-            );
-          })()}
-
-          {/* Iter57: Usuarios Conectados — admin-only */}
-          {(() => {
-            let isAdminUser = false;
-            try {
-              const u = JSON.parse(localStorage.getItem('user') || '{}');
-              isAdminUser = u?.role === 'admin' || u?.is_admin === true;
-            } catch { /* noop */ }
-            if (!isAdminUser) return null;
-            return (
-            <div className="bg-white rounded-lg border-2 border-violet-200 p-6 mb-6" data-testid="connected-users-card">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <Wifi size={24} className="text-violet-600 flex-shrink-0" />
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
-                      Usuarios Conectados
-                    </h2>
-                    <p className="text-sm text-slate-600 max-w-2xl">
-                      Visualiza en tiempo real qué usuarios tienen sesión activa
-                      en el sistema, su departamento y el número de pestañas/conexiones
-                      abiertas. Útil para auditoría operativa y soporte en vivo.
-                    </p>
-                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
-                      Auto-refresh cada 15s · en vivo
-                    </Badge>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => navigate('/settings/connected-users')}
-                  variant="outline"
-                  className="flex-shrink-0 border-violet-300 text-violet-700 hover:bg-violet-50"
-                  data-testid="open-connected-users-btn"
-                >
-                  Ver conectados
-                  <ChevronRight size={16} className="ml-1" />
-                </Button>
-              </div>
-            </div>
-            );
-          })()}
+          {/* Anexos Corporativos de Cotización (movido dentro de Configuración General) */}
+          <CorporateAnexosCard />
 
           {/* Refresco del Reporte de Embudo (Admin) */}
           <FunnelRecalculateCard />
@@ -1190,7 +939,7 @@ function FunnelRecalculateCard() {
   };
 
   return (
-    <div className="bg-white rounded-lg border-2 border-amber-200 p-6 mb-6" data-testid="funnel-recalculate-card">
+    <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="funnel-recalculate-card">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <RefreshCw size={24} className="text-amber-600 flex-shrink-0" />
