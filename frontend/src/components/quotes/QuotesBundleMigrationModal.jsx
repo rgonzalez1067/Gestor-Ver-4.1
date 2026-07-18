@@ -46,6 +46,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   const [zipFiles, setZipFiles] = useState([]);
   const [importingZip, setImportingZip] = useState(false);
   const [zipProgress, setZipProgress] = useState('');
+  const [zipPct, setZipPct] = useState(0);
   const [previewSummary, setPreviewSummary] = useState(null);
   const [dataResult, setDataResult] = useState(null);
   const [zipResult, setZipResult] = useState(null);
@@ -348,6 +349,9 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
     const errors = [];
 
     try {
+      // PRE-PASS: cargar todos los ZIP y contar el total de entradas para
+      // calcular el porcentaje de avance GLOBAL de la importación (barra).
+      const loaded = [];
       for (let z = 0; z < zips.length; z++) {
         const f = zips[z];
         const zipLabel = `ZIP ${z + 1}/${zips.length} · ${f.name}`;
@@ -367,8 +371,20 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
           if (norm.split('/').includes('..')) return;
           entries.push({ relPath: norm, entry });
         });
+        totalEntriesAll += entries.length;
+        loaded.push({ zipLabel, entries });
+      }
+
+      if (totalEntriesAll === 0) {
+        toast.error('Los ZIP no contienen archivos restaurables');
+        return;
+      }
+
+      // SUBIDA: contador global para alimentar la barra de progreso porcentual.
+      let doneAll = 0;
+      setZipPct(0);
+      for (const { zipLabel, entries } of loaded) {
         const total = entries.length;
-        totalEntriesAll += total;
         if (total === 0) continue;
 
         const CONCURRENCY = 4;
@@ -381,6 +397,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
             const item = entries[i];
             const res = await uploadOne(item);
             done += 1;
+            doneAll += 1;
             if (res.ok) {
               restored += 1;
               if (res.retries > 0) retriedCount += 1;
@@ -388,15 +405,11 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
               skipped += 1;
               errors.push({ path: res.path, error: res.error });
             }
+            setZipPct(Math.round((doneAll / totalEntriesAll) * 100));
             setZipProgress(`${zipLabel}: ${done}/${total} (Total OK ${restored} · fallidos ${skipped})`);
           }
         };
         await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
-      }
-
-      if (totalEntriesAll === 0) {
-        toast.error('Los ZIP no contienen archivos restaurables');
-        return;
       }
 
       const result = {
@@ -417,6 +430,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
     } finally {
       setImportingZip(false);
       setZipProgress('');
+      setZipPct(0);
     }
   };
 
@@ -746,6 +760,21 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
               </p>
               {importingZip && zipProgress && (
                 <p className="text-[11px] text-emerald-700 mt-1" data-testid="bundle-import-attachments-progress">{zipProgress}</p>
+              )}
+              {/* Barra de progreso porcentual de la importación de anexos ZIP */}
+              {importingZip && (
+                <div className="mt-1.5" data-testid="bundle-import-attachments-progressbar">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[10px] font-medium text-emerald-700">Progreso de importación</span>
+                    <span className="text-[10px] font-semibold text-emerald-800 tabular-nums" data-testid="bundle-import-attachments-pct">{zipPct}%</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-emerald-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-emerald-600 transition-all duration-300 ease-out"
+                      style={{ width: `${zipPct}%` }}
+                    />
+                  </div>
+                </div>
               )}
               {/* Lista acumulativa de ZIP seleccionados */}
               {zipFiles.length > 0 && (

@@ -1371,3 +1371,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Tarjeta 'Refresco del Reporte de Embudo': marco amarillo border-2 → border neutro border-slate-200 (mantiene acento ámbar en icono/botón).
 - Iconos nuevos importados: Bell (Notificaciones), Gauge (SLA). Rutas y data-testid de navegación preservados.
 - Verificado self-test: render del grid + Anexos/Funnel dentro de General + navegación de tiles OK (/settings/other-actions, /settings/project-sla).
+
+**UI · Barra de progreso porcentual en restauración de anexos ZIP (Cotizaciones) · 2026-06:**
+- QuotesBundleMigrationModal.jsx (pestaña Importar → "2. Restaurar anexos (ZIP)"): se añadió una barra de progreso porcentual DEBAJO del monitor de texto que muestra el avance global de la importación.
+- Estado nuevo `zipPct`. Se hace un PRE-PASS que carga todos los ZIP y suma el total de entradas (totalEntriesAll) para calcular % global; durante la subida un contador global `doneAll` actualiza `setZipPct(round(doneAll/totalEntriesAll*100))`.
+- Barra: track emerald-100 + fill emerald-600 con transición suave; label 'Progreso de importación' + '{zipPct}%'. testids: bundle-import-attachments-progressbar / -pct.
+- Verificado self-test (importación real de ZIP de 60 archivos): barra visible y evolucionando en vivo (0% → 3% → ...) junto al monitor de texto.
