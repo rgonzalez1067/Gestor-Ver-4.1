@@ -1377,3 +1377,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Estado nuevo `zipPct`. Se hace un PRE-PASS que carga todos los ZIP y suma el total de entradas (totalEntriesAll) para calcular % global; durante la subida un contador global `doneAll` actualiza `setZipPct(round(doneAll/totalEntriesAll*100))`.
 - Barra: track emerald-100 + fill emerald-600 con transición suave; label 'Progreso de importación' + '{zipPct}%'. testids: bundle-import-attachments-progressbar / -pct.
 - Verificado self-test (importación real de ZIP de 60 archivos): barra visible y evolucionando en vivo (0% → 3% → ...) junto al monitor de texto.
+
+**UI · Mejora: ETA + contadores en barra de importación de anexos ZIP · 2026-06:**
+- QuotesBundleMigrationModal.jsx: bajo la barra de progreso se añadió una fila con contador de restaurados (verde 'N OK') y fallidos (rojo si >0, gris si 0) + tiempo estimado restante (ETA) con spinner.
+- Estado `zipStats {restored, skipped, eta}`; ETA = (totalEntriesAll - doneAll) / ritmo actual (items/seg calculado desde startTs). Helper fmtEta() formatea 'Xm YYs' / 'Ys'.
+- testids: bundle-import-attachments-restored / -failed / -eta.
+- Verificado self-test (import real de ZIP 120 archivos): fila en vivo "1 OK · 0 fallidos · ETA 1m 07s" al 1%, actualizándose con el avance.

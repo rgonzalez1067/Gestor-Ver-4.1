@@ -31,6 +31,15 @@ async function authedDownload(path, suggestedName) {
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
+// Formatea segundos a "Xm Ys" / "Ys" para el ETA de la importación.
+function fmtEta(secs) {
+  if (secs == null || !isFinite(secs) || secs < 0) return '—';
+  if (secs < 60) return `${secs}s`;
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}m ${s.toString().padStart(2, '0')}s`;
+}
+
 export function QuotesBundleMigrationModal({ open, onClose }) {
   const [downloadingData, setDownloadingData] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
@@ -47,6 +56,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   const [importingZip, setImportingZip] = useState(false);
   const [zipProgress, setZipProgress] = useState('');
   const [zipPct, setZipPct] = useState(0);
+  const [zipStats, setZipStats] = useState({ restored: 0, skipped: 0, eta: null });
   const [previewSummary, setPreviewSummary] = useState(null);
   const [dataResult, setDataResult] = useState(null);
   const [zipResult, setZipResult] = useState(null);
@@ -309,6 +319,8 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
     }
     setImportingZip(true);
     setZipResult(null);
+    setZipPct(0);
+    setZipStats({ restored: 0, skipped: 0, eta: null });
 
     // Subida con reintentos automáticos para sobrevivir a 502/504 y errores
     // de red transitorios típicos del ingress en producción.
@@ -382,6 +394,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
 
       // SUBIDA: contador global para alimentar la barra de progreso porcentual.
       let doneAll = 0;
+      const startTs = Date.now();
       setZipPct(0);
       for (const { zipLabel, entries } of loaded) {
         const total = entries.length;
@@ -406,6 +419,11 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
               errors.push({ path: res.path, error: res.error });
             }
             setZipPct(Math.round((doneAll / totalEntriesAll) * 100));
+            // ETA: ritmo actual (items/seg) → segundos restantes.
+            const elapsed = (Date.now() - startTs) / 1000;
+            const rate = elapsed > 0 ? doneAll / elapsed : 0;
+            const eta = rate > 0 ? Math.round((totalEntriesAll - doneAll) / rate) : null;
+            setZipStats({ restored, skipped, eta });
             setZipProgress(`${zipLabel}: ${done}/${total} (Total OK ${restored} · fallidos ${skipped})`);
           }
         };
@@ -431,6 +449,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
       setImportingZip(false);
       setZipProgress('');
       setZipPct(0);
+      setZipStats({ restored: 0, skipped: 0, eta: null });
     }
   };
 
@@ -773,6 +792,20 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                       className="h-full rounded-full bg-emerald-600 transition-all duration-300 ease-out"
                       style={{ width: `${zipPct}%` }}
                     />
+                  </div>
+                  {/* Contadores (restaurados / fallidos) + tiempo estimado restante */}
+                  <div className="flex items-center justify-between mt-1 text-[10px]">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700" data-testid="bundle-import-attachments-restored">
+                        <CheckCircle2 size={11} /> {zipStats.restored} OK
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium ${zipStats.skipped > 0 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500'}`} data-testid="bundle-import-attachments-failed">
+                        <AlertTriangle size={11} /> {zipStats.skipped} fallidos
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center gap-1 font-medium text-slate-500 tabular-nums" data-testid="bundle-import-attachments-eta">
+                      <Loader2 size={11} className="animate-spin" /> ETA {fmtEta(zipStats.eta)}
+                    </span>
                   </div>
                 </div>
               )}
