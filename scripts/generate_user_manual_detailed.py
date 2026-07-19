@@ -3,9 +3,29 @@ Proyectos, Integradores) de la plataforma Mega Soft, en formato Word editable.
 
 Salida: /app/frontend/public/Manual_Usuario_Detallado.docx
 """
+import os
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+IMG_DIR = '/tmp/manual_imgs'
+
+
+def figure(fname, caption):
+    """Inserta una captura de pantalla centrada con su pie de figura."""
+    path = os.path.join(IMG_DIR, fname)
+    if not os.path.exists(path):
+        return
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run()
+    run.add_picture(path, width=Inches(6.3))
+    cap = doc.add_paragraph()
+    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    rc = cap.add_run('Figura: ' + caption)
+    rc.italic = True
+    rc.font.size = Pt(9)
+    rc.font.color.rgb = RGBColor(0x4B, 0x55, 0x63)
 
 NAVY = RGBColor(0x14, 0x2A, 0x45)
 BLUE = RGBColor(0x1D, 0x4E, 0xD8)
@@ -116,6 +136,10 @@ bullet('Un widget de "Cotizaciones en Estado Irregular" (cuando aplica) para dep
 bullet('Botones de creación de nuevas cotizaciones.')
 bullet('Una tabla central con todas las cotizaciones y sus acciones.')
 bullet('Filtros de búsqueda (cliente, número, estado, tipo, segmento, fecha).')
+
+figure('cotizaciones.jpeg', 'Menú de Cotizaciones: KPIs por estado, botones de creación '
+       '(Implementaciones, Equipos y Accesorios, Reparaciones), filtros rápidos y tabla con el '
+       'avance de estados por fila.')
 
 h2('1.2 Tipos de cotización y reglas de Bienes y Servicios')
 para('Al crear una cotización, el sistema filtra automáticamente los productos según el tipo '
@@ -231,6 +255,10 @@ bullet('🔴 Retraso Crítico — estancados; requieren atención inmediata.')
 note('tip', 'El semáforo se calcula con días hábiles, descontando fines de semana y feriados '
      'del calendario laboral configurado.')
 
+figure('proyectos.jpeg', 'Menú de Proyectos: tableros de Avance Físico y Avance Digital · PVV, '
+       'cajas KPI por estado (Total, Por Asignar, Asignado, En Gestión, Suspendido, Culminado), '
+       'barra de Avance Global, filtros y tabla de seguimiento.')
+
 h2('2.2 Columnas, filtros y búsqueda')
 para('La tabla de proyectos incluye, entre otros: Cliente/Ticket, Razón Social, Sede, Tipo, '
      'Patrocinador, Implementador (Responsable Actual), Estado, Compromiso y Fecha Límite.')
@@ -290,6 +318,10 @@ bullet('Filtros por "Tipo de Integración" y por "Estatus".')
 bullet('Buscador por nombre, aplicativo o gestor.')
 bullet('Agrupación configurable ("Agrupar por").')
 
+figure('integradores.jpeg', 'Menú de Integradores: barra de acciones (Resumen, Plantillas, '
+       'Comunicación Masiva, Importar, Excel, PDF), filtros, cajas KPI y grilla con badges '
+       '"AMPLIACIÓN" / "NUEVO COMPONENTE" y columna de Certificados.')
+
 h2('3.2 Crear, editar, eliminar e importar')
 h3('Crear / Editar integrador')
 step('Pulsa "Crear Integrador" (o edita uno existente).')
@@ -328,6 +360,10 @@ step('Usa el botón "+ Agregar" para subir un PDF manualmente (si tienes el perm
 note('note', 'El sistema NUNCA borra un certificado anterior: cada etapa certificada se conserva '
      'como una versión más en el historial.')
 
+figure('certs.jpeg', 'Repositorio multiversión de certificados: al hacer clic en el indicador '
+       'se despliega el listado con opción de Descargar (📥) y el botón "+ Agregar" para subir un '
+       'PDF manualmente.')
+
 h2('3.5 Módulo de Comunicaciones Masivas (BCC)')
 para('Herramienta de difusión masiva para avisar a los integradores sobre cambios en la '
      'plataforma. Ábrela con el botón "Comunicación Masiva".')
@@ -340,6 +376,11 @@ step('Pulsa Enviar.')
 note('warn', 'Privacidad obligatoria (BCC): el sistema coloca automáticamente a TODOS los '
      'integradores en Copia Oculta. Ningún aliado verá los correos ni los datos de los demás '
      'destinatarios, resguardando la confidencialidad de la base de datos.')
+
+figure('masscomm.jpeg', 'Diálogo de Comunicación Masiva: filtro por Tipo de Integración, lista de '
+       'destinatarios con casillas (maestra e individuales), selector de plantilla institucional, '
+       'documentos del repositorio con Visualizar (👁️) y Descargar (📥), carga de anexo local y '
+       'aviso de envío en copia oculta (BCC).')
 
 h2('3.6 Edición de plantillas de comunicación')
 bullet('Las plantillas se editan en una ventana con scroll vertical interno y pie de página fijo.')
