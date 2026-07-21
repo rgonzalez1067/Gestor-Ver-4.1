@@ -21,7 +21,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://dept-migration-bug.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://equipment-workflow-3.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN_EMAIL = "rgonzalez@megasoft.com.ve"

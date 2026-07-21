@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import {
-  PackageCheck, Search, Plus, X, Trash2, ClipboardCheck, Loader2, Building2, Barcode
+  PackageCheck, Search, Plus, X, Trash2, ClipboardCheck, Loader2, Building2, Barcode, FileSpreadsheet
 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -92,7 +92,28 @@ export default function TallerRecepcion() {
   };
 
   const addRow = () => setRows((rs) => [...rs, newRow()]);
+
   const removeRow = (id) => setRows((rs) => rs.length > 1 ? rs.filter((r) => r.id !== id) : rs);
+
+  const importSerialsExcel = async (id, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await api.post('/taller/parse-serials', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const imported = r.data?.serials || [];
+      setRows((rs) => rs.map((row) => {
+        if (row.id !== id) return row;
+        const merged = Array.from(new Set([...row.serials, ...imported]));
+        return { ...row, serials: merged };
+      }));
+      toast.success(`${imported.length} serial(es) importado(s) desde Excel.`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'No se pudo leer el Excel');
+    }
+  };
 
   const validRows = rows.filter((r) => r.model_name && r.serials.length > 0);
   const totalEquipos = validRows.reduce((acc, r) => acc + r.serials.length, 0);
@@ -229,6 +250,16 @@ export default function TallerRecepcion() {
                     <Button type="button" variant="outline" size="sm" onClick={() => addSerials(r.id)} data-testid={`recepcion-add-serial-${idx}`}>
                       Agregar
                     </Button>
+                    <label className="inline-flex items-center gap-1 text-sm cursor-pointer border border-slate-200 rounded-md px-2.5 py-1.5 hover:bg-slate-50 whitespace-nowrap" data-testid={`recepcion-excel-label-${idx}`}>
+                      <FileSpreadsheet size={15} className="text-emerald-600" /> Excel
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        data-testid={`recepcion-excel-input-${idx}`}
+                        onChange={(e) => importSerialsExcel(r.id, e)}
+                      />
+                    </label>
                   </div>
 
                   {r.serials.length > 0 && (

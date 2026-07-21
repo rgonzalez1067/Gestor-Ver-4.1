@@ -3,13 +3,14 @@
 Extraído de `quote_actions.py` para separar la gestión de equipos físicos en taller
 y exports relacionados.
 """
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, UploadFile, File
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone
 import io
 import uuid
+import base64
 import logging
 
 from config import db, get_current_user
@@ -54,6 +55,7 @@ async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[s
     now_iso = now.isoformat()
     created_ids = []
     equipos_desc = []
+    equipos_pairs = []
     for m in payload.models:
         serials = [s.strip() for s in (m.serials or []) if s and s.strip()]
         for s in serials:
@@ -77,6 +79,7 @@ async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[s
             await db.taller_equipos.insert_one(doc)
             created_ids.append(doc["taller_equipo_id"])
             equipos_desc.append(f"{m.model_name} · Serial {s}")
+            equipos_pairs.append((m.model_name, s))
 
     if not created_ids:
         raise HTTPException(status_code=400, detail="Debe incluir al menos un equipo con serial")
@@ -92,15 +95,102 @@ async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[s
         "usuario_ejecutor": user.get("email", ""),
     }
     try:
+        pdf_bytes = _generate_reception_pdf(client_name, client_rif, equipos_pairs, fecha_str, user.get("email", ""))
+        pdf_att = [{
+            "filename": f"Comprobante_Recepcion_{(client_name or 'Cliente').replace(' ', '_')[:40]}.pdf",
+            "content": base64.b64encode(pdf_bytes).decode("utf-8"),
+        }]
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[taller-recepcion] fallo al generar PDF comprobante: {e}")
+        pdf_att = None
+
+    try:
         await dispatch_other_action(
             "taller_recepcion_equipos", tpl_vars, current_user=user,
             fallback_subject=f"Recepción de equipos en taller — {client_name}",
             extra_cc=[client_email] if client_email else None,
+            extra_attachments=pdf_att,
         )
     except Exception as e:  # noqa: BLE001
         logger.error(f"[taller-recepcion] fallo al notificar: {e}")
 
     return {"success": True, "created": len(created_ids), "estatus": "Recibido"}
+
+
+def _generate_reception_pdf(client_name, client_rif, equipos, fecha_str, user_email):
+    """Genera el PDF 'Comprobante de Recepción de Equipos' (bytes)."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.units import cm
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=letter)
+    w, h = letter
+
+    def header(y0):
+        c.setFillColorRGB(0.08, 0.16, 0.28)
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(2.5 * cm, y0, "Comprobante de Recepción de Equipos")
+        c.setFont("Helvetica", 9); c.setFillGray(0.45)
+        c.drawString(2.5 * cm, y0 - 0.55 * cm, "Gestión de Taller · Mega Soft")
+        c.setFillGray(0)
+        return y0 - 1.4 * cm
+
+    y = header(h - 2.6 * cm)
+    c.setFont("Helvetica", 11)
+    for line in [f"Cliente: {client_name}", f"RIF: {client_rif}",
+                 f"Fecha de recepción: {fecha_str}", f"Recibido por: {user_email}"]:
+        c.drawString(2.5 * cm, y, line); y -= 0.55 * cm
+
+    y -= 0.5 * cm
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(2.5 * cm, y, f"Equipos recibidos ({len(equipos)})")
+    y -= 0.6 * cm
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(2.5 * cm, y, "#"); c.drawString(3.4 * cm, y, "Modelo"); c.drawString(12 * cm, y, "Serial")
+    c.line(2.5 * cm, y - 0.15 * cm, w - 2.5 * cm, y - 0.15 * cm)
+    c.setFont("Helvetica", 9)
+    for i, (modelo, serial) in enumerate(equipos, 1):
+        y -= 0.5 * cm
+        if y < 2.6 * cm:
+            c.showPage(); y = header(h - 2.6 * cm); c.setFont("Helvetica", 9)
+        c.drawString(2.5 * cm, y, str(i))
+        c.drawString(3.4 * cm, y, str(modelo)[:60])
+        c.drawString(12 * cm, y, str(serial)[:28])
+
+    c.setFont("Helvetica", 8); c.setFillGray(0.5)
+    c.drawString(2.5 * cm, 1.8 * cm,
+                 "Documento generado automáticamente. Estatus asignado a los equipos: \"Recibido\".")
+    c.showPage(); c.save(); buf.seek(0)
+    return buf.getvalue()
+
+
+@router.post("/taller/parse-serials")
+async def parse_serials_excel(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Extrae la lista de seriales (única, en orden) de un Excel para la Recepción."""
+    await get_current_user(authorization)
+    import openpyxl
+    if not (file.filename or "").endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="El archivo debe ser formato Excel (.xlsx)")
+    try:
+        contents = await file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(contents), read_only=True)
+        ws = wb.active
+        seen, serials = set(), []
+        skip = ('serial', 'seriales', 'numero de serie', 'número de serie', 'serial number', 'nro', 'n/s')
+        for row in ws.iter_rows(min_row=1, values_only=True):
+            for cell in row:
+                if cell is None:
+                    continue
+                val = str(cell).strip()
+                if val and val.lower() not in skip and val not in seen:
+                    seen.add(val); serials.append(val)
+        wb.close()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"Error al leer el Excel: {str(e)}")
+    if not serials:
+        raise HTTPException(status_code=400, detail="No se encontraron seriales en el archivo")
+    return {"serials": serials, "count": len(serials)}
 
 
 @router.get("/repair-supplies")
