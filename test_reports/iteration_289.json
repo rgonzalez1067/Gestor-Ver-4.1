@@ -1,0 +1,37 @@
+{
+  "summary": "Validación del ajuste al PDF 'Comprobante de Recepción de Equipos' (Gestión de Taller). 8/8 tests pytest OK. Se validó vía unit test (PyMuPDF/fitz) que el nuevo layout AGRUPA por modelo: la cabecera 'Morefun MP63' aparece EXACTAMENTE 1 vez (no 10 como antes), y la descripción larga 'PinPad Verifone P200 Engage Lector Smart Card y Pinpad con Software de Seguridad' aparece 1 vez con marcador 'Software de Seguridad' exactamente 1 vez (no 14). Los 24 seriales están presentes con numeración GLOBAL 1..24 y aparecen bajo su cabecera respectiva. La cabecera 'Equipos recibidos (24)' muestra el total. Orden de aparición preservado (short antes que long). E2E: POST /api/taller/recepcion con 7 seriales (3+4) devuelve created=7, estatus='Recibido' y persiste correctamente en taller_equipos (verificado por GET /api/taller-equipos). Edge case: recepción con serials=[] devuelve 400 como se espera. Cleanup ejecutado sin residuales (0 QATEST- restantes).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter289_taller_recepcion_pdf.py",
+    "/app/test_reports/pytest/iter289_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/quote_taller.py::_generate_reception_pdf (L121-196): implementación correcta y robusta. Buen uso de simpleSplit para wrapping de nombres largos, agrupación por dict-index preservando orden de aparición, numeración global independiente del grupo, y control de salto de página tanto para la cabecera como para cada serial. Nada crítico.",
+    "L188: `c.drawString(left + 1.8 * cm, y, s[:60])` — trunca seriales a 60 chars. Aceptable para seriales estándar (12-20 chars), pero si en el futuro llegan seriales largos (>60) se cortarán silenciosamente. Considerar usar simpleSplit también para el serial, o al menos loggear un warning.",
+    "L149 uso `len(equipos)` en la cabecera 'Equipos recibidos (N)': N es el total de PARES (serial, modelo), no la cantidad de modelos únicos. Correcto por especificación ('numeración global'). OK.",
+    "El endpoint POST /taller/recepcion en L98 usa `equipos_pairs=[(model_name, serial)]` directamente para pasar al PDF — el orden de aparición del payload se preserva. OK. Si se enviaran DOS grupos separados del mismo modelo en payload.models[], quedarían agrupados como uno solo (por key=model_name) — comportamiento correcto y esperado.",
+    "Regresión OK: el endpoint sigue creando docs en taller_equipos con estatus='Recibido', llama a dispatch_other_action('taller_recepcion_equipos', ...) y no rompe si el motor falla (try/except con log)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter289_taller_recepcion_pdf.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8)",
+    "frontend": "N/A (solo backend testing solicitado)"
+  },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123; cliente de prueba cli_00bbd8a3c108 (Prueba, RIF J0009273)",
+  "seed_data_creation": "7 taller_equipos creados durante el E2E con prefijo QATEST-{stamp}- y eliminados en teardown_class vía DELETE /api/taller-equipos/{id}. Verificado: 0 residuales para cli_00bbd8a3c108.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El fix del PDF de recepción está validado end-to-end. Los 8 tests cubren: (a) generación de bytes PDF válidos, (b) cabecera de modelo único aparece 1 vez, (c) cabecera de modelo largo NO se repite por serial (marker 'Software de Seguridad' <=2 apariciones), (d) los 24 seriales están presentes con numeración global 1/10/24, (e) 'Equipos recibidos (24)' presente, (f) orden de aparición preservado, (g) E2E POST /taller/recepcion con estatus 'Recibido' y persistencia, (h) validación 400 para lista vacía. Nota: la recepción DISPARA correo real vía dispatch_other_action('taller_recepcion_equipos'). En este test usó cliente 'Prueba' sin email en el doc principal (contactos vacíos) — no se envió al cliente pero sí a los users configurados en la acción.",
+  "rca_of_the_issue": "Bug anterior: _generate_reception_pdf renderizaba una tabla plana [#, Modelo, Serial] con drawString del nombre del modelo por CADA fila y sin wrap, de modo que descripciones largas de modelo se solapaban con la columna Serial. Fix aplicado por main agent: (1) agrupar por model_name preservando orden de aparición (dict con index list), (2) imprimir la cabecera del modelo UNA sola vez con Helvetica-Bold 10 y color 0.08,0.16,0.28, (3) usar reportlab.lib.utils.simpleSplit(name, font, size, max_w) para envolver nombres largos en múltiples líneas, (4) debajo de cada cabecera imprimir los seriales del grupo con numeración GLOBAL (running counter compartido entre grupos), (5) control de salto de página tanto en la cabecera como en la iteración de seriales para no dejar cabeceras huérfanas al pie. Validación: unit-tests con PyMuPDF extrayendo texto verifican que 'Morefun MP63' aparece 1 vez y 'Software de Seguridad' (sub-cadena del modelo largo) aparece 1-2 veces (permitiendo wrap), NUNCA 10 o 14 veces como antes."
+}

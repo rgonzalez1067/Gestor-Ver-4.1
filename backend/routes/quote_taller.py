@@ -146,18 +146,48 @@ def _generate_reception_pdf(client_name, client_rif, equipos, fecha_str, user_em
     y -= 0.5 * cm
     c.setFont("Helvetica-Bold", 11)
     c.drawString(2.5 * cm, y, f"Equipos recibidos ({len(equipos)})")
-    y -= 0.6 * cm
-    c.setFont("Helvetica-Bold", 9)
-    c.drawString(2.5 * cm, y, "#"); c.drawString(3.4 * cm, y, "Modelo"); c.drawString(12 * cm, y, "Serial")
-    c.line(2.5 * cm, y - 0.15 * cm, w - 2.5 * cm, y - 0.15 * cm)
-    c.setFont("Helvetica", 9)
-    for i, (modelo, serial) in enumerate(equipos, 1):
-        y -= 0.5 * cm
-        if y < 2.6 * cm:
-            c.showPage(); y = header(h - 2.6 * cm); c.setFont("Helvetica", 9)
-        c.drawString(2.5 * cm, y, str(i))
-        c.drawString(3.4 * cm, y, str(modelo)[:60])
-        c.drawString(12 * cm, y, str(serial)[:28])
+    y -= 0.7 * cm
+
+    from reportlab.lib.utils import simpleSplit
+
+    # Agrupar por modelo preservando el orden de aparición: una cabecera por modelo
+    # y debajo sus seriales (evita repetir la descripción larga y su solape).
+    groups = []
+    idx = {}
+    for modelo, serial in equipos:
+        key = str(modelo)
+        if key not in idx:
+            idx[key] = len(groups)
+            groups.append((key, []))
+        groups[idx[key]][1].append(str(serial))
+
+    left = 2.5 * cm
+    max_w = w - 2.5 * cm - 2.5 * cm  # ancho útil para el nombre del modelo
+    running = 0
+    for modelo, serials in groups:
+        # Salto de página si no cabe al menos la cabecera + un serial
+        if y < 3.6 * cm:
+            c.showPage(); y = header(h - 2.6 * cm)
+        # Cabecera del modelo (envuelve si es muy larga)
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColorRGB(0.08, 0.16, 0.28)
+        for ml in simpleSplit(modelo, "Helvetica-Bold", 10, max_w):
+            if y < 2.6 * cm:
+                c.showPage(); y = header(h - 2.6 * cm)
+                c.setFont("Helvetica-Bold", 10); c.setFillColorRGB(0.08, 0.16, 0.28)
+            c.drawString(left, y, ml); y -= 0.5 * cm
+        c.setStrokeGray(0.82)
+        c.line(left, y + 0.28 * cm, w - 2.5 * cm, y + 0.28 * cm)
+        # Seriales del modelo, uno por línea con numeración global
+        c.setFillGray(0); c.setFont("Helvetica", 9)
+        for s in serials:
+            running += 1
+            if y < 2.6 * cm:
+                c.showPage(); y = header(h - 2.6 * cm); c.setFont("Helvetica", 9)
+            c.drawString(left + 0.7 * cm, y, f"{running}.")
+            c.drawString(left + 1.8 * cm, y, s[:60])
+            y -= 0.45 * cm
+        y -= 0.35 * cm  # separación entre modelos
 
     c.setFont("Helvetica", 8); c.setFillGray(0.5)
     c.drawString(2.5 * cm, 1.8 * cm,
