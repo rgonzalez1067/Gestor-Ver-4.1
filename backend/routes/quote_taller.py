@@ -110,6 +110,7 @@ async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[s
             fallback_subject=f"Recepción de equipos en taller — {client_name}",
             extra_cc=[client_email] if client_email else None,
             extra_attachments=pdf_att,
+            client=client,
         )
     except Exception as e:  # noqa: BLE001
         logger.error(f"[taller-recepcion] fallo al notificar: {e}")

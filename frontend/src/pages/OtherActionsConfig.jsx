@@ -16,11 +16,12 @@ function RecipientRow({ row, users, templates, onChange, onRemove }) {
   return (
     <tr className="border-b border-slate-100 hover:bg-slate-50">
       <td className="px-3 py-2 align-middle">
-        <Select value={row.type || 'user'} onValueChange={(v) => update({ type: v, user_id: v === 'user' ? row.user_id : null })}>
+        <Select value={row.type || 'user'} onValueChange={(v) => update({ type: v, user_id: v === 'user' ? row.user_id : null, delivery_channel: v === 'client_field' ? 'email' : (row.delivery_channel || 'email') })}>
           <SelectTrigger className="h-9 w-52" data-testid={`oa-row-type-${row.row_id}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="client_field">📧 Correo del Cliente</SelectItem>
             <SelectItem value="user">👤 Usuario interno</SelectItem>
             <SelectItem value="session_user">⚡ Usuario generador</SelectItem>
             <SelectItem value="session_executive">🧑‍💼 Ejecutivo generador</SelectItem>
@@ -46,7 +47,9 @@ function RecipientRow({ row, users, templates, onChange, onRemove }) {
           </Select>
         ) : (
           <span className="text-sm text-slate-500 italic">
-            {row.type === 'session_user'
+            {row.type === 'client_field'
+              ? '— correo del cliente externo —'
+              : row.type === 'session_user'
               ? '— usuario que ejecuta la acción —'
               : row.type === 'project_implementer'
               ? '— implementador asignado al proyecto —'
@@ -80,15 +83,19 @@ function RecipientRow({ row, users, templates, onChange, onRemove }) {
         </Select>
       </td>
       <td className="px-3 py-2 align-middle">
-        <Select value={row.delivery_channel || 'email'} onValueChange={(v) => update({ delivery_channel: v })}>
-          <SelectTrigger className="h-9 w-48" data-testid={`oa-row-channel-${row.row_id}`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="email">📧 Correo Electrónico</SelectItem>
-            <SelectItem value="inbox">📨 Centro de Mensajes</SelectItem>
-          </SelectContent>
-        </Select>
+        {row.type === 'client_field' ? (
+          <span className="text-sm text-slate-500 italic" data-testid={`oa-row-channel-forced-${row.row_id}`}>📧 Correo Electrónico</span>
+        ) : (
+          <Select value={row.delivery_channel || 'email'} onValueChange={(v) => update({ delivery_channel: v })}>
+            <SelectTrigger className="h-9 w-48" data-testid={`oa-row-channel-${row.row_id}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="email">📧 Correo Electrónico</SelectItem>
+              <SelectItem value="inbox">📨 Centro de Mensajes</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </td>
       <td className="px-3 py-2 align-middle text-right">
         <Button variant="ghost" size="sm" onClick={onRemove} className="text-red-600 hover:bg-red-50" data-testid={`oa-row-remove-${row.row_id}`}>

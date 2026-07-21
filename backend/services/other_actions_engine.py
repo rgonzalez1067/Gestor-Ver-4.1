@@ -29,6 +29,27 @@ from services.dynamic_recipients import resolve_project_implementer
 logger = logging.getLogger("other_actions_engine")
 
 
+def _resolve_client_email(client: Optional[dict], template_vars: dict) -> tuple:
+    """Resuelve (email, nombre) del cliente externo para el destinatario 'client_field'.
+    Prioriza el documento `client`; si no, usa variables de plantilla comunes."""
+    if client:
+        e = (client.get("email") or "").strip()
+        cname = (client.get("fantasy_name") or client.get("legal_name")
+                 or client.get("commercial_name") or "").strip()
+        if e and "@" in e:
+            return e, (cname or e)
+        for c in (client.get("contacts") or []):
+            ce = (c.get("email") or "").strip()
+            if ce and "@" in ce:
+                return ce, (cname or c.get("name") or ce)
+    for k in ("Email_Cliente", "Email_Contacto", "Correo_Cliente", "correo_cliente", "client_email"):
+        v = template_vars.get(k)
+        if isinstance(v, str) and v.strip() and "@" in v:
+            nombre = template_vars.get("Nombre_Cliente") or template_vars.get("Cliente") or v.strip()
+            return v.strip(), nombre
+    return "", ""
+
+
 async def get_config(action_id: str) -> Optional[dict]:
     return await db.other_action_configs.find_one({"action_id": action_id}, {"_id": 0})
 
@@ -44,6 +65,7 @@ async def dispatch_other_action(
     prepend_signature_html: Optional[str] = None,
     integrator: Optional[dict] = None,
     extra_attachments: Optional[list] = None,
+    client: Optional[dict] = None,
 ) -> dict:
     """Despacha la acción según la config dinámica. Ver reglas en el docstring
     del módulo.
@@ -132,6 +154,17 @@ async def dispatch_other_action(
             rcpt_email = email
             rcpt_name = (integrator or {}).get("name") or email
             rcpt_user_id = None
+        elif rtype == "client_field":
+            # "Correo del Cliente": correo del cliente externo asociado al evento.
+            # Se resuelve desde el documento `client` (si se pasa) o desde variables
+            # de plantilla (Email_Cliente / Email_Contacto / Correo_Cliente / client_email).
+            ce, cname = _resolve_client_email(client, template_vars)
+            if not ce:
+                skipped.append({"row_id": row.get("row_id"), "reason": "Cliente sin correo (Correo del Cliente)"})
+                continue
+            rcpt_email = ce
+            rcpt_name = cname
+            rcpt_user_id = None
         else:
             skipped.append({"row_id": row.get("row_id"), "reason": f"Tipo de destinatario no soportado: {rtype}"})
             continue
@@ -188,7 +221,7 @@ async def dispatch_other_action(
                     subject=subject or fallback_subject or "Notificación",
                     html=body,
                     action=f"{action_id}_other",
-                    cc=extra_cc or None,
+                    cc=[e for e in (extra_cc or []) if e != rcpt_email] or None,
                     attachments=(extra_attachments or None),
                 )
             sent_count += 1
