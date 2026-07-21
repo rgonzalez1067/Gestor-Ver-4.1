@@ -714,7 +714,7 @@ async def approve_quote(
             # Fase 2 Taller: equipos ya existentes (estatus 'Cotizado') → 'En reparación'.
             # NO se insertan registros nuevos.
             upd = await db.taller_equipos.update_many(
-                {"taller_equipo_id": {"$in": linked_ids}},
+                {"taller_equipo_id": {"$in": linked_ids}, "estatus": {"$in": ["Cotizado", "Recibido"]}},
                 {"$set": {"estatus": "En reparación", "updated_at": now_iso}},
             )
             logger.info(f"Taller: {upd.modified_count} equipo(s) vinculados de cotización {quote.get('quote_number')} → 'En reparación'")

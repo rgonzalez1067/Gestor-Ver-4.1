@@ -4,6 +4,16 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### NUEVO: Gestión de Taller V2 — Fase 2: Trazabilidad en Cotizaciones de Reparación — Jul 2026
+- **Objetivo:** vincular equipos ya recibidos en el taller (estatus `Recibido`) al flujo comercial de reparación. Ciclo de vida: `Recibido` → `Cotizado` (al crear la cotización) → `En reparación` (al aprobar) → `Entregado`.
+- **Backend** (`quote_taller.py`): nuevo `GET /api/taller/equipos-disponibles?client_id=` → equipos con estatus `Recibido` del cliente (taller_equipo_id, serial, modelo, modelo_id, fecha_ingreso).
+- **Backend** (`quotes.py::generate_equipment_quote_pdf`): `EquipmentQuotePDFRequest` += `linked_taller_equipo_ids`; se persiste en el quote y, si el quote es `repair` con ids vinculados, tras crear la cotización se hace UPDATE de esos equipos (filtrando estatus `Recibido`) a `Cotizado` con quote_id/quote_number. NO crea registros nuevos.
+- **Backend** (`quote_actions.py::approve_quote`): para reparaciones, si el quote tiene `linked_taller_equipo_ids` → update_many a `En reparación` (filtrando estatus `Cotizado`/`Recibido`), SIN insertar. Fallback legacy intacto: si NO hay ids vinculados (carga manual/Excel), se insertan los registros directamente en `En reparación` al aprobar.
+- **Frontend** (`EquipmentQuoteWizard.jsx`, modo Reparación): selector EXCLUYENTE "Origen de los equipos" — `repair-source-taller` (lista equipos `Recibido` del cliente en `taller-equipos-picker`, filas `taller-equipo-{id}`, vacío `taller-equipos-empty`) vs `repair-source-manual` (flujo manual/Excel existente). En modo taller, `repair_models` se autoconstruye agrupando por modelo y se envía `linked_taller_equipo_ids`.
+- **QA:** testing_agent iter287 → **backend 100% (4/4 pytest) + frontend 100%**. Linked: Recibido→Cotizado→En reparación sin duplicar; Fallback: crea 2 registros En reparación al aprobar; UI toggle correcto. Test: `/app/backend/tests/test_iter287_taller_fase2.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
+
 ### NUEVO: Categorías combinadas PinPad/Accesorio y PinPad/Licencia en Bienes y Servicios — Jun 2026
 - **Alta de categorías:** el catálogo de hardware (`db.hardware`, campo `type`) admite dos tipos nuevos: 'PinPad/Accesorio' (grupo dispositivos) y 'PinPad/Licencia' (grupo servicios). Agregados a `valid_types`/plantilla en `hardware.py` y al dropdown `HARDWARE_TYPES` en `Hardware.jsx`.
 - **Regla A (visibilidad cruzada):** en `EquipmentQuoteWizard.jsx`, `DEVICE_TYPES` y `ACCESSORY_TYPES` ahora incluyen 'PinPad/Accesorio' → el ítem aparece tanto en Cotizaciones de Equipos como de Accesorios (OR).
