@@ -4,6 +4,16 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### NUEVO: Permiso especial "Cerrar Proyecto de Integración" (candado) — Jul 2026
+- **Objetivo:** administrar de forma eficiente quién puede cerrar Proyectos de Integración (ícono candado 🔒), en vez del chequeo por rol hardcodeado (que en la práctica solo dejaba pasar a admin, porque `role` solo vale `admin`/`user`; `implementador/coordinador/gestor` son `cargo`, no `role`).
+- **Catálogo** (`permissions_catalog.py`): nuevo flag `integradores:cerrar_proyecto` ("Cerrar Proyecto de Integración") en `SPECIAL_PERMISSIONS` → aparece automáticamente en la gestión de Permisos por Usuario y por Perfil (la UI itera el catálogo).
+- **Backend** (`integrators.py::close_integrator_project`): gate = `role=='admin'` **OR** flag `integradores:cerrar_proyecto` en `special_permissions` (403 si no).
+- **Middleware RBAC** (`server.py`): override path-específico — permite `POST /api/integrators/{id}/close` a quien tenga el flag, sin exigir nivel de edición en el módulo. No sobre-otorga: otros POST de integradores (p.ej. `/suspend`) siguen bloqueados (403).
+- **Frontend** (`Integrators.jsx`): el botón del candado se muestra si `isAdmin || hasSpecial('integradores:cerrar_proyecto')` y el proyecto no está `Cerrado`.
+- **Nota de administración:** por la regla de "techo de perfil" del sistema, para asignar el flag a un usuario no-admin desde Permisos por Usuario, su **Perfil** también debe incluirlo (o asignarlo directamente a nivel de Perfil). El admin siempre puede cerrar.
+- **QA:** verificado por curl — admin pasa el gate (404 en id inexistente), no-admin sin flag → 403, no-admin con flag → 404 (pasa ambos gates), no-admin con flag NO puede `/suspend` (403). Catálogo y toggle en la UI confirmados por screenshot. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### NUEVO: Gestión de Taller V2 — Fase 2: Trazabilidad en Cotizaciones de Reparación — Jul 2026
 - **Objetivo:** vincular equipos ya recibidos en el taller (estatus `Recibido`) al flujo comercial de reparación. Ciclo de vida: `Recibido` → `Cotizado` (al crear la cotización) → `En reparación` (al aprobar) → `Entregado`.
 - **Backend** (`quote_taller.py`): nuevo `GET /api/taller/equipos-disponibles?client_id=` → equipos con estatus `Recibido` del cliente (taller_equipo_id, serial, modelo, modelo_id, fecha_ingreso).

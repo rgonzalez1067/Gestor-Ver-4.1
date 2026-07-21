@@ -1892,7 +1892,7 @@ export const Integrators = () => {
                               <Mail size={13} />
                             </Button>
                             {canEdit && <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>}
-                            {canEdit && intg.integrator_status !== 'Cerrado' && (
+                            {(isAdmin || hasSpecial('integradores:cerrar_proyecto')) && intg.integrator_status !== 'Cerrado' && (
                               <Button size="sm" variant="ghost" onClick={() => handleCloseProject(intg)} className="text-slate-500 hover:bg-slate-200 h-7 w-7 p-0" data-testid={`close-project-${intg.integrator_id}`} title="Cerrar Proyecto"><Lock size={13} /></Button>
                             )}
                             {canEdit && intg.integrator_status !== 'Cerrado' && intg.integrator_status !== 'Suspendido' && (

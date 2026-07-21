@@ -682,7 +682,8 @@ async def close_integrator_project(
     """
     current_user = await get_current_user(authorization)
     role = (current_user or {}).get("role", "")
-    if role not in ("admin", "implementador", "coordinador", "gestor"):
+    special = (current_user or {}).get("special_permissions") or []
+    if role != "admin" and "integradores:cerrar_proyecto" not in special:
         raise HTTPException(status_code=403, detail="No tiene permisos para cerrar proyectos")
 
     existing = await db.integrators.find_one({"integrator_id": integrator_id})
