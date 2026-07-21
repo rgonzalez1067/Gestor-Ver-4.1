@@ -4,6 +4,12 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Bug Fix: PDF de Recepción de Equipos — agrupar por modelo (no repetir descripción) — Jul 2026
+- **Problema:** el "Comprobante de Recepción de Equipos" (`_generate_reception_pdf`) usaba tabla plana [#, Modelo, Serial] repitiendo la descripción del modelo por cada serial; las descripciones largas solapaban la columna Serial.
+- **Fix** (`routes/quote_taller.py::_generate_reception_pdf`): agrupa por `model_name` (preservando orden de aparición); imprime la cabecera del modelo UNA sola vez (Helvetica-Bold 10) con `simpleSplit` para envolver nombres largos; debajo lista los seriales con numeración GLOBAL (1..N); control de salto de página en cabecera y seriales para no dejar cabeceras huérfanas.
+- **QA:** testing_agent iter289 → **backend 100% (8/8 pytest)**. Verificado con PyMuPDF: 'Morefun MP63' aparece 1 vez (antes 10), la descripción larga del PinPad 1 vez (antes 14), 24 seriales con numeración global, 'Equipos recibidos (24)' OK, E2E POST /taller/recepcion crea estatus 'Recibido' + notificación sin romperse; 400 para lista vacía. Test: `/app/backend/tests/test_iter289_taller_recepcion_pdf.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Mejora: Modal "Personalizar Comunicación" — límite 300→1500 y ancho 70% — Jul 2026
 - **Objetivo:** ampliar el mensaje personalizado del modal "Personalizar Comunicación" (envío de cotización) de 300 a 1500 caracteres y agrandar el modal al 70% del ancho de pantalla para mejor visualización.
 - **Frontend** (`components/quotes/QuoteModals.jsx`): `DialogContent` → `w-[70vw] max-w-[70vw]` (twMerge sobreescribe el `max-w-lg` por defecto); `Textarea` → `min-h-[220px]`, `maxLength={1500}`, `slice(0,1500)`, label "máx 1500 caracteres". `pages/Quotes.jsx::getEmailHeaders` → el header `x-custom-message` ahora hace `slice(0,1500)` (antes 200) y se envía **URL-encoded** (`encodeURIComponent`) para soportar saltos de línea y acentos en el header HTTP.
