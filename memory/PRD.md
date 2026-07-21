@@ -11,6 +11,7 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 - **Backend** (`quote_actions.py::approve_quote`): para reparaciones, si el quote tiene `linked_taller_equipo_ids` → update_many a `En reparación` (filtrando estatus `Cotizado`/`Recibido`), SIN insertar. Fallback legacy intacto: si NO hay ids vinculados (carga manual/Excel), se insertan los registros directamente en `En reparación` al aprobar.
 - **Frontend** (`EquipmentQuoteWizard.jsx`, modo Reparación): selector EXCLUYENTE "Origen de los equipos" — `repair-source-taller` (lista equipos `Recibido` del cliente en `taller-equipos-picker`, filas `taller-equipo-{id}`, vacío `taller-equipos-empty`) vs `repair-source-manual` (flujo manual/Excel existente). En modo taller, `repair_models` se autoconstruye agrupando por modelo y se envía `linked_taller_equipo_ids`.
 - **QA:** testing_agent iter287 → **backend 100% (4/4 pytest) + frontend 100%**. Linked: Recibido→Cotizado→En reparación sin duplicar; Fallback: crea 2 registros En reparación al aprobar; UI toggle correcto. Test: `/app/backend/tests/test_iter287_taller_fase2.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+- **Mejora (badge pendientes por cotizar):** nuevo `GET /api/taller/pending-count` (cuenta estatus `Recibido`). En `Sidebar.jsx` se muestra un badge naranja con el conteo junto al grupo "Gestión de Taller" (`taller-pending-badge-group`) y al item "Consulta de Taller" (`taller-pending-badge`), con refresco cada 60s y por cambio de ruta. Verificado por curl + screenshot (badge=3).
 
 
 

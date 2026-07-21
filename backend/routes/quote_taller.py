@@ -165,6 +165,15 @@ def _generate_reception_pdf(client_name, client_rif, equipos, fecha_str, user_em
     return buf.getvalue()
 
 
+@router.get("/taller/pending-count")
+async def get_taller_pending_count(authorization: Optional[str] = Header(None)):
+    """Contador de equipos en taller con estatus 'Recibido' (pendientes por cotizar).
+    Usado por el badge del menú de Gestión de Taller."""
+    await get_current_user(authorization)
+    count = await db.taller_equipos.count_documents({"estatus": "Recibido"})
+    return {"pending": count}
+
+
 @router.get("/taller/equipos-disponibles")
 async def get_equipos_disponibles(client_id: str, authorization: Optional[str] = Header(None)):
     """Lista los equipos con estatus 'Recibido' de un cliente para vincularlos a una

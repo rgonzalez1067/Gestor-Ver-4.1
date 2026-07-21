@@ -150,6 +150,21 @@ const SidebarInner = () => {
 
   const persist = (key, val) => localStorage.setItem(key, String(val));
 
+  // Badge: equipos en taller con estatus 'Recibido' (pendientes por cotizar)
+  const [tallerPending, setTallerPending] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const fetchPending = async () => {
+      try {
+        const res = await api.get('/taller/pending-count');
+        if (active) setTallerPending(res.data?.pending || 0);
+      } catch { /* silencioso */ }
+    };
+    fetchPending();
+    const id = setInterval(fetchPending, 60000);
+    return () => { active = false; clearInterval(id); };
+  }, [location.pathname]);
+
   const handleNavClick = (e, path) => {
     e.preventDefault();
     navigate(path);
@@ -255,6 +270,7 @@ const SidebarInner = () => {
 
   const NavItem = ({ item, isActive, isFooter }) => {
     const Icon = item.icon;
+    const badgeCount = item.path === '/taller-equipos' ? tallerPending : 0;
     const inner = (
       <Link
         to={item.path}
@@ -267,8 +283,27 @@ const SidebarInner = () => {
           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
         }`}
       >
-        <Icon size={20} className="flex-shrink-0" />
-        {!collapsed && <span className="font-medium text-sm whitespace-nowrap overflow-hidden">{item.label}</span>}
+        <div className="relative flex-shrink-0">
+          <Icon size={20} className="flex-shrink-0" />
+          {collapsed && badgeCount > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center"
+              data-testid="taller-pending-badge-collapsed"
+            >
+              {badgeCount > 99 ? '99+' : badgeCount}
+            </span>
+          )}
+        </div>
+        {!collapsed && <span className="font-medium text-sm whitespace-nowrap overflow-hidden flex-1">{item.label}</span>}
+        {!collapsed && badgeCount > 0 && (
+          <span
+            className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-orange-500 text-white text-[11px] font-bold flex items-center justify-center"
+            data-testid="taller-pending-badge"
+            title={`${badgeCount} equipo(s) recibido(s) pendiente(s) por cotizar`}
+          >
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </span>
+        )}
       </Link>
     );
 
@@ -277,7 +312,7 @@ const SidebarInner = () => {
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>{inner}</TooltipTrigger>
           <TooltipContent side="right" sideOffset={8}>
-            <p className="text-sm font-medium">{item.label}</p>
+            <p className="text-sm font-medium">{item.label}{badgeCount > 0 ? ` · ${badgeCount} por cotizar` : ''}</p>
           </TooltipContent>
         </Tooltip>
       );
@@ -307,6 +342,15 @@ const SidebarInner = () => {
             {!collapsed && (
               <>
                 <span className={`font-medium whitespace-nowrap overflow-hidden flex-1 text-left ${depth > 0 ? 'text-xs' : 'text-sm'}`}>{item.label}</span>
+                {item.groupId === 'gestion_taller' && tallerPending > 0 && (
+                  <span
+                    className="min-w-[20px] h-5 px-1.5 rounded-full bg-orange-500 text-white text-[11px] font-bold flex items-center justify-center"
+                    data-testid="taller-pending-badge-group"
+                    title={`${tallerPending} equipo(s) recibido(s) pendiente(s) por cotizar`}
+                  >
+                    {tallerPending > 99 ? '99+' : tallerPending}
+                  </span>
+                )}
                 {isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
               </>
             )}
