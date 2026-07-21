@@ -84,7 +84,8 @@ async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[s
     if not created_ids:
         raise HTTPException(status_code=400, detail="Debe incluir al menos un equipo con serial")
 
-    fecha_str = now.strftime("%d/%m/%Y %H:%M")
+    from zoneinfo import ZoneInfo
+    fecha_str = now.astimezone(ZoneInfo("America/Caracas")).strftime("%d/%m/%Y %H:%M")
     tpl_vars = {
         "Nombre_Cliente": client_name, "nombre_cliente": client_name,
         "Rif_Cliente": client_rif, "rif_cliente": client_rif,

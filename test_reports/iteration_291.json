@@ -1,0 +1,37 @@
+{
+  "summary": "Validado el fix de zona horaria en el 'Comprobante de Recepción de Equipos' (Gestión de Taller). 7/7 tests OK. Cobertura: (1) UNIT tz — zoneinfo('America/Caracas') es UTC-4 sin DST en 3 fechas del año; (2) UNIT tz — el strftime('%d/%m/%Y %H:%M') del endpoint produce el formato correcto; (3) UNIT tz — instante fijo 15/01/2026 23:52 UTC → '15/01/2026 19:52' Caracas, y cruce de día 15/01 02:30 UTC → '14/01/2026 22:30' Caracas; (4-5) UNIT PDF — _generate_reception_pdf renderiza la línea 'Fecha de recepción: {fecha_str}' verbatim con la cadena Caracas y NO filtra la hora UTC ni siquiera en el cruce de día; (6) E2E — POST /api/taller/recepcion con config 'taller_recepcion_equipos' temporalmente enabled=False (para evitar correos reales) devuelve created=2, estatus='Recibido', y persiste fecha_recepcion/fecha_ingreso en ISO UTC (offset +00:00) dentro del rango t_before/t_after; (7) E2E — al reconvertir el ISO UTC persistido a America/Caracas se obtiene el mismo instante representado con wall-clock 4h detrás. Cleanup: 2 taller_equipos borrados vía DELETE /api/taller-equipos/{id}, config 'taller_recepcion_equipos'.enabled restaurado a True (verificado con query directa a mongo).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter291_taller_recepcion_tz_caracas.py",
+    "/app/test_reports/pytest/iter291_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/quote_taller.py L54 (`now = datetime.now(timezone.utc)`) y L55 (`now_iso = now.isoformat()`) — correcto: el almacenamiento sigue en UTC ISO (fecha_recepcion, fecha_ingreso, created_at, updated_at).",
+    "routes/quote_taller.py L87-88 — fix correcto. `from zoneinfo import ZoneInfo` importado localmente dentro del handler; considerar moverlo al top del módulo (junto a `from datetime import datetime, timezone`) para consistencia y evitar re-imports por request. Impacto: cosmético/performance mínimo.",
+    "routes/quote_taller.py L88 — el formato 'dd/mm/YYYY HH:MM' no incluye segundos ni indicador de zona ('VET'). Si en el futuro se necesita auditar la zona en el PDF, considerar '%d/%m/%Y %H:%M (VET)' o similar. No bloqueante.",
+    "routes/quote_taller.py — `_generate_reception_pdf` recibe `fecha_str` ya formateado (buena separación: la zona se resuelve fuera del renderer). Ambas variables tpl_vars['Fecha_Recepcion'] y tpl_vars['fecha_sistema'] usan la MISMA cadena Caracas, garantizando consistencia entre PDF y plantilla de correo.",
+    "El resto de módulos que muestran fecha_ingreso al usuario (get_taller_equipos, export-excel, historial) siguen mostrando el ISO/UTC recortado (fecha_ingreso_str[:10]). No es objeto del bug reportado, pero puede haber una inconsistencia de UX: el comprobante mostrará Caracas y la grilla mostrará UTC. Considerar unificar la visualización a Caracas también en /api/taller-equipos si el usuario lo reporta."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter291_taller_recepcion_tz_caracas.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7)",
+    "frontend": "N/A (solo backend solicitado)"
+  },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123. Login retorna 'session_token'.",
+  "seed_data_creation": "Cliente utilizado: cli_00bbd8a3c108 (Prueba, J0009273). Se crearon 2 taller_equipos con seriales prefijo 'QATEST-TZ-' que fueron eliminados en teardown_class. Verificación post-run en mongo: 0 residuales con ese prefijo. El doc db.other_action_configs.taller_recepcion_equipos.enabled fue toggleado False → True (restaurado al valor original).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El fix tz Caracas está validado en tres niveles: (a) conversión pura zoneinfo, (b) render de PDF con fecha_str verbatim vía _generate_reception_pdf, (c) endpoint E2E POST /api/taller/recepcion mostrando que persiste UTC ISO y sólo la visualización cambia. Para futuros tests del endpoint POST /api/taller/recepcion sin generar correos, usar el patrón fixture 'disable_action_config_for_test' que setea enabled=False en db.other_action_configs (dispatch_other_action retorna {disabled: True, sent_count: 0}). Restaurar el flag al terminar.",
+  "rca_of_the_issue": "Bug: en /app/backend/routes/quote_taller.py, la variable `fecha_str` que alimenta el PDF (línea 'Fecha de recepción:') y las variables de plantilla tpl_vars['Fecha_Recepcion'] / ['fecha_sistema'] se derivaba de `now` (UTC) directamente. Aunque el almacenamiento en BD estaba correcto en UTC ISO, la visualización mostraba p.ej. '15/01/2026 23:52' cuando en Caracas eran las '15/01/2026 19:52'. Fix aplicado (L87-88): `from zoneinfo import ZoneInfo; fecha_str = now.astimezone(ZoneInfo('America/Caracas')).strftime('%d/%m/%Y %H:%M')`. Esto convierte al huso America/Caracas (UTC-4, sin DST) antes de formatear. Regresión validada: (a) `now_iso = now.isoformat()` en L55 sigue siendo UTC → persistencia inalterada; (b) el PDF y tpl_vars reciben la cadena ya localizada a Caracas → consistencia garantizada; (c) los otros ISO UTC de la BD siguen sirviendo para cálculos server-side (dias_en_taller) sin cambios."
+}
