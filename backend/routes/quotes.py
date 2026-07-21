@@ -388,7 +388,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 "filename": pdf_filename,
                 "url": quote_pdf_url,
                 "uploaded_by": current_user.get("email", "system"),
-                "uploaded_by_name": current_user.get("full_name", "Sistema"),
+                "uploaded_by_name": (current_user.get("full_name") or current_user.get("name") or f"{current_user.get('first_name','')} {current_user.get('last_name','')}".strip() or current_user.get("email") or "Sistema"),
                 "uploaded_at": datetime.now(timezone.utc).isoformat(),
                 "file_size": len(pdf_buffer.getvalue()) if pdf_buffer else 0,
                 "content_type": "application/pdf"
@@ -2357,7 +2357,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         "filename": pdf_filename,
         "url": quote_pdf_url,
         "uploaded_by": current_user.get("email", "system"),
-        "uploaded_by_name": current_user.get("full_name", "Sistema"),
+        "uploaded_by_name": (current_user.get("full_name") or current_user.get("name") or f"{current_user.get('first_name','')} {current_user.get('last_name','')}".strip() or current_user.get("email") or "Sistema"),
         "uploaded_at": now.isoformat(),
         "file_size": len(pdf_bytes),
         "content_type": "application/pdf"
@@ -2415,7 +2415,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         "status_history": [{
             "status": "Borrador",
             "timestamp": now.isoformat(),
-            "user": current_user.get("full_name", current_user.get("email", "Sistema"))
+            "user": (current_user.get("full_name") or current_user.get("name") or f"{current_user.get('first_name','')} {current_user.get('last_name','')}".strip() or current_user.get("email") or "Sistema")
         }]
     }
     await db.quotes.insert_one(quote_doc)

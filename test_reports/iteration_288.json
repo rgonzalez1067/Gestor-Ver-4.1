@@ -1,0 +1,34 @@
+{
+  "summary": "Bug Fix Cotizaciones de Reparación (Falla A: seriales en correo al cliente / Falla B: autoría de anexos). 4/4 tests pytest OK. Se validó: (unit) _build_template_vars ahora resuelve correctamente `repair_models` (fix del typo `repaired_models`), renderizando Lista_Seriales y lista_modelos_seriales con los 3 seriales. (render) Con la plantilla real `repair_quote_sent_PYME` (que NO referencia Lista_Seriales), el motor auto-inyecta el bloque 'Detalle de Seriales de los Equipos' antes del footer y los 3 seriales aparecen en el HTML final. (E2E) POST /api/quotes/generate-equipment-pdf con equipment_type='Reparación' autenticado como Rafael González → attachments[0].uploaded_by_name='Rafael González' y status_history[0].user='Rafael González' (NUNCA 'Sistema'). (E2E) POST /api/quotes/{id}/send-to-client dispara el motor dinámico y genera email_logs con action='send_to_client_dynamic'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "N/A", "issue": "El fixture autouse `_cleanup` no ejecutó el teardown (probablemente por incompatibilidad con event_loop personalizado). Cleanup manual ejecutado. Sugerencia: convertir a fixture no-async o usar pytest-asyncio con marker."},
+      {"config": "action_notification_configs['reparaciones|_|send_to_client']", "issue": "Los 3 recipients configurados son type='user' (todos internos). Ninguno es type='client_field'. Si el requerimiento es que el CLIENTE reciba el correo, este config debería incluir una fila client_field. Esto NO es un bug del código sino de configuración del admin. El fix del código funciona igual — si se agrega la fila client_field, el body inyectará los seriales."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter288_repair_seriales_and_autoria.py",
+    "/app/test_reports/pytest/iter288_results.xml"
+  ],
+  "action_items": [
+    "Revisar con el admin la config dinámica `reparaciones|_|send_to_client`: si el objetivo del bug es que el CLIENTE reciba el correo con seriales, agregar una fila type='client_field' a la config (hoy solo hay 3 filas type='user'). El código está listo — auto-inyecta el bloque si la fila client_field se activa.",
+    "Mejorar fixture de cleanup en test_iter288 (autouse=module con event_loop personalizado no dispara teardown limpio)."
+  ],
+  "critical_code_review_comments": [
+    "notification_engine.py L217: `repair_models` OK (typo corregido); mantiene fallback a `repaired_models` para compat retroactiva. Bien.",
+    "notification_engine.py L549-566: auto-inyección del bloque de seriales está bien acotada a action_id=='send_to_client' + quote_category=='repair' + serials no vacíos + template NO contiene ya los seriales. Robusto. Sugerencia: exponer también `preassigned_serials` en el bloque (ya hay fallback en L225-231 dentro de _build_template_vars). OK.",
+    "quotes.py L391/2360/2418: cascada full_name → name → first+last → email → 'Sistema' es correcta. Recomendación menor: extraer a helper `resolve_user_display_name(current_user)` para no repetir la misma expresión en 4+ sitios.",
+    "quotes.py L1304 y L2604: OTROS puntos que aún usan `f\"{first_name} {last_name}\".strip()` sin fallback — si un usuario tuviera first_name/last_name vacíos, quedaría string vacío en `uploaded_by_name`. Aplicar el mismo helper unificado para blindar TODOS los puntos de anexos.",
+    "quote_actions.py L1389: send_to_client usa engine_or_legacy; si el engine devuelve dispatched=True (aunque sent_count=0 por saltar filas), el legacy NO corre y el cliente puede quedar sin correo silenciosamente. Ya hay bitácora del skip en engine, pero la respuesta HTTP al usuario no lo indica. Sugerencia: propagar skipped[] al response para trazabilidad."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter288_repair_seriales_and_autoria.py (nuevo)"],
+  "success_rate": {"backend": "100%", "frontend": "N/A (solo backend testing solicitado)"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (Rafael González); cliente de prueba cli_00bbd8a3c108 = 'Prueba' RIF J0009273",
+  "seed_data_creation": "2 cotizaciones de reparación creadas durante el test y eliminadas manualmente al finalizar (cleanup fixture no disparó automáticamente). Verificado: 0 cotizaciones iter288 residuales, 0 taller_equipos QATEST- residuales.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Falla A + Falla B validadas al 100% a nivel de código. Falla A tiene 2 flancos: (i) _build_template_vars ya resuelve `repair_models` correctamente; (ii) el engine auto-inyecta el bloque de seriales antes del footer si el template no los tiene. Falla B validada — la cascada full_name/name/first+last/email/fallback aplica en generate-equipment-pdf (L2360 y L2418) y create-with-pdf (L391). ATENCIÓN: la config dinámica `reparaciones|_|send_to_client` actualmente NO tiene fila type='client_field'; solo tiene 3 users internos. Si el bug reportado era 'cliente no recibe seriales', la validación técnica del código es correcta pero la config del cliente no fluirá al cliente hasta que el admin agregue una fila client_field. Reportado como minor.",
+  "rca_of_the_issue": "Falla A — Causa raíz: typo en notification_engine.py L217 que leía la clave `repaired_models` (inexistente en el schema) en vez de `repair_models` (persistida en Mongo). Consecuencia: Lista_Seriales quedaba vacía y la plantilla `repair_quote_sent_PYME` (que no cita Lista_Seriales) enviaba un correo SIN seriales, mientras el PDF sí los incluía. Mitigación: (a) corregir la lectura a `repair_models` con fallback a `repaired_models` para compat; (b) auto-inyectar un bloque HTML con los seriales antes del footer para acciones send_to_client de repair, cuando el template no los mencione explícitamente. Falla B — Causa raíz: en `generate-equipment-pdf` y `create-with-pdf` de quotes.py, el `uploaded_by_name` del anexo generado y el `user` del `status_history[0]` se construían con `first_name + last_name` sin fallback, y cuando el usuario carecía de esos campos (o venía por otra vía), fallback caía a 'Sistema'. Mitigación: cascada `full_name → name → first+last → email → 'Sistema'` (fallback verdadero solo si TODO lo demás es vacío). Reproducido y verificado con admin `Rafael González`: el nombre real se persiste en attachments y status_history."
+}

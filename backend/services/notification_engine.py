@@ -214,7 +214,7 @@ async def _build_template_vars(quote: dict) -> dict:
     # 3) lista_modelos_seriales / lista_equipos_seriales — Reparaciones
     lista_modelos_seriales_html = ""
     lista_equipos_seriales_html = ""
-    repaired_models = quote.get("repaired_models") or []
+    repaired_models = quote.get("repair_models") or quote.get("repaired_models") or []
     for rm in repaired_models:
         mn = rm.get("model_name", "N/A")
         serials = rm.get("serials") or []
@@ -546,6 +546,24 @@ async def try_dispatch(
         # Render subject + body con variables resueltas
         subject = _render(tpl.get("subject", ""), tpl_vars)
         body = _render(tpl.get("body_html", "") or tpl.get("body", ""), tpl_vars)
+        # Falla A — Garantía de seriales en el correo de Cotización de Reparación al
+        # cliente: si el cuerpo renderizado NO incluye ya el listado de seriales, se
+        # inyecta el bloque (paridad total con el PDF). Solo aplica al envío al cliente
+        # de cotizaciones de reparación con seriales persistidos en `repair_models`.
+        if action_id == "send_to_client" and quote.get("quote_category") == "repair":
+            _all_serials = [
+                s for rm in (quote.get("repair_models") or [])
+                for s in (rm.get("serials") or [])
+            ]
+            _serials_html = tpl_vars.get("Lista_Seriales") or tpl_vars.get("lista_modelos_seriales") or ""
+            if _all_serials and _serials_html and not any(str(s) in body for s in _all_serials):
+                _serials_block = (
+                    "<div style='margin:16px 0'>"
+                    "<p style='margin:0 0 6px;font-weight:bold;color:#2c3e50'>Detalle de Seriales de los Equipos:</p>"
+                    f"<div style='border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;background:#f8f9fa'>{_serials_html}</div>"
+                    "</div>"
+                )
+                body = _insert_before_footer(body, _serials_block)
         # Mensaje personalizado se inserta ANTES del footer/firma de la
         # plantilla (no al final absoluto, ni al inicio).
         if custom_block:
