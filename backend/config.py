@@ -413,7 +413,7 @@ def render_email_template(template_body: str, variables: dict) -> str:
     return result
 
 
-def build_custom_message_block(custom_message: str, user_name: str = "", max_chars: int = 1000) -> str:
+def build_custom_message_block(custom_message: str, user_name: str = "", max_chars: int = 1500) -> str:
     """Construye el bloque HTML del mensaje personalizado del operador.
 
     Si custom_message es vacío, retorna string vacío.
@@ -433,7 +433,7 @@ def build_custom_message_block(custom_message: str, user_name: str = "", max_cha
     )
 
 
-def inject_custom_message(html: str, custom_message: str, user_name: str = "", max_chars: int = 1000) -> str:
+def inject_custom_message(html: str, custom_message: str, user_name: str = "", max_chars: int = 1500) -> str:
     """Inserta el bloque del mensaje personalizado en el HTML del correo.
 
     Orden buscado:
@@ -445,6 +445,13 @@ def inject_custom_message(html: str, custom_message: str, user_name: str = "", m
     El footer institucional global se anexa después en `send_email()`, por lo que
     el resultado final queda: Cuerpo → Mensaje Personalizado → Firma plantilla → Footer global.
     """
+    # El mensaje viaja por header HTTP URL-encoded (soporta saltos de línea y acentos).
+    if custom_message:
+        try:
+            from urllib.parse import unquote
+            custom_message = unquote(custom_message)
+        except Exception:
+            pass
     block = build_custom_message_block(custom_message, user_name, max_chars=max_chars)
     if not html:
         return block

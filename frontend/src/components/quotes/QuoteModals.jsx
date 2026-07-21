@@ -552,7 +552,7 @@ export const QuoteModals = ({ ctx }) => {
 
           {/* Modal de Personalización de Envío */}
           <Dialog open={emailModalOpen} onOpenChange={(open) => { if (!open) { setEmailModalOpen(false); setPendingAction(null); } }}>
-            <DialogContent className="max-w-md" data-testid="email-modal">
+            <DialogContent className="w-[70vw] max-w-[70vw]" data-testid="email-modal">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-blue-700">
                   <Mail size={20} className="text-blue-500" />
@@ -565,14 +565,14 @@ export const QuoteModals = ({ ctx }) => {
                   {emailModalConfig.quoteName && <p className="text-xs text-blue-600 mt-0.5">Cotización: {emailModalConfig.quoteName}</p>}
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Mensaje personalizado <span className="text-xs text-slate-400">(opcional, máx 300 caracteres)</span></Label>
+                  <Label className="text-sm font-medium">Mensaje personalizado <span className="text-xs text-slate-400">(opcional, máx 1500 caracteres)</span></Label>
                   <Textarea
                     key={emailModalOpen ? 'modal-open' : 'modal-closed'}
                     defaultValue={emailCustomMessage}
-                    onBlur={e => setEmailCustomMessage(e.target.value.slice(0, 300))}
+                    onBlur={e => setEmailCustomMessage(e.target.value.slice(0, 1500))}
                     placeholder="Ej: Estimado cliente, adjuntamos la documentación solicitada..."
-                    className="mt-1 min-h-[70px] text-sm"
-                    maxLength={300}
+                    className="mt-1 min-h-[220px] text-sm"
+                    maxLength={1500}
                     data-testid="email-custom-message" />
                 </div>
                 <div>

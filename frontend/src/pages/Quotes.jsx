@@ -2357,7 +2357,7 @@ export const Quotes = () => {
 
   const getEmailHeaders = () => {
     const headers = {};
-    if (emailCustomMessage.trim()) headers['x-custom-message'] = emailCustomMessage.trim().slice(0, 200);
+    if (emailCustomMessage.trim()) headers['x-custom-message'] = encodeURIComponent(emailCustomMessage.trim().slice(0, 1500));
     if (emailRecipientsList.length > 0) headers['x-additional-recipients'] = emailRecipientsList.join(',');
     if (emailManualAttachments.length > 0) {
       headers['x-manual-attachment-ids'] = emailManualAttachments.map(a => a.attachment_id).join(',');

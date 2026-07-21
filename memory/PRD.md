@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Mejora: Modal "Personalizar Comunicación" — límite 300→1500 y ancho 70% — Jul 2026
+- **Objetivo:** ampliar el mensaje personalizado del modal "Personalizar Comunicación" (envío de cotización) de 300 a 1500 caracteres y agrandar el modal al 70% del ancho de pantalla para mejor visualización.
+- **Frontend** (`components/quotes/QuoteModals.jsx`): `DialogContent` → `w-[70vw] max-w-[70vw]` (twMerge sobreescribe el `max-w-lg` por defecto); `Textarea` → `min-h-[220px]`, `maxLength={1500}`, `slice(0,1500)`, label "máx 1500 caracteres". `pages/Quotes.jsx::getEmailHeaders` → el header `x-custom-message` ahora hace `slice(0,1500)` (antes 200) y se envía **URL-encoded** (`encodeURIComponent`) para soportar saltos de línea y acentos en el header HTTP.
+- **Backend** (`config.py`): `inject_custom_message`/`build_custom_message_block` default `max_chars` 1000→1500 y **decodifican** el valor (`urllib.parse.unquote`). `routes/quote_actions.py`: los 5 llamados a `inject_custom_message` subidos de `max_chars=300/500` a `1500`.
+- **QA:** self-test — round-trip encode→decode con acentos (ñÑáé), saltos de línea (pre-wrap) y 1500 chars OK; backend syntax OK, salud 200; ambos JSX compilan; confirmado que `cn` usa twMerge (el 70vw gana sobre max-w-lg). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Mejora: "Correo del Cliente" (client_field) en configuración de Otras Acciones — Jul 2026
 - **Objetivo:** que el config de "Otras Acciones" (Configuración → Otras Acciones) ofrezca el destinatario **"Correo del Cliente"** igual que las Acciones de Cotizaciones, para que el cliente externo pueda recibir estas comunicaciones.
 - **Backend** (`other_actions_engine.py`): nuevo tipo de destinatario `client_field`. Helper `_resolve_client_email(client, template_vars)` resuelve el correo desde el doc `client` (email directo → contactos) o desde variables de plantilla (`Email_Cliente`/`Email_Contacto`/`Correo_Cliente`/`client_email`). `dispatch_other_action` acepta nuevo parámetro `client`. De-dup de CC: si el `extra_cc` legacy coincide con el destinatario resuelto, se omite para no duplicar. `quote_taller.py` ahora pasa `client=client` en la recepción de equipos.
