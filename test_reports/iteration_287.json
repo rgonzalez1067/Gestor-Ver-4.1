@@ -1,0 +1,33 @@
+{
+  "summary": "Fase 2 Taller — Trazabilidad Recibido→Cotizado→En reparación en Cotizaciones de Reparación. Se validó E2E backend (4/4 pytest OK) y UI (wizard reparaciones muestra 'Origen de los equipos' con las dos opciones EXCLUYENTES). Flujo LINKED: recepción→cotización vincula ids (equipos pasan a 'Cotizado' con quote_id/quote_number)→enviar→aprobar mueve a 'En reparación' SIN crear registros nuevos. Flujo FALLBACK LEGACY: cotización con repair_models (seriales) sin linked_ids → al aprobar se INSERTAN 2 registros directamente en 'En reparación' (comportamiento previo intacto). UI: repair-source-taller/repair-source-manual, taller-equipos-picker, taller-equipo-{id}, y toggle correcto entre modos.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Wizard EquipmentQuoteWizard (Reparaciones, Paso 2)", "issues": ["El modo por defecto es 'manual' — cuando el usuario abre el wizard de Reparaciones el listado de modelos (POS/Pinpad) se carga inmediatamente sin que aún haya elegido origen. Considerar dejar 'Origen de los equipos' sin selección inicial hasta que el usuario elija explícitamente, para reforzar el modo EXCLUYENTE. No es blocker; sólo UX."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter287_taller_fase2.py",
+    "/app/test_reports/pytest/iter287_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "quotes.py L2426: el update a 'Cotizado' filtra por estatus 'Recibido' explícitamente — bien; evita mover equipos que ya estuvieran en otro estado. Sin embargo, no se registra qué ids no matchearon (por ejemplo si un id ya está 'Cotizado' por otra cotización). Sugerencia: comparar upd.modified_count vs len(linked_taller_equipo_ids) y devolver warning en la respuesta.",
+    "quote_actions.py L710-720: en approve para reparaciones con linked_ids el update_many NO filtra por estatus. Si un equipo vinculado fue cambiado externamente a 'Entregado', el approve lo forzará a 'En reparación'. Sugerencia: filtrar por estatus:'Cotizado' para blindar la transición.",
+    "quote_taller.py L168-180: endpoint /taller/equipos-disponibles proyecta correctamente los campos requeridos (taller_equipo_id, serial, modelo, modelo_id, fecha_ingreso, fecha_recepcion). OK.",
+    "EquipmentQuoteWizard.jsx L497: envía linked_taller_equipo_ids sólo cuando repairSource==='taller'; en modo manual envía []. OK — cumple modo EXCLUYENTE en cliente. Servidor confía en cliente para exclusión; si se envía ambos, backend prioriza linked_ids (el fallback sólo aplica cuando linked_ids está vacío). Cumple lo especificado.",
+    "Sugerencia (no crítica): en approve_quote, cuando is_repair y linked_ids está vacío pero quote.repair_models también, el fallback no crea nada (silencioso). Loggear warning/telemetria."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter287_taller_fase2.py (nuevo)"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (cliente de prueba: cli_00bbd8a3c108 = 'Prueba' RIF J0009273)",
+  "seed_data_creation": "Se crearon durante la prueba: 4 equipos taller QATEST-<ts>-A/B/LEG1/LEG2 + 2 equipos UI QAUI-<ts>-1/2 y 2 cotizaciones (linked + legacy). TODO fue eliminado al final del run (fixture teardown + cleanup manual). Verificado: db.taller_equipos con serial ^QATEST-|^QAUI- = 0 documentos.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fase 2 Taller quedó validada end-to-end. Endpoint /api/taller/equipos-disponibles OK, filtro por estatus 'Recibido' OK, linked flow OK (Recibido→Cotizado en generate-equipment-pdf; Cotizado→En reparación en approve; conteo de taller_equipos NO aumenta al aprobar). Fallback legacy OK (repair_models sin linked_ids → insert de 2 registros En reparación al aprobar). UI Wizard OK (repair-source-taller/manual, taller-equipos-picker, filas taller-equipo-{id}, toggle correcto). Nota: al aprobar via UI se dispararon correos reales al cliente 'Prueba' (contacto simulado por RIF) — usar cliente 'Prueba' es lo esperado.",
+  "rca_of_the_issue": "N/A — feature funciona según especificación. La implementación en quotes.py (L2426-2436) y quote_actions.py (L710-720) es consistente con el flujo descrito. Sugerencias menores de robustez en critical_code_review_comments."
+}

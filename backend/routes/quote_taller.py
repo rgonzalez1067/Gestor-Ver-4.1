@@ -165,6 +165,21 @@ def _generate_reception_pdf(client_name, client_rif, equipos, fecha_str, user_em
     return buf.getvalue()
 
 
+@router.get("/taller/equipos-disponibles")
+async def get_equipos_disponibles(client_id: str, authorization: Optional[str] = Header(None)):
+    """Lista los equipos con estatus 'Recibido' de un cliente para vincularlos a una
+    cotización de reparación (Fase 2 - Trazabilidad de Taller)."""
+    await get_current_user(authorization)
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id es requerido")
+    equipos = await db.taller_equipos.find(
+        {"client_id": client_id, "estatus": "Recibido"},
+        {"_id": 0, "taller_equipo_id": 1, "serial": 1, "modelo": 1, "modelo_id": 1,
+         "fecha_ingreso": 1, "fecha_recepcion": 1},
+    ).sort("fecha_ingreso", 1).to_list(1000)
+    return {"equipos": equipos, "total": len(equipos)}
+
+
 @router.post("/taller/parse-serials")
 async def parse_serials_excel(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     """Extrae la lista de seriales (única, en orden) de un Excel para la Recepción."""

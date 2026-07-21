@@ -2055,6 +2055,10 @@ class EquipmentQuotePDFRequest(BaseModel):
     estimated_delivery_date: str = ""
     bulk_serials: List[str] = []
     repair_models: List[RepairModelEntry] = []
+    # Fase 2 Taller: ids de equipos existentes en taller (estatus 'Recibido') que se
+    # vinculan a esta cotización de reparación. Si viene poblado, NO se crean registros
+    # nuevos al aprobar; se actualiza el estatus de estos equipos.
+    linked_taller_equipo_ids: List[str] = []
     iva_exempt: Optional[bool] = False
     # Iter50: descuento aplicable a cotizaciones de Equipos.
     discount_type: Optional[str] = None  # 'percent' | 'amount' | None
@@ -2394,6 +2398,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         "equipment_serial_number": data.equipment_serial_number or None,
         "estimated_delivery_date": data.estimated_delivery_date or None,
         "repair_models": [m.dict() for m in data.repair_models] if data.repair_models else [],
+        "linked_taller_equipo_ids": data.linked_taller_equipo_ids or [],
         "iva_exempt": bool(getattr(data, "iva_exempt", False)),
         # Iter50: descuento aplicado.
         "discount_type": data.discount_type or None,
@@ -2415,6 +2420,20 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     }
     await db.quotes.insert_one(quote_doc)
     logging.info(f"Cotización de equipo creada: {quote_id} ({quote_number})")
+
+    # Fase 2 Taller: si se vincularon equipos existentes del taller (estatus 'Recibido'),
+    # NO se crean registros nuevos; se actualiza su estatus a 'Cotizado' y se enlazan a esta cotización.
+    if quote_category == "repair" and data.linked_taller_equipo_ids:
+        upd = await db.taller_equipos.update_many(
+            {"taller_equipo_id": {"$in": data.linked_taller_equipo_ids}, "estatus": "Recibido"},
+            {"$set": {
+                "estatus": "Cotizado",
+                "quote_id": quote_id,
+                "quote_number": quote_number,
+                "updated_at": now.isoformat(),
+            }},
+        )
+        logging.info(f"Taller: {upd.modified_count} equipo(s) vinculados a {quote_number} → 'Cotizado'")
 
     filename = f"cotizacion_{data.equipment_type.lower().replace(' ', '_')}_{data.cliente_rif or 'cliente'}_{now.strftime('%Y%m%d')}.pdf"
 

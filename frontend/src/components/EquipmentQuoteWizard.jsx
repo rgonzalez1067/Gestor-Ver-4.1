@@ -100,6 +100,13 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   const [serialInput, setSerialInput] = useState(''); // Input para ingreso manual de serial
   const [modelSearchQuery, setModelSearchQuery] = useState(''); // Buscador de modelos
 
+  // Fase 2 Taller: origen de los equipos a reparar — 'manual' (carga manual/Excel, flujo legacy)
+  // o 'taller' (vincular equipos ya Recibidos en el taller para este cliente).
+  const [repairSource, setRepairSource] = useState('manual');
+  const [tallerEquipos, setTallerEquipos] = useState([]); // equipos 'Recibido' disponibles
+  const [tallerLoading, setTallerLoading] = useState(false);
+  const [selectedTallerIds, setSelectedTallerIds] = useState([]); // taller_equipo_id[]
+
   // Iter50: descuento (sólo aplica a Equipos, no a Reparaciones).
   // `discountType`: 'percent' aplica % al subtotal · 'amount' resta monto fijo.
   const [discountType, setDiscountType] = useState('percent');
@@ -128,9 +135,53 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
       setCurrentModelSerials([]);
       setSerialInput('');
       setModelSearchQuery('');
+      setRepairSource('manual');
+      setTallerEquipos([]);
+      setSelectedTallerIds([]);
     }
     setSearchQuery('');
   }, [equipmentCategory]);
+
+  // Fase 2 Taller: cargar equipos 'Recibido' del cliente al activar el modo 'taller'.
+  useEffect(() => {
+    const loadTaller = async () => {
+      if (equipmentCategory !== 'Reparacion' || repairSource !== 'taller' || !selectedClient?.client_id) {
+        return;
+      }
+      setTallerLoading(true);
+      try {
+        const res = await api.get(`/taller/equipos-disponibles?client_id=${selectedClient.client_id}`);
+        setTallerEquipos(res.data?.equipos || []);
+      } catch {
+        setTallerEquipos([]);
+        toast.error('No se pudieron cargar los equipos del taller');
+      } finally {
+        setTallerLoading(false);
+      }
+    };
+    loadTaller();
+  }, [equipmentCategory, repairSource, selectedClient]);
+
+  // Fase 2 Taller: al cambiar la selección de equipos del taller, reconstruir repairModels
+  // agrupando por modelo (los ids vinculados se envían por separado en el submit).
+  useEffect(() => {
+    if (repairSource !== 'taller') return;
+    const selected = tallerEquipos.filter(e => selectedTallerIds.includes(e.taller_equipo_id));
+    const byModel = {};
+    for (const eq of selected) {
+      const key = eq.modelo_id || eq.modelo || 'sin_modelo';
+      if (!byModel[key]) {
+        byModel[key] = { model_id: eq.modelo_id || '', model_name: eq.modelo || 'Equipo', quantity: 0, serials: [] };
+      }
+      byModel[key].quantity += 1;
+      if (eq.serial) byModel[key].serials.push(eq.serial);
+    }
+    setRepairModels(Object.values(byModel));
+  }, [selectedTallerIds, tallerEquipos, repairSource]);
+
+  const toggleTallerEquipo = (id) => {
+    setSelectedTallerIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
   // Filtrar hardware según la categoría seleccionada
   const filteredHardware = hardware.filter(item => {
@@ -442,7 +493,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
           model_id: m.model_id,
           quantity: m.quantity,
           serials: m.serials
-        }))
+        })),
+        linked_taller_equipo_ids: repairSource === 'taller' ? selectedTallerIds : []
       };
 
       const token = localStorage.getItem('session_token');
@@ -697,8 +749,75 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                     </div>
                   </div>
 
-                  {/* Modelos confirmados */}
-                  {repairModels.length > 0 && (
+                  {/* Fase 2 Taller: origen de los equipos a reparar */}
+                  <div className="border-t border-orange-200 pt-4 space-y-2">
+                    <Label className="text-orange-800 font-medium">Origen de los equipos</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRepairSource('taller')}
+                        className={`p-3 rounded-lg border text-left transition-all ${repairSource === 'taller' ? 'border-orange-500 bg-white ring-1 ring-orange-400' : 'border-orange-200 bg-white/60 hover:border-orange-300'}`}
+                        data-testid="repair-source-taller"
+                      >
+                        <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5"><Package size={15} /> Equipos en Taller</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Vincular equipos ya recibidos del cliente</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRepairSource('manual')}
+                        className={`p-3 rounded-lg border text-left transition-all ${repairSource === 'manual' ? 'border-orange-500 bg-white ring-1 ring-orange-400' : 'border-orange-200 bg-white/60 hover:border-orange-300'}`}
+                        data-testid="repair-source-manual"
+                      >
+                        <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5"><Plus size={15} /> Carga manual / Excel</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Ingresar modelos y seriales manualmente</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Modo Taller: selección de equipos Recibidos */}
+                  {repairSource === 'taller' && (
+                    <div className="space-y-2" data-testid="taller-equipos-picker">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-orange-800 font-medium">Equipos recibidos del cliente</Label>
+                        <span className="text-xs text-slate-500">{selectedTallerIds.length} seleccionado(s)</span>
+                      </div>
+                      {tallerLoading ? (
+                        <p className="p-3 text-center text-xs text-slate-400">Cargando equipos...</p>
+                      ) : tallerEquipos.length === 0 ? (
+                        <div className="p-4 text-center bg-white border border-dashed border-orange-300 rounded-lg" data-testid="taller-equipos-empty">
+                          <AlertCircle size={18} className="mx-auto text-orange-400 mb-1" />
+                          <p className="text-xs text-slate-500">Este cliente no tiene equipos con estatus "Recibido" en el taller.</p>
+                          <p className="text-xs text-slate-400 mt-1">Regístrelos primero en "Recepción de Equipos" o use la carga manual.</p>
+                        </div>
+                      ) : (
+                        <div className="max-h-48 overflow-y-auto border rounded-lg bg-white divide-y">
+                          {tallerEquipos.map((eq) => {
+                            const checked = selectedTallerIds.includes(eq.taller_equipo_id);
+                            return (
+                              <button
+                                type="button"
+                                key={eq.taller_equipo_id}
+                                onClick={() => toggleTallerEquipo(eq.taller_equipo_id)}
+                                className={`w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-orange-50 ${checked ? 'bg-orange-50' : ''}`}
+                                data-testid={`taller-equipo-${eq.taller_equipo_id}`}
+                              >
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${checked ? 'bg-orange-500 border-orange-500' : 'border-slate-300'}`}>
+                                  {checked && <CheckCircle2 size={12} className="text-white" />}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-slate-800">{eq.modelo || 'Equipo'}</p>
+                                  <p className="text-xs text-slate-400">Serial: {eq.serial || '—'}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Modo Manual: Modelos confirmados */}
+                  {repairSource === 'manual' && repairModels.length > 0 && (
                     <div className="space-y-2">
                       <Label className="text-orange-800 font-medium">Modelos registrados</Label>
                       {repairModels.map((rm, idx) => (
@@ -719,6 +838,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                   )}
 
                   {/* Ciclo de ingreso de modelo */}
+                  {repairSource === 'manual' && (
                   <div className="border-t border-orange-200 pt-4 space-y-3">
                     <Label className="text-orange-800 font-medium flex items-center gap-1.5">
                       <Plus size={15} />
@@ -885,6 +1005,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
               )}
 
@@ -904,7 +1025,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                 </Button>
                 <Button 
                   onClick={() => setStep(3)} 
-                  disabled={!equipmentCategory || (equipmentCategory === 'Reparacion' && !repairDescription)}
+                  disabled={!equipmentCategory || (equipmentCategory === 'Reparacion' && (!repairDescription || (repairSource === 'taller' && selectedTallerIds.length === 0)))}
                   className="bg-brand-blue-600 hover:bg-brand-blue-700"
                   data-testid="equipment-step2-next"
                 >

@@ -705,32 +705,43 @@ async def approve_quote(
         {"$set": update_fields}
     )
 
-    # TRIGGER: Si es reparación, insertar seriales en taller_equipos
+    # TRIGGER: Si es reparación, mover equipos a "En reparación"
     is_repair = quote.get("quote_category") == "repair"
     if is_repair and not is_regul:
-        repair_models = quote.get("repair_models", [])
         now_iso = datetime.now(timezone.utc).isoformat()
-        taller_docs = []
-        for rm in repair_models:
-            model_name = rm.get("model_name", "")
-            model_id = rm.get("model_id", "")
-            for serial in rm.get("serials", []):
-                taller_docs.append({
-                    "taller_equipo_id": f"te_{uuid.uuid4().hex[:12]}",
-                    "serial": serial,
-                    "modelo": model_name,
-                    "modelo_id": model_id,
-                    "client_id": quote.get("client_id", ""),
-                    "client_name": client_name,
-                    "quote_id": quote_id,
-                    "quote_number": quote.get("quote_number", ""),
-                    "estatus": "En reparación",
-                    "fecha_ingreso": now_iso,
-                    "fecha_entrega": None,
-                })
-        if taller_docs:
-            await db.taller_equipos.insert_many(taller_docs)
-            logger.info(f"Taller: {len(taller_docs)} equipo(s) ingresados para cotización {quote.get('quote_number')}")
+        linked_ids = quote.get("linked_taller_equipo_ids") or []
+        if linked_ids:
+            # Fase 2 Taller: equipos ya existentes (estatus 'Cotizado') → 'En reparación'.
+            # NO se insertan registros nuevos.
+            upd = await db.taller_equipos.update_many(
+                {"taller_equipo_id": {"$in": linked_ids}},
+                {"$set": {"estatus": "En reparación", "updated_at": now_iso}},
+            )
+            logger.info(f"Taller: {upd.modified_count} equipo(s) vinculados de cotización {quote.get('quote_number')} → 'En reparación'")
+        else:
+            # Fallback (carga manual/Excel): crear los registros directamente en 'En reparación'.
+            repair_models = quote.get("repair_models", [])
+            taller_docs = []
+            for rm in repair_models:
+                model_name = rm.get("model_name", "")
+                model_id = rm.get("model_id", "")
+                for serial in rm.get("serials", []):
+                    taller_docs.append({
+                        "taller_equipo_id": f"te_{uuid.uuid4().hex[:12]}",
+                        "serial": serial,
+                        "modelo": model_name,
+                        "modelo_id": model_id,
+                        "client_id": quote.get("client_id", ""),
+                        "client_name": client_name,
+                        "quote_id": quote_id,
+                        "quote_number": quote.get("quote_number", ""),
+                        "estatus": "En reparación",
+                        "fecha_ingreso": now_iso,
+                        "fecha_entrega": None,
+                    })
+            if taller_docs:
+                await db.taller_equipos.insert_many(taller_docs)
+                logger.info(f"Taller: {len(taller_docs)} equipo(s) ingresados para cotización {quote.get('quote_number')}")
     
     # Preparar email via Workflow Notification
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
