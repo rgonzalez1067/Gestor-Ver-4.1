@@ -5,16 +5,100 @@ y exports relacionados.
 """
 from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import Response
-from typing import Optional
+from pydantic import BaseModel
+from typing import Optional, List
 from datetime import datetime, timezone
 import io
+import uuid
 import logging
 
 from config import db, get_current_user
+from services.other_actions_engine import dispatch_other_action
 
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class RecepcionModelo(BaseModel):
+    model_id: str = ""
+    model_name: str
+    serials: List[str] = []
+
+
+class RecepcionRequest(BaseModel):
+    client_id: str
+    client_name: str = ""
+    client_rif: str = ""
+    models: List[RecepcionModelo] = []
+
+
+@router.post("/taller/recepcion")
+async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[str] = Header(None)):
+    """Registra la recepción física de equipos en el Taller con estatus 'Recibido'
+    y dispara la notificación configurable 'taller_recepcion_equipos'.
+    """
+    user = await get_current_user(authorization)
+    client = await db.clients.find_one({"client_id": payload.client_id}, {"_id": 0}) or {}
+    client_name = (payload.client_name or client.get("fantasy_name")
+                   or client.get("legal_name") or client.get("commercial_name") or "").strip()
+    client_rif = (payload.client_rif or client.get("rif") or "").strip()
+    client_email = (client.get("email") or "").strip()
+    if not client_email:
+        for c in (client.get("contacts") or []):
+            if (c.get("email") or "").strip():
+                client_email = c["email"].strip()
+                break
+
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    created_ids = []
+    equipos_desc = []
+    for m in payload.models:
+        serials = [s.strip() for s in (m.serials or []) if s and s.strip()]
+        for s in serials:
+            doc = {
+                "taller_id": str(uuid.uuid4()),
+                "client_id": payload.client_id,
+                "client_name": client_name,
+                "modelo": m.model_name,
+                "model_id": m.model_id,
+                "serial": s,
+                "estatus": "Recibido",
+                "quote_id": None,
+                "quote_number": None,
+                "fecha_recepcion": now_iso,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+                "recibido_por": user.get("email"),
+            }
+            await db.taller_equipos.insert_one(doc)
+            created_ids.append(doc["taller_id"])
+            equipos_desc.append(f"{m.model_name} · Serial {s}")
+
+    if not created_ids:
+        raise HTTPException(status_code=400, detail="Debe incluir al menos un equipo con serial")
+
+    fecha_str = now.strftime("%d/%m/%Y %H:%M")
+    tpl_vars = {
+        "Nombre_Cliente": client_name, "nombre_cliente": client_name,
+        "Rif_Cliente": client_rif, "rif_cliente": client_rif,
+        "Cantidad_Equipos": str(len(created_ids)),
+        "Equipos_Recibidos": "\n".join(f"- {e}" for e in equipos_desc),
+        "Equipos_Recibidos_HTML": "<br>".join(equipos_desc),
+        "Fecha_Recepcion": fecha_str, "fecha_sistema": fecha_str,
+        "usuario_ejecutor": user.get("email", ""),
+    }
+    try:
+        await dispatch_other_action(
+            "taller_recepcion_equipos", tpl_vars, current_user=user,
+            fallback_subject=f"Recepción de equipos en taller — {client_name}",
+            extra_cc=[client_email] if client_email else None,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[taller-recepcion] fallo al notificar: {e}")
+
+    return {"success": True, "created": len(created_ids), "estatus": "Recibido"}
 
 
 @router.get("/repair-supplies")

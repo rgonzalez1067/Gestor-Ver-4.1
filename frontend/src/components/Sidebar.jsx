@@ -31,7 +31,9 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  ClipboardList,
+  PackageCheck
 } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -87,7 +89,13 @@ const menuItems = [
       },
     ]
   },
-  { path: '/taller-equipos', icon: Wrench, label: 'Gestión de Taller', groupId: 'gestion_taller' },
+  {
+    icon: Wrench, label: 'Gestión de Taller', isGroup: true, groupId: 'gestion_taller',
+    children: [
+      { path: '/taller-equipos', icon: ClipboardList, label: 'Consulta de Taller' },
+      { path: '/taller-recepcion', icon: PackageCheck, label: 'Recepción de Equipos' },
+    ]
+  },
 ];
 
 const securityItems = [

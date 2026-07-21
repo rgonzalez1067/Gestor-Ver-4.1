@@ -48,6 +48,16 @@ _PROJECT_STATUS_VARS = [
 # las variables disponibles para usar en la plantilla seleccionada.
 OTHER_ACTIONS = [
     {
+        "id": "taller_recepcion_equipos",
+        "label": "Recepción de Equipos en Taller",
+        "description": "Se dispara al confirmar una Recepción de Equipos en el módulo Gestión de Taller → Recepción de Equipos. Los equipos ingresan al taller con estatus 'Recibido' y se notifica al personal de taller configurado (correo o Centro de Mensajes) y, en copia, al cliente.",
+        "variables": [
+            "Nombre_Cliente", "nombre_cliente", "Rif_Cliente", "rif_cliente",
+            "Cantidad_Equipos", "Equipos_Recibidos", "Equipos_Recibidos_HTML",
+            "Fecha_Recepcion", "usuario_ejecutor", "fecha_sistema",
+        ],
+    },
+    {
         "id": "new_product_phase_change",
         "label": "Cambio de Estado o Fase de Nuevos Productos",
         "description": "Se dispara al crear un producto y en cada cambio de fase del ciclo completo: Negociación → DESA → SQA → IMPLE y las fases de Implementación (PreProd → Primer Prod → Masificación).",

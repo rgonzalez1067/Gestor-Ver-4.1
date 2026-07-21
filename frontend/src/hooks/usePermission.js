@@ -75,6 +75,7 @@ export const ROUTE_MODULE_MAP = {
   '/inventory/asset-ledger': 'reportes_contables',
   '/inventory/invoiced-exits': 'reportes_contables',
   '/taller-equipos': 'taller_equipos',
+  '/taller-recepcion': 'taller_recepcion',
   '/new-products': 'nuevos_productos',
 };
 
@@ -102,6 +103,7 @@ export const MODULE_TO_GROUP = {
   inventarios: 'gestion_administrativa',
   reportes_contables: 'gestion_administrativa',
   taller_equipos: 'gestion_taller',
+  taller_recepcion: 'gestion_taller',
   configuracion: 'gestion_administrativa',
   dashboard: 'dashboard',
 };

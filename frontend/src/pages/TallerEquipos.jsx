@@ -19,6 +19,8 @@ const PAGE_SIZE = 25;
 
 const ESTATUS_OPTIONS = [
   { value: 'all', label: 'Todos' },
+  { value: 'Recibido', label: 'Recibido' },
+  { value: 'Cotizado', label: 'Cotizado' },
   { value: 'En reparación', label: 'En reparación' },
   { value: 'Entregado', label: 'Entregado' },
 ];

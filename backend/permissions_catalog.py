@@ -60,7 +60,8 @@ MODULES = [
     {"id": "inventarios",        "name": "Inventarios",         "group": "gestion_administrativa"},
     {"id": "reportes_contables", "name": "Reportes Contables",  "group": "gestion_administrativa"},
     # Taller
-    {"id": "taller_equipos", "name": "Gestión de Taller", "group": "gestion_taller"},
+    {"id": "taller_equipos", "name": "Consulta de Taller", "group": "gestion_taller"},
+    {"id": "taller_recepcion", "name": "Recepción de Equipos", "group": "gestion_taller"},
     # Configuración (legacy, sin grupo visible)
     {"id": "configuracion", "name": "Configuración", "group": "gestion_administrativa"},
     {"id": "config_otras_acciones", "name": "Configuración de Otras Acciones", "group": "gestion_administrativa"},

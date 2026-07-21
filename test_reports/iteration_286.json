@@ -1,0 +1,42 @@
+{
+  "summary": "Testing E2E de la Fase 1 de 'Reestructuración de Gestión de Taller V2'. Se verificó estructura de sidebar (grupo desplegable con 2 items), formulario /taller-recepcion (sin campos prohibidos), flujo completo POST /api/taller/recepcion (cliente + modelo + 2 seriales), aparición en /taller-equipos con estatus 'Recibido', catálogo de Otras Acciones ('taller_recepcion_equipos'), catálogo de permisos ('taller_recepcion' y 'taller_equipos' renombrado). 7/7 pruebas de pytest pasan; UI E2E OK. Detectadas 2 inconsistencias de campos entre el nuevo endpoint de recepción y los endpoints de consulta/delete/export preexistentes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/taller/recepcion vs GET /api/taller-equipos y export-excel", "issue": "El endpoint de recepción guarda el campo 'fecha_recepcion' y 'taller_id', pero la grilla, el filtro por rango de fechas y el export a Excel usan 'fecha_ingreso' y 'taller_equipo_id'. Resultado: los equipos 'Recibido' muestran 'Fecha Ingreso: -' y 'Días en Taller: 0' en la Consulta de Taller, no se filtran por fecha desde/hasta y no se pueden eliminar desde admin (DELETE /api/taller-equipos/{taller_equipo_id} no los encuentra). Normalizar el nombre del campo a 'fecha_ingreso' y 'taller_equipo_id' en el insert de recepción (o agregar ambos)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "TallerEquipos (Consulta de Taller)", "issue": "El header sigue diciendo 'Equipos en Reparacion' y el subtítulo/tarjeta 'En Reparacion' con la 'ó' sin tilde. Aunque la ruta se subtitula 'Consulta de Taller' en el sidebar, la página no fue renombrada. Además el filtro de estatus por defecto sigue en 'En reparación' — cuando se abre desde 'Consulta de Taller' recién agregado, el usuario debería ver 'Todos' o al menos poder ver 'Recibido' fácilmente.", "selector": "h1 en TallerEquipos.jsx", "priority": "LOW"},
+      {"component": "TallerEquipos (tabla)", "issue": "Existen errores de hydration en la tabla: '<span> cannot be a child of <tr>/<tbody>/<td>'. Son wrappers x-ve-dynamic pre-existentes (no introducidos por esta feature) pero conviene reportarlo.", "selector": "table[data-testid='taller-table']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter286_taller_recepcion.py",
+    "/app/test_reports/pytest/iter286_results.xml"
+  ],
+  "action_items": [
+    "Uniformar el schema de taller_equipos: en POST /api/taller/recepcion setear 'fecha_ingreso' (además de/en vez de 'fecha_recepcion') y 'taller_equipo_id' (además de/en vez de 'taller_id'). Esto habilita el filtro por rango de fechas, el cálculo de 'días en taller', el export Excel correcto y el DELETE de admin para los equipos recibidos.",
+    "Renombrar el header de TallerEquipos.jsx a 'Consulta de Taller' para alinear con el sidebar (o al menos actualizar el subtítulo 'Control de custodia de equipos de terceros en taller' ya está OK).",
+    "Considerar mostrar por defecto 'Todos' en el filtro de estatus de la Consulta de Taller ahora que existen equipos 'Recibido' y 'Cotizado' además de 'En reparación'."
+  ],
+  "critical_code_review_comments": [
+    "quote_taller.py: el insert de recepción usa keys 'fecha_recepcion' y 'taller_id' que NO coinciden con el resto del módulo Taller ('fecha_ingreso' y 'taller_equipo_id'). Esto genera desalineación funcional (filtros/export/delete).",
+    "TallerRecepcion.jsx: usa el hook usePermission('taller_recepcion') correctamente y respeta canEdit. La UI está bien testeada con data-testids consistentes.",
+    "Sidebar.jsx: expansión correcta del grupo 'gestion_taller'; ambos hijos filtrados por permisos. OK.",
+    "permissions_catalog.py: MODULES incluye correctamente 'taller_recepcion' (Recepción de Equipos) y 'taller_equipos' renombrado a 'Consulta de Taller' con el group 'gestion_taller'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter286_taller_recepcion.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se crearon 4 equipos QA en total (QA-REC-<ts>-A/B y QA-UI-REC-1/2). TODOS FUERON ELIMINADOS al final del test vía db.taller_equipos.delete_many({'serial':{'$regex':'^QA-'}}).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "La Fase 1 quedó funcional end-to-end: recepción → aparición en 'Recibido'. La Fase 2 (trazabilidad Recibido→Cotizado→En Reparación desde el flujo de Cotización de Reparaciones) NO se probó por decisión del usuario. Antes de la Fase 2, sugiero que E1 normalice el schema (fecha_ingreso y taller_equipo_id) para evitar bugs cascada en filtros/delete/export.",
+  "rca_of_the_issue": "Las inconsistencias de campos ('fecha_recepcion' vs 'fecha_ingreso', 'taller_id' vs 'taller_equipo_id') se originan porque el endpoint POST /taller/recepcion se agregó de cero con nombres nuevos, mientras que los endpoints GET/DELETE/export preexistentes esperan los nombres viejos usados por el flujo original de Cotización de Reparaciones. Mitigación: en quote_taller.py, línea ~60-75, agregar/renombrar las claves del doc insertado de modo que use 'fecha_ingreso' (o setear ambos) y 'taller_equipo_id' (o setear ambos)."
+}

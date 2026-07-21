@@ -49,6 +49,7 @@ import BankPaymentConditions from './pages/BankPaymentConditions';
 import NewProducts from './pages/NewProducts';
 import Inventory from './pages/Inventory';
 import TallerEquipos from './pages/TallerEquipos';
+import TallerRecepcion from './pages/TallerRecepcion';
 import AuthCallback from './components/AuthCallback';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -198,6 +199,11 @@ function AppRouter() {
       <Route path="/taller-equipos" element={
         <ProtectedRoute>
           <TallerEquipos />
+        </ProtectedRoute>
+      } />
+      <Route path="/taller-recepcion" element={
+        <ProtectedRoute>
+          <TallerRecepcion />
         </ProtectedRoute>
       } />
       <Route path="/exchange-rate" element={
