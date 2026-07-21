@@ -4,6 +4,12 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Bug Fix: Hora del Comprobante de Recepción en Caracas (no UTC) — Jul 2026
+- **Problema:** la "Fecha de recepción" del Comprobante de Recepción de Equipos se mostraba en UTC.
+- **Fix** (`routes/quote_taller.py` L87): `fecha_str` ahora convierte `now` (UTC) a `America/Caracas` (UTC-4) con `zoneinfo.ZoneInfo` antes del `strftime`. Alimenta el PDF y las variables `Fecha_Recepcion`/`fecha_sistema`. El almacenamiento en BD (`fecha_recepcion`/`fecha_ingreso`) permanece en ISO UTC.
+- **QA:** testing_agent iter291 → **backend 100% (7/7)**, incluye cruce de día y verificación de que el PDF muestra hora Caracas y BD sigue en UTC. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix: PDF de Recepción de Equipos — agrupar por modelo (no repetir descripción) — Jul 2026
 - **Problema:** el "Comprobante de Recepción de Equipos" (`_generate_reception_pdf`) usaba tabla plana [#, Modelo, Serial] repitiendo la descripción del modelo por cada serial; las descripciones largas solapaban la columna Serial.
 - **Fix** (`routes/quote_taller.py::_generate_reception_pdf`): agrupa por `model_name` (preservando orden de aparición); imprime la cabecera del modelo UNA sola vez (Helvetica-Bold 10) con `simpleSplit` para envolver nombres largos; debajo lista los seriales con numeración GLOBAL (1..N); control de salto de página en cabecera y seriales para no dejar cabeceras huérfanas.
