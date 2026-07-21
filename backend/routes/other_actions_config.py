@@ -187,7 +187,7 @@ OTHER_ACTION_IDS = {a["id"] for a in OTHER_ACTIONS}
 # ---------- Models ----------
 class RecipientRow(BaseModel):
     row_id: str = Field(default_factory=lambda: f"row_{uuid.uuid4().hex[:8]}")
-    type: str = "user"  # sólo usuarios internos (no hay correo de cliente)
+    type: str = "user"  # user | session_user | session_executive | project_implementer | integrator_user | client_field
     user_id: Optional[str] = None
     template_id: Optional[str] = None
     send_pdf_attachments: bool = False
@@ -274,12 +274,15 @@ async def upsert_config(payload: OtherActionConfigPayload, authorization: Option
     if payload.action_id not in OTHER_ACTION_IDS:
         raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(OTHER_ACTION_IDS)}")
 
-    ALLOWED_RECIPIENT_TYPES = {"user", "session_user", "session_executive", "project_implementer", "integrator_user"}
+    ALLOWED_RECIPIENT_TYPES = {"user", "session_user", "session_executive", "project_implementer", "integrator_user", "client_field"}
     for r in payload.recipients:
         if r.type not in ALLOWED_RECIPIENT_TYPES:
             raise HTTPException(status_code=400, detail=f"Tipo de destinatario inválido: {r.type}")
         if r.type == "user" and not r.user_id:
             raise HTTPException(status_code=400, detail="user_id requerido para destinatarios de tipo 'user'")
+        # 'client_field' (Correo del Cliente) es externo: siempre por email, sin inbox.
+        if r.type == "client_field" and r.delivery_channel == "inbox":
+            r.delivery_channel = "email"
         if r.delivery_channel not in ("email", "inbox"):
             raise HTTPException(status_code=400, detail=f"delivery_channel inválido: {r.delivery_channel}")
 

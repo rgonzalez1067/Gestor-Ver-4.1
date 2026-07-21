@@ -1,0 +1,37 @@
+{
+  "summary": "Validado el fix del bug: PUT /api/other-actions/configs ahora acepta recipient type='client_field'. 7/7 tests pytest OK. Se cubrió: (1) client_field + email → 200 y persiste; (2) client_field + inbox → 200 forzando delivery_channel='email' en respuesta y BD; (3) regresión: type='user' sin user_id sigue devolviendo 400; (4) regresión: session_user, session_executive, project_implementer, integrator_user siguen guardándose 200; (5) type='user' con user_id válido del catálogo funciona; (6) tipo inválido (wildcard_bogus) sigue devolviendo 400 con mensaje claro; (7) config mixta (user con user_id + client_field) persiste ambos rows. Cleanup verificado: el doc db.other_action_configs para 'taller_recepcion_equipos' no existía antes del run y NO quedó residual (fixture module-scope autouse restaura al estado previo). No se ejecutó recepción real (POST /api/taller/recepcion) para evitar disparar correos, y el flujo E2E ya fue validado en iter289.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter290_client_field_recipient.py",
+    "/app/test_reports/pytest/iter290_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/other_actions_config.py L277: whitelist ALLOWED_RECIPIENT_TYPES correctamente extendida con 'client_field'. Bien encapsulada en constante set() local al endpoint.",
+    "L283-285: coerción defensiva client_field+inbox → email es correcta y consistente con la semántica (destinatario externo, sin inbox interno). Persiste la corrección en BD porque r.delivery_channel se muta antes del model_dump() en L293.",
+    "L281: validación 'user_id requerido para user' sigue vigente. OK — no aplica a client_field porque el email se resuelve dinámicamente por _resolve_client_email en el engine (validado en iters anteriores).",
+    "Sugerencia menor (no bloqueante): considerar validar que si type='client_field' se pase user_id=null explícito, ignorarlo/normalizarlo a None. Hoy Pydantic RecipientRow ya lo hace por defecto (user_id: Optional[str]=None), así que OK.",
+    "Sin regresión detectada: los 6 tipos ahora en whitelist funcionan, y el rechazo de tipos no-whitelisted preserva el 400 con detail claro."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter290_client_field_recipient.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7)",
+    "frontend": "N/A (solo backend testing solicitado)"
+  },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123. Nota: el endpoint de login devuelve la llave 'session_token' (no 'token'/'access_token').",
+  "seed_data_creation": "Ningún dato residual. La fixture module-scope autouse guarda el doc previo (None en este caso) y restaura al final: db.other_action_configs para action_id='taller_recepcion_equipos' verificado post-run = None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El fix del bug 'Tipo de destinatario inválido: client_field' está 100% validado en backend. La whitelist en /app/backend/routes/other_actions_config.py L277 incluye 'client_field' y L284-285 fuerza delivery_channel='email' cuando el operador elige inbox por error. No se retesteó el flujo E2E POST /api/taller/recepcion + dispatch_other_action porque ya estaba validado en iter289 (test_iter289_taller_recepcion_pdf.py) y para evitar disparar correos reales. Si en el futuro se quiere re-validar el resolve del email del cliente, usar cliente cli_00bbd8a3c108 (Prueba).",
+  "rca_of_the_issue": "Bug: El endpoint PUT /api/other-actions/configs tenía una whitelist ALLOWED_RECIPIENT_TYPES = {'user','session_user','session_executive','project_implementer','integrator_user'} que NO incluía 'client_field'. Cuando el frontend enviaba una fila con type='client_field' (opción 'Correo del Cliente' del selector), el endpoint respondía HTTP 400 'Tipo de destinatario inválido: client_field' pese a que el engine dispatch_other_action ya tenía la rama 'client_field' + _resolve_client_email. Fix aplicado por main agent (L277): agregó 'client_field' al set. Además en L283-285 añadió una coerción defensiva: si type='client_field' y delivery_channel='inbox', se sobrescribe a 'email' antes de persistir (semánticamente correcto, ya que client_field es un destinatario externo y no puede recibir por Centro de Mensajes interno). El model_dump() posterior conserva esa corrección en BD. Validado con 7 tests: caso principal, inbox→email forzado, regresión de tipos existentes, tipo inválido sigue rechazándose, y config mixta."
+}
