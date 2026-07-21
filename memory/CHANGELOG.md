@@ -1383,3 +1383,12 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Estado `zipStats {restored, skipped, eta}`; ETA = (totalEntriesAll - doneAll) / ritmo actual (items/seg calculado desde startTs). Helper fmtEta() formatea 'Xm YYs' / 'Ys'.
 - testids: bundle-import-attachments-restored / -failed / -eta.
 - Verificado self-test (import real de ZIP 120 archivos): fila en vivo "1 OK · 0 fallidos · ETA 1m 07s" al 1%, actualizándose con el avance.
+
+**Feature (FASE 1) · Reestructuración Gestión de Taller V2 · 2026-07:**
+- Sidebar: 'Gestión de Taller' ahora es grupo desplegable con 'Consulta de Taller' (/taller-equipos) y 'Recepción de Equipos' (/taller-recepcion). usePermission ROUTE_MODULE_MAP y MODULE→GROUP actualizados.
+- Nueva página frontend TallerRecepcion.jsx: formulario simplificado (clon de reparaciones SIN 'Descripción de Falla' ni 'Fecha Estimada de Entrega'): cliente + modelos (POS/Pinpad) + seriales + resumen de validación + confirmar.
+- Backend POST /api/taller/recepcion (quote_taller.py): inserta taller_equipos con estatus 'Recibido' (schema canónico: taller_equipo_id, modelo, modelo_id, fecha_ingreso, fecha_entrega) y dispara evento configurable.
+- Nuevo evento 'Otras Acciones' taller_recepcion_equipos (other_actions_config.py) con variables (Nombre_Cliente, Equipos_Recibidos, etc.); notifica taller + cliente en copia (extra_cc).
+- Permisos (permissions_catalog.py): módulo 'taller_equipos' renombrado 'Consulta de Taller' + nuevo 'taller_recepcion' 'Recepción de Equipos' (niveles Inactivo/Consulta/Edición Total). Header de TallerEquipos renombrado 'Consulta de Taller'. ESTATUS_OPTIONS +Recibido +Cotizado.
+- Verificado: testing_agent iter286 100% backend+frontend; fix de alineación de campos y rename aplicados y re-verificados por curl.
+- PENDIENTE FASE 2: trazabilidad en Cotización de Reparaciones ('Seleccionar de Equipos en Taller' → Recibido→Cotizado al emitir → En Reparación al aprobar; normalizar 'En reparación'→'En Reparación').

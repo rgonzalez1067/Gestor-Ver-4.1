@@ -163,7 +163,7 @@ export default function TallerEquipos() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <Wrench size={24} className="text-cyan-600" />
-                Equipos en Reparacion
+                Consulta de Taller
               </h1>
               <p className="text-sm text-slate-500 mt-1">Control de custodia de equipos de terceros en taller</p>
             </div>

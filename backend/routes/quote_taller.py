@@ -58,22 +58,24 @@ async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[s
         serials = [s.strip() for s in (m.serials or []) if s and s.strip()]
         for s in serials:
             doc = {
-                "taller_id": str(uuid.uuid4()),
+                "taller_equipo_id": f"te_{uuid.uuid4().hex[:12]}",
+                "serial": s,
+                "modelo": m.model_name,
+                "modelo_id": m.model_id,
                 "client_id": payload.client_id,
                 "client_name": client_name,
-                "modelo": m.model_name,
-                "model_id": m.model_id,
-                "serial": s,
-                "estatus": "Recibido",
                 "quote_id": None,
                 "quote_number": None,
+                "estatus": "Recibido",
+                "fecha_ingreso": now_iso,
+                "fecha_entrega": None,
                 "fecha_recepcion": now_iso,
+                "recibido_por": user.get("email"),
                 "created_at": now_iso,
                 "updated_at": now_iso,
-                "recibido_por": user.get("email"),
             }
             await db.taller_equipos.insert_one(doc)
-            created_ids.append(doc["taller_id"])
+            created_ids.append(doc["taller_equipo_id"])
             equipos_desc.append(f"{m.model_name} · Serial {s}")
 
     if not created_ids:
