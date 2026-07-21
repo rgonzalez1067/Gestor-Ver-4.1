@@ -1301,7 +1301,7 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             "filename": pdf_filename,
             "url": quote_pdf_url,
             "uploaded_by": current_user.get("email", "system"),
-            "uploaded_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+            "uploaded_by_name": (current_user.get("full_name") or current_user.get("name") or f"{current_user.get('first_name','')} {current_user.get('last_name','')}".strip() or current_user.get("email") or "Sistema"),
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
             "file_size": len(pdf_bytes),
             "content_type": "application/pdf"
@@ -2601,7 +2601,7 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
         "filename": pdf_filename,
         "url": quote_pdf_url,
         "uploaded_by": current_user.get("email", "system"),
-        "uploaded_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+        "uploaded_by_name": (current_user.get("full_name") or current_user.get("name") or f"{current_user.get('first_name','')} {current_user.get('last_name','')}".strip() or current_user.get("email") or "Sistema"),
         "uploaded_at": now.isoformat(),
         "file_size": len(pdf_bytes),
         "content_type": "application/pdf"
