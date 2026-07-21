@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   Wrench, Search, Download, AlertTriangle, Clock,
   Package, CheckCircle, ExternalLink, X, Calendar,
-  ChevronLeft, ChevronRight, Trash2
+  ChevronLeft, ChevronRight, Trash2, Pencil
 } from 'lucide-react';
+import { Textarea } from '../components/ui/textarea';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -106,6 +107,42 @@ export default function TallerEquipos() {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al eliminar');
+    }
+  };
+
+  // Corrección manual de estatus (solo admin)
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusEquipo, setStatusEquipo] = useState(null);
+  const [newEstatus, setNewEstatus] = useState('');
+  const [statusMotivo, setStatusMotivo] = useState('');
+  const [statusSaving, setStatusSaving] = useState(false);
+
+  const openStatusModal = (equipo) => {
+    setStatusEquipo(equipo);
+    setNewEstatus(equipo.estatus || '');
+    setStatusMotivo('');
+    setStatusModalOpen(true);
+  };
+
+  const handleSaveStatus = async () => {
+    if (!statusEquipo || !newEstatus) return;
+    if (newEstatus === statusEquipo.estatus) {
+      toast.info('El estatus seleccionado es el mismo actual');
+      return;
+    }
+    setStatusSaving(true);
+    try {
+      await api.put(`/taller-equipos/${statusEquipo.taller_equipo_id}/estatus`, {
+        estatus: newEstatus,
+        motivo: statusMotivo.trim(),
+      });
+      toast.success(`Estatus corregido a "${newEstatus}"`);
+      setStatusModalOpen(false);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al cambiar el estatus');
+    } finally {
+      setStatusSaving(false);
     }
   };
 
@@ -361,11 +398,15 @@ export default function TallerEquipos() {
                             </td>
                             <td className="px-4 py-2.5">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
-                                eq.estatus === 'En reparación'
-                                  ? 'bg-cyan-100 text-cyan-700'
-                                  : 'bg-green-100 text-green-700'
+                                eq.estatus === 'En reparación' ? 'bg-cyan-100 text-cyan-700'
+                                : eq.estatus === 'Recibido' ? 'bg-amber-100 text-amber-700'
+                                : eq.estatus === 'Cotizado' ? 'bg-indigo-100 text-indigo-700'
+                                : 'bg-green-100 text-green-700'
                               }`}>
-                                {eq.estatus === 'En reparación' ? <Wrench size={11} /> : <CheckCircle size={11} />}
+                                {eq.estatus === 'En reparación' ? <Wrench size={11} />
+                                  : eq.estatus === 'Recibido' ? <Package size={11} />
+                                  : eq.estatus === 'Cotizado' ? <Clock size={11} />
+                                  : <CheckCircle size={11} />}
                                 {eq.estatus}
                               </span>
                             </td>
@@ -380,7 +421,10 @@ export default function TallerEquipos() {
                               </span>
                             </td>
                             {isAdmin && (
-                              <td className="px-3 py-2.5 text-center">
+                              <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                                <Button variant="ghost" size="sm" onClick={() => openStatusModal(eq)} className="text-slate-300 hover:text-brand-blue-600 hover:bg-brand-blue-50" data-testid={`edit-status-taller-${eq.serial}`} title="Corregir estatus">
+                                  <Pencil size={15} />
+                                </Button>
                                 <Button variant="ghost" size="sm" onClick={() => handleDeleteEquipo(eq)} className="text-slate-300 hover:text-rose-600 hover:bg-rose-50" data-testid={`delete-taller-${eq.serial}`}>
                                   <Trash2 size={15} />
                                 </Button>
@@ -416,10 +460,63 @@ export default function TallerEquipos() {
 
           {/* Info de solo lectura */}
           <p className="text-[10px] text-slate-400 text-center">
-            Vista de solo lectura. Los cambios de estatus se realizan a traves del flujo de cotizaciones.
+            {isAdmin
+              ? 'El flujo normal cambia el estatus a través de las cotizaciones. Como administrador, puede corregir manualmente el estatus con el ícono de lápiz.'
+              : 'Vista de solo lectura. Los cambios de estatus se realizan a traves del flujo de cotizaciones.'}
           </p>
         </div>
       </main>
+
+      {/* Modal Corrección de Estatus (solo admin) */}
+      <Dialog open={statusModalOpen} onOpenChange={setStatusModalOpen}>
+        <DialogContent className="max-w-md" data-testid="status-edit-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Pencil size={18} className="text-brand-blue-600" />
+              Corregir Estatus del Equipo
+            </DialogTitle>
+          </DialogHeader>
+          {statusEquipo && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 rounded-lg p-3 text-sm">
+                <p className="font-semibold text-slate-900">{statusEquipo.serial}</p>
+                <p className="text-xs text-slate-500">{statusEquipo.modelo} · {statusEquipo.client_name}</p>
+                <p className="text-xs text-slate-500 mt-1">Estatus actual: <span className="font-medium text-slate-700">{statusEquipo.estatus}</span></p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600">Nuevo estatus</label>
+                <Select value={newEstatus} onValueChange={setNewEstatus}>
+                  <SelectTrigger className="mt-1" data-testid="status-edit-select">
+                    <SelectValue placeholder="Seleccione un estatus" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ESTATUS_OPTIONS.filter(o => o.value !== 'all').map(o => (
+                      <SelectItem key={o.value} value={o.value} data-testid={`status-option-${o.value}`}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600">Motivo de la corrección (opcional)</label>
+                <Textarea
+                  value={statusMotivo}
+                  onChange={(e) => setStatusMotivo(e.target.value)}
+                  placeholder="Ej.: corrección de estatus por error de registro..."
+                  rows={2}
+                  className="mt-1"
+                  data-testid="status-edit-motivo"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setStatusModalOpen(false)} data-testid="status-edit-cancel">Cancelar</Button>
+                <Button size="sm" onClick={handleSaveStatus} disabled={statusSaving || !newEstatus} className="bg-brand-blue-600 hover:bg-brand-blue-700" data-testid="status-edit-save">
+                  {statusSaving ? 'Guardando...' : 'Guardar cambio'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Modal Historial */}
       <Dialog open={historialOpen} onOpenChange={setHistorialOpen}>

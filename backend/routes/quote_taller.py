@@ -463,6 +463,66 @@ async def export_taller_equipos_excel(
     )
 
 
+class EstatusUpdateRequest(BaseModel):
+    estatus: str
+    motivo: str = ""
+
+
+VALID_TALLER_ESTATUS = ["Recibido", "Cotizado", "En reparación", "Entregado"]
+
+
+@router.put("/taller-equipos/{taller_equipo_id}/estatus")
+async def update_taller_equipo_estatus(
+    taller_equipo_id: str,
+    payload: EstatusUpdateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Corrección manual del estatus de un equipo en taller. SOLO administradores.
+    Permite cambio libre entre los 4 estatus válidos. Registra bitácora del cambio."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden corregir el estatus del taller")
+
+    nuevo = (payload.estatus or "").strip()
+    if nuevo not in VALID_TALLER_ESTATUS:
+        raise HTTPException(status_code=400, detail=f"Estatus inválido. Válidos: {', '.join(VALID_TALLER_ESTATUS)}")
+
+    equipo = await db.taller_equipos.find_one({"taller_equipo_id": taller_equipo_id}, {"_id": 0})
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado en taller")
+
+    anterior = equipo.get("estatus", "")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    set_fields = {"estatus": nuevo, "updated_at": now_iso}
+    # fecha_entrega: se registra al pasar a 'Entregado', se limpia al salir de ese estatus.
+    if nuevo == "Entregado":
+        set_fields["fecha_entrega"] = equipo.get("fecha_entrega") or now_iso
+    else:
+        set_fields["fecha_entrega"] = None
+
+    await db.taller_equipos.update_one({"taller_equipo_id": taller_equipo_id}, {"$set": set_fields})
+
+    try:
+        await db.bitacora.insert_one({
+            "entry_type": "taller_estatus_corregido",
+            "taller_equipo_id": taller_equipo_id,
+            "serial": equipo.get("serial", ""),
+            "modelo": equipo.get("modelo", ""),
+            "client_id": equipo.get("client_id", ""),
+            "estatus_anterior": anterior,
+            "estatus_nuevo": nuevo,
+            "motivo": (payload.motivo or "").strip(),
+            "usuario": current_user.get("email", ""),
+            "usuario_nombre": current_user.get("full_name", current_user.get("email", "")),
+            "timestamp": now_iso,
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[taller-estatus] no se pudo registrar bitácora: {e}")
+
+    logger.info(f"Taller {taller_equipo_id}: estatus '{anterior}' → '{nuevo}' por {current_user.get('email')}")
+    return {"success": True, "estatus_anterior": anterior, "estatus_nuevo": nuevo}
+
+
 @router.delete("/taller-equipos/{taller_equipo_id}")
 async def delete_taller_equipo(taller_equipo_id: str, authorization: Optional[str] = Header(None)):
     """Eliminar un equipo del taller de reparaciones. Solo administradores."""
