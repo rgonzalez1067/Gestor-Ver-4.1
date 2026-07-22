@@ -57,7 +57,9 @@ export default function ImplementerReport() {
   const [mode, setMode] = useState('all'); // all | single | multi
   const [selectedIds, setSelectedIds] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [report, setReport] = useState(null);
+  const [lastQuery, setLastQuery] = useState(null);
 
   useEffect(() => {
     api.get('/reports/implementers/list')
@@ -75,13 +77,35 @@ export default function ImplementerReport() {
     else { if (selectedIds.length === 0) { toast.error('Selecciona al menos un implementador'); return; } ids = selectedIds; }
     setLoading(true);
     try {
-      const res = await api.post('/reports/implementers/generate', { date_from: dateFrom, date_to: dateTo, implementer_ids: ids });
+      const body = { date_from: dateFrom, date_to: dateTo, implementer_ids: ids };
+      const res = await api.post('/reports/implementers/generate', body);
       setReport(res.data);
+      setLastQuery(body);
       if ((res.data?.results || []).length === 0) toast.info('Sin datos para el criterio seleccionado');
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Error al generar el reporte');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadPdf = async () => {
+    if (!lastQuery) { toast.error('Genera el reporte primero'); return; }
+    setPdfLoading(true);
+    try {
+      const res = await api.post('/reports/implementers/generate-pdf', lastQuery, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Reporte_Implementadores_${lastQuery.date_from}_${lastQuery.date_to}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error('No se pudo generar el PDF');
+    } finally {
+      setPdfLoading(false);
     }
   };
 
@@ -159,8 +183,9 @@ export default function ImplementerReport() {
                 {loading ? 'Generando...' : 'Generar Reporte'}
               </Button>
               {report && (
-                <Button variant="outline" onClick={() => window.print()} data-testid="report-pdf-btn">
-                  <Download size={16} className="mr-1.5" /> Descargar PDF
+                <Button variant="outline" onClick={downloadPdf} disabled={pdfLoading} data-testid="report-pdf-btn">
+                  {pdfLoading ? <RefreshCw size={16} className="mr-1.5 animate-spin" /> : <Download size={16} className="mr-1.5" />}
+                  {pdfLoading ? 'Generando PDF...' : 'Descargar PDF'}
                 </Button>
               )}
             </div>

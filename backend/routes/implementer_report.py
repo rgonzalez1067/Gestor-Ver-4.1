@@ -7,12 +7,14 @@ Fuentes de fecha por evento:
 - PVV (Recibido/Configurado/Testeado/En Producción): celda de implementation_matrix (updated_at) -> processed
 - Notificaciones Cliente/Banco: bitácora type='notification' (created_by = emisor, email_detail.target)
 """
+import io
 from fastapi import APIRouter, Header, HTTPException
 from typing import Optional, List
 from datetime import datetime, date, timezone
+from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 
-from config import db, get_current_user
+from config import db, get_current_user, UPLOADS_DIR
 
 router = APIRouter()
 
@@ -219,6 +221,199 @@ async def generate_implementer_report(payload: ImplementerReportRequest, authori
 def _fmt_ddmmyyyy(s):
     d = _to_date(s)
     return d.strftime("%d/%m/%Y") if d else str(s)
+
+
+# --- Grupos de métricas para el PDF (mismo orden que la UI) ---
+_PDF_GROUPS = [
+    ("A. Gestión de Proyectos de Integración", [
+        ("asignados", "Proyectos Asignados"),
+        ("con_ticket", "Proyectos con Ticket Asignado"),
+        ("en_gestion", "Proyectos en Gestión"),
+        ("culminados", "Proyectos Culminados"),
+        ("cajas_culminados", "Cajas en Culminados"),
+        ("parcial", "Implementación Parcial"),
+        ("suspendidos", "Proyectos Suspendidos"),
+    ]),
+    ("B. Puntos de Venta Virtuales (PVV)", [
+        ("pvv_recibidos", "PVV Recibidos"),
+        ("pvv_configurados", "PVV Configurados"),
+        ("pvv_probados", "PVV Probados"),
+        ("pvv_produccion", "PVV en Producción"),
+    ]),
+    ("C. Notificaciones y Comunicaciones", [
+        ("notif_clientes", "Notificaciones a Clientes"),
+        ("notif_bancos", "Notificaciones a Bancos"),
+    ]),
+]
+
+_ACCENT = "#4f46e5"       # indigo-600
+_ACCENT_DARK = "#3730a3"  # indigo-800
+_LIGHT = "#eef2ff"        # indigo-50
+_BORDER = "#e2e8f0"       # slate-200
+
+
+def _metrics_table(metrics: dict):
+    """Construye una única tabla con las 13 métricas agrupadas por sección."""
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Table, TableStyle
+
+    rows = []
+    style_cmds = [
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9.5),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor(_BORDER)),
+        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor(_BORDER)),
+    ]
+    r = 0
+    for title, items in _PDF_GROUPS:
+        rows.append([title, ""])
+        style_cmds += [
+            ("SPAN", (0, r), (1, r)),
+            ("BACKGROUND", (0, r), (1, r), colors.HexColor(_ACCENT)),
+            ("TEXTCOLOR", (0, r), (1, r), colors.white),
+            ("FONTNAME", (0, r), (1, r), "Helvetica-Bold"),
+            ("FONTSIZE", (0, r), (1, r), 10),
+        ]
+        r += 1
+        for key, label in items:
+            rows.append([label, str(metrics.get(key, 0))])
+            style_cmds += [
+                ("ALIGN", (1, r), (1, r), "RIGHT"),
+                ("FONTNAME", (1, r), (1, r), "Helvetica-Bold"),
+                ("TEXTCOLOR", (1, r), (1, r), colors.HexColor(_ACCENT_DARK)),
+            ]
+            r += 1
+    t = Table(rows, colWidths=[125 * mm, 40 * mm])
+    t.setStyle(TableStyle(style_cmds))
+    return t
+
+
+def _render_report_pdf(data: dict) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+        PageBreak, Image, HRFlowable,
+    )
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+        topMargin=16 * mm, bottomMargin=16 * mm,
+        title="Reporte de Gestión de Implementadores",
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "corpTitle", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=15, textColor=colors.HexColor(_ACCENT_DARK), leading=18,
+    )
+    sub_style = ParagraphStyle(
+        "corpSub", parent=styles["Normal"], fontName="Helvetica",
+        fontSize=10, textColor=colors.HexColor("#64748b"), leading=13,
+    )
+    impl_style = ParagraphStyle(
+        "implName", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=13, textColor=colors.HexColor("#0f172a"), leading=16,
+    )
+    period_style = ParagraphStyle(
+        "period", parent=styles["Normal"], fontName="Helvetica",
+        fontSize=9, textColor=colors.HexColor("#64748b"), leading=12,
+    )
+
+    # --- Encabezado corporativo (logo + título) ---
+    logo_file = UPLOADS_DIR / "logo.png"
+    header_text = [
+        Paragraph("Megasoft", title_style),
+        Paragraph("Reporte de Gestión de Implementadores", sub_style),
+    ]
+    if logo_file.exists():
+        try:
+            img = Image(str(logo_file))
+            iw, ih = img.imageWidth, img.imageHeight
+            target_h = 16 * mm
+            img.drawHeight = target_h
+            img.drawWidth = iw * (target_h / ih)
+            header_row = Table([[img, header_text]], colWidths=[42 * mm, 132 * mm])
+        except Exception:
+            header_row = Table([["", header_text]], colWidths=[0, 174 * mm])
+    else:
+        header_row = Table([[header_text]], colWidths=[174 * mm])
+    header_row.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    gen_str = ""
+    try:
+        gen_dt = datetime.fromisoformat(data["generated_at"]).astimezone(ZoneInfo("America/Caracas"))
+        gen_str = gen_dt.strftime("%d/%m/%Y %I:%M %p")
+    except Exception:
+        gen_str = str(data.get("generated_at", ""))
+    period_line = (
+        f"Periodo consultado: <b>{_fmt_ddmmyyyy(data['date_from'])}</b> "
+        f"al <b>{_fmt_ddmmyyyy(data['date_to'])}</b>  ·  Generado: {gen_str}"
+    )
+
+    def _build_header():
+        return [
+            header_row,
+            Spacer(1, 6),
+            HRFlowable(width="100%", thickness=1.2, color=colors.HexColor(_ACCENT)),
+            Spacer(1, 4),
+            Paragraph(period_line, period_style),
+            Spacer(1, 12),
+        ]
+
+    story = []
+    results = data.get("results", [])
+
+    for i, r in enumerate(results):
+        if i > 0:
+            story.append(PageBreak())
+        story += _build_header()
+        story.append(Paragraph(r.get("implementer_name", ""), impl_style))
+        story.append(Spacer(1, 8))
+        story.append(_metrics_table(r.get("metrics", {})))
+
+    # --- Resumen consolidado (suma de todos) ---
+    if results:
+        totals = _empty_metrics()
+        for r in results:
+            for k, v in (r.get("metrics") or {}).items():
+                if k in totals:
+                    totals[k] += int(v or 0)
+        story.append(PageBreak())
+        story += _build_header()
+        story.append(Paragraph(
+            f"Resumen Consolidado — {len(results)} implementador(es)", impl_style))
+        story.append(Spacer(1, 8))
+        story.append(_metrics_table(totals))
+
+    if not story:
+        story.append(Paragraph("Sin datos para el criterio seleccionado.", sub_style))
+
+    def _footer(canvas, doc_):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(colors.HexColor("#94a3b8"))
+        canvas.drawString(18 * mm, 10 * mm, "Megasoft · Reporte de Gestión de Implementadores")
+        canvas.drawRightString(A4[0] - 18 * mm, 10 * mm, f"Página {doc_.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    buf.seek(0)
+    return buf.getvalue()
 
 
 @router.post("/reports/implementers/generate-pdf")

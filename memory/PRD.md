@@ -4364,3 +4364,10 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - (2) Badge 'Desactivada': ahora con tooltip (title) que explica que la acción no enviará notificaciones.
 - (3) CERTIFICADO NO LLEGABA (root cause): en other_actions_engine.py, cuando _load_template era None (destinatario sin plantilla) se hacía `continue` → no se enviaba nada. Fix: cuerpo genérico por defecto (subject=fallback_subject) para NO saltar el envío; los adjuntos (Certificado + anexos) viajan como extra_attachments. Post-fix: sent_count=1 con attachment_names incluyendo 'Certificado_*.pdf'. Además nota UI (oa-cert-note) en la acción de Cierre indicando adjunto automático + requisitos (activa + canal Correo + PDF en depósito).
 - Verificado testing_agent iter272: 5/5 backend + 3/3 UI. Regresión: test_iter272_close_cert_email.py.
+
+**Feature: Exportación PDF profesional del Reporte de Implementadores (server-side) · 2026-07-22:**
+- Completado endpoint POST /api/reports/implementers/generate-pdf (ReportLab Platypus) en routes/implementer_report.py.
+- _render_report_pdf: encabezado corporativo (logo UPLOADS_DIR/logo.png + título "Megasoft" / "Reporte de Gestión de Implementadores"), periodo consultado + timestamp Caracas, una tabla por implementador con las 13 métricas agrupadas (A. Proyectos, B. PVV, C. Notificaciones), PageBreak entre implementadores, resumen consolidado (suma de todos) en última página, footer con paginación.
+- Color acento índigo (#4f46e5 / #3730a3) alineado a la app.
+- Frontend ImplementerReport.jsx: botón "Descargar PDF" ahora invoca el endpoint (responseType blob) y descarga el archivo; se reemplazó window.print(). Estado pdfLoading + lastQuery para reusar el criterio generado.
+- Verificado curl e2e: HTTP 200, application/pdf, 140KB, 16 páginas (15 implementadores + consolidado), PDF válido. Screenshot UI: reporte genera y botón presente.
