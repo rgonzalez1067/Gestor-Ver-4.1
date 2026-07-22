@@ -4,6 +4,11 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Mejora: botón "Seleccionar todos" en Equipos en Taller (Cotización de Reparación) — Jul 2026
+- En `EquipmentQuoteWizard.jsx`, modo Reparación → origen "Equipos en Taller": se agregó un botón **"Seleccionar todos / Quitar todos"** (`taller-select-all`) junto al contador, que marca/desmarca todos los equipos `Recibido` del cliente de una vez. Reutiliza `selectedTallerIds` (que ya reconstruye `repairModels` y envía `linked_taller_equipo_ids`).
+- **QA:** compila OK; lógica de selección validada previamente (iter287). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix: Hora del Comprobante de Recepción en Caracas (no UTC) — Jul 2026
 - **Problema:** la "Fecha de recepción" del Comprobante de Recepción de Equipos se mostraba en UTC.
 - **Fix** (`routes/quote_taller.py` L87): `fecha_str` ahora convierte `now` (UTC) a `America/Caracas` (UTC-4) con `zoneinfo.ZoneInfo` antes del `strftime`. Alimenta el PDF y las variables `Fecha_Recepcion`/`fecha_sistema`. El almacenamiento en BD (`fecha_recepcion`/`fecha_ingreso`) permanece en ISO UTC.

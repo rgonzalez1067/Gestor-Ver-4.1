@@ -183,6 +183,11 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setSelectedTallerIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  const allTallerSelected = tallerEquipos.length > 0 && selectedTallerIds.length === tallerEquipos.length;
+  const toggleAllTaller = () => {
+    setSelectedTallerIds(allTallerSelected ? [] : tallerEquipos.map(e => e.taller_equipo_id));
+  };
+
   // Filtrar hardware según la categoría seleccionada
   const filteredHardware = hardware.filter(item => {
     if (!equipmentCategory) return false;
@@ -779,7 +784,19 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                     <div className="space-y-2" data-testid="taller-equipos-picker">
                       <div className="flex items-center justify-between">
                         <Label className="text-orange-800 font-medium">Equipos recibidos del cliente</Label>
-                        <span className="text-xs text-slate-500">{selectedTallerIds.length} seleccionado(s)</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">{selectedTallerIds.length} seleccionado(s)</span>
+                          {tallerEquipos.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={toggleAllTaller}
+                              className="text-xs font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+                              data-testid="taller-select-all"
+                            >
+                              {allTallerSelected ? 'Quitar todos' : 'Seleccionar todos'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {tallerLoading ? (
                         <p className="p-3 text-center text-xs text-slate-400">Cargando equipos...</p>
