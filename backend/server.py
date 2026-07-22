@@ -51,6 +51,7 @@ from routes.profiles import router as profiles_router
 from routes.data_migration import router as data_migration_router
 from routes.project_reports import router as project_reports_router
 from routes.sponsor_reports import router as sponsor_reports_router
+from routes.implementer_report import router as implementer_report_router
 from routes.direct_projects import router as direct_projects_router
 from routes.project_sla import router as project_sla_router
 from routes.calendar import router as calendar_router
@@ -336,6 +337,7 @@ api_router.include_router(profiles_router)
 api_router.include_router(data_migration_router)
 api_router.include_router(project_reports_router)
 api_router.include_router(sponsor_reports_router)
+api_router.include_router(implementer_report_router)
 api_router.include_router(direct_projects_router)
 api_router.include_router(project_sla_router)
 api_router.include_router(calendar_router)

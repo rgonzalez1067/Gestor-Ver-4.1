@@ -51,6 +51,7 @@ const menuItems = [
       { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
       { path: '/reports/sales', icon: BarChart3, label: 'Reportes de Ventas' },
       { path: '/reports/sponsors', icon: Landmark, label: 'Reportes por Patrocinador' },
+      { path: '/reports/implementers', icon: UsersRound, label: 'Reporte de Implementadores' },
       { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones', requiresHistoryAccess: true },
     ]
   },
