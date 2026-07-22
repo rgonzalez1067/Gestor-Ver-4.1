@@ -4,6 +4,19 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### NUEVO: Reporte de Gestión de Implementadores V2 — Jul 2026
+- **Objetivo:** evaluación cuantitativa de rendimiento/carga/entregables por implementador, con TODAS las métricas estrictamente acotadas al periodo (Desde/Hasta).
+- **Backend** (`routes/implementer_report.py`, registrado en `server.py`):
+  - `GET /api/reports/implementers/list` → implementadores (cargo 'Implementador' + asignados históricos).
+  - `POST /api/reports/implementers/generate` {date_from, date_to, implementer_ids: []|['all']|[ids]} → 13 métricas por implementador.
+  - Fuentes de fecha: Asignados=`assigned_at`; Culminado/Suspendido/Parcial/En Gestión=bitácora `type=status_change` (`execution_date`, fallback `completed_at`); PVV (Recibido/Configurado/Testeado/En Producción)=celda `implementation_matrix` con `updated_at` en periodo → suma `processed`; Notificaciones Cliente/Banco=bitácora `type=notification` por emisor (`created_by`) y `email_detail.target` (client/bank/bank_client).
+  - Decisiones de negocio: `con_ticket`==`en_gestion` (ambos = transición a 'En Gestión' en el periodo).
+- **Frontend** (`pages/ImplementerReport.jsx`, ruta `/reports/implementers`, nav en Sidebar): filtros Desde/Hasta + alcance (Todos/Uno/Varios con checkboxes), tabla por implementador en 3 grupos (A Proyectos, B PVV, C Notificaciones) y botón "Descargar PDF" vía `window.print()` con CSS `@media print { .impl-report-block { page-break-before: always } }` (salto de página por implementador + encabezado nombre/periodo/generado).
+- **QA:** testing_agent iter292 → **backend 100% (10/10) + frontend 100% (6/6)**. Prueba de fuego de aislamiento temporal OK (user_76c8aa92c813: junio=4 culm/36 cajas, julio=0/0, año=4/36); validación de fechas (400), filtro por 1 id, discriminación Cliente/Banco. Test: `/app/backend/tests/test_iter292_implementer_report.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+- **Backlog (no bloqueante):** si se pide diferenciar `con_ticket` de `en_gestion`; optimizar carga (prefiltrar proyectos por rango) con crecimiento del histórico.
+
+
+
 ### Mejora: Bitácora de Proyectos — correos en texto simple + backfill de históricos — Jul 2026
 - **Objetivo:** los correos de "Otras Notificaciones" guardados en la Bitácora de Proyectos se almacenaban solo como HTML (poco legibles). Ahora se guarda también una versión en **texto simple** legible; y se provee un proceso para **rescatar** los históricos.
 - **Backend** (`routes/projects.py`): helper `_html_to_plaintext(html)` (usa BeautifulSoup; preserva saltos de bloque y representa tablas con " | "). La bitácora de tipo `notification` (L~1696) ahora guarda `email_detail.message` (texto) además de `html_content`. El visor `EmailDetailViewer.jsx` ya prioriza `message` sobre `html_content`, por lo que registros nuevos y convertidos se muestran legibles.
