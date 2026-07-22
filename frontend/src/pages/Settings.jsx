@@ -36,6 +36,21 @@ export const Settings = () => {
   const [appendingSignature, setAppendingSignature] = useState(false);
   const [notifUploading, setNotifUploading] = useState(false);
   const [notifDragOver, setNotifDragOver] = useState(false);  const [loading, setLoading] = useState(true);
+  const [backfillRunning, setBackfillRunning] = useState(false);
+
+  const runBitacoraBackfill = async () => {
+    if (!window.confirm('¿Rescatar los correos históricos de la Bitácora de Proyectos convirtiéndolos a texto simple legible? El HTML original se conserva; el proceso es seguro y repetible.')) return;
+    setBackfillRunning(true);
+    try {
+      const res = await api.post('/projects/bitacora/backfill-plaintext');
+      const d = res.data || {};
+      toast.success(`Rescate completado: ${d.entries_converted ?? 0} correo(s) convertido(s) en ${d.projects_updated ?? 0} proyecto(s).`);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Error al ejecutar el rescate');
+    } finally {
+      setBackfillRunning(false);
+    }
+  };
   const [uploading, setUploading] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [templates, setTemplates] = useState({});
@@ -805,6 +820,37 @@ export const Settings = () => {
                     </button>
                   );
                 })}
+              </div>
+            );
+          })()}
+
+          {/* Rescatar correos antiguos de la Bitácora (solo admin) */}
+          {(() => {
+            let isAdminUser = false;
+            try {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              isAdminUser = u?.role === 'admin' || u?.is_admin === true;
+            } catch { /* noop */ }
+            if (!isAdminUser) return null;
+            return (
+              <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4 flex items-start gap-3" data-testid="bitacora-backfill-card">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-600">
+                  <RefreshCw size={22} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-semibold text-slate-900 font-manrope leading-tight">Rescatar Correos Antiguos</h3>
+                  <p className="text-xs text-slate-500 mt-1">Convierte a texto simple legible los correos de la Bitácora de Proyectos que hoy están guardados en HTML. El HTML original se conserva.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={runBitacoraBackfill}
+                  disabled={backfillRunning}
+                  data-testid="run-bitacora-backfill-btn"
+                  className="flex-shrink-0 mt-0.5 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 disabled:opacity-60 transition-colors"
+                >
+                  {backfillRunning ? <RefreshCw size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                  {backfillRunning ? 'Rescatando...' : 'Rescatar ahora'}
+                </button>
               </div>
             );
           })()}
