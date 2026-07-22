@@ -1193,6 +1193,51 @@ def _render_vars(template_str: str, variables: dict) -> str:
     return result
 
 
+def _html_to_plaintext(html: str) -> str:
+    """Convierte el HTML de un correo a texto simple legible para la bitácora.
+    Preserva saltos de línea de bloques (<br>, <p>, <div>, <tr>, <li>, <h*>) y
+    representa filas de tabla con separadores para que la matriz siga siendo legible.
+    """
+    if not html or not str(html).strip():
+        return ""
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(str(html), "html.parser")
+        for tag in soup(["style", "script"]):
+            tag.decompose()
+        # Separadores de celdas -> tabuladores; filas -> saltos de línea
+        for td in soup.find_all(["td", "th"]):
+            td.insert_after(" | ")
+        for br in soup.find_all("br"):
+            br.replace_with("\n")
+        for block in soup.find_all(["p", "div", "tr", "li", "h1", "h2", "h3", "h4", "table"]):
+            block.append("\n")
+        text = soup.get_text()
+    except Exception:
+        text = re.sub(r"<br\s*/?>", "\n", str(html), flags=re.I)
+        text = re.sub(r"</(p|div|tr|li|h[1-6]|table)>", "\n", text, flags=re.I)
+        text = re.sub(r"<[^>]+>", "", text)
+        import html as _htmlmod
+        text = _htmlmod.unescape(text)
+    # Normalizar: quitar " | " colgantes, espacios y líneas en blanco excesivas
+    lines = []
+    for ln in text.splitlines():
+        ln = re.sub(r"[ \t]+", " ", ln).strip()
+        ln = re.sub(r"(\s*\|\s*)+$", "", ln).strip()
+        lines.append(ln)
+    out, blank = [], 0
+    for ln in lines:
+        if not ln:
+            blank += 1
+            if blank <= 1:
+                out.append("")
+        else:
+            blank = 0
+            out.append(ln)
+    return "\n".join(out).strip()
+
+
+
 def _style_email_tables(html: str) -> str:
     """Aplica estilos email-safe (bordes/padding) a tablas sin estilo.
 
@@ -1651,6 +1696,7 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         "email_detail": {
             "subject": subject,
             "recipients": to_list,
+            "message": _html_to_plaintext(html),
             "html_content": html,
             "level": prefix_label,
             "send_number": send_count + 1,
@@ -4213,3 +4259,52 @@ async def delete_implementer_alert(project_id: str, alert_id: str, authorization
     if res.modified_count == 0:
         raise HTTPException(status_code=404, detail="Alerta no encontrada")
     return {"message": "Alerta eliminada"}
+
+
+
+@router.post("/projects/bitacora/backfill-plaintext")
+async def backfill_bitacora_plaintext(authorization: Optional[str] = Header(None)):
+    """Genera la versión en texto simple (email_detail.message) para las entradas
+    de bitácora existentes que solo tienen html_content, para que sean legibles.
+    SOLO administradores. Idempotente: no sobreescribe mensajes ya existentes.
+    """
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ejecutar este proceso")
+
+    projects_scanned = 0
+    entries_converted = 0
+    projects_updated = 0
+
+    cursor = db.projects.find(
+        {"bitacora.email_detail.html_content": {"$exists": True}},
+        {"project_id": 1, "bitacora": 1},
+    )
+    async for proj in cursor:
+        projects_scanned += 1
+        bitacora = proj.get("bitacora", []) or []
+        changed = False
+        for entry in bitacora:
+            det = entry.get("email_detail")
+            if not isinstance(det, dict):
+                continue
+            html = det.get("html_content")
+            has_msg = isinstance(det.get("message"), str) and det.get("message").strip()
+            if html and not has_msg:
+                det["message"] = _html_to_plaintext(html)
+                entries_converted += 1
+                changed = True
+        if changed:
+            await db.projects.update_one(
+                {"project_id": proj["project_id"]},
+                {"$set": {"bitacora": bitacora}},
+            )
+            projects_updated += 1
+
+    logging.info(f"[backfill-plaintext] proyectos={projects_scanned} actualizados={projects_updated} entradas={entries_converted}")
+    return {
+        "success": True,
+        "projects_scanned": projects_scanned,
+        "projects_updated": projects_updated,
+        "entries_converted": entries_converted,
+    }

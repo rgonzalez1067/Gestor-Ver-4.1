@@ -4,6 +4,14 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Mejora: Bitácora de Proyectos — correos en texto simple + backfill de históricos — Jul 2026
+- **Objetivo:** los correos de "Otras Notificaciones" guardados en la Bitácora de Proyectos se almacenaban solo como HTML (poco legibles). Ahora se guarda también una versión en **texto simple** legible; y se provee un proceso para **rescatar** los históricos.
+- **Backend** (`routes/projects.py`): helper `_html_to_plaintext(html)` (usa BeautifulSoup; preserva saltos de bloque y representa tablas con " | "). La bitácora de tipo `notification` (L~1696) ahora guarda `email_detail.message` (texto) además de `html_content`. El visor `EmailDetailViewer.jsx` ya prioriza `message` sobre `html_content`, por lo que registros nuevos y convertidos se muestran legibles.
+- **Rescate de históricos:** nuevo endpoint admin `POST /api/projects/bitacora/backfill-plaintext` (idempotente, no sobreescribe `message` existente) que recorre todos los proyectos y genera `email_detail.message` a partir del `html_content` guardado. En PREVIEW convirtió 105 entradas en 51 proyectos.
+- **Cómo rescatar en PRODUCCIÓN (Deploy):** tras redeployar, un admin debe invocar una sola vez `POST /api/projects/bitacora/backfill-plaintext` (con token admin) contra el dominio de producción. Como el HTML sigue almacenado, la conversión es posible sin pérdida.
+- **QA:** self-test — converter unit (salida legible con tablas), backfill E2E (message poblado, idempotente), wiring del envío. ⚠️ PREVIEW; requiere REDEPLOY + ejecutar el endpoint en prod.
+
+
 ### Mejora: "Descripción de la falla" ahora opcional (Cotización de Reparación) — Jul 2026
 - En `EquipmentQuoteWizard.jsx`: el campo "Descripción de la falla" pasó de obligatorio (*) a **opcional**. Se quitó el asterisco (ahora "(opcional)") y se eliminó del gate del botón "Siguiente" (`!repairDescription`) y del indicador de selección. El backend (`quotes.py`) ya lo trataba como opcional (default "", el PDF solo lo renderiza si viene).
 - **QA:** compila OK; sin otras validaciones que lo exijan. ⚠️ PREVIEW; requiere REDEPLOY.
