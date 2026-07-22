@@ -111,9 +111,7 @@ async def list_implementers(authorization: Optional[str] = Header(None)):
     return {"implementers": items, "total": len(items)}
 
 
-@router.post("/reports/implementers/generate")
-async def generate_implementer_report(payload: ImplementerReportRequest, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+async def _build_report(payload: ImplementerReportRequest) -> dict:
     d0 = _to_date(payload.date_from)
     d1 = _to_date(payload.date_to)
     if not d0 or not d1:
@@ -130,7 +128,6 @@ async def generate_implementer_report(payload: ImplementerReportRequest, authori
     if not target_ids:
         raise HTTPException(status_code=400, detail="No se encontraron implementadores para el criterio seleccionado")
 
-    # Cargar todos los proyectos una sola vez (campos necesarios)
     projects = await db.projects.find(
         {},
         {"_id": 0, "project_id": 1, "project_number": 1, "assigned_to_user_id": 1,
@@ -161,8 +158,6 @@ async def generate_implementer_report(payload: ImplementerReportRequest, authori
                 m["parcial"] += 1
             if _has_trans("Suspendido"):
                 m["suspendidos"] += 1
-            # Ticket asignado = transición a 'En Gestión' en el periodo (o asignado con
-            # ticket dentro del periodo). En Gestión usa el mismo criterio (decisión de negocio).
             engest = _has_trans("En Gestión")
             assigned_with_ticket = (
                 bool((p.get("ticket_number") or "").strip())
@@ -172,7 +167,6 @@ async def generate_implementer_report(payload: ImplementerReportRequest, authori
             if engest or assigned_with_ticket:
                 m["con_ticket"] += 1
                 m["en_gestion"] += 1
-            # PVV: celdas de la matriz por fase actualizadas dentro del periodo
             matrix = p.get("implementation_matrix") or {}
             if isinstance(matrix, dict):
                 for _bank, prods in matrix.items():
@@ -190,7 +184,6 @@ async def generate_implementer_report(payload: ImplementerReportRequest, authori
                                     proc = 0
                                 m[PHASE_KEYS[ph]] += proc
 
-        # Notificaciones (por emisor = created_by), en todos los proyectos
         for p in projects:
             for e in (p.get("bitacora") or []):
                 if e.get("type") != "notification" or e.get("created_by") != impl_id:
@@ -215,3 +208,28 @@ async def generate_implementer_report(payload: ImplementerReportRequest, authori
         "count": len(results),
         "results": results,
     }
+
+
+@router.post("/reports/implementers/generate")
+async def generate_implementer_report(payload: ImplementerReportRequest, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    return await _build_report(payload)
+
+
+def _fmt_ddmmyyyy(s):
+    d = _to_date(s)
+    return d.strftime("%d/%m/%Y") if d else str(s)
+
+
+@router.post("/reports/implementers/generate-pdf")
+async def generate_implementer_report_pdf(payload: ImplementerReportRequest, authorization: Optional[str] = Header(None)):
+    from fastapi.responses import StreamingResponse
+    await get_current_user(authorization)
+    data = await _build_report(payload)
+    pdf = _render_report_pdf(data)
+    filename = f"Reporte_Implementadores_{payload.date_from}_{payload.date_to}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
