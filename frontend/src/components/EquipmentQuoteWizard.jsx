@@ -735,7 +735,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                   </div>
                   
                   <div>
-                    <Label className="text-orange-800">Descripción de la falla *</Label>
+                    <Label className="text-orange-800">Descripción de la falla <span className="text-slate-400 font-normal">(opcional)</span></Label>
                     <Textarea
                       value={repairDescription}
                       onChange={(e) => setRepairDescription(e.target.value)}
@@ -1027,7 +1027,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
               )}
 
               {/* Indicador de selección */}
-              {equipmentCategory && (equipmentCategory !== 'Reparacion' || repairDescription) && (
+              {equipmentCategory && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
                   <CheckCircle2 size={18} className="text-green-600" />
                   <span className="text-sm text-green-700 font-medium">
@@ -1042,7 +1042,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                 </Button>
                 <Button 
                   onClick={() => setStep(3)} 
-                  disabled={!equipmentCategory || (equipmentCategory === 'Reparacion' && (!repairDescription || (repairSource === 'taller' && selectedTallerIds.length === 0)))}
+                  disabled={!equipmentCategory || (equipmentCategory === 'Reparacion' && repairSource === 'taller' && selectedTallerIds.length === 0)}
                   className="bg-brand-blue-600 hover:bg-brand-blue-700"
                   data-testid="equipment-step2-next"
                 >

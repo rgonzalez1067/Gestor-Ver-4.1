@@ -4,6 +4,11 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Mejora: "Descripción de la falla" ahora opcional (Cotización de Reparación) — Jul 2026
+- En `EquipmentQuoteWizard.jsx`: el campo "Descripción de la falla" pasó de obligatorio (*) a **opcional**. Se quitó el asterisco (ahora "(opcional)") y se eliminó del gate del botón "Siguiente" (`!repairDescription`) y del indicador de selección. El backend (`quotes.py`) ya lo trataba como opcional (default "", el PDF solo lo renderiza si viene).
+- **QA:** compila OK; sin otras validaciones que lo exijan. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Mejora: botón "Seleccionar todos" en Equipos en Taller (Cotización de Reparación) — Jul 2026
 - En `EquipmentQuoteWizard.jsx`, modo Reparación → origen "Equipos en Taller": se agregó un botón **"Seleccionar todos / Quitar todos"** (`taller-select-all`) junto al contador, que marca/desmarca todos los equipos `Recibido` del cliente de una vez. Reutiliza `selectedTallerIds` (que ya reconstruye `repairModels` y envía `linked_taller_equipo_ids`).
 - **QA:** compila OK; lógica de selección validada previamente (iter287). ⚠️ PREVIEW; requiere REDEPLOY.
