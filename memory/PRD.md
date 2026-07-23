@@ -4371,3 +4371,13 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Color acento índigo (#4f46e5 / #3730a3) alineado a la app.
 - Frontend ImplementerReport.jsx: botón "Descargar PDF" ahora invoca el endpoint (responseType blob) y descarga el archivo; se reemplazó window.print(). Estado pdfLoading + lastQuery para reusar el criterio generado.
 - Verificado curl e2e: HTTP 200, application/pdf, 140KB, 16 páginas (15 implementadores + consolidado), PDF válido. Screenshot UI: reporte genera y botón presente.
+
+**Feature: Perfilamiento multi-propósito de contactos + filtros dinámicos por módulo · 2026-07-23:**
+- Modelo ContactCRM (backend/models.py): nuevo campo `purposes: List[str]` (default []). Valores: taller, imple_equipos, facturacion, implementacion.
+- Rol "Integrador" agregado a CONTACT_ROLES (Clients.jsx).
+- UI Clients.jsx: bloque "Perfilamiento de Procesos" con 4 botones toggle ON/OFF por contacto (multi-selección); data-testid contact-purpose-{idx}-{key}. Persiste vía model_dump en POST/PUT /api/clients.
+- Helper compartido frontend/src/utils/contactPurposes.js: contactMatchesPurpose (legacy/sin propósitos = visible en todos los módulos; con propósitos = solo donde coincide), purposeForQuoteCategory (repair→taller, resto→imple_equipos), CONTACT_PURPOSES.
+- Filtros aplicados: Quotes.jsx openContactSelect (send-to-client filtra por quote_category; Facturar ahora inserta paso de selección de contactos filtrado por 'facturacion' antes del modal de factura); ProjectDetail.jsx fetchSuggestedContacts filtra contactos de cliente por 'implementacion' (bancos siempre visibles).
+- Backend: /clients/{id}/consolidated-contacts (passthrough dict) y /projects/{id}/suggested-contacts incluyen purposes en contactos source=client.
+- Decisiones de negocio: legacy sin propósitos → visible en todos los módulos (perfilado progresivo); nuevos contactos → todos OFF.
+- Verificado testing_agent iter294: 100% backend (5/5) + frontend (UI toggles, contact-select-modal, filtro semántico). Seed: cli_d7a6037a7cf7 (ASTROCEL) ISMAEL PITA purposes=['taller','facturacion'].

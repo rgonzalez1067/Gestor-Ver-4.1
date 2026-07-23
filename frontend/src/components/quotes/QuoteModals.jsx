@@ -262,7 +262,7 @@ export const QuoteModals = ({ ctx }) => {
     addEmailRecipient, removeEmailRecipient, confirmEmailAndProceed,
     // Enviar al Cliente — Paso 1: selección de contactos
     contactSelectOpen, setContactSelectOpen, contactList, contactSelectLoading,
-    contactSelectedEmails, toggleContactEmail, handleContactSelectContinue,
+    contactSelectedEmails, toggleContactEmail, handleContactSelectContinue, contactSelectAction,
     // Bitacora
     bitacoraFlujoOpen, setBitacoraFlujoOpen, bitacoraFlujoQuoteNumber,
     bitacoraFlujoEntries, bitacoraFlujoLoading,
@@ -472,7 +472,9 @@ export const QuoteModals = ({ ctx }) => {
               </DialogHeader>
               <div className="space-y-3">
                 <p className="text-sm text-slate-500">
-                  Elija los contactos de la ficha del cliente a quienes se enviará la cotización.
+                  {contactSelectAction === 'invoice'
+                    ? 'Elija los contactos de la ficha del cliente a quienes se enviará la factura / proforma.'
+                    : 'Elija los contactos de la ficha del cliente a quienes se enviará la cotización.'}
                 </p>
                 {contactSelectLoading ? (
                   <div className="flex items-center justify-center py-10">

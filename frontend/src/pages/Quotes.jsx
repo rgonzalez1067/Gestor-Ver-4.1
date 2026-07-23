@@ -4198,7 +4198,7 @@ export const Quotes = () => {
             emailManualAttachments, setEmailManualAttachments,
             addEmailRecipient, removeEmailRecipient, confirmEmailAndProceed,
             contactSelectOpen, setContactSelectOpen, contactList, contactSelectLoading,
-            contactSelectedEmails, toggleContactEmail, handleContactSelectContinue,
+            contactSelectedEmails, toggleContactEmail, handleContactSelectContinue, contactSelectAction,
             bitacoraFlujoOpen, setBitacoraFlujoOpen, bitacoraFlujoQuoteNumber,
             bitacoraFlujoEntries, bitacoraFlujoLoading,
             deliveryDialogOpen, setDeliveryDialogOpen, deliveryQuoteId, deliveryExceptionInfo, deliveryEmailHeaders,
