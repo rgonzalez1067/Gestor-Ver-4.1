@@ -4389,3 +4389,13 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Nuevo endpoint GET /api/clients/bulk-update-template devuelve XLSX (3 hojas: Plantilla, Instrucciones, Valores Válidos) — DEFINIDO ANTES de /clients/{client_id} para evitar colisión de ruta.
 - Frontend ClientsBulkUpdateModal.jsx: descarga de plantilla ahora es Excel (blob desde backend, botón "Descargar plantilla Excel"); HEADERS y textos descriptivos actualizados con los nuevos campos.
 - Verificado curl e2e: plantilla xlsx HTTP 200 (12 columnas correctas); dry-run + apply actualizaron fantasy_name, segment y aplicativo de cliente real (restaurado tras prueba). Comportamiento: solo actualiza clientes EXISTENTES por RIF; celdas vacías se ignoran (parcial).
+
+**Feature: Entidad "Grupo Económico" (V4) + herencia de contactos + combo box · 2026-07-23:**
+- Nueva entidad EconomicGroup (models.py) + collection economic_groups; router routes/economic_groups.py (CRUD, /clients, /export-pdf). Ruta /api/grupos-economicos.
+- Ficha de grupo: Nombre, Descripción, Representantes Legales (nombre/cédula/cargo/teléfono/email), Contactos Corporativos (rol Integrador + perfilamiento purposes), grilla RIFs asociados (orden estricto: Nombre de Fantasía → RIF → Nombre Jurídico) + contador + export PDF (reportlab, logo+tabla).
+- Cliente: campo grupo_economico ahora COMBO BOX (client-grupo-economico-select) que setea grupo_economico_id; backend _sync_group_name sincroniza el nombre visible en create/update de cliente.
+- Herencia de contactos: _consolidated_contacts_for_client (clients.py) y get_suggested_contacts (projects.py) emiten contactos del Grupo con scope='grupo' (suma a Principal ∪ Sucursal), respetando filtros de perfilamiento.
+- Bloqueo edición: en ficha de Cliente/Sucursal los contactos del grupo se muestran en bloque 'inherited-group-contacts' SOLO LECTURA con badge 'Grupo Económico' y botones deshabilitados + tooltip; editables solo desde la ficha del grupo.
+- Menú: 'Grupo Económico' antes de 'Clientes' en Gestión Comercial (Sidebar + App.js route + usePermission maps). Módulo 'grupos_economicos' registrado en grilla de Seguridad (permissions_catalog, grupo gestion_comercial, antes de clientes).
+- Migración ejecutada: 27 grupos creados desde valores free-text distintos, 73 clientes vinculados.
+- Verificado testing_agent iter295: 100% backend (12/12 pytest) + frontend (menú, combo, herencia, prueba de fuego de bloqueo, PDF). Seed: grupo 'Corporación Alfa QA' (grp_2a1fc4a797cc) con 'Contacto G1', ASTROCEL vinculado.
