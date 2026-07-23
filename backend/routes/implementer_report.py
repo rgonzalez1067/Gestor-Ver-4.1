@@ -333,8 +333,7 @@ def _render_report_pdf(data: dict) -> bytes:
     # --- Encabezado corporativo (logo + título) ---
     logo_file = UPLOADS_DIR / "logo.png"
     header_text = [
-        Paragraph("Megasoft", title_style),
-        Paragraph("Reporte de Gestión de Implementadores", sub_style),
+        Paragraph("Reporte de Gestión de Implementadores", title_style),
     ]
     if logo_file.exists():
         try:
