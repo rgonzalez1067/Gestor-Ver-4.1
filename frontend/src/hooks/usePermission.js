@@ -54,6 +54,7 @@ export function usePermission(module) {
  */
 export const ROUTE_MODULE_MAP = {
   '/initial-contacts': 'initial_contacts',
+  '/grupos-economicos': 'grupos_economicos',
   '/quotes': 'cotizaciones',
   '/reports/sales': 'reportes_ventas',
   '/reports/sponsors': 'reportes_patrocinador',
@@ -86,6 +87,7 @@ export const ROUTE_MODULE_MAP = {
  */
 export const MODULE_TO_GROUP = {
   initial_contacts: 'gestion_comercial',
+  grupos_economicos: 'gestion_comercial',
   clientes: 'gestion_comercial',
   cotizaciones: 'gestion_comercial',
   reportes_ventas: 'gestion_comercial',

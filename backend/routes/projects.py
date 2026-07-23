@@ -2764,6 +2764,28 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
                                 "scope": scope_label,
                             })
 
+            # Nivel 1 (herencia): contactos del Grupo Económico del Principal
+            gid = principal.get("grupo_economico_id")
+            if gid:
+                grp = await db.economic_groups.find_one(
+                    {"group_id": gid}, {"_id": 0, "name": 1, "contacts": 1}
+                )
+                if grp:
+                    for c in (grp.get("contacts") or []):
+                        if not (c.get("email") or "").strip():
+                            continue
+                        name = c.get("full_name") or "Contacto"
+                        contacts.append({
+                            "email": c["email"],
+                            "label": f"{name} · Grupo Económico",
+                            "name": name,
+                            "contact_type": c.get("role") or "Otro",
+                            "source": "client",
+                            "scope": "grupo",
+                            "grupo_economico_name": grp.get("name"),
+                            "purposes": c.get("purposes") or [],
+                        })
+
     # Contactos de bancos del proyecto
     matrix = project.get("implementation_matrix", {})
     for bank_name in matrix:

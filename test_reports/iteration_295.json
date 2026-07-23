@@ -1,0 +1,32 @@
+{
+  "summary": "Iter 295 - 'Grupo Económico' V4 (nueva entidad) validado end-to-end. Backend: 12/12 pytest PASS cubriendo CRUD, validaciones de nombre duplicado/vacío, grid asociado con orden estricto fantasy_name→rif→legal_name, vinculación cliente↔grupo con auto-sync del nombre, herencia scope='grupo' en consolidated-contacts y suggested-contacts, permission-catalog (grupos_economicos antes de clients en gestion_comercial), export PDF (magic bytes %PDF) y DELETE que desvincula clientes. Frontend: menú 'Grupo Económico' antes de 'Clientes' (Y=223 vs Y=265), página EconomicGroups carga, diálogo crea/edita con representantes/contactos/purposes, grilla y contador dinámico, combo client-grupo-economico-select funcional, sección inherited-group-contacts muestra 'Contacto G1' con badge 'Grupo Económico' y botón inherited-contact-locked-0 DISABLED con tooltip. PDF descargable con content-type application/pdf.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Múltiples páginas (Dashboard, Clients, EconomicGroups)", "issues": ["Hydration warning en consola: <span data-ve-dynamic> renderizado como hijo directo de <tbody> y a su vez <tr> como hijo de <span> — no rompe funcionalidad pero contamina la consola en cada tabla. Provenía del wrapper de emergentagent (x-ve-dynamic). Considerar filtrar/eliminar el span dinámico envolviendo tr para eliminar el warning."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter295_economic_groups.py",
+    "/app/test_reports/pytest/iter295_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/economic_groups.py línea 55 (_serialize): usa .pop('_id', None) correctamente y no incluye _id en respuestas — OK.",
+    "backend/routes/economic_groups.py líneas 141-142: al hacer PUT del grupo, se sincroniza automáticamente el nombre visible en clients (grupo_economico). Buen patrón; consistente con _sync_group_name en clients.py.",
+    "backend/routes/economic_groups.py líneas 153-156: DELETE hace UPDATE_MANY para desvincular clientes (grupo_economico_id=None, grupo_economico=None) — verificado y funcional.",
+    "backend/routes/economic_groups.py líneas 45-51: grilla ordena por fantasy_name (case-insensitive) y retorna claves en orden fantasy_name→rif→legal_name — verificado por test.",
+    "frontend/src/pages/Clients.jsx: la sección inherited-group-contacts sólo renderiza si inheritedGroupContacts.length>0. Nota: 'Contacto G1' tiene full_name preservado desde el backend (contacts[].full_name), útil confirmar que se pinta correctamente (verificado: 'Contacto G1' + email + rol + badge)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter295_economic_groups.py (nuevo)"
+  ],
+  "success_rate": { "backend": "100% (12/12)", "frontend": "100% (menú, combo, herencia, bloqueo, PDF)" },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se crearon y eliminaron grupos TEST_QA_Iter295_* durante los tests; se creó un grupo 'UI QA <ts>' durante playwright que quedó en base (nombre irrelevante, sin RIFs vinculados). ASTROCEL (cli_d7a6037a7cf7) quedó vinculado a 'Corporación Alfa QA' (grp_2a1fc4a797cc) tras las pruebas — pre-existente según contexto.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature completa y estable. Grupo 'Corporación Alfa QA' (grp_2a1fc4a797cc) tiene 1 contacto 'Contacto G1' (g1@alfa.com, Integrador, purposes=facturacion+implementacion) y ASTROCEL vinculado. Suite backend en /app/backend/tests/test_iter295_economic_groups.py corre en <5s. En Clients.jsx la acción 'Editar' se abre desde tbody→last button data-testid=client-actions-{id} (menuitem 'Editar'). Los data-testid clave son economic-groups-page, group-dialog, save-group-btn, group-clients-grid, group-associated-count, client-grupo-economico-select, inherited-group-contacts, inherited-contact-locked-{i}, group-pdf-{id}."
+}

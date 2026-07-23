@@ -103,7 +103,7 @@ export const Clients = () => {
     rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes', condicion: 'Prospecto', referidor: '',
     referidor_tipo: '', referidor_id: '', referidor_nombre: '',
     address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal',
-    grupo_economico: '', ejecutivo_propietario: '', ejecutivo_user_id: '',
+    grupo_economico: '', grupo_economico_id: '', ejecutivo_propietario: '', ejecutivo_user_id: '',
     cantidad_tiendas: '', cantidad_cajas: '',
     coordinator_user_id: '', coordinator_name: '',
     implementer_user_id: '', implementer_name: '',
@@ -124,13 +124,26 @@ export const Clients = () => {
   const [bitacoraInicioOpen, setBitacoraInicioOpen] = useState(false);
   const [bitacoraInicioText, setBitacoraInicioText] = useState('');
   const [fiscalPrinters, setFiscalPrinters] = useState([]);
+  const [economicGroups, setEconomicGroups] = useState([]);
+  const [inheritedGroupContacts, setInheritedGroupContacts] = useState([]);
+  const loadGroupContacts = async (gid) => {
+    if (!gid) { setInheritedGroupContacts([]); return; }
+    try {
+      const res = await api.get(`/grupos-economicos/${gid}`);
+      setInheritedGroupContacts((res.data?.contacts || []).filter(c => (c.email || '').trim() || (c.full_name || '').trim()));
+    } catch { setInheritedGroupContacts([]); }
+  };
+  const fetchEconomicGroups = async () => {
+    try { const res = await api.get('/grupos-economicos'); setEconomicGroups(res.data || []); } catch { /* noop */ }
+  };
   const [customPrinterName, setCustomPrinterName] = useState('');
   const [showCustomPrinterInput, setShowCustomPrinterInput] = useState(false);
 
   const fileInputRef = useRef(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); fetchImplementationStaff(); fetchFiscalPrinters(); fetchReferidorOptions(); fetchCommercialCategories(); }, []);
+  useEffect(() => { loadGroupContacts(formData.grupo_economico_id); /* eslint-disable-next-line */ }, [formData.grupo_economico_id]);
+  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); fetchImplementationStaff(); fetchFiscalPrinters(); fetchReferidorOptions(); fetchCommercialCategories(); fetchEconomicGroups(); }, []);
 
   // Handle deep-link from Dashboard alerts
   useEffect(() => {
@@ -256,7 +269,7 @@ export const Clients = () => {
     if (payload.cantidad_cajas === '' || payload.cantidad_cajas === null) payload.cantidad_cajas = null;
     else payload.cantidad_cajas = parseInt(payload.cantidad_cajas, 10) || null;
     // Convertir strings vacíos a null para campos opcionales
-    for (const key of ['referidor', 'referidor_tipo', 'referidor_id', 'referidor_nombre', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'ejecutivo_propietario', 'ejecutivo_user_id', 'coordinator_user_id', 'coordinator_name', 'implementer_user_id', 'implementer_name', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo', 'modelo_impresora_fiscal', 'additional_info']) {
+    for (const key of ['referidor', 'referidor_tipo', 'referidor_id', 'referidor_nombre', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'grupo_economico_id', 'ejecutivo_propietario', 'ejecutivo_user_id', 'coordinator_user_id', 'coordinator_name', 'implementer_user_id', 'implementer_name', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo', 'modelo_impresora_fiscal', 'additional_info']) {
       if (payload[key] === '') payload[key] = null;
     }
     // Ensure legacy fields for backwards compat
@@ -373,7 +386,7 @@ export const Clients = () => {
       branch_address: client.branch_address || '',
       categoria_comercial: client.categoria_comercial || '',
       sucursal: client.sucursal || 'Principal',
-      grupo_economico: client.grupo_economico || '',
+      grupo_economico: client.grupo_economico || '', grupo_economico_id: client.grupo_economico_id || '',
       ejecutivo_propietario: client.ejecutivo_propietario || '',
       ejecutivo_user_id: client.ejecutivo_user_id || '',
       cantidad_tiendas: client.cantidad_tiendas ?? '',
@@ -400,7 +413,7 @@ export const Clients = () => {
       rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes', condicion: 'Prospecto',
       referidor: '', referidor_tipo: '', referidor_id: '', referidor_nombre: '',
       address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal',
-      grupo_economico: '', ejecutivo_propietario: '', ejecutivo_user_id: '',
+      grupo_economico: '', grupo_economico_id: '', ejecutivo_propietario: '', ejecutivo_user_id: '',
       cantidad_tiendas: '', cantidad_cajas: '',
       fecha_primer_contacto: '', tipo_contacto: '', tipo_servicio: [],
       integrador_id: '', integrador_name: '', aplicativo: '',
@@ -434,7 +447,7 @@ export const Clients = () => {
       branch_address: '',
       categoria_comercial: principal.categoria_comercial || '',
       sucursal: '',
-      grupo_economico: principal.grupo_economico || '',
+      grupo_economico: principal.grupo_economico || '', grupo_economico_id: principal.grupo_economico_id || '',
       ejecutivo_propietario: principal.ejecutivo_propietario || '',
       ejecutivo_user_id: principal.ejecutivo_user_id || '',
       cantidad_tiendas: principal.cantidad_tiendas ?? '',
@@ -480,7 +493,7 @@ export const Clients = () => {
       branch_address: '',  // Limpiar dirección de sucursal
       categoria_comercial: client.categoria_comercial || '',
       sucursal: '', // Limpiar para nueva sucursal
-      grupo_economico: client.grupo_economico || '',
+      grupo_economico: client.grupo_economico || '', grupo_economico_id: client.grupo_economico_id || '',
       ejecutivo_propietario: client.ejecutivo_propietario || '',
       ejecutivo_user_id: client.ejecutivo_user_id || '',
       cantidad_tiendas: client.cantidad_tiendas ?? '',
@@ -1068,9 +1081,23 @@ export const Clients = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-xs">Grupo Económico</Label>
-                            <DebouncedInput data-testid="client-grupo-economico-input" value={formData.grupo_economico}
-                              onCommit={(v) => setFormData(prev => ({ ...prev, grupo_economico: v }))}
-                              className="h-9" placeholder="Ej: Grupo Polar" />
+                            <Select
+                              value={formData.grupo_economico_id || '_none_'}
+                              onValueChange={(v) => {
+                                if (v === '_none_') {
+                                  setFormData(prev => ({ ...prev, grupo_economico_id: '', grupo_economico: '' }));
+                                } else {
+                                  const g = economicGroups.find(x => x.group_id === v);
+                                  setFormData(prev => ({ ...prev, grupo_economico_id: v, grupo_economico: g ? g.name : prev.grupo_economico }));
+                                }
+                              }}
+                            >
+                              <SelectTrigger data-testid="client-grupo-economico-select" className="h-9"><SelectValue placeholder="Seleccionar grupo..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none_">— Sin grupo —</SelectItem>
+                                {economicGroups.map(g => <SelectItem key={g.group_id} value={g.group_id}>{g.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div>
                             <Label className="text-xs">Segmento</Label>
@@ -1575,6 +1602,42 @@ export const Clients = () => {
                           </div>
                         </div>
                       ))}
+
+                      {inheritedGroupContacts.length > 0 && (
+                        <div className="mt-3" data-testid="inherited-group-contacts">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Building2 size={14} className="text-indigo-600" />
+                            <p className="text-xs font-semibold text-slate-600">Contactos heredados del Grupo Económico</p>
+                          </div>
+                          <div className="space-y-2">
+                            {inheritedGroupContacts.map((gc, gi) => (
+                              <div key={gc.contact_id || gi}
+                                className="grid grid-cols-12 gap-2 items-center bg-indigo-50/60 border border-indigo-100 p-2.5 rounded-lg opacity-95"
+                                data-testid={`inherited-contact-${gi}`}>
+                                <div className="col-span-3 text-sm font-medium text-slate-700 truncate">{gc.full_name || '—'}</div>
+                                <div className="col-span-3 text-xs text-slate-500 truncate">{gc.email}</div>
+                                <div className="col-span-2 text-xs text-slate-500 truncate">{gc.role || '—'}</div>
+                                <div className="col-span-3">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold">
+                                    <Building2 size={10} /> Grupo Económico
+                                  </span>
+                                </div>
+                                <div className="col-span-1 flex justify-center">
+                                  <Button type="button" size="sm" variant="ghost" disabled
+                                    className="h-8 w-8 p-0 text-slate-300 cursor-not-allowed"
+                                    title="Este contacto pertenece al Grupo Económico y solo puede ser modificado desde la Ficha de Grupo correspondiente"
+                                    data-testid={`inherited-contact-locked-${gi}`}>
+                                    <X size={15} />
+                                  </Button>
+                                </div>
+                                <p className="col-span-12 text-[10px] text-slate-400 italic">
+                                  Solo lectura · Editable únicamente desde la Ficha del Grupo Económico.
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2">

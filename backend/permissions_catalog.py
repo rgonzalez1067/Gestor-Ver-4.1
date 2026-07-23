@@ -37,6 +37,7 @@ LEVEL_LABELS = {
 MODULES = [
     # Gestión Comercial
     {"id": "initial_contacts", "name": "Contacto Inicial", "group": "gestion_comercial"},
+    {"id": "grupos_economicos", "name": "Grupo Económico",  "group": "gestion_comercial"},
     {"id": "clientes",          "name": "Clientes",          "group": "gestion_comercial"},
     {"id": "cotizaciones",      "name": "Cotizaciones",      "group": "gestion_comercial"},
     {"id": "reportes_ventas",   "name": "Reportes de Ventas", "group": "gestion_comercial"},

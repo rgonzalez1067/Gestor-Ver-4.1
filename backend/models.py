@@ -37,6 +37,31 @@ CATEGORIAS_COMERCIALES = [
     "Inmobiliarias", "Clínicas",
 ]
 
+class Representante(BaseModel):
+    nombre: str = ""
+    cedula: str = ""
+    cargo: str = ""
+    telefono: str = ""
+    email: str = ""
+
+
+class EconomicGroupCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    representantes: List[Representante] = []
+    contacts: List[ContactCRM] = []
+
+
+class EconomicGroup(BaseModel):
+    group_id: str = Field(default_factory=lambda: f"grp_{uuid.uuid4().hex[:12]}")
+    name: str
+    description: Optional[str] = ""
+    representantes: List[Representante] = []
+    contacts: List[ContactCRM] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[str] = None
+
+
 class ClientCreate(BaseModel):
     rif: str
     legal_name: str
@@ -52,6 +77,7 @@ class ClientCreate(BaseModel):
     categoria_comercial: Optional[str] = None
     sucursal: str = "Principal"
     grupo_economico: Optional[str] = None
+    grupo_economico_id: Optional[str] = None
     ejecutivo_propietario: Optional[str] = None
     ejecutivo_user_id: Optional[str] = None
     cantidad_tiendas: Optional[int] = None
@@ -91,6 +117,7 @@ class Client(BaseModel):
     categoria_comercial: Optional[str] = None
     sucursal: str = "Principal"
     grupo_economico: Optional[str] = None
+    grupo_economico_id: Optional[str] = None
     ejecutivo_propietario: Optional[str] = None
     ejecutivo_user_id: Optional[str] = None
     cantidad_tiendas: Optional[int] = None

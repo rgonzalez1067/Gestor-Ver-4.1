@@ -47,6 +47,7 @@ const menuItems = [
     icon: Briefcase, label: 'Gestion Comercial', isGroup: true, groupId: 'gestion_comercial',
     children: [
       { path: '/initial-contacts', icon: Phone, label: 'Contacto Inicial' },
+      { path: '/grupos-economicos', icon: Building2, label: 'Grupo Económico' },
       { path: '/clients', icon: Users, label: 'Clientes' },
       { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
       { path: '/reports/sales', icon: BarChart3, label: 'Reportes de Ventas' },

@@ -148,6 +148,24 @@ async def _consolidated_contacts_for_client(client: dict):
     _emit(principal, "principal")
     if client.get("client_id") != principal.get("client_id"):
         _emit(client, "local")
+
+    # Nivel 1 (herencia): contactos del Grupo Económico vinculado al Principal.
+    # Se marcan como scope='grupo' y no editables desde la ficha del cliente/sucursal.
+    gid = principal.get("grupo_economico_id")
+    if gid:
+        grp = await db.economic_groups.find_one(
+            {"group_id": gid}, {"_id": 0, "name": 1, "contacts": 1}
+        )
+        if grp:
+            for c in (grp.get("contacts") or []):
+                if not (c.get("email") or "").strip():
+                    continue
+                item = dict(c)
+                item["scope"] = "grupo"
+                item["sucursal"] = "Grupo Económico"
+                item["grupo_economico_name"] = grp.get("name")
+                item["source_group_id"] = gid
+                out.append(item)
     return out, principal
 
 
@@ -360,6 +378,19 @@ async def download_rif_document(client_id: str, authorization: Optional[str] = H
         filename=client.get("rif_document_filename", f"RIF_{client.get('rif', 'unknown')}{ext}")
     )
 
+async def _sync_group_name(data: dict):
+    """Normaliza grupo_economico_id y sincroniza el nombre visible (grupo_economico)
+    desde la tabla maestra de Grupos Económicos."""
+    gid = (data.get("grupo_economico_id") or "").strip() or None
+    data["grupo_economico_id"] = gid
+    if gid:
+        g = await db.economic_groups.find_one({"group_id": gid}, {"_id": 0, "name": 1})
+        if g:
+            data["grupo_economico"] = g["name"]
+        else:
+            data["grupo_economico_id"] = None
+
+
 @router.post("/clients")
 async def create_client(client_data: ClientCreate, authorization: Optional[str] = Header(None)):
     await require_permission(authorization, "clientes", "edit")
@@ -374,6 +405,7 @@ async def create_client(client_data: ClientCreate, authorization: Optional[str] 
         raise HTTPException(status_code=400, detail=f"Ya existe un cliente con RIF {client_data.rif} y sucursal '{client_data.sucursal or 'Principal'}'")
     
     data = client_data.model_dump()
+    await _sync_group_name(data)
     # Generate contacts IDs if not present
     for c in data.get("contacts", []):
         if not c.get("contact_id"):
@@ -981,6 +1013,7 @@ async def update_client(client_id: str, client_data: ClientCreate, authorization
         raise HTTPException(status_code=400, detail=f"Ya existe otro cliente con RIF {client_data.rif} y sucursal '{client_data.sucursal or 'Principal'}'")
     
     data = client_data.model_dump()
+    await _sync_group_name(data)
     for c in data.get("contacts", []):
         if not c.get("contact_id"):
             c["contact_id"] = f"cnt_{uuid.uuid4().hex[:8]}"
