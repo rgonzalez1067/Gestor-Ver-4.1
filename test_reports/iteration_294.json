@@ -1,0 +1,39 @@
+{
+  "summary": "Validado E2E el nuevo perfilamiento de contactos (Iter294 - Contact Purposes). Backend: 5/5 tests pasan cubriendo persistencia POST /api/clients con contactos con purposes=['taller'|'imple_equipos'|'facturacion'|'implementacion'|multi]; PUT persiste cambios; GET /clients/{id} y /clients/{id}/consolidated-contacts devuelven el campo 'purposes' correctamente; GET /projects/{id}/suggested-contacts incluye 'purposes' en contactos source=client; el rol 'Integrador' se persiste. Seed validado: cli_d7a6037a7cf7 (ASTROCEL) tiene ISMAEL PITA con purposes=['taller','facturacion']. Aplicando el filtro contactMatchesPurpose sobre consolidated-contacts se obtiene el semantico exacto del PS: taller→[ISMAEL], imple_equipos→[], facturacion→[ISMAEL], implementacion→[] (criterio QA multi-propósito cumplido). Frontend: modal Editar Cliente muestra bloque 'Perfilamiento de Procesos' con 4 botones (data-testid contact-purpose-0-{taller|imple_equipos|facturacion|implementacion}); en ASTROCEL/ISMAEL PITA los botones taller y facturacion tienen aria-pressed=true, imple_equipos e implementacion aria-pressed=false. 'Integrador' aparece en CONTACT_ROLES. contact-select-modal en Quotes se renderiza al pulsar 'Enviar al Cliente' y filtra la lista consolidada por el propósito derivado de quote_category via purposeForQuoteCategory (repair→taller, otros→imple_equipos). Contactos legacy sin purposes (p.ej. Principal del cliente OCTAVIO KEY / PEDRO ESCALONA) se muestran en todos los módulos como se espera.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter294_contact_purposes.py",
+    "/app/test_reports/pytest/iter294_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/clients.py L127-151 (_consolidated_contacts_for_client): pasa purposes a través de dict(c) del subdocumento contacts[]. Contactos legacy (contact1/contact2) NO llevan purposes en el output. Correcto por diseño — deberían mostrarse en todos los módulos (matches vacío → True).",
+    "backend/routes/projects.py L2743-2751: los contactos CRM de cliente reciben 'purposes': c.get('purposes') or []. El bloque legacy contact1/contact2 en L2754-2764 NO agrega purposes (correcto, deben verse en todos los módulos). El Principal del cliente (email del ClienteDoc en L2729-2737) tampoco agrega purposes (correcto — siempre mostrado como el PS requiere).",
+    "frontend/src/utils/contactPurposes.js L19-23: contactMatchesPurpose devuelve true si purposes es undefined o []. Semántica exacta del PS (compat legacy y perfilado progresivo).",
+    "frontend/src/pages/ProjectDetail.jsx L509-511: el filtro solo aplica a source='client'. Bank contacts se muestran siempre. Correcto.",
+    "frontend/src/pages/Quotes.jsx L2442-2464 (openContactSelect): reutiliza el mismo modal 'contact-select-modal' para dos flujos ('send-to-client' e 'invoice'). La descripción del modal habla siempre de 'enviar la cotización' — cuando el flujo es 'invoice' el texto es engañoso. Sugerencia (no bloqueante): parametrizar el título/descripción del modal por acción.",
+    "frontend/src/pages/Clients.jsx L1555-1575: el bloque de perfilamiento aparece dentro de cada fila de contacto con data-testids únicos por índice. Excelente. Nota: al eliminar/reordenar contactos, los índices cambian; para tests de regresión más robustos, un data-testid por contact_id sería preferible. No bloqueante.",
+    "backend/models.py L27: ContactCRM.purposes es List[str] sin validación de dominio (podría aceptar cualquier string). Sugerencia (no bloqueante): agregar validador que restrinja a {'taller','imple_equipos','facturacion','implementacion'} para evitar typos/basura desde otros clientes API."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter294_contact_purposes.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 tests)",
+    "frontend": "100% (Perfilamiento UI + contact-select-modal + filtro semántico validados)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se creó cliente TEST_ITER294_{uuid} con 3 contactos (taller / facturacion+implementacion / legacy sin purposes). Cleanup via DELETE en teardown del fixture.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El semántico central del feature está en frontend/src/utils/contactPurposes.js.contactMatchesPurpose: legacy (purposes vacío/ausente) = mostrado en todos los módulos. La feature se aplica en 4 puntos: (1) Quotes.jsx openContactSelect (send-to-client + invoice) con purposeForQuoteCategory; (2) ProjectDetail.jsx fetchSuggestedContacts con purpose='implementacion' (solo source='client'); (3) Clients.jsx renderiza los toggles ON/OFF con aria-pressed y data-testid contact-purpose-{idx}-{key}; (4) backend/models.py ContactCRM.purposes se persiste vía model_dump en POST/PUT /api/clients. Cliente semilla útil: cli_d7a6037a7cf7 (ASTROCEL) → ISMAEL PITA con ['taller','facturacion']. No tiene cotizaciones asociadas (verificado), por eso el flujo Quotes → contact-select-modal se probó contra otros clientes con contactos legacy (Principal-only). Para probar el filtro end-to-end en Quotes UI con un contacto perfilado, se sugiere crear una cotización dummy para cli_d7a6037a7cf7 o inyectar purposes en un contacto CRM de un cliente que ya tenga cotizaciones (p.ej. ABASTISIMO/VIVA SUPERCENTRO).",
+  "rca_of_the_issue": "N/A — feature nueva. Todas las decisiones de negocio del PS quedaron validadas: (a) contactos legacy sin purposes se muestran en todos los módulos ✓; (b) contactos nuevos vienen con purposes=[] ✓ (default en emptyContact y en ContactCRM); (c) contacto con purposes activos solo aparece en los módulos coincidentes ✓; (d) mapeo módulo→propósito exacto (repair→taller, implementation/equipment→imple_equipos, facturación→facturacion, proyectos→implementacion) ✓; (e) rol 'Integrador' disponible y persistido ✓; (f) multi-selección de purposes por contacto ✓ (contacto TEST creado con ['facturacion','implementacion'] persistió correctamente)."
+}

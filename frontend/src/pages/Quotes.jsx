@@ -37,6 +37,7 @@ import { QuoteModals } from '../components/quotes/QuoteModals';
 import { QuotesBundleMigrationModal } from '../components/quotes/QuotesBundleMigrationModal';
 import { QUOTE_TYPES, PRICING_MODELS, SETUP_CONCEPTS, RECURRING_BASIC_CONCEPTS, RECURRING_OTHER_CONCEPTS, STATUS_COLORS, STATUS_DISPLAY_NAMES, QUOTE_CATEGORY_LABELS, ACTION_LABELS } from '../components/quotes/constants';
 import api from '../utils/api';
+import { contactMatchesPurpose, purposeForQuoteCategory } from '../utils/contactPurposes';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import { useQuoteFilters } from '../hooks/useQuoteFilters';
@@ -245,6 +246,7 @@ export const Quotes = () => {
   const [contactList, setContactList] = useState([]);
   const [contactSelectedEmails, setContactSelectedEmails] = useState([]);
   const [contactSelectLoading, setContactSelectLoading] = useState(false);
+  const [contactSelectAction, setContactSelectAction] = useState('send-to-client');
   // "Cotización Equipos Infra" — interceptación post-personalización para clientes Corp.
   const [equiposInfraOpen, setEquiposInfraOpen] = useState(false);
   const [equiposInfraQuoteId, setEquiposInfraQuoteId] = useState(null);
@@ -2431,7 +2433,16 @@ export const Quotes = () => {
   // destinatarios desde el maestro de contactos del cliente.
   const handleSendToClient = async (quoteId) => {
     const quote = quotes.find(q => q.quote_id === quoteId);
+    const purpose = purposeForQuoteCategory(quote?.quote_category);
+    await openContactSelect(quoteId, 'send-to-client', purpose);
+  };
+
+  // Selector genérico de contactos filtrado por propósito del módulo.
+  // action: 'send-to-client' | 'invoice'; purpose: taller|imple_equipos|facturacion|implementacion
+  const openContactSelect = async (quoteId, action, purpose) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
     setContactSelectQuoteId(quoteId);
+    setContactSelectAction(action);
     setContactSelectedEmails([]);
     setContactList([]);
     setContactSelectOpen(true);
@@ -2439,7 +2450,9 @@ export const Quotes = () => {
     try {
       if (quote?.client_id) {
         const res = await api.get(`/clients/${quote.client_id}/consolidated-contacts`);
-        const contacts = (res.data?.contacts || []).filter(c => (c.email || '').includes('@'));
+        const contacts = (res.data?.contacts || [])
+          .filter(c => (c.email || '').includes('@'))
+          .filter(c => contactMatchesPurpose(c, purpose));
         setContactList(contacts);
       }
     } catch {
@@ -2460,8 +2473,14 @@ export const Quotes = () => {
   // correos seleccionados precargados en el campo de destinatarios (TO).
   const handleContactSelectContinue = () => {
     const quoteId = contactSelectQuoteId;
+    const action = contactSelectAction;
+    const emails = contactSelectedEmails;
     setContactSelectOpen(false);
-    openEmailModal('send-to-client', quoteId, contactSelectedEmails);
+    if (action === 'invoice') {
+      proceedInvoiceFlow(quoteId, emails);
+    } else {
+      openEmailModal('send-to-client', quoteId, emails);
+    }
   };
 
   // Intercepta "Enviar al Cliente": para cotizaciones de tipo VPOS / MPOS /
@@ -3853,6 +3872,11 @@ export const Quotes = () => {
   // Abrir modal de factura
   // Abrir modal de workflow para Facturar (requiere Factura)
   const openInvoiceModal = (quoteId) => {
+    // Paso 1: selección de contactos de la ficha del cliente con propósito Facturación.
+    openContactSelect(quoteId, 'invoice', 'facturacion');
+  };
+
+  const proceedInvoiceFlow = (quoteId, preloadEmails = []) => {
     const quote = quotes.find(q => q.quote_id === quoteId);
     const currentStatus = quote?.quote_status || 'Borrador';
     const isRepairQuote = quote?.quote_category === 'repair';
@@ -3866,8 +3890,8 @@ export const Quotes = () => {
       setExceptionModalOpen(true);
       return;
     }
-    // Flujo regular — abrir email modal
-    openEmailModal('invoice', quoteId);
+    // Flujo regular — abrir email modal con los contactos de Facturación precargados
+    openEmailModal('invoice', quoteId, preloadEmails);
     setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, exceptionHeaders: null });
   };
 

@@ -16,6 +16,7 @@ import DebouncedInput from '../components/DebouncedInput';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout, Check, ChevronsUpDown, Briefcase, Users, Building2, GitBranch } from 'lucide-react';
 import api from '../utils/api';
 import { formatRif } from '../utils/rifFormatter';
+import { CONTACT_PURPOSES } from '../utils/contactPurposes';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import { useNavigate } from 'react-router-dom';
@@ -31,7 +32,7 @@ const REFERIDOR_OPTIONS = [
   'Alianzas Externas',
   'Banco', 'Cliente Referidor'
 ];
-const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo', 'Propietario', 'Director'];
+const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo', 'Propietario', 'Director', 'Integrador'];
 // NOTA: Categorías comerciales ahora vienen del catálogo dinámico /api/commercial-categories
 // Ver página /commercial-categories para gestionarlas.
 const TIPOS_SERVICIO = ['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago'];
@@ -41,7 +42,8 @@ const emptyContact = () => ({
   full_name: '',
   phone: '',
   email: '',
-  role: 'Administrativo'
+  role: 'Administrativo',
+  purposes: []
 });
 
 export const Clients = () => {
@@ -576,6 +578,17 @@ export const Clients = () => {
     setFormData(prev => {
       const contacts = [...prev.contacts];
       contacts[idx] = { ...contacts[idx], [field]: value };
+      return { ...prev, contacts };
+    });
+  };
+  const toggleContactPurpose = (idx, purposeKey) => {
+    setFormData(prev => {
+      const contacts = [...prev.contacts];
+      const current = Array.isArray(contacts[idx].purposes) ? contacts[idx].purposes : [];
+      const purposes = current.includes(purposeKey)
+        ? current.filter(p => p !== purposeKey)
+        : [...current, purposeKey];
+      contacts[idx] = { ...contacts[idx], purposes };
       return { ...prev, contacts };
     });
   };
@@ -1538,6 +1551,27 @@ export const Clients = () => {
                                 <X size={16} />
                               </Button>
                             )}
+                          </div>
+                          <div className="col-span-12 mt-1">
+                            <p className="text-[11px] font-semibold text-slate-500 mb-1.5">Perfilamiento de Procesos</p>
+                            <div className="flex flex-wrap gap-1.5" data-testid={`contact-purposes-${idx}`}>
+                              {CONTACT_PURPOSES.map(p => {
+                                const active = Array.isArray(contact.purposes) && contact.purposes.includes(p.key);
+                                return (
+                                  <button
+                                    key={p.key}
+                                    type="button"
+                                    onClick={() => toggleContactPurpose(idx, p.key)}
+                                    aria-pressed={active}
+                                    data-testid={`contact-purpose-${idx}-${p.key}`}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400'}`}
+                                  >
+                                    {active ? <Check size={12} /> : <Circle size={11} className="opacity-50" />}
+                                    {p.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       ))}

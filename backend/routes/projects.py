@@ -2747,6 +2747,7 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
                             "contact_type": role,
                             "source": "client",
                             "scope": scope_label,
+                            "purposes": c.get("purposes") or [],
                         })
                 # Contactos legacy (contact1, contact2) — solo del Principal
                 if scope_label == "Principal":

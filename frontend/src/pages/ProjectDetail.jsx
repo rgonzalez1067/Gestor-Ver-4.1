@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import api from '../utils/api';
+import { contactMatchesPurpose } from '../utils/contactPurposes';
 import { formatRif } from '../utils/rifFormatter';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -503,8 +504,13 @@ const ProjectDetail = () => {
   const fetchSuggestedContacts = async () => {
     try {
       const res = await api.get(`/projects/${projectId}/suggested-contacts`);
-      setSuggestedContacts(res.data || []);
-      return res.data || [];
+      // Filtro por propósito 'implementacion': solo aplica a contactos del cliente.
+      // Los de banco y los no perfilados (legacy) siempre se muestran.
+      const filtered = (res.data || []).filter(c =>
+        c.source !== 'client' || contactMatchesPurpose(c, 'implementacion')
+      );
+      setSuggestedContacts(filtered);
+      return filtered;
     } catch (err) {
       console.error('Error cargando contactos:', err);
       toast.error('Error al cargar los contactos del proyecto');

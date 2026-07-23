@@ -24,6 +24,7 @@ class ContactCRM(BaseModel):
     phone: str = ""
     email: str = ""
     role: Optional[str] = "Administrativo"
+    purposes: List[str] = Field(default_factory=list)  # taller, imple_equipos, facturacion, implementacion
 
 # Categorías Comerciales disponibles
 CATEGORIAS_COMERCIALES = [
