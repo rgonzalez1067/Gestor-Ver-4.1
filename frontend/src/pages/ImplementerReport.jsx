@@ -12,8 +12,8 @@ const PROJECT_METRICS = [
   { key: 'con_ticket', label: 'Proyectos con Ticket Asignado' },
   { key: 'en_gestion', label: 'Proyectos en Gestión' },
   { key: 'culminados', label: 'Proyectos Culminados' },
-  { key: 'cajas_culminados', label: 'Cajas en Culminados' },
-  { key: 'parcial', label: 'Implementación Parcial' },
+  { key: 'cajas_culminados', label: 'Cajas en proyectos culminados' },
+  { key: 'parcial', label: 'Proyectos implementados parcialmente' },
   { key: 'suspendidos', label: 'Proyectos Suspendidos' },
 ];
 const PVV_METRICS = [

@@ -230,8 +230,8 @@ _PDF_GROUPS = [
         ("con_ticket", "Proyectos con Ticket Asignado"),
         ("en_gestion", "Proyectos en Gestión"),
         ("culminados", "Proyectos Culminados"),
-        ("cajas_culminados", "Cajas en Culminados"),
-        ("parcial", "Implementación Parcial"),
+        ("cajas_culminados", "Cajas en proyectos culminados"),
+        ("parcial", "Proyectos implementados parcialmente"),
         ("suspendidos", "Proyectos Suspendidos"),
     ]),
     ("B. Puntos de Venta Virtuales (PVV)", [
