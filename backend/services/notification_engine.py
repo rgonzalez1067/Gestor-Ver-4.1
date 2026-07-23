@@ -473,7 +473,13 @@ async def try_dispatch(
     pdf_attachments = await _collect_pdf_attachments(action_id, quote, ctx)
     custom_block = ""
     if custom_message:
-        safe = (custom_message or "").strip()[:1000]
+        raw = custom_message
+        try:
+            from urllib.parse import unquote
+            raw = unquote(raw)
+        except Exception:
+            pass
+        safe = (raw or "").strip()[:1500]
         # Bloque visual de "Mensaje del Ejecutivo" — se anexa al FINAL del cuerpo
         # (igual que el motor legacy).
         custom_block = (
@@ -481,7 +487,7 @@ async def try_dispatch(
             "<div style='border-left:4px solid #2563eb;padding:10px 14px;"
             "background:#eff6ff;margin:10px 0;border-radius:4px'>"
             "<p style='margin:0 0 6px;font-size:12px;color:#1e3a8a;font-weight:600;text-transform:uppercase;letter-spacing:.5px'>Mensaje del Ejecutivo</p>"
-            f"<p style='margin:0;color:#334155;line-height:1.5'>{safe}</p></div>"
+            f"<p style='margin:0;color:#334155;line-height:1.5;white-space:pre-wrap'>{safe}</p></div>"
         )
 
     sent_count = 0

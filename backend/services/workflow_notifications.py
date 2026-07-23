@@ -269,10 +269,17 @@ async def send_workflow_notification(
         user_name = ""
         if current_user:
             user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        cm_raw = custom_message
+        try:
+            from urllib.parse import unquote
+            cm_raw = unquote(cm_raw)
+        except Exception:
+            pass
+        cm_safe = cm_raw.strip()[:1500]
         html_content += (
             f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px">'
             f'<p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p>'
-            f'<p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:500]}</p></div>'
+            f'<p style="font-size:13px;color:#334155;margin:6px 0 0;white-space:pre-wrap">{cm_safe}</p></div>'
         )
 
     # 4. Preparar adjuntos

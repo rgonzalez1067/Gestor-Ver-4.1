@@ -1,0 +1,36 @@
+{
+  "summary": "Validado el fix del bug de URL-encoding en el bloque de 'Mensaje personalizado' del correo (Iter293). Se creó test unitario/integración que ejercita ambos motores (services/notification_engine.try_dispatch y services/workflow_notifications.send_workflow_notification) parcheando send_email para capturar el HTML final renderizado. Se enviaron custom_messages URL-encoded con %20 y %0A ('es%20muy%20importante%20para%20nosotros' y 'revisar%20por%20favor%20antes%20del%20cierre%0Agracias.'), un mensaje largo (~2400 chars) para validar el truncado a 1500 y no a 500, y casos None/''/whitespace para verificar que no rompen el flujo. Resultado: 1/1 test pasa con 7 aserciones internas ok: (a) el HTML NO contiene '%20' ni '%0A'; (b) el texto decodificado aparece en el HTML ('es muy importante para nosotros' y 'revisar por favor antes del cierre'); (c) el bloque 'Mensaje del Ejecutivo' / 'Mensaje de {user}' se inserta con white-space:pre-wrap; (d) para el mensaje largo se renderizaron 187 palabras en notification_engine y 250 en workflow_notifications, ambos consistentes con el truncado a 1500 chars (con 500 hubiese sido ~62 y ~83 respectivamente); (e) None/''/whitespace NO producen bloque ni excepción.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter293_custom_message_urldecode.py",
+    "/app/test_reports/pytest/iter293_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/notification_engine.py L474-491 y services/workflow_notifications.py L267-283 aplican la MISMA lógica (unquote + truncado 1500 + pre-wrap). Sugerencia (no bloqueante): extraer a un helper compartido en services/notification_common.py o en config.py junto a build_custom_message_block/inject_custom_message ya existentes (referenciados en el PS) para eliminar duplicación y evitar deriva futura entre los dos motores.",
+    "notification_engine.py: si custom_message viene con caracteres inválidos para urllib.parse.unquote (raro pero posible), el except Exception: pass silencia el error dejando raw sin decodificar — se seguiría mostrando el URL-encoding al usuario final. Aceptable como defensiva, pero un logger.warning ayudaría al debug.",
+    "workflow_notifications.py L268 usa 'custom_message and custom_message.strip()' pero luego cm_raw = custom_message (sin strip antes de unquote). Es correcto porque el strip final se aplica sobre cm_raw.strip()[:1500], pero es una lógica un poco redundante — el guard inicial ya asegura no-vacío.",
+    "Para pruebas end-to-end del flujo real de correo (no solo bloque HTML), sería útil un test que use el endpoint /api/quote-actions/* con header 'x-custom-message' URL-encoded y valide contra bitácora persistida. Fuera de alcance de esta iteración pero recomendado como regresión."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter293_custom_message_urldecode.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (1/1 test, 7 aserciones internas)",
+    "frontend": "N/A (backend only)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (no se usó porque los tests son a nivel de servicio directo, sin autenticación HTTP).",
+  "seed_data_creation": "Se sembró una config temporal action_notification_configs con key 'equipos|clientes_pyme|iter293_engine_{uuid}' reutilizando un usuario activo y una plantilla email_templates ya existentes. Cleanup al final del test (delete_many sobre config y bitacora).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El test se centra en el CONTENIDO HTML renderizado, no en el envío SMTP real. Se parchea services.notification_engine.send_email y services.workflow_notifications.send_email con unittest.mock.patch.object para capturar el kwarg 'html' y validar que NO tenga '%20'/'%0A'. Los DOS motores se ejercitan en un mismo asyncio.run() para evitar el problema clásico de 'Event loop is closed' de motor (el cliente db de config.py se enlaza al primer loop; ejecutar dos asyncio.run consecutivos rompe la segunda invocación). Truncado: engine=1500 chars con palabra de 8 chars → 187 palabras; workflow=1500 con 'linea ' (6 chars) → 250. Si el main agent extrae la lógica a helper compartido, este test seguirá siendo válido porque valida el HTML final, no la implementación interna.",
+  "rca_of_the_issue": "Causa raíz confirmada: el frontend envía custom_message vía header 'x-custom-message' con URL-encoding (encodeURIComponent), pero los dos motores lo insertaban directamente en el HTML sin llamar a urllib.parse.unquote — por eso los espacios ('%20') y saltos de línea ('%0A') aparecían como literales en el correo. Fix (aplicado por E1) verificado: 1) unquote(custom_message) antes de armar el bloque en notification_engine.py L478-479 y workflow_notifications.py L274-275; 2) truncado elevado de 500 a 1500 chars (raw.strip()[:1500]); 3) white-space:pre-wrap agregado en el <p> del bloque para preservar los saltos de línea decodificados. Test de regresión: /app/backend/tests/test_iter293_custom_message_urldecode.py."
+}
