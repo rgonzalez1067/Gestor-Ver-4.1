@@ -51,7 +51,6 @@ const menuItems = [
       { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
       { path: '/reports/sales', icon: BarChart3, label: 'Reportes de Ventas' },
       { path: '/reports/sponsors', icon: Landmark, label: 'Reportes por Patrocinador' },
-      { path: '/reports/implementers', icon: UsersRound, label: 'Reporte de Implementadores' },
       { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones', requiresHistoryAccess: true },
     ]
   },
@@ -73,6 +72,7 @@ const menuItems = [
       { path: '/integrators', icon: UserCheck, label: 'Integradores' },
       { path: '/datos-imple', icon: Wrench, label: 'Datos de Imple' },
       { path: '/condiciones-banco-mediopago', icon: BookOpen, label: 'Condiciones Banco/Medio de Pago' },
+      { path: '/reports/implementers', icon: UsersRound, label: 'Reporte de Implementadores' },
     ]
   },
   { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos', groupId: 'nuevos_productos' },
