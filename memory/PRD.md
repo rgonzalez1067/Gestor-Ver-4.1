@@ -4381,3 +4381,11 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Backend: /clients/{id}/consolidated-contacts (passthrough dict) y /projects/{id}/suggested-contacts incluyen purposes en contactos source=client.
 - Decisiones de negocio: legacy sin propósitos → visible en todos los módulos (perfilado progresivo); nuevos contactos → todos OFF.
 - Verificado testing_agent iter294: 100% backend (5/5) + frontend (UI toggles, contact-select-modal, filtro semántico). Seed: cli_d7a6037a7cf7 (ASTROCEL) ISMAEL PITA purposes=['taller','facturacion'].
+
+**Feature: Actualización Masiva de clientes — nuevos campos + plantilla Excel · 2026-07-23:**
+- bulk-update-by-rif (routes/clients.py) ahora soporta: Nombre Jurídico (legal_name), Nombre de Fantasía (fantasy_name), Segmento (validado: Pymes/Corporativo/Emprendedor/Mixto) y Aplicativo (aplicativo). Antes: Cantidad Tiendas, Nro Cajas, Tipo Servicio, Integrador, Coordinador, Implementador, Ejecutivo.
+- Aplicativo con cascada: si la fila trae Integrador, se valida el Aplicativo contra los del integrador (integ_by_name con app_name); si trae Aplicativo sin Integrador, se aplica como texto libre; si el integrador tiene un solo aplicativo y Aplicativo vacío, se autocompleta.
+- _BULK_HEADER_MAP ampliado con alias normalizados (nombre juridico, nombre de fantasia, segmento, aplicativo, etc.).
+- Nuevo endpoint GET /api/clients/bulk-update-template devuelve XLSX (3 hojas: Plantilla, Instrucciones, Valores Válidos) — DEFINIDO ANTES de /clients/{client_id} para evitar colisión de ruta.
+- Frontend ClientsBulkUpdateModal.jsx: descarga de plantilla ahora es Excel (blob desde backend, botón "Descargar plantilla Excel"); HEADERS y textos descriptivos actualizados con los nuevos campos.
+- Verificado curl e2e: plantilla xlsx HTTP 200 (12 columnas correctas); dry-run + apply actualizaron fantasy_name, segment y aplicativo de cliente real (restaurado tras prueba). Comportamiento: solo actualiza clientes EXISTENTES por RIF; celdas vacías se ignoran (parcial).

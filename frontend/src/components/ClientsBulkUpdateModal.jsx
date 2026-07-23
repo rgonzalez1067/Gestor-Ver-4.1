@@ -5,8 +5,6 @@ import { Loader2, Upload, Download, FileUp, CheckCircle2, AlertTriangle, XCircle
 import api from '../utils/api';
 import { toast } from 'sonner';
 
-const HEADERS = ['RIF', 'Cantidad de Tiendas', 'Nro de Cajas', 'Tipo de Servicio', 'Integrador', 'Coordinador', 'Implementador', 'Ejecutivo Propietario'];
-
 const STATUS_META = {
   ok: { label: 'Actualizado', cls: 'bg-emerald-100 text-emerald-700', Icon: CheckCircle2 },
   sin_cambios: { label: 'Sin cambios', cls: 'bg-slate-100 text-slate-600', Icon: Eye },
@@ -23,14 +21,17 @@ export const ClientsBulkUpdateModal = ({ open, onClose, onApplied }) => {
 
   const reset = () => { setFile(null); setResult(null); setLoading(false); if (fileRef.current) fileRef.current.value = ''; };
 
-  const downloadTemplate = () => {
-    const example = ['J-12345678-9', '5', '15', 'POS;Pinpad', 'Nombre del Integrador', 'correo.coordinador@empresa.com', 'correo.implementador@empresa.com', 'correo.ejecutivo@empresa.com'];
-    const csv = [HEADERS.join(','), example.map(c => /[",\n]/.test(c) ? `"${c}"` : c).join(',')].join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'plantilla_actualizacion_clientes.csv';
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  const downloadTemplate = async () => {
+    try {
+      const res = await api.get('/clients/bulk-update-template', { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'plantilla_actualizacion_clientes.xlsx';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch {
+      toast.error('No se pudo descargar la plantilla');
+    }
   };
 
   const exportReportCsv = () => {
@@ -83,19 +84,20 @@ export const ClientsBulkUpdateModal = ({ open, onClose, onApplied }) => {
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="clients-bulk-update-modal">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Upload size={18} /> Actualización masiva de clientes (por RIF)</DialogTitle>
-          <DialogDescription>Sube un CSV/Excel para actualizar en bloque los datos de imple de los clientes coincidiendo por RIF.</DialogDescription>
+          <DialogDescription>Sube un Excel/CSV para actualizar en bloque los datos de los clientes coincidiendo por RIF.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-slate-700 space-y-1">
-            <p>Sube un CSV/Excel con la columna <b>RIF</b> (obligatoria) y las columnas a actualizar. Coincidencia por RIF <b>en cascada a todas las sucursales</b>. Las celdas <b>vacías se ignoran</b> (actualización parcial).</p>
-            <p><b>Tipo de Servicio</b>: separa varios con <code>;</code> (ej. <code>POS;Pinpad</code>) — se <b>agrega</b> a la lista existente.</p>
-            <p><b>Integrador</b> debe existir en el catálogo. <b>Coordinador/Implementador/Ejecutivo</b> por correo o nombre exacto del usuario.</p>
+            <p>Sube un Excel/CSV con la columna <b>RIF</b> (obligatoria) y las columnas a actualizar. Coincidencia por RIF <b>en cascada a todas las sucursales</b>. Las celdas <b>vacías se ignoran</b> (actualización parcial).</p>
+            <p>Campos: <b>Nombre Jurídico</b>, <b>Nombre de Fantasía</b>, <b>Segmento</b>, Cantidad de Tiendas, Nro de Cajas, Tipo de Servicio, <b>Integrador</b>, <b>Aplicativo</b>, Coordinador, Implementador, Ejecutivo Propietario.</p>
+            <p><b>Tipo de Servicio</b>: separa varios con <code>;</code> (ej. <code>VPOS;MPOS</code>) — se <b>agrega</b> a la lista existente. <b>Segmento</b>: Pymes, Corporativo, Emprendedor o Mixto.</p>
+            <p><b>Integrador</b> debe existir en el catálogo; si indicas también <b>Aplicativo</b> se valida contra los del integrador. <b>Coordinador/Implementador/Ejecutivo</b> por correo o nombre exacto del usuario.</p>
           </div>
 
           <div className="flex flex-wrap gap-2 items-center">
             <Button variant="outline" size="sm" onClick={downloadTemplate} data-testid="bulk-update-template-btn">
-              <Download size={14} className="mr-1" /> Descargar plantilla CSV
+              <Download size={14} className="mr-1" /> Descargar plantilla Excel
             </Button>
             <input
               ref={fileRef}

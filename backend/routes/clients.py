@@ -880,6 +880,85 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
         headers={"Content-Disposition": "attachment; filename=plantilla_clientes.xlsx"}
     )
 
+@router.get("/clients/bulk-update-template")
+async def get_bulk_update_template(authorization: Optional[str] = Header(None)):
+    """Plantilla Excel (.xlsx) para la Actualización Masiva de clientes por RIF."""
+    await get_current_user(authorization)
+    import pandas as pd
+
+    integradores = await db.integrators.find({}, {"_id": 0, "name": 1, "app_name": 1}).to_list(500)
+    integrador_names = sorted({i["name"] for i in integradores if i.get("name")})
+    integ_apps = sorted({i["app_name"].strip() for i in integradores if (i.get("app_name") or "").strip()})
+    ejecutivos = await db.users.find(
+        {"is_active": True, "departamento": {"$in": ["Ventas Pyme", "Ventas Corporativas"]}},
+        {"_id": 0, "first_name": 1, "last_name": 1}).to_list(200)
+    ejecutivo_names = sorted({f"{e.get('first_name','')} {e.get('last_name','')}".strip() for e in ejecutivos})
+    coords = await db.users.find(
+        {"is_active": True, "cargo": "Coordinador", "departamento": "Implementación"},
+        {"_id": 0, "first_name": 1, "last_name": 1}).to_list(200)
+    coord_names = sorted({f"{u.get('first_name','')} {u.get('last_name','')}".strip() for u in coords})
+    impls = await db.users.find(
+        {"is_active": True, "cargo": "Implementador"}, {"_id": 0, "first_name": 1, "last_name": 1}).to_list(200)
+    impl_names = sorted({f"{u.get('first_name','')} {u.get('last_name','')}".strip() for u in impls})
+
+    example = {
+        'RIF': ['J-12345678-9', 'J-98765432-1'],
+        'Nombre Jurídico': ['Empresa Demo CA', ''],
+        'Nombre de Fantasía': ['DemoCorp', ''],
+        'Segmento': ['Corporativo', 'Pymes'],
+        'Cantidad de Tiendas': [5, ''],
+        'Nro de Cajas': [15, ''],
+        'Tipo de Servicio': ['VPOS;MPOS', ''],
+        'Integrador': [integrador_names[0] if integrador_names else 'Nombre del Integrador', ''],
+        'Aplicativo': [integ_apps[0] if integ_apps else 'Nombre del Aplicativo', ''],
+        'Coordinador': [coord_names[0] if coord_names else 'correo.coordinador@empresa.com', ''],
+        'Implementador': [impl_names[0] if impl_names else 'correo.implementador@empresa.com', ''],
+        'Ejecutivo Propietario': [ejecutivo_names[0] if ejecutivo_names else 'correo.ejecutivo@empresa.com', ''],
+    }
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pd.DataFrame(example).to_excel(writer, index=False, sheet_name='Plantilla')
+
+        instrucciones = [
+            {'Campo': 'RIF *', 'Descripción': 'RIF del cliente a actualizar. OBLIGATORIO. La coincidencia es por RIF (aplica a todas las sucursales con ese RIF).', 'Ejemplo': 'J-12345678-9'},
+            {'Campo': 'Nombre Jurídico', 'Descripción': 'Razón social. Se actualiza solo si la celda tiene valor.', 'Ejemplo': 'Empresa Demo CA'},
+            {'Campo': 'Nombre de Fantasía', 'Descripción': 'Nombre comercial / marca. Se actualiza solo si tiene valor.', 'Ejemplo': 'DemoCorp'},
+            {'Campo': 'Segmento', 'Descripción': 'Valores: Pymes, Corporativo, Emprendedor, Mixto.', 'Ejemplo': 'Corporativo'},
+            {'Campo': 'Cantidad de Tiendas', 'Descripción': 'Número entero.', 'Ejemplo': '5'},
+            {'Campo': 'Nro de Cajas', 'Descripción': 'Número entero.', 'Ejemplo': '15'},
+            {'Campo': 'Tipo de Servicio', 'Descripción': 'Se AGREGAN a los existentes. Separe con ; (VPOS;MPOS;Payment Gateway;Link de Pago).', 'Ejemplo': 'VPOS;MPOS'},
+            {'Campo': 'Integrador', 'Descripción': 'Debe existir en el catálogo. Nombre exacto.', 'Ejemplo': integrador_names[0] if integrador_names else 'Integrador X'},
+            {'Campo': 'Aplicativo', 'Descripción': 'Aplicativo del integrador. Si indica también el Integrador, se valida contra sus aplicativos.', 'Ejemplo': integ_apps[0] if integ_apps else 'App Y'},
+            {'Campo': 'Coordinador', 'Descripción': 'Correo o nombre exacto (cargo Coordinador, depto Implementación).', 'Ejemplo': coord_names[0] if coord_names else '—'},
+            {'Campo': 'Implementador', 'Descripción': 'Correo o nombre exacto (cargo Implementador).', 'Ejemplo': impl_names[0] if impl_names else '—'},
+            {'Campo': 'Ejecutivo Propietario', 'Descripción': 'Correo o nombre exacto (depto Ventas).', 'Ejemplo': ejecutivo_names[0] if ejecutivo_names else '—'},
+            {'Campo': '— REGLAS —', 'Descripción': '1) Solo se actualizan clientes EXISTENTES (match por RIF). 2) Las celdas VACÍAS se ignoran (actualización parcial). 3) Use el botón "Previsualizar" antes de aplicar.', 'Ejemplo': ''},
+        ]
+        pd.DataFrame(instrucciones).to_excel(writer, index=False, sheet_name='Instrucciones')
+
+        max_len = max(len(integrador_names), len(integ_apps), len(coord_names), len(impl_names), len(ejecutivo_names), 4, 1)
+        def _pad(lst):
+            return list(lst) + [''] * (max_len - len(lst))
+        valores = {
+            'Segmentos': _pad(['Pymes', 'Corporativo', 'Emprendedor', 'Mixto']),
+            'Tipos de Servicio': _pad(['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago']),
+            'Integradores': _pad(integrador_names),
+            'Aplicativos': _pad(integ_apps),
+            'Coordinadores': _pad(coord_names),
+            'Implementadores': _pad(impl_names),
+            'Ejecutivos': _pad(ejecutivo_names),
+        }
+        pd.DataFrame(valores).to_excel(writer, index=False, sheet_name='Valores Válidos')
+
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=plantilla_actualizacion_clientes.xlsx"},
+    )
+
+
 @router.get("/clients/{client_id}")
 async def get_client(client_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
@@ -1075,6 +1154,12 @@ def _norm_text(s) -> str:
 
 _BULK_HEADER_MAP = {
     'rif': 'rif',
+    'nombre juridico': 'legal_name', 'nombre_juridico': 'legal_name', 'legal_name': 'legal_name',
+    'razon social': 'legal_name', 'nombre legal': 'legal_name',
+    'nombre de fantasia': 'fantasy_name', 'nombre fantasia': 'fantasy_name', 'nombre_fantasia': 'fantasy_name',
+    'fantasia': 'fantasy_name', 'nombre comercial': 'fantasy_name', 'fantasy_name': 'fantasy_name',
+    'segmento': 'segment', 'segment': 'segment',
+    'aplicativo': 'aplicativo', 'app': 'aplicativo', 'aplicacion': 'aplicativo',
     'cantidad de tiendas': 'cantidad_tiendas', 'cantidad_tiendas': 'cantidad_tiendas', 'tiendas': 'cantidad_tiendas',
     'nro de tiendas': 'cantidad_tiendas', 'numero de tiendas': 'cantidad_tiendas',
     'nro de cajas': 'cantidad_cajas', 'numero de cajas': 'cantidad_cajas', 'cantidad de cajas': 'cantidad_cajas',
@@ -1162,8 +1247,16 @@ async def bulk_update_clients_by_rif(
         raise HTTPException(status_code=400, detail="El archivo no contiene filas válidas (¿encabezados correctos?)")
 
     # Catálogos / usuarios de referencia
-    integ_docs = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1}).to_list(2000)
-    integ_map = {_norm_text(d.get("name")): {"id": d.get("integrator_id"), "name": d.get("name")} for d in integ_docs if d.get("name")}
+    integ_docs = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1, "app_name": 1}).to_list(2000)
+    integ_by_name: dict = {}
+    for d in integ_docs:
+        nm = d.get("name")
+        if not nm:
+            continue
+        integ_by_name.setdefault(_norm_text(nm), []).append({
+            "id": d.get("integrator_id"), "name": nm, "app_name": (d.get("app_name") or "").strip(),
+        })
+    valid_segments = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto']
 
     ventas_deptos = ["Ventas Pyme", "Ventas Corporativas"]
     ejec_users = await db.users.find({"is_active": True, "departamento": {"$in": ventas_deptos}}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}).to_list(2000)
@@ -1193,6 +1286,21 @@ async def bulk_update_clients_by_rif(
             report.append(rec); continue
 
         set_fields = {}
+        # Nombre Jurídico
+        v = str(row.get("legal_name", "")).strip()
+        if v:
+            set_fields["legal_name"] = v; rec["applied"].append("Nombre Jurídico")
+        # Nombre de Fantasía
+        v = str(row.get("fantasy_name", "")).strip()
+        if v:
+            set_fields["fantasy_name"] = v; rec["applied"].append("Nombre de Fantasía")
+        # Segmento
+        v = str(row.get("segment", "")).strip()
+        if v:
+            if v in valid_segments:
+                set_fields["segment"] = v; rec["applied"].append("Segmento")
+            else:
+                rec["warnings"].append(f"Segmento inválido: '{v}' (use: {', '.join(valid_segments)})")
         # Cantidad de Tiendas
         v = row.get("cantidad_tiendas", "")
         if str(v).strip():
@@ -1207,14 +1315,34 @@ async def bulk_update_clients_by_rif(
                 set_fields["cantidad_cajas"] = int(float(str(v).strip())); rec["applied"].append("Nro de Cajas")
             except ValueError:
                 rec["warnings"].append(f"Nro de Cajas inválido: '{v}'")
-        # Integrador
-        v = str(row.get("integrador", "")).strip()
-        if v:
-            hit = integ_map.get(_norm_text(v))
-            if hit:
-                set_fields["integrador_id"] = hit["id"]; set_fields["integrador_name"] = hit["name"]; rec["applied"].append("Integrador")
+        # Integrador + Aplicativo (cascada)
+        v_integ = str(row.get("integrador", "")).strip()
+        v_app = str(row.get("aplicativo", "")).strip()
+        if v_integ:
+            recs = integ_by_name.get(_norm_text(v_integ))
+            if recs:
+                set_fields["integrador_name"] = recs[0]["name"]
+                apps = [r["app_name"] for r in recs if r["app_name"]]
+                if v_app:
+                    match = next((r for r in recs if r["app_name"] and _norm_text(r["app_name"]) == _norm_text(v_app)), None)
+                    if match:
+                        set_fields["integrador_id"] = match["id"]; set_fields["aplicativo"] = match["app_name"]
+                        rec["applied"] += ["Integrador", "Aplicativo"]
+                    elif apps:
+                        set_fields["integrador_id"] = recs[0]["id"]; rec["applied"].append("Integrador")
+                        rec["warnings"].append(f"Aplicativo '{v_app}' no válido para '{recs[0]['name']}'. Válidos: {', '.join(apps)}")
+                    else:
+                        set_fields["integrador_id"] = recs[0]["id"]; set_fields["aplicativo"] = v_app
+                        rec["applied"] += ["Integrador", "Aplicativo"]
+                else:
+                    set_fields["integrador_id"] = recs[0]["id"]; rec["applied"].append("Integrador")
+                    if len(apps) == 1:
+                        set_fields["aplicativo"] = apps[0]; rec["applied"].append("Aplicativo (auto)")
             else:
-                rec["warnings"].append(f"Integrador no existe en el catálogo: '{v}'")
+                rec["warnings"].append(f"Integrador no existe en el catálogo: '{v_integ}'")
+        elif v_app:
+            # Aplicativo sin Integrador en la fila: se aplica como texto (sin validación de catálogo)
+            set_fields["aplicativo"] = v_app; rec["applied"].append("Aplicativo")
         # Coordinador
         v = str(row.get("coordinador", "")).strip()
         if v:
@@ -1284,3 +1412,4 @@ async def bulk_update_clients_by_rif(
         "ignored_columns": ignored_columns,
         "report": report,
     }
+# --- END bulk-update ---
