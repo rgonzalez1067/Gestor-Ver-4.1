@@ -1,99 +1,95 @@
 {
-  "theme": "Light",
-  "archetype": "Modern SaaS Dashboard with Vibrant Accents (Archetype 3 & 4 Hybrid)",
-  "domain": "CRM / SaaS Dashboard",
-  "global_rules": {
-    "emotion": "Professional, efficient, yet vibrant and modern.",
-    "spacing": "Generous Spacing Philosophy. Use p-6 or p-8 for main layout containers, but tight gap-4 for Control Room Grids.",
-    "typography": "Use font-manrope for all headings and body. Headings must use tracking-tight to look premium.",
-    "borders_and_shadows": "Mix soft shadows (shadow-sm) with sharp 1px borders (border-slate-200) to ensure crispness (Neumorphism 'Clay & Crisp' variant). Avoid muddy shadows.",
-    "testing": "CRITICAL: MUST retain all existing data-testid attributes exactly as they are."
+  "project_context": "Megasoft Internal Operations Dashboard - Phase 1 Dark Mode Blueprint",
+  "theme_strategy": "Data-Dense Technical Dashboard with Layered Elevation (E1 Archetype 4/1 Blend)",
+  "dark_mode_css_variables": {
+    "instructions_to_main_agent": "Inject these exact values into src/index.css inside the .dark selector. They maintain the brand's green primary and indigo accent while providing a deep, tinted-grey obsidian background suitable for data density.",
+    "variables": {
+      "--background": "224 71% 4%",
+      "--foreground": "213 31% 91%",
+      "--card": "224 71% 8%",
+      "--card-foreground": "213 31% 91%",
+      "--popover": "224 71% 8%",
+      "--popover-foreground": "213 31% 91%",
+      "--primary": "152 63% 40%",
+      "--primary-foreground": "152 100% 10%",
+      "--secondary": "222 47% 15%",
+      "--secondary-foreground": "210 40% 98%",
+      "--muted": "223 47% 15%",
+      "--muted-foreground": "215.4 16.3% 65%",
+      "--accent": "226 100% 65%",
+      "--accent-foreground": "210 40% 98%",
+      "--border": "216 34% 17%",
+      "--input": "216 34% 17%",
+      "--ring": "152 63% 40%",
+      "--chart-1": "152 63% 40%",
+      "--chart-2": "226 100% 65%",
+      "--chart-3": "340 75% 55%",
+      "--chart-4": "43 74% 66%",
+      "--chart-5": "200 90% 50%"
+    }
   },
-  "colors": {
-    "background": "bg-slate-50",
-    "surface": "bg-white",
-    "text": {
-      "primary": "text-slate-900",
-      "secondary": "text-slate-500",
-      "muted": "text-slate-400"
+  "light_to_dark_mapping": {
+    "backgrounds": {
+      "bg-white": "dark:bg-slate-900",
+      "bg-slate-50": "dark:bg-slate-950",
+      "bg-slate-100": "dark:bg-slate-800"
     },
-    "accent": {
-      "gradient": "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600",
-      "primary": "indigo-600"
+    "text": {
+      "text-slate-900": "dark:text-slate-50",
+      "text-slate-800": "dark:text-slate-200",
+      "text-slate-500": "dark:text-slate-400",
+      "text-slate-400": "dark:text-slate-500"
+    },
+    "borders": {
+      "border-slate-200": "dark:border-slate-800",
+      "border-slate-300": "dark:border-slate-700"
+    },
+    "hover_states": {
+      "hover:bg-slate-50": "dark:hover:bg-slate-800",
+      "hover:bg-slate-100": "dark:hover:bg-slate-700"
+    },
+    "table_specific": {
+      "bg-slate-50 (headers)": "dark:bg-slate-900/50",
+      "hover:bg-slate-50 (rows)": "dark:hover:bg-slate-800/50"
+    },
+    "badges_pills": {
+      "green (success)": "replace 'bg-green-100 text-green-800' -> 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300 dark:border dark:border-green-500/30'",
+      "amber (warning)": "replace 'bg-amber-100 text-amber-800' -> 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 dark:border dark:border-amber-500/30'",
+      "red (danger)": "replace 'bg-red-100 text-red-800' -> 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300 dark:border dark:border-red-500/30'",
+      "blue/indigo (info)": "replace 'bg-indigo-100 text-indigo-800' -> 'bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border dark:border-indigo-500/30'"
     }
   },
   "components": {
-    "page_accent": {
-      "description": "To create visual continuity with the Message Center gradient, add a 4px tall decorative block at the very top edge of the page container using the accent.gradient."
+    "toggle_button": {
+      "placement": "Sidebar footer, near the 'Cerrar Sesión' option.",
+      "design": "Ghost button variant (Shadcn) with standard Lucide 'Sun' and 'Moon' icons.",
+      "interaction": "Subtle scale and rotation. Example tailwind implementation on the icons: 'absolute h-5 w-5 rotate-90 scale-0 transition-transform duration-500 dark:rotate-0 dark:scale-100' for Moon, and 'h-5 w-5 rotate-0 scale-100 transition-transform duration-500 dark:-rotate-90 dark:scale-0' for Sun.",
+      "state": "Manage state via 'next-themes' useTheme."
     },
-    "header_section": {
-      "layout": "Flex container, justify-between, items-start. Margin-bottom: mb-8.",
-      "typography": "Title: text-3xl font-bold tracking-tight text-slate-900. Subtitle: text-sm text-slate-500 mt-1.",
-      "bd_migration_button": "Use outline variant, subtle text-slate-600 hover:text-slate-900 hover:bg-slate-100."
+    "elevation_and_shadows": {
+      "rule": "Shadows do not work effectively in dark mode. Shift from shadow-based elevation to border and surface-lightness elevation.",
+      "implementation": "For cards and dialogs currently using 'shadow-sm' or 'shadow-md', append 'dark:border dark:border-slate-800 dark:shadow-none'."
     },
-    "kpi_cards": {
-      "description": "Pain point fix: Add 4 KPI summary cards above the filters. Compute these dynamically from the existing table data array so no new endpoints are needed.",
-      "layout": "Control Room Grid: grid grid-cols-1 md:grid-cols-4 gap-4 mb-6",
-      "style": "bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200",
-      "cards": [
-        "Total Cotizaciones",
-        "Aprobadas",
-        "Pendientes",
-        "Inversión USD (Suma de montos)"
-      ],
-      "icon_style": "w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3"
-    },
-    "action_buttons": {
-      "description": "Pain point fix: Unify the 3 primary action buttons under a cohesive design system rather than arbitrary solid blocks.",
-      "style": "Use soft backgrounds with brand-tinted text/icons and border. Implementaciones: bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100. Equipos: bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100. Reparaciones: bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100.",
-      "typography": "text-sm font-semibold",
-      "icons": "Use Lucide-react icons for each button (e.g., CheckCircle, Package, Wrench)."
-    },
-    "filters_section": {
-      "description": "Pain point fix: Redesign generic filters into a structured Control Room panel.",
-      "layout": "Grid layout for the 6 fields: grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end.",
-      "style": "Container: bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6.",
-      "typography": "Labels should be text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block."
-    },
-    "warning_banner": {
-      "description": "Pain point fix: Transform flat yellow banner into a modern Glassmorphic Alert.",
-      "style": "bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between mb-6 shadow-sm",
-      "typography": "text-sm font-semibold text-amber-800 flex items-center gap-3",
-      "animations": "Add a small pulsing dot (w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse) next to the warning icon.",
-      "action_button": "bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold px-4 py-2 rounded-lg transition-colors border border-amber-300"
-    },
-    "data_table": {
-      "description": "Pain point fix: Elevate table rows with hierarchy and hover states.",
-      "container": "bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden",
-      "header": "bg-slate-50 border-b border-slate-200. Text: text-xs font-bold text-slate-500 uppercase tracking-wider py-4 px-4",
-      "rows": "hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0",
-      "cells": "px-4 py-4 text-sm text-slate-700",
-      "usd_column": "Highlight the 'TOTAL USD' column. Font: font-bold text-slate-900. Add the 'Inversión Inicial' label underneath in text-[10px] text-slate-400 uppercase tracking-wider.",
-      "badges": {
-        "style": "rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide border",
-        "implementacion": "bg-emerald-50 text-emerald-700 border-emerald-200",
-        "equipos": "bg-blue-50 text-blue-700 border-blue-200",
-        "reparaciones": "bg-orange-50 text-orange-700 border-orange-200"
-      },
-      "avatars": {
-        "style": "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ring-2 ring-white",
-        "colors": "Map based on segment (e.g., PYME -> bg-indigo-500, MG -> bg-fuchsia-500, etc.)"
-      }
-    },
-    "stepper": {
-      "description": "Pain point fix: Redesign the ESTADO column to be a highly legible, connected step indicator.",
-      "layout": "Flex row, items-center space-x-1",
-      "step_done": "w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center border border-indigo-200",
-      "step_pending": "w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center border border-slate-200 text-[10px] font-bold",
-      "connector": "w-3 h-[2px] bg-slate-200. If previous step is done, connector can be bg-indigo-200.",
-      "icons": "Use tiny Lucide icons inside the 'done' steps (e.g., Check w-3 h-3)."
+    "pdf_print_views": {
+      "rule": "PDFs must absolutely remain light. Do not invert colors on printable invoices/reports.",
+      "implementation": "Do not apply 'dark:' utility classes to the inner content of PDF previews. Alternatively, enforce a specific '.light' wrapper around the PDF viewer component to override any parent dark class inherited from the system."
     }
   },
+  "accessibility": {
+    "contrast": "Strict WCAG AA required for dense data. Use tinted grays (slate/indigo tint) over pure blacks/grays.",
+    "focus": "Always explicit on forms: 'focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950'."
+  },
   "instructions_to_main_agent": [
-    "DO NOT modify backend logic, API calls, or the data structure. Work strictly on the UI presentation in /app/frontend/src/pages/Quotes.jsx (or equivalent component).",
-    "Compute the new KPI cards purely from the client-side quotes array.",
-    "MUST retain all 'data-testid' attributes exactly. Ensure they are attached to the interactive elements (buttons, inputs) in your new design.",
-    "Use standard Shadcn UI primitives for Select, Input, Badge, Card, etc., but customize their Tailwind classes to match these guidelines.",
-    "Use Lucide-react for all iconography."
+    "1. Setup next-themes and ThemeProvider wrapping the layout.",
+    "2. Add the custom .dark block HSL values to src/index.css.",
+    "3. Implement the ThemeToggle button component at the Sidebar footer.",
+    "4. Audit Phase 1 target screens (Layout/Sidebar, Dashboard, Clients, Quotes, Projects). Add dark: variants next to the existing light classes using the mapping dictionary.",
+    "5. Leave PDF screens isolated from dark variables."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "DO NOT fall into 'AI Slop' aesthetics (generic pure black dark mode). Stick strictly to the tinted slate HSL values provided.",
+    "DO NOT use 'transition: all'. Explicitly transition colors and transforms.",
+    "DO NOT use fully transparent backgrounds for overlays, dropdowns, or toasts in dark mode. Always use a solid background (e.g. dark:bg-slate-900) with a subtle border.",
+    "All interactive elements, buttons, and form inputs MUST include a 'data-testid' attribute formatted in kebab-case."
   ]
 }
