@@ -143,6 +143,14 @@
    Se EXCLUYEN explícitamente las vistas de PDF/correo (.pdf-preview, .email-render)
    que deben permanecer en claro. */
 .dark .bg-white:not(.pdf-preview):not(.email-render) { background-color: hsl(224 71% 8%) !important; }
+/* Blancos translúcidos de ALTA opacidad usados como superficies de tarjeta/fila.
+   Se remapean a superficie oscura. Los de baja opacidad (/10../30) se dejan
+   intactos porque son overlays sobre gradientes de color. */
+.dark [class*="bg-white/60"],
+.dark [class*="bg-white/70"],
+.dark [class*="bg-white/80"],
+.dark [class*="bg-white/90"],
+.dark [class*="bg-white/95"] { background-color: rgba(51,65,85,0.55) !important; }
 .dark .bg-slate-50:not(.pdf-preview) { background-color: hsl(224 71% 5%) !important; }
 .dark .bg-slate-100:not(.pdf-preview) { background-color: hsl(222 47% 13%) !important; }
 .dark .bg-slate-200:not(.pdf-preview) { background-color: hsl(222 40% 18%) !important; }
