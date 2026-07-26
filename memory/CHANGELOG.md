@@ -1412,3 +1412,11 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Clients.jsx: reordenados los bloques de contactos en el diálogo de edición para seguir jerarquía: 1) Contactos heredados del Grupo Económico, 2) Contactos Globales del Principal (solo lectura, si es sucursal), 3) Contactos de esta Sucursal/propios (locales).
 - Antes el orden era Principal → Locales → Grupo. testids del bloque de grupo renombrados a inherited-group-contact-* para evitar colisión con inherited-contact-* del Principal.
 - Verificado self-test (screenshots): cliente con grupo (Corporación Alfa QA) muestra Grupo primero; sucursal sin grupo (INVERSIONES COLD 2024) muestra Principal→Locales sin errores.
+
+**Feature (V6) · Matriz_Contactos_Facturacion (contactos de facturación multinivel) · 2026-06:**
+- Nuevo servicio `services/billing_contacts.py`: compute_billing_matrix(client_id) consolida contactos con propósito 'facturacion' en 3 niveles jerárquicos (Grupo Económico → RIF Principal → Sucursal), extrae SOLO {nombre, email}, dedup por email (case-insensitive) preservando jerarquía. render_billing_matrix_html() → 'Nombre <email>' por línea (escapado). build_billing_matrix_var(quote) para el motor de plantillas.
+- Decisiones del usuario: filtro ESTRICTO (solo contactos con 'facturacion' explícito; legacy sin propósito NO se incluyen), dedup=SÍ, uso = SOLO variable en plantilla (sin auto-CC).
+- Persistencia: se almacena `Matriz_Contactos_Facturacion` (lista JSON) en el doc de la cotización en create_quote, create_quote_with_pdf y update_quote (routes/quotes.py).
+- Motor de plantillas: variable `{Matriz_Contactos_Facturacion}` expuesta en notification_engine._build_template_vars y workflow_notifications (usados por la acción approve). Usa la matriz almacenada; si falta, la recalcula en vivo.
+- Frontend: variable agregada al catálogo unificado (templateVariables.js, categoría Cliente).
+- Verificado (self-test e2e con API real + aserciones): POST /api/quotes almacena JSON solo con nombre+email (QA #1); el motor de aprobación renderiza 'Carlos Mendoza <cmendoza@...>' por línea (QA #2); filtro estricto, 3 niveles, orden jerárquico y dedup OK. Datos de prueba sembrados y eliminados sin tocar datos reales.

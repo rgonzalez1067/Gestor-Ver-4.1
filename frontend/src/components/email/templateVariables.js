@@ -35,6 +35,7 @@ export const VARIABLE_CATEGORIES = [
       { key: 'Datos_Contacto', label: 'Contacto + Tel + Email' },
       { key: 'Telefono_Contacto', label: 'Teléfono del contacto' },
       { key: 'Email_Contacto', label: 'Correo del contacto' },
+      { key: 'Matriz_Contactos_Facturacion', label: 'Contactos de Facturación · Nombre <email> por línea (Grupo + Principal + Sucursal)' },
       { key: 'client_name', label: 'Nombre del cliente (alias)' },
       { key: 'client_rif', label: 'RIF del cliente (alias)' },
       { key: 'client_address', label: 'Dirección del cliente' },

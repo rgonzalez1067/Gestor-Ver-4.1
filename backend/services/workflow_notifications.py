@@ -257,6 +257,13 @@ async def send_workflow_notification(
     if extra_template_vars:
         template_vars.update(extra_template_vars)
 
+    # V6: Matriz de Contactos de Facturación (Grupo + Principal + Sucursal).
+    try:
+        from services.billing_contacts import build_billing_matrix_var
+        template_vars["Matriz_Contactos_Facturacion"] = await build_billing_matrix_var(quote)
+    except Exception:
+        template_vars["Matriz_Contactos_Facturacion"] = ""
+
     # Firma institucional global (usuario que ejecuta la acción)
     from services.signature import build_signature_html
     template_vars["Firma_Notificacion_Global"] = await build_signature_html(current_user)

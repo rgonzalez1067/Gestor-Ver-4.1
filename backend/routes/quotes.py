@@ -120,6 +120,12 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         doc['abreviaturas_medios_pago'] = await compute_abreviaturas_medios_pago(doc)
     except Exception:
         doc['abreviaturas_medios_pago'] = ""
+    # V6: Matriz reducida de contactos de facturación (Grupo + Principal + Sucursal).
+    try:
+        from services.billing_contacts import compute_billing_matrix
+        doc['Matriz_Contactos_Facturacion'] = await compute_billing_matrix(quote_data.client_id)
+    except Exception:
+        doc['Matriz_Contactos_Facturacion'] = []
     await db.quotes.insert_one(doc)
     
     return quote
@@ -468,6 +474,12 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             doc['abreviaturas_medios_pago'] = await compute_abreviaturas_medios_pago(doc)
         except Exception:
             doc['abreviaturas_medios_pago'] = ""
+        # V6: Matriz reducida de contactos de facturación (Grupo + Principal + Sucursal).
+        try:
+            from services.billing_contacts import compute_billing_matrix
+            doc['Matriz_Contactos_Facturacion'] = await compute_billing_matrix(data.client_id)
+        except Exception:
+            doc['Matriz_Contactos_Facturacion'] = []
         await db.quotes.insert_one(doc)
         
         return {
@@ -1135,6 +1147,13 @@ async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: 
                 from services.medios_pago_abrev import compute_abreviaturas_medios_pago
                 merged = {**existing_quote, **update_data}
                 update_data["abreviaturas_medios_pago"] = await compute_abreviaturas_medios_pago(merged)
+        except Exception:
+            pass
+        # V6: Refrescar la matriz de contactos de facturación al guardar.
+        try:
+            from services.billing_contacts import compute_billing_matrix
+            cid = update_data.get("client_id") or existing_quote.get("client_id")
+            update_data["Matriz_Contactos_Facturacion"] = await compute_billing_matrix(cid)
         except Exception:
             pass
         result = await db.quotes.update_one(

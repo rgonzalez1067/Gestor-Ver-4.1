@@ -356,6 +356,12 @@ async def _build_template_vars(quote: dict) -> dict:
         "direccion_entrega": direccion_entrega,
     }
     base_vars.update(quote_dynamic_vars)
+    # V6: Matriz de Contactos de Facturación (Grupo + Principal + Sucursal).
+    try:
+        from services.billing_contacts import build_billing_matrix_var
+        base_vars["Matriz_Contactos_Facturacion"] = await build_billing_matrix_var(quote)
+    except Exception:
+        base_vars["Matriz_Contactos_Facturacion"] = ""
     return base_vars
 
 
