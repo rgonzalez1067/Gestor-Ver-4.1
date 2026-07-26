@@ -1401,3 +1401,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Bug corregido: tarjetas "Comunicación enviada" del modal Bitácora (bg-green-50/50 + texto slate-400) quedaban ilegibles en oscuro; ahora tinte verde sutil + texto legible.
 - Enfoque: cobertura centralizada en index.css (NO migración archivo-por-archivo de 181 componentes, descartada por riesgo/tiempo). Light mode intacto (todo scope .dark).
 - Verificado self-test (screenshots): Dashboard, Clientes, modal Bitácora, Cotizaciones en modo oscuro. USER VERIFICATION PENDING.
+
+**Bug fix (Modo Oscuro) · Contraste en contactos heredados (ficha de sucursal) · 2026-06:**
+- Síntoma: en modo oscuro, la sección 'Contactos Globales del Principal (solo lectura)' de una sucursal mostraba nombres/correos casi invisibles (texto claro sobre fondo claro).
+- Causa raíz: las filas usaban `bg-white/70` (blanco translúcido) no cubierto por los overrides `.dark`, mientras el texto slate-600/700 sí se aclaraba.
+- Fix (index.css): `.dark [class*="bg-white/60".."/95"] { background-color: rgba(51,65,85,0.55) !important; }` — mapea blancos translúcidos de alta opacidad a superficie oscura. Los overlays de baja opacidad (/10../30) sobre gradientes quedan intactos.
+- Verificado por testing_agent iter297 (100% frontend, modo claro sin regresión). Repro branch: cli_dc77d71c6d98 (parent INVERSIONES COLD 2024).
