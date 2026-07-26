@@ -61,13 +61,6 @@ export const AssetLedgerReport = () => {
     return { bg: '#e5e7eb', fg: '#374151' };
   };
 
-  const formatDateTime = (iso) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return formatDateTime(d);
-  };
-
   const warehouseBadge = (name) => {
     if (!name) return '';
     const lc = name.toLowerCase();

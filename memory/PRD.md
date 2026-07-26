@@ -4399,3 +4399,12 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Menú: 'Grupo Económico' antes de 'Clientes' en Gestión Comercial (Sidebar + App.js route + usePermission maps). Módulo 'grupos_economicos' registrado en grilla de Seguridad (permissions_catalog, grupo gestion_comercial, antes de clientes).
 - Migración ejecutada: 27 grupos creados desde valores free-text distintos, 73 clientes vinculados.
 - Verificado testing_agent iter295: 100% backend (12/12 pytest) + frontend (menú, combo, herencia, prueba de fuego de bloqueo, PDF). Seed: grupo 'Corporación Alfa QA' (grp_2a1fc4a797cc) con 'Contacto G1', ASTROCEL vinculado.
+
+**Bug Fix: Timestamps en hora de Caracas (UTC-4) para auditoría · 2026-07-26:**
+- Causa: los timestamps se guardan en UTC (con offset), pero el frontend los formateaba sin fijar zona horaria, mostrándolos en la TZ del runtime (UTC).
+- Fix (solo frontend, no altera datos): nuevo helper src/utils/dateFormat.js (formatDateTime/formatDate/formatTime/parseUTC) que SIEMPRE formatea en America/Caracas y trata cadenas sin offset como UTC. Las cadenas de SOLO FECHA (YYYY-MM-DD) NO se convierten (evita corrimiento de día por medianoche UTC).
+- Formato: dd/mm/aaaa hh:mm a.m./p.m. (sin etiqueta).
+- Aplicado en ~20 componentes/pantallas: BitacoraModal, ProjectDetail (bitácora created_at/sent_at), Settings (log auditoría), Clients (bitácora), NotificationBell, InboxCenter, ChatThread (formatMsgTime), QuotesTable, CommitmentModal, ImplementerAlertsModal, InitialContacts, Integrators (certs), AnexosModal, IntegratorCertificatesCell, EmailSendersConfig, EmailFooterConfig, CommercialCategories, ActionNotificationsConfig, AssetLedgerReport, ImplementerReport, TallerEquipos.
+- NO tocado: números con toLocaleString (montos/KPIs) y campos solo-fecha con 'T12:00:00' (Integrators timeline / last_contact).
+- Verificado testing_agent iter296: 100% (bitácora, settings-logs, notificaciones muestran UTC-4; sin regresión en solo-fecha ni en montos). Se corrigió además una recursión introducida en AssetLedgerReport (formatDateTime local) y se validó su carga.
+- Nota: almacenamiento sigue en UTC; PDFs/correos backend ya convertían en su mayoría a Caracas (recepción, bitácora, reportes). Si se detectan PDFs/correos puntuales en UTC, migrar a un helper Caracas compartido en backend (pendiente P2).

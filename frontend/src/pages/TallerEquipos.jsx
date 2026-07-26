@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate as fmtDate } from '../utils/dateFormat';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -183,11 +184,7 @@ export default function TallerEquipos() {
 
   const formatDate = (iso) => {
     if (!iso) return '-';
-    try {
-      return new Date(iso).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    } catch {
-      return iso.slice(0, 10);
-    }
+    return fmtDate(iso, '-');
   };
 
   return (
