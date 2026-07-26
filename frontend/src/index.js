@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { ThemeProvider } from "next-themes";
 import "@/index.css";
 import App from "@/App";
 
@@ -27,6 +28,8 @@ window.addEventListener("unhandledrejection", (e) => {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <App />
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+      <App />
+    </ThemeProvider>
   </React.StrictMode>,
 );

@@ -40,7 +40,7 @@ from services.notification_engine import (  # noqa: E402
     _render,
 )
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://equipment-workflow-3.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://perfilado-contactos.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "rgonzalez@megasoft.com.ve"
 ADMIN_PASSWORD = "admin123"
 ADMIN_FULL_NAME = "Rafael González"

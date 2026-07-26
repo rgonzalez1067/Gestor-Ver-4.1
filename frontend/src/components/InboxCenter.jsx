@@ -47,20 +47,20 @@ import { INBOX_RELOAD_LIST } from '../utils/inboxEvents';
 const SLA_STYLES = {
   green: {
     border: 'border-l-emerald-500',
-    bg: 'bg-emerald-50/40',
-    chip: 'bg-emerald-100 text-emerald-700',
+    bg: 'bg-emerald-50/40 dark:bg-emerald-500/5',
+    chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
     label: 'A tiempo',
   },
   yellow: {
     border: 'border-l-amber-500',
-    bg: 'bg-amber-50/50',
-    chip: 'bg-amber-100 text-amber-700',
+    bg: 'bg-amber-50/50 dark:bg-amber-500/5',
+    chip: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
     label: 'Atención',
   },
   red: {
     border: 'border-l-rose-600',
-    bg: 'bg-rose-50/60',
-    chip: 'bg-rose-100 text-rose-700',
+    bg: 'bg-rose-50/60 dark:bg-rose-500/5',
+    chip: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
     label: 'Retraso',
   },
 };

@@ -21,7 +21,7 @@ import pytest
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://equipment-workflow-3.preview.emergentagent.com",
+    "https://perfilado-contactos.preview.emergentagent.com",
 ).rstrip("/")
 ADMIN_EMAIL = "rgonzalez@megasoft.com.ve"
 ADMIN_PASSWORD = "admin123"

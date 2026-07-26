@@ -33,14 +33,41 @@
     --chart-5: 27 87% 67%;
   }
 
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --card: 224 71% 8%;
+    --card-foreground: 213 31% 91%;
+    --popover: 224 71% 8%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 152 63% 40%;
+    --primary-foreground: 152 100% 10%;
+    --secondary: 222 47% 15%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 223 47% 15%;
+    --muted-foreground: 215.4 16.3% 65%;
+    --accent: 226 100% 65%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --ring: 152 63% 40%;
+    --chart-1: 152 63% 40%;
+    --chart-2: 226 100% 65%;
+    --chart-3: 340 75% 55%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 200 90% 50%;
+  }
+
   * {
     @apply border-slate-200;
   }
   body {
-    @apply bg-white text-slate-900 font-inter;
+    @apply bg-white text-slate-900 font-inter dark:bg-slate-950 dark:text-slate-100;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-manrope text-slate-900;
+    @apply font-manrope text-slate-900 dark:text-slate-100;
   }
 }
 
@@ -106,3 +133,31 @@
 .email-render a { color: #2563eb; }
 .email-render table { border-collapse: collapse; }
 .email-render table p { margin: 0; }
+
+
+/* ===== Dark Mode: remapeo global de utilidades "hardcoded" =====
+   La app usa colores fijos (bg-white, slate-*) en vez de tokens semánticos.
+   Estos overrides dan cobertura amplia de modo oscuro a todas las pantallas
+   sin editar cada elemento. Los componentes Shadcn (dialogs, inputs, dropdowns)
+   ya cambian solos vía las variables CSS del bloque .dark.
+   Se EXCLUYEN explícitamente las vistas de PDF/correo (.pdf-preview, .email-render)
+   que deben permanecer en claro. */
+.dark .bg-white:not(.pdf-preview):not(.email-render) { background-color: hsl(224 71% 8%) !important; }
+.dark .bg-slate-50:not(.pdf-preview) { background-color: hsl(224 71% 5%) !important; }
+.dark .bg-slate-100:not(.pdf-preview) { background-color: hsl(222 47% 13%) !important; }
+.dark .bg-slate-200:not(.pdf-preview) { background-color: hsl(222 40% 18%) !important; }
+
+.dark .text-slate-900:not(.email-render), .dark .text-gray-900 { color: hsl(213 31% 91%) !important; }
+.dark .text-slate-800, .dark .text-gray-800 { color: hsl(213 28% 86%) !important; }
+.dark .text-slate-700, .dark .text-gray-700 { color: hsl(214 22% 80%) !important; }
+.dark .text-slate-600, .dark .text-gray-600 { color: hsl(215 18% 68%) !important; }
+.dark .text-slate-500, .dark .text-gray-500 { color: hsl(215 16% 62%) !important; }
+.dark .text-slate-400, .dark .text-gray-400 { color: hsl(215 16% 55%) !important; }
+
+.dark .border-slate-200, .dark .border-gray-200 { border-color: hsl(216 34% 17%) !important; }
+.dark .border-slate-300, .dark .border-gray-300 { border-color: hsl(216 28% 22%) !important; }
+.dark .border-slate-100, .dark .border-gray-100 { border-color: hsl(216 34% 14%) !important; }
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: hsl(216 34% 17%) !important; }
+
+/* Las vistas de PDF/impresión siempre en claro */
+.pdf-preview, .pdf-preview * { color-scheme: light; }

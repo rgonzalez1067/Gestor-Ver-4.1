@@ -36,6 +36,7 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
+import { ThemeToggle } from './ThemeToggle';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import api from '../utils/api';
 import { ROUTE_MODULE_MAP, isGroupActive } from '../hooks/usePermission';
@@ -372,7 +373,7 @@ const SidebarInner = () => {
   return (
     <TooltipProvider>
       <aside
-        className={`${w} bg-white border-r border-slate-200 h-screen flex flex-col sticky top-0 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0`}
+        className={`${w} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen flex flex-col sticky top-0 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0`}
         data-testid="sidebar"
       >
         {/* Header */}
@@ -458,6 +459,9 @@ const SidebarInner = () => {
               <NotificationBell />
             </div>
           )}
+
+          {/* Theme toggle (día/noche) */}
+          <ThemeToggle collapsed={collapsed} />
 
           {/* Logout */}
           {collapsed ? (
