@@ -1505,6 +1505,41 @@ export const Clients = () => {
 
                     {/* === CONTACTOS === */}
                     <div className="border-t pt-4">
+                      {inheritedGroupContacts.length > 0 && (
+                        <div className="mb-4" data-testid="inherited-group-contacts">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Building2 size={14} className="text-indigo-600" />
+                            <p className="text-xs font-semibold text-slate-600">Contactos heredados del Grupo Económico</p>
+                          </div>
+                          <div className="space-y-2">
+                            {inheritedGroupContacts.map((gc, gi) => (
+                              <div key={gc.contact_id || gi}
+                                className="grid grid-cols-12 gap-2 items-center bg-indigo-50/60 border border-indigo-100 p-2.5 rounded-lg opacity-95"
+                                data-testid={`inherited-group-contact-${gi}`}>
+                                <div className="col-span-3 text-sm font-medium text-slate-700 truncate">{gc.full_name || '—'}</div>
+                                <div className="col-span-3 text-xs text-slate-500 truncate">{gc.email}</div>
+                                <div className="col-span-2 text-xs text-slate-500 truncate">{gc.role || '—'}</div>
+                                <div className="col-span-3">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold">
+                                    <Building2 size={10} /> Grupo Económico
+                                  </span>
+                                </div>
+                                <div className="col-span-1 flex justify-center">
+                                  <Button type="button" size="sm" variant="ghost" disabled
+                                    className="h-8 w-8 p-0 text-slate-300 cursor-not-allowed"
+                                    title="Este contacto pertenece al Grupo Económico y solo puede ser modificado desde la Ficha de Grupo correspondiente"
+                                    data-testid={`inherited-group-contact-locked-${gi}`}>
+                                    <X size={15} />
+                                  </Button>
+                                </div>
+                                <p className="col-span-12 text-[10px] text-slate-400 italic">
+                                  Solo lectura · Editable únicamente desde la Ficha del Grupo Económico.
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {(() => {
                         const isBranchCtx = !!addingBranchParentId || !!(editingClient && editingClient.is_branch);
                         if (!isBranchCtx) return null;
@@ -1604,41 +1639,6 @@ export const Clients = () => {
                         </div>
                       ))}
 
-                      {inheritedGroupContacts.length > 0 && (
-                        <div className="mt-3" data-testid="inherited-group-contacts">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Building2 size={14} className="text-indigo-600" />
-                            <p className="text-xs font-semibold text-slate-600">Contactos heredados del Grupo Económico</p>
-                          </div>
-                          <div className="space-y-2">
-                            {inheritedGroupContacts.map((gc, gi) => (
-                              <div key={gc.contact_id || gi}
-                                className="grid grid-cols-12 gap-2 items-center bg-indigo-50/60 border border-indigo-100 p-2.5 rounded-lg opacity-95"
-                                data-testid={`inherited-contact-${gi}`}>
-                                <div className="col-span-3 text-sm font-medium text-slate-700 truncate">{gc.full_name || '—'}</div>
-                                <div className="col-span-3 text-xs text-slate-500 truncate">{gc.email}</div>
-                                <div className="col-span-2 text-xs text-slate-500 truncate">{gc.role || '—'}</div>
-                                <div className="col-span-3">
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold">
-                                    <Building2 size={10} /> Grupo Económico
-                                  </span>
-                                </div>
-                                <div className="col-span-1 flex justify-center">
-                                  <Button type="button" size="sm" variant="ghost" disabled
-                                    className="h-8 w-8 p-0 text-slate-300 cursor-not-allowed"
-                                    title="Este contacto pertenece al Grupo Económico y solo puede ser modificado desde la Ficha de Grupo correspondiente"
-                                    data-testid={`inherited-contact-locked-${gi}`}>
-                                    <X size={15} />
-                                  </Button>
-                                </div>
-                                <p className="col-span-12 text-[10px] text-slate-400 italic">
-                                  Solo lectura · Editable únicamente desde la Ficha del Grupo Económico.
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2">

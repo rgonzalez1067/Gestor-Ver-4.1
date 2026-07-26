@@ -1407,3 +1407,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Causa raíz: las filas usaban `bg-white/70` (blanco translúcido) no cubierto por los overrides `.dark`, mientras el texto slate-600/700 sí se aclaraba.
 - Fix (index.css): `.dark [class*="bg-white/60".."/95"] { background-color: rgba(51,65,85,0.55) !important; }` — mapea blancos translúcidos de alta opacidad a superficie oscura. Los overlays de baja opacidad (/10../30) sobre gradientes quedan intactos.
 - Verificado por testing_agent iter297 (100% frontend, modo claro sin regresión). Repro branch: cli_dc77d71c6d98 (parent INVERSIONES COLD 2024).
+
+**UI · Orden jerárquico de contactos en ficha de cliente · 2026-06:**
+- Clients.jsx: reordenados los bloques de contactos en el diálogo de edición para seguir jerarquía: 1) Contactos heredados del Grupo Económico, 2) Contactos Globales del Principal (solo lectura, si es sucursal), 3) Contactos de esta Sucursal/propios (locales).
+- Antes el orden era Principal → Locales → Grupo. testids del bloque de grupo renombrados a inherited-group-contact-* para evitar colisión con inherited-contact-* del Principal.
+- Verificado self-test (screenshots): cliente con grupo (Corporación Alfa QA) muestra Grupo primero; sucursal sin grupo (INVERSIONES COLD 2024) muestra Principal→Locales sin errores.
