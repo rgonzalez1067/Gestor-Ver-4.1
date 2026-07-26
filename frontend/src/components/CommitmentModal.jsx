@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -95,16 +96,16 @@ export function CommitmentModal({ open, onClose, projectId, projectNumber, clien
         </p>
         <div className="flex flex-wrap items-center gap-3 mt-1.5 text-[11px] text-slate-500">
           <span className="flex items-center gap-1"><User size={10} />{c.created_by_name} ({c.created_by_role})</span>
-          <span className="flex items-center gap-1"><Calendar size={10} />Creado: {new Date(c.created_at).toLocaleDateString('es-VE')}</span>
+          <span className="flex items-center gap-1"><Calendar size={10} />Creado: {formatDate(c.created_at)}</span>
           {c.deadline && (
             <span className={`flex items-center gap-1 font-semibold ${overdue ? 'text-red-700' : 'text-amber-700'}`}>
-              <Flag size={10} />Fecha límite: {new Date(c.deadline).toLocaleDateString('es-VE')}
+              <Flag size={10} />Fecha límite: {formatDate(c.deadline)}
               {overdue && <span className="ml-1 bg-red-200 text-red-800 px-1 rounded">VENCIDO</span>}
             </span>
           )}
           {c.completed && c.completed_at && (
             <span className="flex items-center gap-1 text-emerald-700">
-              <CheckCircle2 size={10} />Cumplido por {c.completed_by_name} · {new Date(c.completed_at).toLocaleDateString('es-VE')}
+              <CheckCircle2 size={10} />Cumplido por {c.completed_by_name} · {formatDate(c.completed_at)}
             </span>
           )}
         </div>

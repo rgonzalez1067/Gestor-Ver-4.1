@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -128,7 +129,7 @@ export const EmailSendersConfig = () => {
             </p>
             {updatedAt && (
               <p className="text-xs text-slate-500 mt-2" data-testid="senders-last-updated">
-                Última actualización: <span className="font-medium text-slate-700">{new Date(updatedAt).toLocaleString('es-VE')}</span>
+                Última actualización: <span className="font-medium text-slate-700">{formatDateTime(updatedAt)}</span>
                 {updatedBy ? <> · por <span className="font-medium text-slate-700">{updatedBy}</span></> : null}
               </p>
             )}

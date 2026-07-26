@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import api from '../utils/api';
 import { contactMatchesPurpose } from '../utils/contactPurposes';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { formatRif } from '../utils/rifFormatter';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -2088,7 +2089,7 @@ const ProjectDetail = () => {
                     <div className="flex-1">
                       <p className="text-sm text-slate-800">{entry.text}</p>
                       <p className="text-xs text-slate-400 mt-1">
-                        <User size={10} className="inline mr-1" />{entry.created_by_name} · {new Date(entry.created_at).toLocaleString('es-VE')}
+                        <User size={10} className="inline mr-1" />{entry.created_by_name} · {formatDateTime(entry.created_at)}
                       </p>
                     </div>
                     {entry.email_detail && (
@@ -2283,7 +2284,7 @@ const ProjectDetail = () => {
                               <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">{idx + 1}</div>
                               <div>
                                 <p className="text-sm font-medium text-emerald-700">[{entry.level}]</p>
-                                <p className="text-[10px] text-emerald-500">{entry.sent_by} · {new Date(entry.sent_at).toLocaleString('es-VE')}</p>
+                                <p className="text-[10px] text-emerald-500">{entry.sent_by} · {formatDateTime(entry.sent_at)}</p>
                               </div>
                             </div>
                             <CheckCircle2 size={18} className="text-emerald-500" />

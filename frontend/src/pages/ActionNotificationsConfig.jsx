@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, ChevronDown, Plus, Trash2, Save, ShieldCheck, Loader2, AlertCircle, Sparkles, Activity, RefreshCw, Edit2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -605,7 +606,7 @@ function AuditLogTab({ actions, businessTypes }) {
   const fmtDate = (iso) => {
     if (!iso) return '—';
     try {
-      return new Date(iso).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' });
+      return formatDateTime(iso);
     } catch {
       return iso;
     }

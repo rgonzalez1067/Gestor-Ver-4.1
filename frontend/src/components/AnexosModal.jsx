@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { FileText, Upload, Trash2, Download, FolderOpen, File, Image, FileSpreadsheet, Loader2, CreditCard, DollarSign, User, Clock } from 'lucide-react';
@@ -251,7 +252,7 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
                             {att.uploaded_at && (
                               <span className="flex items-center gap-1" title="Fecha de carga">
                                 <Clock size={11} className="text-slate-400" />
-                                {new Date(att.uploaded_at).toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                {formatDateTime(att.uploaded_at)}
                               </span>
                             )}
                           </div>

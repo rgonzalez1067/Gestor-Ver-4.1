@@ -1,4 +1,5 @@
 import { FileText, Search, X, FolderOpen, MoreHorizontal, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package, Landmark, Sparkles } from 'lucide-react';
+import { formatDateTime, formatDate, formatTime } from '../../utils/dateFormat';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -486,7 +487,7 @@ export const QuotesTable = ({
                     )}
                   </div>
                 </td>
-                <td className="px-3 py-4 text-sm text-slate-600 whitespace-nowrap">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
+                <td className="px-3 py-4 text-sm text-slate-600 whitespace-nowrap">{formatDate(quote.created_at)}</td>
                 <td className="px-3 py-4 sticky right-0 bg-white group-hover:bg-slate-50 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
                   <div className="flex items-center justify-center gap-2">
                     <Button size="sm" variant="outline" onClick={() => onOpenAnexos(quote)}

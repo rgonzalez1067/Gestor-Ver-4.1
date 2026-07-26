@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -244,7 +245,7 @@ export const CommercialCategories = () => {
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500">
                           {c.updated_at
-                            ? `${new Date(c.updated_at).toLocaleString('es-VE')} · ${c.updated_by || ''}`
+                            ? `${formatDateTime(c.updated_at)} · ${c.updated_by || ''}`
                             : c.created_at
                               ? `Creada: ${new Date(c.created_at).toLocaleDateString('es-VE')}`
                               : '—'}

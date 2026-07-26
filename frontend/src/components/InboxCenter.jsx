@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDateTime } from '../utils/dateFormat';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Paperclip, Download, Send, UserCircle2, Reply, BellRing, BellOff, AlarmClock } from 'lucide-react';
 import { Button } from './ui/button';
@@ -65,19 +66,7 @@ const SLA_STYLES = {
 };
 
 function formatDate(iso) {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString('es-VE', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso);
 }
 
 function formatBytes(bytes) {
@@ -105,9 +94,7 @@ function isoToLocalInput(iso) {
 function formatRemindLabel(iso) {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleString('es-VE', {
-      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-    });
+    return formatDateTime(iso);
   } catch {
     return iso;
   }

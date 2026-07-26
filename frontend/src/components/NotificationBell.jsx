@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Bell, BellRing, Check, CheckCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -23,7 +24,7 @@ function timeAgo(iso) {
   if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
   const days = Math.floor(s / 86400);
   if (days < 7) return `hace ${days} día${days === 1 ? '' : 's'}`;
-  return d.toLocaleDateString('es-VE');
+  return formatDate(iso);
 }
 
 export const NotificationBell = () => {

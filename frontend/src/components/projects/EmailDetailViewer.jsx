@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { formatDateTime, formatDate, formatTime } from '../../utils/dateFormat';
 import { Eye } from 'lucide-react';
 
 /**
@@ -18,7 +19,7 @@ export const EmailDetailViewer = ({ open, onOpenChange, data }) => {
               <div><span className="font-medium text-slate-600">Asunto:</span> <span className="text-slate-800">{data.subject}</span></div>
               <div><span className="font-medium text-slate-600">Destinatarios:</span> <span className="text-slate-800">{data.recipients?.join(', ')}</span></div>
               {data.level && <div><span className="font-medium text-slate-600">Nivel:</span> <span className="text-slate-800">{data.level}</span></div>}
-              <div><span className="font-medium text-slate-600">Fecha:</span> <span className="text-slate-800">{data.sent_at ? new Date(data.sent_at).toLocaleString('es-VE') : '—'}</span></div>
+              <div><span className="font-medium text-slate-600">Fecha:</span> <span className="text-slate-800">{data.sent_at ? formatDateTime(data.sent_at) : '—'}</span></div>
               {data.attachments?.length > 0 && (
                 <div><span className="font-medium text-slate-600">Adjuntos:</span> <span className="text-slate-800">{data.attachments.map(a => a.filename).join(', ')}</span></div>
               )}

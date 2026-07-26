@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -267,8 +268,7 @@ export const InitialContacts = () => {
 
   const formatDate = (iso) => {
     if (!iso) return '';
-    const d = new Date(iso);
-    return d.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+    return formatDateTime(iso, '');
   };
 
   return (

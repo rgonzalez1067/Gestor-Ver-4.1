@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -945,7 +946,7 @@ export const Settings = () => {
                         <td className="px-4 py-3 text-slate-600 font-mono text-xs">{log.quote_number || '-'}</td>
                         <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
                           <Clock size={12} className="inline mr-1" />
-                          {new Date(log.created_at).toLocaleString('es-VE')}
+                          {formatDateTime(log.created_at)}
                         </td>
                       </tr>
                     );
@@ -1096,7 +1097,7 @@ function CorporateAnexosCard() {
 
   const fmtDate = (iso) => {
     if (!iso) return 'Nunca';
-    try { return new Date(iso).toLocaleString('es-VE'); } catch { return iso; }
+    try { return formatDateTime(iso); } catch { return iso; }
   };
 
   const grouped = Object.entries(anexos.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {}));

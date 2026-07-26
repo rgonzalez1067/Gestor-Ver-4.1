@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Send, X, UserCircle2, Loader2, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -32,21 +33,16 @@ import { emitInboxChanged, emitInboxReloadList } from '../utils/inboxEvents';
  * NOTA: No usa websockets — el envío re-fetcha el hilo al instante;
  * suficiente para una v1. Polling/SSE pueden agregarse después.
  */
-function formatTime(iso) {
+function formatMsgTime(iso) {
   if (!iso) return '';
   try {
     const d = new Date(iso);
     const today = new Date();
     const sameDay = d.toDateString() === today.toDateString();
     if (sameDay) {
-      return d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+      return formatTime(iso);
     }
-    return d.toLocaleString('es-VE', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatDateTime(iso);
   } catch {
     return '';
   }
@@ -258,7 +254,7 @@ export function ChatThread({ conversationId, open, onOpenChange, onChanged }) {
                             mine ? 'text-violet-100' : 'text-slate-400'
                           } text-right`}
                         >
-                          {formatTime(m.created_at)}
+                          {formatMsgTime(m.created_at)}
                         </p>
                       </div>
                     </li>

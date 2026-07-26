@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
@@ -2134,7 +2135,7 @@ export const Clients = () => {
                             <span>Fecha: {log.contact_date}</span>
                             {log.created_at && (
                               <span className="text-blue-500 font-medium">
-                                {new Date(log.created_at).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                                {formatTime(log.created_at)}
                               </span>
                             )}
                             {log.follow_up_date && (

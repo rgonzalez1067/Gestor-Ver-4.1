@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
@@ -85,7 +86,7 @@ export const IntegratorCertificatesCell = ({ integratorId, count = 0, onChange }
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium text-slate-700 truncate">{c.original_name}</p>
                   <p className="text-[10px] text-slate-400">
-                    {c.created_at ? new Date(c.created_at).toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                    {c.created_at ? formatDateTime(c.created_at) : ''}
                     {' · '}{c.origin_label}
                   </p>
                 </div>

@@ -19,6 +19,7 @@
 //                              recibe un badge de origen (audit trail).
 // ============================================================================
 import { useState, useEffect, useCallback } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -259,11 +260,7 @@ export default function BitacoraModal({
                         <span>Fecha: {log.contact_date}</span>
                         {log.created_at && (
                           <span className="text-blue-500 font-medium">
-                            {new Date(log.created_at).toLocaleTimeString('es-VE', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true,
-                            })}
+                            {formatTime(log.created_at)}
                           </span>
                         )}
                         {log.follow_up_date && (

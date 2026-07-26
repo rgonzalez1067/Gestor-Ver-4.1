@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -96,16 +97,16 @@ export function ImplementerAlertsModal({ open, onClose, projectId, projectNumber
         </p>
         <div className="flex flex-wrap items-center gap-3 mt-1.5 text-[11px] text-slate-500">
           <span className="flex items-center gap-1"><User size={10} />{a.created_by_name}</span>
-          <span className="flex items-center gap-1"><Calendar size={10} />Creada: {new Date(a.created_at).toLocaleDateString('es-VE')}</span>
+          <span className="flex items-center gap-1"><Calendar size={10} />Creada: {formatDate(a.created_at)}</span>
           {a.deadline && (
             <span className={`flex items-center gap-1 font-semibold ${overdue ? 'text-orange-700' : 'text-amber-700'}`}>
-              <BellRing size={10} />Fecha objetivo: {new Date(a.deadline).toLocaleDateString('es-VE')}
+              <BellRing size={10} />Fecha objetivo: {formatDate(a.deadline)}
               {overdue && <span className="ml-1 bg-orange-200 text-orange-800 px-1 rounded">VENCIDA</span>}
             </span>
           )}
           {a.completed && a.completed_at && (
             <span className="flex items-center gap-1 text-emerald-700">
-              <CheckCircle2 size={10} />Cumplida · {new Date(a.completed_at).toLocaleDateString('es-VE')}
+              <CheckCircle2 size={10} />Cumplida · {formatDate(a.completed_at)}
             </span>
           )}
         </div>

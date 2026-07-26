@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only verification of the Caracas (UTC-4) timezone fix. Container browser confirmed as TZ=UTC. Validated that timestamps stored in UTC render as UTC-4 in the DOM via the shared helper src/utils/dateFormat.js. Verified 3 primary surfaces: (1) Settings → Historial de Correos (email-logs) — raw '2026-07-23T01:02:07+00:00' rendered as '22/07/2026, 09:02 p. m.' (5/5 matches present in DOM). (2) ProjectDetail bitácora — raw '2026-07-14T01:35:06+00:00' rendered as '13/07/2026, 09:35 p. m.' (present in DOM). (3) Bell/notifications timestamps also render via the same helper (same DOM patterns confirmed). Format is exactly dd/mm/aaaa hh:mm a. m./p. m. with no TZ label, and every timestamp is exactly 4 hours less than the raw UTC value. No regression: date-only strings (YYYY-MM-DD) are handled by formatDate() without TZ conversion (day is preserved). Numeric toLocaleString formatting is untouched by the helper (no impact on HistoricalQuotes / KPIs).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "dateFormat.js: parseUTC only appends 'Z' when the string matches HAS_TIME regex; strings like an ISO with fractional seconds and no offset (e.g. '2026-07-14T01:35:06.880439') still match HAS_TIME so are correctly treated as UTC — OK.",
+    "In InboxCenter.jsx there is a local formatDate(iso) wrapping the imported formatDateTime — cosmetic shadowing but not a bug (works as intended for showing dd/mm/aaaa hh:mm).",
+    "TallerEquipos.jsx, InventoryAccountingReport.jsx and AssetLedgerReport.jsx still define their own local formatDate/formatDateTime helpers (not migrated). They currently operate on report/purchase dates that appear to be date-only or backend-normalized dates, so no user-visible bug detected during this iteration; however for consistency and to prevent future regressions the main agent may consider migrating them to the shared helper as well.",
+    "Integrators.jsx keeps its own formatTimelineDate() for the integrator timeline entries; the field 'date' returned by the timeline endpoint should be reviewed — if it is a full ISO datetime (UTC) it will render in browser TZ (UTC), not Caracas. Recommend main agent verify and migrate to formatDate/formatDateTime.",
+    "AssetLedgerReport.jsx imports formatDateTime from '../utils/dateFormat' but then RE-DECLARES a local `const formatDateTime = (iso) => { ... return formatDateTime(d); }` at line 64 — this shadows the import and creates an infinite recursion / TDZ hazard when that local is invoked. Since Asset Ledger movements (mv.date) call this shadowed function, this file WILL crash the report if a mv.date is ever rendered. Report to main agent to fix (rename local or remove it and use the imported one)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped per request)", "frontend": "100% for the timezone fix scenarios tested" },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Browser container runs in UTC. Helper /app/frontend/src/utils/dateFormat.js forces timeZone='America/Caracas'. Login endpoint POST /api/auth/login returns { session_token, user }; store token in localStorage under 'session_token' (and mirror to 'token','access_token','authToken' for safety). Endpoints used for verification: GET /api/email-logs?limit=N (Settings Historial), GET /api/notifications?limit=N (bell), GET /api/projects/{id} (bitacora key = 'bitacora'). Compare rendered DOM text against `new Date(raw_iso).toLocaleString('es-VE',{timeZone:'America/Caracas',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})` — must match exactly. Follow-up items above (esp. AssetLedgerReport.jsx shadowed formatDateTime recursion) require attention.",
+  "rca of the issue": "N/A — this iteration verified the fix, no bug reproduced. The fix (forcing timeZone 'America/Caracas' in Intl formatting and treating naive-with-time strings as UTC) is effective and consistent across Settings/email-logs, ProjectDetail bitácora, and notifications."
+}

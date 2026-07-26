@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -1070,7 +1071,7 @@ export const Integrators = () => {
                         <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2" data-testid="cert-current">
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-emerald-800 truncate">{certInfo.original_name}</p>
-                            <p className="text-xs text-emerald-600">Cargado: {certInfo.uploaded_at ? new Date(certInfo.uploaded_at).toLocaleDateString('es-VE') : ''}</p>
+                            <p className="text-xs text-emerald-600">Cargado: {certInfo.uploaded_at ? formatDate(certInfo.uploaded_at) : ''}</p>
                           </div>
                           <div className="flex gap-1 shrink-0">
                             <a href={`${process.env.REACT_APP_BACKEND_URL}/api/integrators/config/certificate/download`} target="_blank" rel="noreferrer">

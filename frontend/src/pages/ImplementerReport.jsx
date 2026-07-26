@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateTime } from '../utils/dateFormat';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -203,7 +204,7 @@ export default function ImplementerReport() {
                   <h2 className="text-xl font-bold text-slate-900" data-testid="impl-name">{r.implementer_name}</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Periodo: Desde {fmtDate(report.date_from)} Hasta {fmtDate(report.date_to)}
-                    {'  ·  '}Generado: {new Date(report.generated_at).toLocaleString('es-VE')}
+                    {'  ·  '}Generado: {formatDateTime(report.generated_at)}
                   </p>
                 </div>
                 <MetricGroup title="A. Gestión de Proyectos de Integración" icon={FileText} metrics={PROJECT_METRICS} data={r.metrics} accent="text-indigo-700" />

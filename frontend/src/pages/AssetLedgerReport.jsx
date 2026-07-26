@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
+import { formatDateTime } from '../utils/dateFormat';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Printer, ArrowLeft, Package, Download, ChevronDown, ChevronRight } from 'lucide-react';
@@ -64,7 +65,7 @@ export const AssetLedgerReport = () => {
     if (!iso) return '';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    return d.toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return formatDateTime(d);
   };
 
   const warehouseBadge = (name) => {

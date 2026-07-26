@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
@@ -142,7 +143,7 @@ export const EmailFooterConfig = () => {
               <p className="text-xs text-slate-500 mt-2" data-testid="footer-last-updated">
                 Última actualización:{' '}
                 <span className="font-medium text-slate-700">
-                  {new Date(updatedAt).toLocaleString('es-VE')}
+                  {formatDateTime(updatedAt)}
                 </span>
                 {updatedBy ? <> · por <span className="font-medium text-slate-700">{updatedBy}</span></> : null}
               </p>
