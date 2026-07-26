@@ -159,5 +159,107 @@
 .dark .border-slate-100, .dark .border-gray-100 { border-color: hsl(216 34% 14%) !important; }
 .dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: hsl(216 34% 17%) !important; }
 
+/* ===== Dark Mode Fase 2: tintes de color (callouts, chips, badges) =====
+   Las utilidades de color claras (bg-*-50 / bg-*-100 y sus textos -600..-900)
+   no estaban cubiertas por la Fase 1, por lo que en modo oscuro se veían como
+   cajas brillantes con texto de bajo contraste. Aquí se remapean a tintes
+   sutiles sobre fondo oscuro conservando el matiz semántico (info=azul,
+   éxito=verde, atención=ámbar, error=rojo, etc.). */
+
+/* --- Fondos: tinte -50 (alpha 0.10) y -100 (alpha 0.18) --- */
+.dark .bg-blue-50    { background-color: rgba(59,130,246,0.10) !important; }
+.dark .bg-blue-100   { background-color: rgba(59,130,246,0.18) !important; }
+.dark .bg-indigo-50  { background-color: rgba(99,102,241,0.10) !important; }
+.dark .bg-indigo-100 { background-color: rgba(99,102,241,0.18) !important; }
+.dark .bg-violet-50  { background-color: rgba(139,92,246,0.10) !important; }
+.dark .bg-violet-100 { background-color: rgba(139,92,246,0.18) !important; }
+.dark .bg-purple-50  { background-color: rgba(168,85,247,0.10) !important; }
+.dark .bg-purple-100 { background-color: rgba(168,85,247,0.18) !important; }
+.dark .bg-fuchsia-50 { background-color: rgba(217,70,239,0.10) !important; }
+.dark .bg-fuchsia-100{ background-color: rgba(217,70,239,0.18) !important; }
+.dark .bg-emerald-50 { background-color: rgba(16,185,129,0.10) !important; }
+.dark .bg-emerald-100{ background-color: rgba(16,185,129,0.18) !important; }
+.dark .bg-green-50   { background-color: rgba(34,197,94,0.10) !important; }
+.dark .bg-green-100  { background-color: rgba(34,197,94,0.18) !important; }
+.dark .bg-teal-50    { background-color: rgba(20,184,166,0.10) !important; }
+.dark .bg-teal-100   { background-color: rgba(20,184,166,0.18) !important; }
+.dark .bg-cyan-50    { background-color: rgba(6,182,212,0.10) !important; }
+.dark .bg-cyan-100   { background-color: rgba(6,182,212,0.18) !important; }
+.dark .bg-sky-50     { background-color: rgba(14,165,233,0.10) !important; }
+.dark .bg-sky-100    { background-color: rgba(14,165,233,0.18) !important; }
+.dark .bg-amber-50   { background-color: rgba(245,158,11,0.10) !important; }
+.dark .bg-amber-100  { background-color: rgba(245,158,11,0.18) !important; }
+.dark .bg-yellow-50  { background-color: rgba(234,179,8,0.10) !important; }
+.dark .bg-yellow-100 { background-color: rgba(234,179,8,0.18) !important; }
+.dark .bg-orange-50  { background-color: rgba(249,115,22,0.10) !important; }
+.dark .bg-orange-100 { background-color: rgba(249,115,22,0.18) !important; }
+.dark .bg-red-50     { background-color: rgba(239,68,68,0.10) !important; }
+.dark .bg-red-100    { background-color: rgba(239,68,68,0.18) !important; }
+.dark .bg-rose-50    { background-color: rgba(244,63,94,0.10) !important; }
+.dark .bg-rose-100   { background-color: rgba(244,63,94,0.18) !important; }
+.dark .bg-pink-50    { background-color: rgba(236,72,153,0.10) !important; }
+.dark .bg-pink-100   { background-color: rgba(236,72,153,0.18) !important; }
+
+/* --- Textos de color (-600..-900) aclarados al tono -300 para contraste --- */
+.dark .text-blue-600, .dark .text-blue-700, .dark .text-blue-800, .dark .text-blue-900          { color: rgb(147,197,253) !important; }
+.dark .text-indigo-600, .dark .text-indigo-700, .dark .text-indigo-800, .dark .text-indigo-900  { color: rgb(165,180,252) !important; }
+.dark .text-violet-600, .dark .text-violet-700, .dark .text-violet-800, .dark .text-violet-900  { color: rgb(196,181,253) !important; }
+.dark .text-purple-600, .dark .text-purple-700, .dark .text-purple-800, .dark .text-purple-900  { color: rgb(216,180,254) !important; }
+.dark .text-fuchsia-600, .dark .text-fuchsia-700, .dark .text-fuchsia-800, .dark .text-fuchsia-900 { color: rgb(240,171,252) !important; }
+.dark .text-emerald-600, .dark .text-emerald-700, .dark .text-emerald-800, .dark .text-emerald-900 { color: rgb(110,231,183) !important; }
+.dark .text-green-600, .dark .text-green-700, .dark .text-green-800, .dark .text-green-900      { color: rgb(134,239,172) !important; }
+.dark .text-teal-600, .dark .text-teal-700, .dark .text-teal-800, .dark .text-teal-900          { color: rgb(94,234,212) !important; }
+.dark .text-cyan-600, .dark .text-cyan-700, .dark .text-cyan-800, .dark .text-cyan-900          { color: rgb(103,232,249) !important; }
+.dark .text-sky-600, .dark .text-sky-700, .dark .text-sky-800, .dark .text-sky-900              { color: rgb(125,211,252) !important; }
+.dark .text-amber-600, .dark .text-amber-700, .dark .text-amber-800, .dark .text-amber-900      { color: rgb(252,211,77) !important; }
+.dark .text-yellow-600, .dark .text-yellow-700, .dark .text-yellow-800, .dark .text-yellow-900  { color: rgb(253,224,71) !important; }
+.dark .text-orange-600, .dark .text-orange-700, .dark .text-orange-800, .dark .text-orange-900  { color: rgb(253,186,116) !important; }
+.dark .text-red-600, .dark .text-red-700, .dark .text-red-800, .dark .text-red-900              { color: rgb(252,165,165) !important; }
+.dark .text-rose-600, .dark .text-rose-700, .dark .text-rose-800, .dark .text-rose-900          { color: rgb(253,164,175) !important; }
+.dark .text-pink-600, .dark .text-pink-700, .dark .text-pink-800, .dark .text-pink-900          { color: rgb(249,168,212) !important; }
+
+/* --- Bordes de color claros aclarados a tinte translúcido --- */
+.dark .border-blue-200, .dark .border-blue-100       { border-color: rgba(59,130,246,0.35) !important; }
+.dark .border-indigo-200, .dark .border-indigo-100   { border-color: rgba(99,102,241,0.35) !important; }
+.dark .border-emerald-200, .dark .border-emerald-100 { border-color: rgba(16,185,129,0.35) !important; }
+.dark .border-green-200, .dark .border-green-100     { border-color: rgba(34,197,94,0.35) !important; }
+.dark .border-amber-200, .dark .border-amber-100     { border-color: rgba(245,158,11,0.35) !important; }
+.dark .border-red-200, .dark .border-red-100         { border-color: rgba(239,68,68,0.35) !important; }
+.dark .border-rose-200, .dark .border-rose-100       { border-color: rgba(244,63,94,0.35) !important; }
+.dark .border-orange-200, .dark .border-orange-100   { border-color: rgba(249,115,22,0.35) !important; }
+.dark .border-purple-200, .dark .border-purple-100   { border-color: rgba(168,85,247,0.35) !important; }
+.dark .border-violet-200, .dark .border-violet-100   { border-color: rgba(139,92,246,0.35) !important; }
+
+/* --- Hover backgrounds neutros --- */
+.dark .hover\:bg-slate-50:hover, .dark .hover\:bg-gray-50:hover   { background-color: hsl(222 47% 13%) !important; }
+.dark .hover\:bg-slate-100:hover, .dark .hover\:bg-gray-100:hover { background-color: hsl(222 40% 18%) !important; }
+
+/* --- Variantes con opacidad (bg-*-50/xx, bg-*-100/xx) que no matchean las clases planas --- */
+.dark [class*="bg-blue-50/"]    { background-color: rgba(59,130,246,0.10) !important; }
+.dark [class*="bg-blue-100/"]   { background-color: rgba(59,130,246,0.18) !important; }
+.dark [class*="bg-indigo-50/"]  { background-color: rgba(99,102,241,0.10) !important; }
+.dark [class*="bg-indigo-100/"] { background-color: rgba(99,102,241,0.18) !important; }
+.dark [class*="bg-violet-50/"]  { background-color: rgba(139,92,246,0.10) !important; }
+.dark [class*="bg-violet-100/"] { background-color: rgba(139,92,246,0.18) !important; }
+.dark [class*="bg-purple-50/"]  { background-color: rgba(168,85,247,0.10) !important; }
+.dark [class*="bg-purple-100/"] { background-color: rgba(168,85,247,0.18) !important; }
+.dark [class*="bg-emerald-50/"] { background-color: rgba(16,185,129,0.10) !important; }
+.dark [class*="bg-emerald-100/"]{ background-color: rgba(16,185,129,0.18) !important; }
+.dark [class*="bg-green-50/"]   { background-color: rgba(34,197,94,0.10) !important; }
+.dark [class*="bg-green-100/"]  { background-color: rgba(34,197,94,0.18) !important; }
+.dark [class*="bg-teal-50/"]    { background-color: rgba(20,184,166,0.10) !important; }
+.dark [class*="bg-teal-100/"]   { background-color: rgba(20,184,166,0.18) !important; }
+.dark [class*="bg-sky-50/"]     { background-color: rgba(14,165,233,0.10) !important; }
+.dark [class*="bg-cyan-50/"]    { background-color: rgba(6,182,212,0.10) !important; }
+.dark [class*="bg-amber-50/"]   { background-color: rgba(245,158,11,0.10) !important; }
+.dark [class*="bg-amber-100/"]  { background-color: rgba(245,158,11,0.18) !important; }
+.dark [class*="bg-yellow-50/"]  { background-color: rgba(234,179,8,0.10) !important; }
+.dark [class*="bg-orange-50/"]  { background-color: rgba(249,115,22,0.10) !important; }
+.dark [class*="bg-red-50/"]     { background-color: rgba(239,68,68,0.10) !important; }
+.dark [class*="bg-red-100/"]    { background-color: rgba(239,68,68,0.18) !important; }
+.dark [class*="bg-rose-50/"]    { background-color: rgba(244,63,94,0.10) !important; }
+.dark [class*="bg-rose-100/"]   { background-color: rgba(244,63,94,0.18) !important; }
+.dark [class*="bg-pink-50/"]    { background-color: rgba(236,72,153,0.10) !important; }
+
 /* Las vistas de PDF/impresión siempre en claro */
 .pdf-preview, .pdf-preview * { color-scheme: light; }

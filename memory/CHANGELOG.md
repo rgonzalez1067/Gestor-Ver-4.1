@@ -1392,3 +1392,12 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Permisos (permissions_catalog.py): módulo 'taller_equipos' renombrado 'Consulta de Taller' + nuevo 'taller_recepcion' 'Recepción de Equipos' (niveles Inactivo/Consulta/Edición Total). Header de TallerEquipos renombrado 'Consulta de Taller'. ESTATUS_OPTIONS +Recibido +Cotizado.
 - Verificado: testing_agent iter286 100% backend+frontend; fix de alineación de campos y rename aplicados y re-verificados por curl.
 - PENDIENTE FASE 2: trazabilidad en Cotización de Reparaciones ('Seleccionar de Equipos en Taller' → Recibido→Cotizado al emitir → En Reparación al aprobar; normalizar 'En reparación'→'En Reparación').
+
+**Feature (Modo Oscuro FASE 2) · Cobertura de tintes de color y refinamiento · 2026-06:**
+- index.css: bloque central `.dark` ampliado para remapear utilidades de color claras que la Fase 1 no cubría (bg-*-50/-100 y textos -600..-900) a tintes sutiles sobre fondo oscuro conservando el matiz semántico. Cubre blue/indigo/violet/purple/fuchsia/emerald/green/teal/cyan/sky/amber/yellow/orange/red/rose/pink.
+- Añadidos selectores de atributo `[class*="bg-<c>-50/"]` / `-100/` para capturar variantes con opacidad (p.ej. bg-green-50/50) que no matchean las clases planas.
+- Bordes de color (-100/-200) → tinte translúcido; hover:bg-slate/gray-50/100 → neutros oscuros.
+- InboxCenter.jsx: SLA_STYLES con variantes dark: para filas/chips (verde/ámbar/rojo) — eliminado el tinte turbio en el Centro de Mensajes.
+- Bug corregido: tarjetas "Comunicación enviada" del modal Bitácora (bg-green-50/50 + texto slate-400) quedaban ilegibles en oscuro; ahora tinte verde sutil + texto legible.
+- Enfoque: cobertura centralizada en index.css (NO migración archivo-por-archivo de 181 componentes, descartada por riesgo/tiempo). Light mode intacto (todo scope .dark).
+- Verificado self-test (screenshots): Dashboard, Clientes, modal Bitácora, Cotizaciones en modo oscuro. USER VERIFICATION PENDING.
