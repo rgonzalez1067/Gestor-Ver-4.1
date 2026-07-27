@@ -1420,3 +1420,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Motor de plantillas: variable `{Matriz_Contactos_Facturacion}` expuesta en notification_engine._build_template_vars y workflow_notifications (usados por la acción approve). Usa la matriz almacenada; si falta, la recalcula en vivo.
 - Frontend: variable agregada al catálogo unificado (templateVariables.js, categoría Cliente).
 - Verificado (self-test e2e con API real + aserciones): POST /api/quotes almacena JSON solo con nombre+email (QA #1); el motor de aprobación renderiza 'Carlos Mendoza <cmendoza@...>' por línea (QA #2); filtro estricto, 3 niveles, orden jerárquico y dedup OK. Datos de prueba sembrados y eliminados sin tocar datos reales.
+
+**Bug fix (Modo Oscuro) · Contraste en cuadrante 'Estatus y Definición Legal' (ficha de cliente) · 2026-06:**
+- Síntoma: en modo oscuro, el primer cuadrante del formulario de cliente mantenía fondo claro (verde/amarillo) y las etiquetas quedaban invisibles.
+- Causa raíz: el cuadrante usaba estilo INLINE backgroundColor (#f0fdf4/#fefce8), no sobrescribible por reglas .dark.
+- Fix (Clients.jsx ~1045): reemplazado el style inline por classNames condicionales (bg-green-50/border-green-200/text-green-700 para 'Cliente'; bg-yellow-50/border-yellow-200/text-yellow-700 para otros), que ya tienen overrides .dark. Añadido border-yellow-100/200 a index.css.
+- Verificado por testing_agent iter298 (100% frontend): ambos estados legibles en oscuro; modo claro sin regresión.
