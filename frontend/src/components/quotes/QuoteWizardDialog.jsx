@@ -828,7 +828,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
               </div>
 
               {/* SECCIÓN 1.5: Detalles de Integración y Hardware */}
-              <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg p-5 border border-blue-100 mt-4">
+              <div className="bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 rounded-lg p-5 border border-blue-100 dark:border-slate-700 mt-4">
                 <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
                   <Cpu size={20} className="text-brand-blue-600" />
                   {isPaymentGateway ? 'Integrador' : 'Detalles de Integración y Hardware'}
@@ -2277,13 +2277,13 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     <div className="p-4 space-y-3">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex">
-                          <span className="bg-amber-400 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Cliente</span>
+                          <span className="bg-amber-400 dark:bg-amber-500/25 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Cliente</span>
                           <span className="bg-white border border-slate-200 px-3 py-2 flex-1 text-slate-900 font-medium">
                             {selectedClient?.legal_name || selectedClient?.fantasy_name || 'N/A'}
                           </span>
                         </div>
                         <div className="flex">
-                          <span className="bg-blue-200 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Cantidad de Cajas</span>
+                          <span className="bg-blue-200 dark:bg-blue-500/25 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Cantidad de Cajas</span>
                           <span className="bg-white border border-slate-200 px-3 py-2 flex-1 text-slate-900 font-medium">
                             {quoteData.cantidad_cajas}
                           </span>
@@ -2291,7 +2291,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                       </div>
                       
                       <div className="flex">
-                        <span className="bg-green-200 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Dirección Fiscal</span>
+                        <span className="bg-green-200 dark:bg-green-500/25 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Dirección Fiscal</span>
                         <span className="bg-white border border-slate-200 px-3 py-2 flex-1 text-slate-700">
                           {selectedClient?.address || 'No especificada'}
                         </span>
@@ -2303,9 +2303,9 @@ export const QuoteWizardDialog = ({ ctx }) => {
                       <table className="w-full border-collapse">
                         <thead>
                           <tr>
-                            <th className="bg-green-200 text-slate-900 px-4 py-2 text-left font-semibold border border-slate-200">Bancos</th>
-                            <th className="bg-blue-200 text-slate-900 px-4 py-2 text-left font-semibold border border-slate-200">Productos</th>
-                            <th className="bg-amber-400 text-slate-900 px-4 py-2 text-center font-semibold border border-slate-200 w-32">Cantidad de Cajas</th>
+                            <th className="bg-green-200 dark:bg-green-500/25 text-slate-900 px-4 py-2 text-left font-semibold border border-slate-200">Bancos</th>
+                            <th className="bg-blue-200 dark:bg-blue-500/25 text-slate-900 px-4 py-2 text-left font-semibold border border-slate-200">Productos</th>
+                            <th className="bg-amber-400 dark:bg-amber-500/25 text-slate-900 px-4 py-2 text-center font-semibold border border-slate-200 w-32">Cantidad de Cajas</th>
                           </tr>
                         </thead>
                         <tbody>
