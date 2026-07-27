@@ -1426,3 +1426,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Causa raíz: el cuadrante usaba estilo INLINE backgroundColor (#f0fdf4/#fefce8), no sobrescribible por reglas .dark.
 - Fix (Clients.jsx ~1045): reemplazado el style inline por classNames condicionales (bg-green-50/border-green-200/text-green-700 para 'Cliente'; bg-yellow-50/border-yellow-200/text-yellow-700 para otros), que ya tienen overrides .dark. Añadido border-yellow-100/200 a index.css.
 - Verificado por testing_agent iter298 (100% frontend): ambos estados legibles en oscuro; modo claro sin regresión.
+
+**Bug fix (Modo Oscuro) · Contraste en asistente de Cotizaciones (QuoteWizardDialog) · 2026-06:**
+- Panel 'Detalles de Integración y Hardware': usaba gradiente claro (from-slate-50 to-blue-50) no cubierto por overrides .dark → etiquetas invisibles. Fix: dark:from-slate-900 dark:to-slate-800 dark:border-slate-700 (línea ~831).
+- Panel 'Resumen Ejecutivo': chips/encabezados bg-blue-200 / bg-green-200 / bg-amber-400 con text-slate-900 quedaban ilegibles en oscuro. Fix: dark:bg-blue-500/25, dark:bg-green-500/25, dark:bg-amber-500/25 (líneas ~2280,2286,2294,2306-2308).
+- Verificado por testing_agent iter299 (100% frontend): fondos oscuros + texto legible en oscuro; modo claro sin regresión (gradiente y chips vibrantes originales conservados).
