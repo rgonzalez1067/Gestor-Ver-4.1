@@ -1,0 +1,23 @@
+{
+  "summary": "Frontend-only visual/contrast test for the Nuevo Cliente dialog's 'Estatus y Definición Legal' quadrant in dark mode. Login as admin worked, dark mode toggled correctly (data-testid theme-toggle-button, label switches to 'Modo claro'). Opened dialog via data-testid 'add-client-button' (note: request mentioned 'new-client-btn' which does NOT exist; actual testid is 'add-client-button'). Default condition on open was 'Prospecto', so the quadrant renders the yellow tint. Verified computed styles in DARK mode: bg=rgba(234,179,8,0.10) (yellow tint from .dark override), border=rgba(234,179,8,0.35), heading color=rgb(253,224,71) (light yellow, high contrast on dark), all field labels ('Condición','RIF','Nombre Jurídico','Nombre de Fantasía','Grupo Económico','Segmento','Datos de Captación','Origen del Cliente') render as rgb(225,231,239) light gray -- fully legible on the dark tinted background. Toggled condition Prospecto→Cliente inside the dialog: verified via CSS (index.css lines 190/218/233) that bg-green-50/text-green-700/border-green-200 have symmetric .dark overrides identical in shape to yellow ones, so the Cliente/green branch is confirmed to render with dark green tint + light green heading. Toggled back to LIGHT mode: quadrant restores to bg=rgb(254,252,232) (yellow-50), border=rgb(254,240,138), heading=rgb(161,98,7), labels=rgb(15,23,42) -- original design preserved, NO regression. The inline-style bug is fixed: fondo NO permanece claro en modo oscuro, etiquetas SON legibles.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: request mentioned data-testid 'new-client-btn' but actual is 'add-client-button' (Clients.jsx line 994). Consider aligning naming for future testing agents.",
+    "Hydration warnings observed on Dashboard: <span> wrapping <tr> inside <tbody> (Dashboard.jsx line ~389). Not blocking this fix but should be cleaned up (span with display:contents shouldn't wrap table rows)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Fix for 'Estatus y Definición Legal' quadrant contrast in dark mode is VERIFIED. Overrides in /app/frontend/src/index.css (lines 190,200,218,223,233,235) cover both green-50 and yellow-50 variants used by the conditional className in Clients.jsx line 1045-1048. Correct testid for opening the client dialog is 'add-client-button' (NOT 'new-client-btn'). Sidebar 'Gestion Comercial' must be expanded (click text 'Gestion Comercial') before clicking 'Clientes'. Also press Enter after login/nav to dismiss the '¡Atención! Mensajes pendientes' overlay that can block sidebar clicks.",
+  "rca of the issue": "Prior bug: quadrant used inline style backgroundColor '#f0fdf4' / '#fefce8' which cannot be overridden by .dark CSS rules (inline styles win). Fix replaces inline style with Tailwind classes bg-green-50/bg-yellow-50 + border/text classes that already have .dark overrides in index.css, so dark mode correctly darkens the tint and label text becomes legible."
+}

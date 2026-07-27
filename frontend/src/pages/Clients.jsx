@@ -1042,8 +1042,8 @@ export const Clients = () => {
                     <div className="grid grid-cols-2 gap-5">
 
                       {/* CUADRANTE 1: Estatus y Definición Legal */}
-                      <div className="space-y-3 p-4 rounded-lg border border-slate-200" style={{ backgroundColor: formData.condicion === 'Cliente' ? '#f0fdf4' : '#fefce8' }}>
-                        <h3 className="text-xs font-semibold uppercase tracking-wider border-b pb-2" style={{ color: formData.condicion === 'Cliente' ? '#15803d' : '#a16207', borderColor: formData.condicion === 'Cliente' ? '#bbf7d0' : '#fde68a' }}>
+                      <div className={`space-y-3 p-4 rounded-lg border ${formData.condicion === 'Cliente' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                        <h3 className={`text-xs font-semibold uppercase tracking-wider border-b pb-2 ${formData.condicion === 'Cliente' ? 'text-green-700 border-green-200' : 'text-yellow-700 border-yellow-200'}`}>
                           Estatus y Definición Legal
                         </h3>
                         <div>
