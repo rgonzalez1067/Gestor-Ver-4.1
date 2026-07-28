@@ -858,6 +858,9 @@ export const Integrators = () => {
   const [closeExtraList, setCloseExtraList] = useState([]);
   const [closeNewRecipient, setCloseNewRecipient] = useState('');
   const [closing, setClosing] = useState(false);
+  const [closePreviewOpen, setClosePreviewOpen] = useState(false);
+  const [closePreviewUrl, setClosePreviewUrl] = useState('');
+  const [closePreviewLoading, setClosePreviewLoading] = useState(false);
   const [massCommOpen, setMassCommOpen] = useState(false);
   const [certCounts, setCertCounts] = useState({});
 
@@ -867,6 +870,22 @@ export const Integrators = () => {
     if (!closeExtraList.includes(email)) setCloseExtraList([...closeExtraList, email]);
     setCloseNewRecipient('');
   };
+
+  // Anexos: append acumulativo (no sobreescribe) con dedupe por nombre+tamaño.
+  const handleCloseFilesAdd = (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (picked.length) {
+      setCloseFiles((prev) => {
+        const key = (f) => `${f.name}__${f.size}`;
+        const seen = new Set(prev.map(key));
+        const merged = [...prev];
+        picked.forEach((f) => { if (!seen.has(key(f))) { merged.push(f); seen.add(key(f)); } });
+        return merged;
+      });
+    }
+    e.target.value = ''; // permite volver a seleccionar el mismo archivo
+  };
+  const removeCloseFile = (idx) => setCloseFiles((prev) => prev.filter((_, i) => i !== idx));
 
   const handleCloseProject = async (intg) => {
     // Excepción Ambiente de Prueba: sin modales, cierre directo (bypass total).
@@ -888,16 +907,55 @@ export const Integrators = () => {
     setCloseFiles([]);
     setCloseExtraList([]);
     setCloseNewRecipient('');
+    if (closePreviewUrl) { URL.revokeObjectURL(closePreviewUrl); setClosePreviewUrl(''); }
+    setClosePreviewOpen(false);
     setCloseModal1Open(true);
   };
 
-  const proceedToCloseModal2 = () => {
+  // Modal 1 → genera pre-render del certificado y abre el Modal de Aprobación (Vista Previa).
+  const generateCertificatePreview = async () => {
     if (!closeComponente.trim() || !closeVersion.trim()) {
       toast.error('Componente y Versión del Componente son obligatorios');
       return;
     }
-    setCloseModal1Open(false);
+    if (!closeTarget) return;
+    setClosePreviewLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('componente', closeComponente.trim());
+      fd.append('version_componente', closeVersion.trim());
+      const res = await api.post(`/integrators/${closeTarget.integrator_id}/close/preview`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      if (closePreviewUrl) URL.revokeObjectURL(closePreviewUrl);
+      setClosePreviewUrl(url);
+      setCloseModal1Open(false);
+      setClosePreviewOpen(true);
+    } catch (err) {
+      let detail = 'No se pudo generar la vista previa del certificado';
+      try {
+        const txt = err.response?.data ? await err.response.data.text() : '';
+        if (txt) { const j = JSON.parse(txt); detail = j.detail || detail; }
+      } catch (_) { detail = err.response?.data?.detail || detail; }
+      toast.error(detail);
+    } finally {
+      setClosePreviewLoading(false);
+    }
+  };
+
+  // Aprobar vista previa → avanza al Modal 2 (Comunicación y Anexos).
+  const approveCertificatePreview = () => {
+    setClosePreviewOpen(false);
     setCloseModal2Open(true);
+  };
+
+  // Modificar → cierra la vista previa y regresa al Modal 1 conservando los datos.
+  const rejectCertificatePreview = () => {
+    if (closePreviewUrl) { URL.revokeObjectURL(closePreviewUrl); setClosePreviewUrl(''); }
+    setClosePreviewOpen(false);
+    setCloseModal1Open(true);
   };
 
   const submitCloseProject = async () => {
@@ -912,6 +970,7 @@ export const Integrators = () => {
       const res = await api.post(`/integrators/${closeTarget.integrator_id}/close`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(res.data?.certificate_generated ? 'Proyecto cerrado y certificado generado' : 'Proyecto cerrado (sin PDF base en el depósito)');
       setCloseModal2Open(false);
+      if (closePreviewUrl) { URL.revokeObjectURL(closePreviewUrl); setClosePreviewUrl(''); }
       setCloseTarget(null);
       fetchData();
     } catch (err) {
@@ -1108,7 +1167,39 @@ export const Integrators = () => {
                     </div>
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" onClick={() => setCloseModal1Open(false)} data-testid="close-modal1-cancel">Cancelar</Button>
-                      <Button onClick={proceedToCloseModal2} className="bg-slate-800 hover:bg-slate-900 text-white" data-testid="close-modal1-next">Siguiente</Button>
+                      <Button onClick={generateCertificatePreview} disabled={closePreviewLoading} className="bg-slate-800 hover:bg-slate-900 text-white" data-testid="close-modal1-next">
+                        <Eye size={14} className="mr-1.5" />
+                        {closePreviewLoading ? 'Generando…' : 'Vista Previa'}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Modal de Aprobación: Vista Previa del Certificado (pre-render) */}
+              <Dialog open={closePreviewOpen} onOpenChange={(o) => { if (!o) rejectCertificatePreview(); }}>
+                <DialogContent className="max-w-3xl" data-testid="close-preview-modal">
+                  <DialogHeader>
+                    <DialogTitle className="font-manrope text-lg flex items-center gap-2">
+                      <Eye size={18} className="text-slate-600" />Vista Previa del Certificado
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <p className="text-sm text-slate-500">Revise el certificado con los datos inyectados. Si detecta un error, use <strong>Modificar</strong> para corregir; si está correcto, <strong>Aprobar</strong> para continuar con el cierre.</p>
+                    <div className="border rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800" style={{ height: '60vh' }}>
+                      {closePreviewUrl ? (
+                        <iframe title="Vista Previa Certificado" src={closePreviewUrl} className="w-full h-full" data-testid="close-preview-iframe" />
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-sm text-slate-400">Sin vista previa</div>
+                      )}
+                    </div>
+                    <div className="flex justify-between gap-3 pt-2 border-t">
+                      <Button variant="outline" onClick={rejectCertificatePreview} className="border-rose-300 text-rose-600 hover:bg-rose-50" data-testid="close-preview-reject">
+                        <X size={14} className="mr-1.5" />Modificar
+                      </Button>
+                      <Button onClick={approveCertificatePreview} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="close-preview-approve">
+                        <CheckCircle size={14} className="mr-1.5" />Aprobar Vista Previa
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
@@ -1130,8 +1221,24 @@ export const Integrators = () => {
                     </div>
                     <div>
                       <Label className="text-sm font-medium">Anexos complementarios <span className="text-xs text-slate-400">(opcional)</span></Label>
-                      <input type="file" multiple onChange={(e) => setCloseFiles(Array.from(e.target.files || []))} className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white file:cursor-pointer hover:file:bg-slate-800" data-testid="close-files-input" />
-                      {closeFiles.length > 0 && <p className="text-xs text-slate-500 mt-1">{closeFiles.length} archivo(s) seleccionado(s)</p>}
+                      <input type="file" multiple onChange={handleCloseFilesAdd} className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white file:cursor-pointer hover:file:bg-slate-800" data-testid="close-files-input" />
+                      {closeFiles.length > 0 && (
+                        <div className="mt-2 space-y-1.5" data-testid="close-files-list">
+                          {closeFiles.map((f, idx) => (
+                            <div key={`${f.name}-${idx}`} className="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5" data-testid={`close-file-item-${idx}`}>
+                              <span className="flex items-center gap-1.5 text-xs text-slate-700 truncate">
+                                <FileText size={13} className="text-slate-400 shrink-0" />
+                                <span className="truncate">{f.name}</span>
+                                <span className="text-slate-400 shrink-0">({(f.size / 1024).toFixed(0)} KB)</span>
+                              </span>
+                              <button type="button" onClick={() => removeCloseFile(idx)} className="text-slate-400 hover:text-rose-500 shrink-0" title="Eliminar anexo" data-testid={`close-file-remove-${idx}`}>
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                          <p className="text-xs text-slate-500">{closeFiles.length} archivo(s) adjunto(s)</p>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <Label className="text-sm font-medium">Destinatarios adicionales (CC)</Label>

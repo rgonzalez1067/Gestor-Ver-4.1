@@ -1,0 +1,46 @@
+{
+  "summary": "Verificación end-to-end de las Partes B y C del flujo de CIERRE DE PROYECTO DE INTEGRACIÓN en Integrators.jsx (Vista Previa del Certificado + Anexos acumulativos). Backend Parte A (envío garantizado) validado indirectamente vía POST /api/integrators/{id}/close/preview devolviendo application/pdf 200. TODOS los criterios de aceptación pasaron.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/integrators", "issue": "El registro sembrado intg_qa_close_flow tenía contacts=[{full_name, email, role}] sin los campos 'name' y 'phone' obligatorios del modelo Contact (backend/models.py). Esto disparaba ResponseValidationError y HTTP 500 en TODO el listado /api/integrators (bloqueaba también el frontend, que mostraba 'Error al cargar datos'). Solucionado por el agente de testing parcheando el documento en Mongo: contacts=[{name:'QA Contact', phone:'+58-0000-0000', email:'qa_contact@acmeqa.com', role:'Integrador'}] y status='En proceso'. Después del parche la vista de Integradores carga OK y la fila QA CIERRE FLOW aparece con testid integrator-row-intg_qa_close_flow.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators listado", "issues": ["Console: hydration warnings (<span> inside <tbody>/<tr>) originados por wrappers x-excluded=true de dev-mode. No afecta funcionalidad pero conviene revisar."]}
+    ]
+  },
+  "verification_details": {
+    "modal1_opened": true,
+    "preview_modal_opened": true,
+    "preview_iframe_visible_and_blob_pdf": true,
+    "reject_returns_to_modal1_preserving_data": {"componente": "Plugin QA Test", "version": "v1.0.0-qa", "componente_preserved": true, "version_preserved": true},
+    "approve_advances_to_modal2": true,
+    "files_after_first_upload": 1,
+    "files_after_second_upload": 2,
+    "item0_is_archivo1": true,
+    "item1_is_archivo2": true,
+    "remove_file_works_and_only_removes_that_item": true,
+    "remaining_after_remove_is_archivo2": true
+  },
+  "test_report_links": [],
+  "action_items": [
+    "El seed intg_qa_close_flow que creó el agente principal usaba 'full_name' en lugar de 'name' y sin 'phone', rompía el modelo Contact y devolvía 500 en /api/integrators. Se corrigió en DB para poder testear. El agente principal debe (a) asegurarse de que futuros seeds usen los campos correctos (name, phone, email) y/o (b) hacer el modelo más laxo para tolerar contactos legacy sin romper el listado (por ejemplo, Optional[str] con default) y aplicar sanitización al leer."
+  ],
+  "critical_code_review_comments": [
+    "Integrators.jsx tiene 2725 líneas; excede el umbral (>700). Recomiendo separar en sub-componentes (CloseProjectModals, IntegratorTable, IntegratorFilters, IntegratorForm).",
+    "El modelo Contact (backend/models.py:14) exige name/phone/email; ANY registro con contactos legacy con distinto shape rompe el listado completo. Considerar Optional[str] o un sanitizador previo a la serialización.",
+    "En generateCertificatePreview() se llama URL.revokeObjectURL(closePreviewUrl) DOS veces al re-generar (una dentro de la función, otra en rejectCertificatePreview cuando se re-abre). Verificar que no haya doble-revoke sobre la misma URL activa.",
+    "Cuando se cierra el modal de preview con la X (onOpenChange), dispara rejectCertificatePreview → OK; pero también resetea la URL. Si el usuario cierra por accidente pierde el PDF ya renderizado y debe volver a llamar al endpoint. Aceptable pero podría documentarse."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (preview endpoint OK, listado OK tras fix del seed)", "frontend": "100% (Partes B y C)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "El seed intg_qa_close_flow ya existía; se parcheó su campo 'contacts' (contact ahora conforme al modelo) y 'status'='En proceso' para poder listarlo. No creé nuevos registros.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Flujo cierre integradores: (1) /integrators → buscar 'QA CIERRE' → click [data-testid=close-project-intg_qa_close_flow] abre close-modal-1. (2) Llenar close-componente-input y close-version-input → click close-modal1-next → aparece close-preview-modal con close-preview-iframe (blob:.../pdf). (3) close-preview-reject cierra vista previa y devuelve al modal 1 conservando los inputs. (4) close-preview-approve avanza a close-modal-2. (5) close-files-input soporta append (verificado con 2 uploads sucesivos → 2 items en close-files-list). close-file-remove-{idx} elimina un solo archivo. Recordar: al hacer login pulsar Enter para descartar overlay de 'mensajes pendientes'. Bug de contact model se manifestó como 500 en GET /api/integrators porque un doc tenía 'full_name' sin 'name/phone'."
+}

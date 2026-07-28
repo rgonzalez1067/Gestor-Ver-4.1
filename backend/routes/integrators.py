@@ -740,6 +740,19 @@ async def close_integrator_project(
 
     extra_cc = [e.strip() for e in re.split(r"[,;\s]+", extra_recipients or "") if e.strip() and "@" in e]
 
+    # Destinatarios GARANTIZADOS del cierre (Requerimiento A/B): correos de la
+    # ficha del Integrador (lista de contactos + campo `email`) MÁS los adicionales
+    # del Modal 2. Siempre reciben, sin depender de la config de "Otras Acciones".
+    guaranteed_close = []
+    for _c in (existing.get("contacts") or []):
+        _ce = (_c.get("email") or "").strip()
+        if _ce and "@" in _ce:
+            guaranteed_close.append(_ce)
+    _ie = (existing.get("email") or "").strip()
+    if _ie and "@" in _ie:
+        guaranteed_close.append(_ie)
+    guaranteed_close.extend(extra_cc)
+
     # ---------- Persistencia / grillas ----------
     cert_set = {
         "cert_component": componente, "cert_version": version_componente,
@@ -812,6 +825,7 @@ async def close_integrator_project(
             integrator=existing,
             extra_attachments=attachments or None,
             extra_cc=extra_cc or None,
+            guaranteed_to=guaranteed_close or None,
         )
     except Exception as e:
         logger.warning(f"[close] dispatch integration_project_closed falló: {e}")
@@ -819,6 +833,36 @@ async def close_integrator_project(
             "productos_certificados": productos_str,
             "certificate_generated": bool(cert_bytes),
             "integrator": updated, "notification": dispatch_result}
+
+
+@router.post("/integrators/{integrator_id}/close/preview")
+async def preview_integration_certificate(
+    integrator_id: str,
+    componente: Optional[str] = Form(None),
+    version_componente: Optional[str] = Form(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Pre-render del Certificado de Integración (Vista Previa) SIN cerrar el
+    proyecto. Devuelve el PDF con las variables ya inyectadas para validación
+    visual antes de la emisión definitiva (Modal de Aprobación · Requerimiento C)."""
+    current_user = await get_current_user(authorization)
+    role = (current_user or {}).get("role", "")
+    special = (current_user or {}).get("special_permissions") or []
+    if role != "admin" and "integradores:cerrar_proyecto" not in special:
+        raise HTTPException(status_code=403, detail="No tiene permisos para cerrar proyectos")
+    existing = await db.integrators.find_one({"integrator_id": integrator_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+    componente = (componente or "").strip()
+    version_componente = (version_componente or "").strip()
+    if not componente or not version_componente:
+        raise HTTPException(status_code=400, detail="Componente y Versión del Componente son obligatorios")
+    productos_str = _certified_products_string(existing)
+    cert_bytes = await _generate_integration_certificate_pdf(existing, componente, version_componente, productos_str)
+    if not cert_bytes:
+        raise HTTPException(status_code=422, detail="No hay PDF base de certificado en el depósito para previsualizar")
+    return Response(content=cert_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": "inline; filename=preview_certificado.pdf"})
 
 
 # ==================== REPOSITORIO MULTIVERSIÓN DE CERTIFICADOS ====================

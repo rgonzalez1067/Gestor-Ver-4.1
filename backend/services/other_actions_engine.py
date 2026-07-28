@@ -54,6 +54,44 @@ async def get_config(action_id: str) -> Optional[dict]:
     return await db.other_action_configs.find_one({"action_id": action_id}, {"_id": 0})
 
 
+async def _dispatch_guaranteed_only(
+    action_id: str,
+    template_vars: dict,
+    current_user: Optional[dict],
+    fallback_subject: str,
+    guaranteed_to: list,
+    extra_attachments: Optional[list],
+    prepend_signature_html: Optional[str],
+) -> dict:
+    """Envío mínimo garantizado cuando la acción no tiene config: notifica igual
+    al Integrador y a los correos adicionales con un cuerpo genérico + firma."""
+    from services.signature import build_signature_html
+    if "Firma_Notificacion_Global" not in template_vars:
+        sig_html = await build_signature_html(current_user) if current_user else await build_signature_html(None)
+        if prepend_signature_html:
+            sig_html = prepend_signature_html + sig_html
+        template_vars["Firma_Notificacion_Global"] = sig_html
+    tpl = {
+        "subject": fallback_subject or "Notificación",
+        "body_html": (
+            f"<p>{fallback_subject or 'Notificación del sistema'}.</p>"
+            "<p>{Firma_Notificacion_Global}</p>"
+        ),
+    }
+    subject = _render(tpl["subject"], template_vars) or fallback_subject or "Notificación"
+    body = _render(tpl["body_html"], template_vars)
+    sent_to: list[str] = []
+    for g_email in guaranteed_to:
+        try:
+            await send_email(to=[g_email], subject=subject, html=body,
+                             action=f"{action_id}_other", attachments=(extra_attachments or None))
+            sent_to.append(g_email)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[other-actions] Error (garantizado/no_config) enviando a {g_email}: {e}")
+    return {"dispatched": True, "disabled": False, "sent_count": len(sent_to),
+            "recipients": sent_to, "reason": "guaranteed_only"}
+
+
 async def dispatch_other_action(
     action_id: str,
     template_vars: dict,
@@ -66,6 +104,7 @@ async def dispatch_other_action(
     integrator: Optional[dict] = None,
     extra_attachments: Optional[list] = None,
     client: Optional[dict] = None,
+    guaranteed_to: Optional[list] = None,
 ) -> dict:
     """Despacha la acción según la config dinámica. Ver reglas en el docstring
     del módulo.
@@ -83,8 +122,23 @@ async def dispatch_other_action(
     independientemente de si la plantilla referencia o no su variable propia.
     """
     extra_cc = [e for e in (extra_cc or []) if e and isinstance(e, str) and '@' in e]
+    # `guaranteed_to`: destinatarios que SIEMPRE deben recibir el correo (To),
+    # independientemente de las filas de destinatarios configuradas. Se usa para
+    # garantizar la notificación de Cierre de Proyecto al Integrador y a los
+    # correos adicionales del operador. Dedup case-insensitive.
+    _seen_g = set()
+    guaranteed_to = [
+        e.strip() for e in (guaranteed_to or [])
+        if e and isinstance(e, str) and '@' in e
+        and not (e.strip().lower() in _seen_g or _seen_g.add(e.strip().lower()))
+    ]
     cfg = await get_config(action_id)
     if not cfg:
+        if guaranteed_to:
+            return await _dispatch_guaranteed_only(
+                action_id, template_vars, current_user, fallback_subject,
+                guaranteed_to, extra_attachments, prepend_signature_html,
+            )
         return {"dispatched": False, "reason": "no_config"}
 
     # Toggle global de la acción: si está desactivada, no sale ningún correo.
@@ -93,13 +147,14 @@ async def dispatch_other_action(
         return {"dispatched": True, "disabled": True, "sent_count": 0}
 
     recipients = cfg.get("recipients") or []
-    if not recipients:
+    if not recipients and not guaranteed_to:
         # Config existe pero sin filas: tratar como "no configurado" → fallback.
         return {"dispatched": False, "reason": "no_recipients"}
 
     sent_count = 0
     sent_to: list[str] = []
     skipped: list[dict] = []
+    delivered: set = set()  # emails ya notificados (To + CC), para evitar duplicados
 
     for row in recipients:
         rtype = row.get("type", "user")
@@ -216,19 +271,69 @@ async def dispatch_other_action(
                     action_id=action_id,
                 )
             else:
+                cc_list = [e for e in (extra_cc or []) if e != rcpt_email] or None
                 await send_email(
                     to=[rcpt_email],
                     subject=subject or fallback_subject or "Notificación",
                     html=body,
                     action=f"{action_id}_other",
-                    cc=[e for e in (extra_cc or []) if e != rcpt_email] or None,
+                    cc=cc_list,
                     attachments=(extra_attachments or None),
                 )
+                delivered.add(rcpt_email.lower())
+                for _cc in (cc_list or []):
+                    delivered.add(_cc.lower())
             sent_count += 1
             sent_to.append(rcpt_email)
         except Exception as e:  # noqa: BLE001
             logger.error(f"[other-actions] Error enviando a {rcpt_email} (channel={channel}): {e}")
             skipped.append({"row_id": row.get("row_id"), "reason": str(e)})
+
+    # ---------- Envío GARANTIZADO (To) a Integrador + adicionales ----------
+    # Cada correo en `guaranteed_to` que aún no haya sido notificado (ni como To ni
+    # como CC en las filas configuradas) recibe el mensaje directamente.
+    if guaranteed_to:
+        # Selección de plantilla: primera fila con template_id; si no, genérica.
+        g_tpl = None
+        for row in recipients:
+            if row.get("template_id"):
+                g_tpl = await _load_template(row.get("template_id"))
+                if g_tpl:
+                    break
+        if not g_tpl:
+            g_tpl = {
+                "subject": fallback_subject or "Notificación",
+                "body_html": (
+                    f"<p>{fallback_subject or 'Notificación del sistema'}.</p>"
+                    "<p>{Firma_Notificacion_Global}</p>"
+                ),
+            }
+        # Firma institucional (si aún no se estableció en el bucle).
+        if "Firma_Notificacion_Global" not in template_vars:
+            from services.signature import build_signature_html
+            sig_html = await build_signature_html(current_user) if current_user else await build_signature_html(None)
+            if prepend_signature_html:
+                sig_html = prepend_signature_html + sig_html
+            template_vars["Firma_Notificacion_Global"] = sig_html
+        g_subject = _render(g_tpl.get("subject", ""), template_vars) or fallback_subject or "Notificación"
+        g_body = _render(g_tpl.get("body_html", "") or g_tpl.get("body", ""), template_vars)
+        for g_email in guaranteed_to:
+            if g_email.lower() in delivered:
+                continue
+            try:
+                await send_email(
+                    to=[g_email],
+                    subject=g_subject,
+                    html=g_body,
+                    action=f"{action_id}_other",
+                    attachments=(extra_attachments or None),
+                )
+                delivered.add(g_email.lower())
+                sent_count += 1
+                sent_to.append(g_email)
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"[other-actions] Error (garantizado) enviando a {g_email}: {e}")
+                skipped.append({"row_id": "guaranteed", "reason": str(e)})
 
     # Bitácora del despacho
     try:
