@@ -1,0 +1,62 @@
+{
+  "summary": "Frontend-only verification of dark-mode contrast fix in EmailTemplatesEditor (Configuración > Plantillas de Correo Electrónico). Validated computed styles for the two accordion headers 'Plantillas Personalizadas' (data-testid=tpl-section-toggle-custom) and 'Plantillas de Proyecto (Implementación)' (data-testid=tpl-section-toggle-project) as well as their expanded bodies. Also verified no regression in LIGHT mode.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verification_details": {
+    "dark_mode_html_class": "html.dark = true (after clicking theme-toggle-button; label switched 'Modo oscuro' -> 'Modo claro')",
+    "custom_header_DARK": {
+      "bgImage": "linear-gradient(to right, rgba(76,29,149,0.3), rgba(112,26,117,0.3))  // violet-900/30 -> fuchsia-900/30",
+      "borderBottomColor": "rgba(139,92,246,0.35) // violet-900",
+      "titleText": "Plantillas Personalizadas",
+      "titleColor": "rgb(209,218,229)  // light gray - LEGIBLE",
+      "badgeText": "8",
+      "badgeColor": "rgb(196,181,253)  // violet-300",
+      "badgeBg": "rgba(139,92,246,0.18)",
+      "verdict": "OK - dark tinted violet/fuchsia background with legible light title & counter"
+    },
+    "project_header_DARK": {
+      "bgImage": "linear-gradient(to right, rgba(124,45,18,0.3), rgba(19,78,74,0.3))  // orange-900/30 -> teal-900/30",
+      "borderBottomColor": "rgba(249,115,22,0.35) // orange-900",
+      "titleText": "Plantillas de Proyecto (Implementación)",
+      "titleColor": "rgb(209,218,229)  // light gray - LEGIBLE",
+      "badgeText": "5",
+      "badgeColor": "rgb(253,186,116) // orange-300",
+      "badgeBg": "rgba(249,115,22,0.18)",
+      "verdict": "OK - dark tinted orange/teal background with legible light title & counter"
+    },
+    "custom_body_DARK": {
+      "parentBgImage": "linear-gradient(rgba(76,29,149,0.2), rgba(112,26,117,0.2))",
+      "textColor": "rgb(159,171,188)  // legible slate-400 on dark tint",
+      "verdict": "OK"
+    },
+    "project_body_DARK": {
+      "parentBgImage": "linear-gradient(rgba(124,45,18,0.2), rgba(19,78,74,0.2))",
+      "textColor": "rgb(159,171,188)",
+      "verdict": "OK"
+    },
+    "custom_header_LIGHT": {
+      "bgImage": "linear-gradient(rgb(245,243,255), rgb(253,244,255)) // violet-50 -> fuchsia-50",
+      "borderBottomColor": "rgb(221,214,254) // violet-200",
+      "verdict": "OK - original light gradient preserved"
+    },
+    "project_header_LIGHT": {
+      "bgImage": "linear-gradient(rgb(255,247,237), rgb(240,253,250)) // orange-50 -> teal-50",
+      "borderBottomColor": "rgb(254,215,170) // orange-200",
+      "verdict": "OK - original light gradient preserved"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EmailTemplatesEditor.jsx is 1542 lines; consider splitting per section (custom/sede/project) into sub-components for maintainability.",
+    "Inner cards inside expanded sections still use hardcoded 'bg-white text-slate-900 border-violet-200/orange-200' without explicit dark: variants; they only look OK because global .dark overrides flip text-slate-900 to light and bg-white to dark. Recommend adding explicit dark: variants for robustness against future global-override refactors.",
+    "'Plantillas Sede Pyme' and 'Plantillas Sede Corp' headers use 'bg-slate-100 hover:bg-slate-200' with no dark: variants either; they currently look fine only via global overrides. Same recommendation."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dark-mode contrast fix for 'Plantillas Personalizadas' and 'Plantillas de Proyecto (Implementación)' accordions in EmailTemplatesEditor validated via computed styles + visual screenshots. Both headers now show dark violet/fuchsia and orange/teal tints with legible light text and counters. Light-mode gradients preserved. To reach the screen: login admin -> Enter to dismiss pending-messages overlay -> click theme-toggle-button (once) to enable dark -> Configuración (sidebar) -> click 'Plantillas de Correo' tab. Toggles: tpl-section-toggle-custom / tpl-section-toggle-project."
+}

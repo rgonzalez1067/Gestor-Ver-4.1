@@ -915,7 +915,7 @@ export const EmailTemplatesEditor = () => {
             onClick={() => toggleSection('custom')}
             aria-expanded={openSections.custom}
             data-testid="tpl-section-toggle-custom"
-            className="w-full flex items-center justify-between gap-2 bg-gradient-to-r from-violet-50 to-fuchsia-50 hover:from-violet-100 hover:to-fuchsia-100 transition-colors px-4 py-3 border-b border-violet-200 text-left"
+            className="w-full flex items-center justify-between gap-2 bg-gradient-to-r from-violet-50 to-fuchsia-50 hover:from-violet-100 hover:to-fuchsia-100 dark:from-violet-900/30 dark:to-fuchsia-900/30 dark:hover:from-violet-900/50 dark:hover:to-fuchsia-900/50 transition-colors px-4 py-3 border-b border-violet-200 dark:border-violet-900 text-left"
           >
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-violet-600" />
@@ -926,7 +926,7 @@ export const EmailTemplatesEditor = () => {
           </button>
           {openSections.custom && (
           <>
-          <div className="px-4 pt-3 bg-gradient-to-r from-violet-50/50 to-fuchsia-50/50 border-b border-violet-100">
+          <div className="px-4 pt-3 bg-gradient-to-r from-violet-50/50 to-fuchsia-50/50 dark:from-violet-900/20 dark:to-fuchsia-900/20 border-b border-violet-100 dark:border-violet-900">
             <p className="text-xs text-slate-600">
               Plantillas creadas manualmente. Disponibles en el Motor Dinámico de Notificaciones para asignar a cualquier acción del flujo.
             </p>
@@ -1075,7 +1075,7 @@ export const EmailTemplatesEditor = () => {
             onClick={() => toggleSection('project')}
             aria-expanded={openSections.project}
             data-testid="tpl-section-toggle-project"
-            className="w-full flex items-center justify-between gap-2 bg-gradient-to-r from-orange-50 to-teal-50 hover:from-orange-100 hover:to-teal-100 transition-colors px-4 py-3 border-b border-orange-200 text-left"
+            className="w-full flex items-center justify-between gap-2 bg-gradient-to-r from-orange-50 to-teal-50 hover:from-orange-100 hover:to-teal-100 dark:from-orange-900/30 dark:to-teal-900/30 dark:hover:from-orange-900/50 dark:hover:to-teal-900/50 transition-colors px-4 py-3 border-b border-orange-200 dark:border-orange-900 text-left"
           >
             <div className="flex items-center gap-2">
               <Settings2 size={18} className="text-orange-600" />
@@ -1086,7 +1086,7 @@ export const EmailTemplatesEditor = () => {
           </button>
           {openSections.project && (
           <>
-          <div className="px-4 pt-3 bg-gradient-to-r from-orange-50/50 to-teal-50/50 border-b border-orange-100">
+          <div className="px-4 pt-3 bg-gradient-to-r from-orange-50/50 to-teal-50/50 dark:from-orange-900/20 dark:to-teal-900/20 border-b border-orange-100 dark:border-orange-900">
             <p className="text-xs text-slate-600">
               Plantillas para las comunicaciones secuenciales con clientes y bancos durante el proceso de implementación.
               Las variables se resuelven automáticamente desde los datos del proyecto.
