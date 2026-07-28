@@ -1431,3 +1431,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Panel 'Detalles de Integración y Hardware': usaba gradiente claro (from-slate-50 to-blue-50) no cubierto por overrides .dark → etiquetas invisibles. Fix: dark:from-slate-900 dark:to-slate-800 dark:border-slate-700 (línea ~831).
 - Panel 'Resumen Ejecutivo': chips/encabezados bg-blue-200 / bg-green-200 / bg-amber-400 con text-slate-900 quedaban ilegibles en oscuro. Fix: dark:bg-blue-500/25, dark:bg-green-500/25, dark:bg-amber-500/25 (líneas ~2280,2286,2294,2306-2308).
 - Verificado por testing_agent iter299 (100% frontend): fondos oscuros + texto legible en oscuro; modo claro sin regresión (gradiente y chips vibrantes originales conservados).
+
+**Bug fix (Modo Oscuro) · Contraste en editor de Plantillas de Correo (EmailTemplatesEditor) · 2026-06:**
+- Los encabezados de acordeón 'Plantillas Personalizadas' (gradiente violet-50→fuchsia-50) y 'Plantillas de Proyecto (Implementación)' (gradiente orange-50→teal-50) usaban gradientes claros no cubiertos por overrides .dark → texto invisible en oscuro.
+- Fix: variantes dark: en gradientes/bordes de ambos encabezados (~918/1078) y cuerpos expandibles (~929/1089): dark:from-violet-900/30 dark:to-fuchsia-900/30 y dark:from-orange-900/30 dark:to-teal-900/30, con dark:border-*-900.
+- Verificado por testing_agent iter300 (100% frontend): fondos con tinte oscuro + títulos/contadores legibles; modo claro sin regresión.
