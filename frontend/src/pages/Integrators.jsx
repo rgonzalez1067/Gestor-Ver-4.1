@@ -1178,22 +1178,21 @@ export const Integrators = () => {
 
               {/* Modal de Aprobación: Vista Previa del Certificado (pre-render) */}
               <Dialog open={closePreviewOpen} onOpenChange={(o) => { if (!o) rejectCertificatePreview(); }}>
-                <DialogContent className="max-w-3xl" data-testid="close-preview-modal">
-                  <DialogHeader>
+                <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] flex flex-col" data-testid="close-preview-modal">
+                  <DialogHeader className="shrink-0">
                     <DialogTitle className="font-manrope text-lg flex items-center gap-2">
                       <Eye size={18} className="text-slate-600" />Vista Previa del Certificado
                     </DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-3">
-                    <p className="text-sm text-slate-500">Revise el certificado con los datos inyectados. Si detecta un error, use <strong>Modificar</strong> para corregir; si está correcto, <strong>Aprobar</strong> para continuar con el cierre.</p>
-                    <div className="border rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800" style={{ height: '60vh' }}>
+                  <div className="flex flex-col flex-1 min-h-0 gap-3">
+                    <div className="border rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 flex-1 min-h-0">
                       {closePreviewUrl ? (
                         <iframe title="Vista Previa Certificado" src={closePreviewUrl} className="w-full h-full" data-testid="close-preview-iframe" />
                       ) : (
                         <div className="flex items-center justify-center h-full text-sm text-slate-400">Sin vista previa</div>
                       )}
                     </div>
-                    <div className="flex justify-between gap-3 pt-2 border-t">
+                    <div className="flex justify-between gap-3 pt-2 border-t shrink-0">
                       <Button variant="outline" onClick={rejectCertificatePreview} className="border-rose-300 text-rose-600 hover:bg-rose-50" data-testid="close-preview-reject">
                         <X size={14} className="mr-1.5" />Modificar
                       </Button>
