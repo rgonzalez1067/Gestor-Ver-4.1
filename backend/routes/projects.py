@@ -292,6 +292,9 @@ async def toggle_cobro_recurrente(project_id: str, body: CobroRecurrenteToggle, 
     }
     await db.projects.update_one({"project_id": project_id}, {"$set": updates})
     return {"status": "ok", **updates}
+
+
+@router.get("/projects/stats")
 async def get_project_stats(authorization: Optional[str] = Header(None)):
     user = await get_current_user(authorization)
     # Stats coherentes con la grilla: aplican el mismo filtro de visibilidad.

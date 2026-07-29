@@ -1448,3 +1448,11 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Causa: el área editable del RichTextEditor heredaba fondo oscuro del tema, pero el texto del correo (colores oscuros) no se aclaraba.
 - Fix: RichTextEditor.jsx wrapper con clase 'rte-root'; index.css fuerza '.dark .rte-root .ProseMirror { background:#fff; color:#1f2937 }' (+ enlaces #2563eb). El lienzo del editor es SIEMPRE claro (documento), barra/contador siguen el tema. Global para todas las instancias (QuoteModals, ProjectDetail, plantillas cliente/entidad, TemplatesAdminDialog).
 - Verificado por testing_agent iter302 (100% frontend, estilos computados; modo claro sin regresión).
+
+**Feature · Indicador de Cobro Recurrente ($) en Proyectos con RBAC por equipo · 2026-06:**
+- Backend: PUT /api/projects/{id}/cobro-recurrente (routes/projects.py). RBAC: ADMIN o usuario de Ventas cuyo equipo (departamento → CORP/PyME) coincida con el equipo del proyecto (client_segment). Implementación/otras → 403. Persiste cobro_recurrente_status + cobro_recurrente_by + cobro_recurrente_by_name + cobro_recurrente_at (UTC). Helper _user_sales_team.
+- Middleware (server.py): override de ruta que permite el PUT /cobro-recurrente sin permiso 'edit' del módulo (Ventas solo necesita ver la grilla; Implementación conserva la edición general). El handler valida equipo (defensa en profundidad).
+- Frontend (Projects.jsx): botón $ (DollarSign) en la celda de acciones. Verde sólido si activo, gris si inactivo; deshabilitado + tooltip 'Acción exclusiva para el equipo comercial asignado al proyecto' si el usuario no es del equipo. canToggleCobro = isAdmin || userSalesTeam===client_segment. Update + toast + persistencia.
+- REGRESIÓN corregida: la edición inicial borró por error el decorador @router.get('/projects/stats') → 404 que tumbaba toda la grilla. Restaurado. Se mantiene .catch() defensivo en fetchProjects (stats) para resiliencia.
+- Verificado: backend por curl (CORP:CORP=200/PYME=403; PYME:PYME=200/CORP=403; IMPL=403; ADMIN=200; persistencia OK) y frontend por testing_agent iter303 (feature 100%: verde/gris, disabled+tooltip, persistencia tras F5).
+- QA users desechables (password Test1234!): qa_corp/qa_pyme/qa_impl @megasoft.com.ve (ver test_credentials.md).
