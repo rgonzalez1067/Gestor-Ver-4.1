@@ -83,3 +83,11 @@
 - user_id: user_54999f93a974 (fue RECREADO; su user_id viejo user_a8e3874291c8 quedó obsoleto en overrides)
 - special_permissions: cotizaciones:impl_pyme, cotizaciones:equipos, proyectos:create, integradores:create
 - Nota: sirve para validar el fix de "Actions Override" (autorización por correo estable, no por user_id volátil).
+
+## QA Usuarios — Cobro Recurrente ($) en Proyectos (creados 2026-06, desechables)
+Password para todos: Test1234!
+- qa_corp@megasoft.com.ve  → departamento "Ventas Corporativas" (cargo Gerente), permisos proyectos=edit. Puede alternar $ en proyectos CORP; bloqueado en PYME.
+- qa_pyme@megasoft.com.ve  → departamento "Ventas Pyme" (cargo Ejecutivo), permisos proyectos=read. Puede alternar $ en proyectos PYME; bloqueado en CORP.
+- qa_impl@megasoft.com.ve  → departamento "Implementación" (cargo Implementador), proyectos=edit. Ve el $ como indicador de solo lectura (deshabilitado).
+Admin (toggle cualquiera): rgonzalez@megasoft.com.ve / admin123
+Proyectos de referencia: CORP=prj_ad1bb4bd314e, PYME=prj_826643491b64

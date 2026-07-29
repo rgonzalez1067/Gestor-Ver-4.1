@@ -269,6 +269,15 @@ async def rbac_middleware(request: Request, call_next):
         logging.info(f"RBAC override: user={user.get('email')} special_permission=integradores:cerrar_proyecto")
         return await call_next(request)
 
+    # Función especial: Indicador de Cobro Recurrente ($) en Proyectos — override
+    # path-específico. Ventas puede alternar el estado SIN permiso de edición del
+    # módulo (Implementación conserva la edición general). El handler valida el
+    # área y la pertenencia al equipo comercial (defensa en profundidad).
+    if (method == "PUT" and path.endswith("/cobro-recurrente")
+            and target_module == "proyectos"):
+        logging.info(f"RBAC override: user={user.get('email')} cobro_recurrente_toggle")
+        return await call_next(request)
+
     if user_level == "none":
         # Lectura implícita de catálogos: si el usuario tiene un módulo de creación
         # (p.ej. proyectos_directos) que depende de este catálogo, permitir el GET.

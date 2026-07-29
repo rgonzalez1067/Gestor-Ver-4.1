@@ -246,7 +246,52 @@ async def get_projects(authorization: Optional[str] = Header(None)):
     return projects
 
 
-@router.get("/projects/stats")
+def _user_sales_team(user: dict) -> Optional[str]:
+    """Equipo comercial del usuario según su departamento: 'CORP', 'PYME' o None."""
+    dept = (user.get("departamento") or "").strip().lower()
+    if "ventas corporativ" in dept:
+        return "CORP"
+    if dept.startswith("ventas pyme") or "ventas pyme" in dept:
+        return "PYME"
+    return None
+
+
+class CobroRecurrenteToggle(BaseModel):
+    status: Optional[bool] = None  # si None → alterna el estado actual
+
+
+@router.put("/projects/{project_id}/cobro-recurrente")
+async def toggle_cobro_recurrente(project_id: str, body: CobroRecurrenteToggle, authorization: Optional[str] = Header(None)):
+    """Indicador de Cobro Recurrente ($). Solo puede alternarlo un ADMIN, o un
+    usuario del área de Ventas cuyo equipo (CORP/PyME) coincida con el equipo
+    comercial origen del proyecto (client_segment). Persiste estado + usuario +
+    timestamp (UTC)."""
+    user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    project_team = (project.get("client_segment") or "PYME").strip().upper()
+    if project_team not in ("CORP", "PYME"):
+        project_team = "PYME"
+    is_admin = (user.get("role") == "admin")
+    user_team = _user_sales_team(user)
+    allowed = is_admin or (user_team is not None and user_team == project_team)
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Acción exclusiva para el equipo comercial asignado al proyecto")
+
+    current = bool(project.get("cobro_recurrente_status", False))
+    new_status = bool(body.status) if body and body.status is not None else (not current)
+    full_name = (f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+                 or user.get("name") or user.get("email") or "")
+    updates = {
+        "cobro_recurrente_status": new_status,
+        "cobro_recurrente_by": user.get("user_id"),
+        "cobro_recurrente_by_name": full_name,
+        "cobro_recurrente_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.projects.update_one({"project_id": project_id}, {"$set": updates})
+    return {"status": "ok", **updates}
 async def get_project_stats(authorization: Optional[str] = Header(None)):
     user = await get_current_user(authorization)
     # Stats coherentes con la grilla: aplican el mismo filtro de visibilidad.

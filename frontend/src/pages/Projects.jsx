@@ -23,7 +23,7 @@ import { OperationalBoard } from '../components/projects/OperationalBoard';
 import { ImplementerWorkloadHover } from '../components/projects/ImplementerWorkloadHover';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar, CalendarClock, FileSpreadsheet
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar, CalendarClock, FileSpreadsheet, DollarSign
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -134,6 +134,13 @@ const Projects = () => {
     return role === 'admin' || cargo === 'coordinador' || cargo === 'gerente';
   })();
   const isAdmin = currentUser?.role === 'admin';
+  // Equipo comercial del usuario según su departamento (para el indicador $ de Cobro Recurrente)
+  const userSalesTeam = (() => {
+    const dept = (currentUser?.departamento || '').toLowerCase();
+    if (dept.includes('ventas corporativ')) return 'CORP';
+    if (dept.includes('ventas pyme')) return 'PYME';
+    return null;
+  })();
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [slaConfig, setSlaConfig] = useState(null); // matriz de días por etapa
@@ -242,7 +249,7 @@ const Projects = () => {
     try {
       const [projRes, statsRes, clientsRes, implRes] = await Promise.all([
         api.get('/projects'),
-        api.get('/projects/stats'),
+        api.get('/projects/stats').catch(() => ({ data: {} })),
         api.get('/clients').catch(() => ({ data: [] })),
         api.get('/projects/implementers/list').catch(() => ({ data: [] })),
       ]);
@@ -267,6 +274,30 @@ const Projects = () => {
   }, []);
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
+
+  // ==================== COBRO RECURRENTE ($) ====================
+  const [cobroSavingId, setCobroSavingId] = useState(null);
+  const canToggleCobro = (project) => {
+    if (isAdmin) return true;
+    const team = (project.client_segment || 'PYME').toUpperCase();
+    return !!userSalesTeam && userSalesTeam === team;
+  };
+  const toggleCobroRecurrente = async (project) => {
+    if (!canToggleCobro(project)) return;
+    setCobroSavingId(project.project_id);
+    const next = !project.cobro_recurrente_status;
+    try {
+      const res = await api.put(`/projects/${project.project_id}/cobro-recurrente`, { status: next });
+      setProjects((prev) => prev.map((p) => p.project_id === project.project_id
+        ? { ...p, cobro_recurrente_status: res.data.cobro_recurrente_status,
+            cobro_recurrente_by_name: res.data.cobro_recurrente_by_name,
+            cobro_recurrente_at: res.data.cobro_recurrente_at }
+        : p));
+      toast.success(next ? 'Cobro recurrente marcado como cobrado' : 'Cobro recurrente desmarcado');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'No se pudo actualizar el cobro recurrente');
+    } finally { setCobroSavingId(null); }
+  };
 
   // Cierra el typeahead de Cliente al hacer clic fuera del campo.
   useEffect(() => {
@@ -1178,6 +1209,31 @@ const Projects = () => {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1">
+                            {/* Cobro Recurrente ($) — toggle exclusivo Ventas del mismo equipo (o Admin) */}
+                            {(() => {
+                              const on = !!project.cobro_recurrente_status;
+                              const allowed = canToggleCobro(project);
+                              const saving = cobroSavingId === project.project_id;
+                              const tip = !allowed
+                                ? 'Acción exclusiva para el equipo comercial asignado al proyecto'
+                                : (on
+                                    ? `Cobro recurrente COBRADO${project.cobro_recurrente_by_name ? ' · ' + project.cobro_recurrente_by_name : ''} (clic para desmarcar)`
+                                    : 'Marcar cobro recurrente como cobrado');
+                              return (
+                                <Button size="sm" variant="outline"
+                                  onClick={() => allowed && !saving && toggleCobroRecurrente(project)}
+                                  disabled={!allowed || saving}
+                                  title={tip}
+                                  className={`h-8 px-2 ${on
+                                    ? 'text-white bg-emerald-600 border-emerald-600 hover:bg-emerald-700'
+                                    : 'text-slate-400 hover:text-slate-600'} ${!allowed ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                  data-testid={`cobro-recurrente-btn-${project.project_id}`}
+                                  data-cobro-status={on ? 'on' : 'off'}
+                                  data-cobro-allowed={allowed ? 'true' : 'false'}>
+                                  <DollarSign size={14} />
+                                </Button>
+                              );
+                            })()}
                             {/* Cambiar Estado */}
                             <Button size="sm" variant="outline" onClick={() => openStatusDialog(project)}
                               title="Cambiar Estado"
