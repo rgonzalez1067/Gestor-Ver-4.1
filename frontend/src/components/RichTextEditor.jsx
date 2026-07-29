@@ -447,7 +447,7 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
   );
 
   return (
-    <div className={cn('border border-slate-300 rounded-md bg-white overflow-hidden', tableRowActions && 'rte-actions')} data-testid={testid}>
+    <div className={cn('rte-root border border-slate-300 rounded-md bg-white overflow-hidden', tableRowActions && 'rte-actions')} data-testid={testid}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50 px-2 py-1">
         <Btn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Negrita (Ctrl+B)" tid={`${testid}-bold`}><Bold size={14} /></Btn>

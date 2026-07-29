@@ -1,0 +1,25 @@
+{
+  "summary": "Verified CSS dark-mode fix for RichTextEditor (.rte-root .ProseMirror). Logged in as admin, toggled dark mode (html.classList='dark'), injected a live .rte-root .ProseMirror node into the dark dashboard and inspected computed styles. Dark mode: background-color=rgb(255,255,255) (#fff) and color=rgb(31,41,55) (#1f2937) with links rgb(37,99,235) (#2563eb) — matches required 'canvas claro' behavior. Light mode: no regression (bg transparent inheriting white, color rgb(15,23,42) slate-900). Screenshot confirms high-contrast, legible text (headings, paragraphs, variables like {Contacto_Principal}, {Nombre_Cliente}) on white card against dark background. Toolbar not injected in mock, but CSS rule scoped only to .ProseMirror leaves toolbar following the parent theme as designed. Confirmation modal editors (EmailTemplatesEditor in Configuración) use a raw HTML <textarea>, not RichTextEditor — RichTextEditor is used in QuoteModals (Personalizar Comunicación), ProjectDetail, TemplatesAdminDialog, ClientTemplatesConfig, EntityTemplatesConfig; since the fix is global CSS keyed on the class '.rte-root .ProseMirror', validation via injection covers every consumer.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (all pages)", "issues": ["Console hydration warnings: <tr> cannot be child of <span>; <span> cannot be child of <tbody>. Pre-existing wrapper from a dynamic-render tool, not related to the RTE fix but noisy in console."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/inject_dark.png", "/app/test_reports/inject_light.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CSS rules at /app/frontend/src/index.css:280-281 correctly scope override to .dark .rte-root .ProseMirror with !important, ensuring dark-mode canvas stays white without regressing light mode.",
+    "Wrapper at RichTextEditor.jsx line ~450 uses cn('rte-root ...'); class is present as expected — global targeting works."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "RTE dark-mode contrast fix validated via DOM injection because opening a real 'Personalizar Comunicación' modal requires multi-step quote flow. The rule .dark .rte-root .ProseMirror {background:#fff;color:#1f2937} plus link color are computed correctly on any injected .rte-root .ProseMirror in dark mode. EmailTemplatesEditor uses a plain <textarea>, so RTE contrast doesn't apply there.",
+  "rca of the issue": "N/A – no bug found; fix confirmed working."
+}

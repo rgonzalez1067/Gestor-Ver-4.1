@@ -272,3 +272,10 @@
 
 /* Las vistas de PDF/impresión siempre en claro */
 .pdf-preview, .pdf-preview * { color-scheme: light; }
+
+/* Editor de correos (RichTextEditor): el lienzo editable SIEMPRE es claro
+   (los correos se redactan sobre fondo blanco), aunque la app esté en modo
+   oscuro. Solo afecta el área de contenido; la barra y el contador siguen el
+   tema. Los colores inline de cada elemento se preservan. */
+.dark .rte-root .ProseMirror { background-color: #ffffff !important; color: #1f2937 !important; }
+.dark .rte-root .ProseMirror a { color: #2563eb !important; }
