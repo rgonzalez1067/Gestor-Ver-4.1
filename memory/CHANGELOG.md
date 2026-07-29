@@ -1456,3 +1456,7 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - REGRESIÓN corregida: la edición inicial borró por error el decorador @router.get('/projects/stats') → 404 que tumbaba toda la grilla. Restaurado. Se mantiene .catch() defensivo en fetchProjects (stats) para resiliencia.
 - Verificado: backend por curl (CORP:CORP=200/PYME=403; PYME:PYME=200/CORP=403; IMPL=403; ADMIN=200; persistencia OK) y frontend por testing_agent iter303 (feature 100%: verde/gris, disabled+tooltip, persistencia tras F5).
 - QA users desechables (password Test1234!): qa_corp/qa_pyme/qa_impl @megasoft.com.ve (ver test_credentials.md).
+
+**Feature · Filtro de Cobro Recurrente en grilla de Proyectos · 2026-06:**
+- Projects.jsx: nuevo Select 'Cobro: Todos/Cobrado/Pendiente' (data-testid project-cobro-filter) que filtra client-side por cobro_recurrente_status. Integrado con hasActiveFilters y el botón 'Limpiar'.
+- Verificado (screenshot): 'Cobrado' muestra solo proyectos con $ en verde. Solo frontend.

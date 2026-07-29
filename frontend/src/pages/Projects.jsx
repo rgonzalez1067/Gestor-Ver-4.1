@@ -156,6 +156,7 @@ const Projects = () => {
   const [sponsorPickerOpen, setSponsorPickerOpen] = useState(false);
   const [sponsorSearch, setSponsorSearch] = useState('');
   const [integratorFilter, setIntegratorFilter] = useState('all');
+  const [cobroFilter, setCobroFilter] = useState('all'); // 'all' | 'cobrado' | 'pendiente'
   const [integratorPickerOpen, setIntegratorPickerOpen] = useState(false);
   const [integratorSearch, setIntegratorSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -437,7 +438,12 @@ const Projects = () => {
       if (dateTo && d > dateTo) return false;
       return true;
     })();
-    return matchSearch && matchSponsor && matchType && matchIntegrator && matchDate;
+    const matchCobro = cobroFilter === 'all'
+      ? true
+      : cobroFilter === 'cobrado'
+        ? !!p.cobro_recurrente_status
+        : !p.cobro_recurrente_status;
+    return matchSearch && matchSponsor && matchType && matchIntegrator && matchDate && matchCobro;
   };
 
   const matchesStatus = (p) => statusFilter === 'all'
@@ -587,10 +593,10 @@ const Projects = () => {
   );
 
   const hasActiveFilters = searchTerm || statusFilter !== 'active' || typeFilter !== 'all'
-    || sponsorFilter !== 'all' || integratorFilter !== 'all' || dateFrom || dateTo;
+    || sponsorFilter !== 'all' || integratorFilter !== 'all' || cobroFilter !== 'all' || dateFrom || dateTo;
   const resetFilters = () => {
     setSearchTerm(''); setStatusFilter('active'); setTypeFilter('all');
-    setSponsorFilter('all'); setIntegratorFilter('all'); setDateFrom(''); setDateTo('');
+    setSponsorFilter('all'); setIntegratorFilter('all'); setCobroFilter('all'); setDateFrom(''); setDateTo('');
   };
 
   if (loading) {
@@ -812,6 +818,20 @@ const Projects = () => {
                   {PROJECT_TYPE_FILTERS.map(t => (
                     <SelectItem key={t.value} value={t.value} data-testid={`project-type-option-${t.value.toLowerCase()}`} className={t.sub ? 'pl-6 text-slate-500' : ''}>{t.label}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Filtro por Cobro Recurrente ($) */}
+            <div className="flex items-center gap-2">
+              <DollarSign size={16} className="text-slate-400" />
+              <Select value={cobroFilter} onValueChange={setCobroFilter}>
+                <SelectTrigger className={`w-[190px] ${cobroFilter !== 'all' ? 'border-emerald-500 text-emerald-700' : ''}`} data-testid="project-cobro-filter">
+                  <SelectValue placeholder="Cobro recurrente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="project-cobro-option-all">Cobro: Todos</SelectItem>
+                  <SelectItem value="cobrado" data-testid="project-cobro-option-cobrado">Cobro: Cobrado</SelectItem>
+                  <SelectItem value="pendiente" data-testid="project-cobro-option-pendiente">Cobro: Pendiente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
