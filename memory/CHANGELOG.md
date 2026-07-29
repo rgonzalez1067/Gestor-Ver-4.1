@@ -1442,3 +1442,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - (B) Anexos acumulativos: Integrators.jsx handleCloseFilesAdd hace append con dedupe (nombre+tamaño), reset del input para re-seleccionar, lista con eliminar por archivo (removeCloseFile). Antes sobreescribía la selección.
 - (C) Vista Previa del Certificado: nuevo endpoint POST /api/integrators/{id}/close/preview (pre-render PDF sin cerrar). Nuevo modal de aprobación (iframe blob) entre Modal 1 y Modal 2: 'Modificar' regresa al Modal 1 conservando datos, 'Aprobar' avanza al Modal 2. Verificado endpoint (200 application/pdf) y flujo UI.
 - Verificado por testing_agent iter301 (Partes B y C 100%, endpoint preview OK). Nota: el modelo Contact (models.py) es estricto (name/phone/email); seeds/legacy con otro shape pueden romper GET /api/integrators (pre-existente, no modificado).
+
+**Bug fix (Modo Oscuro) · Contraste en el editor 'Contenido del Mensaje' (RichTextEditor) · 2026-06:**
+- Síntoma: en modales de notificación/Personalizar Comunicación, el texto del cuerpo del correo se veía oscuro sobre fondo oscuro (invisible). La Vista Previa sí se veía bien.
+- Causa: el área editable del RichTextEditor heredaba fondo oscuro del tema, pero el texto del correo (colores oscuros) no se aclaraba.
+- Fix: RichTextEditor.jsx wrapper con clase 'rte-root'; index.css fuerza '.dark .rte-root .ProseMirror { background:#fff; color:#1f2937 }' (+ enlaces #2563eb). El lienzo del editor es SIEMPRE claro (documento), barra/contador siguen el tema. Global para todas las instancias (QuoteModals, ProjectDetail, plantillas cliente/entidad, TemplatesAdminDialog).
+- Verificado por testing_agent iter302 (100% frontend, estilos computados; modo claro sin regresión).
