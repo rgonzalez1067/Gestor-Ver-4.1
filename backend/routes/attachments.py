@@ -11,7 +11,7 @@ import io
 import os
 
 from config import db, get_current_user, require_permission, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
-from services.pdf_storage import save_pdf_dual, get_pdf_from_storage
+from services.pdf_storage import save_pdf_dual, get_pdf_from_storage, save_pdf_to_storage
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 
@@ -203,6 +203,14 @@ async def download_quote_attachment(quote_id: str, attachment_id: str, authoriza
     # 1) FS local primero — instantáneo cuando está disponible.
     file_path = UPLOADS_DIR / url_path
     if file_path.exists():
+        # Auto-sanación (best-effort, en segundo plano): garantizar que el anexo
+        # también viva en Object Storage para que sobreviva a los despliegues.
+        try:
+            import asyncio as _asyncio
+            _asyncio.create_task(_asyncio.to_thread(
+                save_pdf_to_storage, file_path.read_bytes(), url_path, ctype))
+        except Exception as _e:
+            logging.debug(f"[attachments] self-heal a storage omitido: {_e}")
         return FileResponse(
             path=str(file_path),
             filename=filename,
@@ -213,6 +221,13 @@ async def download_quote_attachment(quote_id: str, attachment_id: str, authoriza
     obj = get_pdf_from_storage(url_path)
     if obj:
         content, stored_ctype = obj
+        # Cache-warming: escribir a disco del pod para que las próximas
+        # aperturas (tras el deploy) sean instantáneas y no golpeen la red.
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_bytes(content)
+        except OSError as _e:
+            logging.debug(f"[attachments] cache-warm a FS omitido: {_e}")
         return StreamingResponse(
             io.BytesIO(content),
             media_type=stored_ctype or ctype,

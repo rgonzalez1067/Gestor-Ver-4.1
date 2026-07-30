@@ -532,6 +532,12 @@ async def download_history_attachment(history_id: str, attachment_id: str, autho
     if not obj:
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     content, ctype = obj
+    # Cache-warming: persistir en disco del pod para próximas aperturas rápidas.
+    try:
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(content)
+    except OSError:
+        pass
     return StreamingResponse(
         io.BytesIO(content),
         media_type=ctype or declared_ctype,
