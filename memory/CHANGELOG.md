@@ -1462,3 +1462,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Verificado (screenshot): 'Cobrado' muestra solo proyectos con $ en verde. Solo frontend.
 
 **UI · Indicador $ por defecto en ROJO (pendiente) · 2026-06:** Projects.jsx: estado off del botón de cobro recurrente cambiado de gris a rojo sólido (bg-rose-600); on sigue en verde (bg-emerald-600). Verificado por screenshot.
+
+**Fix (Infra/Anexos) · Persistencia de anexos de cotizaciones cross-deploy · 2026-06:**
+- Causa raíz: anexos servidos FS-local-first; tras cada deploy el disco del pod queda vacío → todo se servía desde Object Storage (lento) y los archivos que quedaron solo en disco (no subidos a storage) se perdían. El respaldo/restore del disco era innecesario (Object Storage ya persiste) y por eso crecía.
+- Fix: (1) Cache-warming — al servir desde Object Storage se reescribe el PDF en el disco del pod (attachments.py y quote_history.py) → próximas aperturas instantáneas. (2) Auto-sanación — al servir desde disco se sube en 2º plano a Object Storage (idempotente). (3) Backfill ejecutado en PREVIEW: 805 anexos → 653 ya en storage, 147 subidos, 5 irrecuperables (perdidos en deploy previo, cotización COT-2026-04-037-PYME).
+- Verificado: curl (borrado del archivo local → descarga 200 desde storage + recreación en disco) y testing_agent iter304 (2/2 descargas UI 200/application/pdf/%PDF).
+- ACCIONES EN PRODUCCIÓN (pendientes del usuario): (a) redeploy para llevar el código; (b) ejecutar UNA vez POST /api/admin/attachments/recover-to-storage (paginado dry_run=false) para backfill de TODOS los anexos de producción; (c) confirmar con Soporte que APP_ENV en producción es estable/'production' (el namespace pdfs/{APP_ENV} depende de ella). Tras (a)+(b), ya NO se requiere respaldo/restore del disco.
