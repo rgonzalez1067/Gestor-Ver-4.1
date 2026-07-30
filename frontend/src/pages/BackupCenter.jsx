@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, Upload, DatabaseBackup, Package, ShieldAlert, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Upload, DatabaseBackup, Package, ShieldAlert, Loader2, CloudUpload, CheckCircle2, AlertTriangle, Search } from 'lucide-react';
 import api from '../utils/api';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
+import { Progress } from '../components/ui/progress';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '../components/ui/dialog';
@@ -35,6 +36,64 @@ export default function BackupCenter() {
   const [history, setHistory] = useState([]);
   const fileRef = useRef(null);
   const zipRef = useRef(null);
+
+  // --- Backfill de Anexos hacia Object Storage (paginado) ---
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  const [backfillMode, setBackfillMode] = useState(null); // 'audit' | 'upload'
+  const [backfillProgress, setBackfillProgress] = useState(0); // 0..100
+  const [backfillResult, setBackfillResult] = useState(null); // contadores acumulados
+  const backfillCancelRef = useRef(false);
+
+  const runBackfill = async (dryRun) => {
+    setBackfillBusy(true);
+    setBackfillMode(dryRun ? 'audit' : 'upload');
+    setBackfillProgress(0);
+    setBackfillResult(null);
+    backfillCancelRef.current = false;
+
+    const acc = {
+      total: 0, scanned: 0, already_in_storage: 0, uploaded: 0,
+      missing_everywhere: 0, errors: 0, missing_details: [],
+    };
+    const LIMIT = 100;
+    let skip = 0;
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (backfillCancelRef.current) break;
+        const { data } = await api.post(
+          `/admin/attachments/recover-to-storage?dry_run=${dryRun}&skip=${skip}&limit=${LIMIT}`,
+        );
+        acc.total = data.total || 0;
+        acc.scanned += data.scanned || 0;
+        acc.already_in_storage += data.already_in_storage || 0;
+        acc.uploaded += data.uploaded || 0;
+        acc.missing_everywhere += data.missing_everywhere || 0;
+        acc.errors += data.errors || 0;
+        if (Array.isArray(data.missing_details)) {
+          acc.missing_details.push(...data.missing_details);
+        }
+        const processed = data.processed_so_far || 0;
+        setBackfillProgress(acc.total > 0 ? Math.round((processed / acc.total) * 100) : 100);
+        setBackfillResult({ ...acc });
+
+        if (data.done || data.next_skip == null) break;
+        skip = data.next_skip;
+      }
+      setBackfillProgress(100);
+      if (dryRun) {
+        toast.success(`Auditoría completada: ${acc.uploaded} anexo(s) por subir, ${acc.already_in_storage} ya en la nube`);
+      } else {
+        toast.success(`Respaldo completado: ${acc.uploaded} anexo(s) subido(s) a la nube`);
+        if (acc.errors > 0) toast.error(`${acc.errors} anexo(s) con error al subir`);
+      }
+    } catch (err) {
+      toast.error(`Error en el respaldo de anexos: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setBackfillBusy(false);
+      setBackfillMode(null);
+    }
+  };
 
   const loadEntities = useCallback(async () => {
     setLoading(true);
@@ -155,6 +214,119 @@ export default function BackupCenter() {
             Cotizaciones, Histórico y Proyectos se respaldan en sus propias vistas y no forman parte de
             este centro. Formato de respaldo: <strong>JSON</strong> (round-trip sin pérdida).
           </span>
+        </div>
+
+        {/* Respaldo de Anexos hacia Object Storage (Backfill) */}
+        <div className="bg-white rounded-xl border border-sky-200 shadow-sm mb-6 overflow-hidden" data-testid="attachments-backfill-card">
+          <div className="bg-sky-50/70 border-b border-sky-100 px-4 py-3 flex items-start gap-3">
+            <div className="rounded-lg bg-sky-600 text-white p-2 shadow-sm shrink-0">
+              <CloudUpload size={18} />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Respaldar Anexos en la Nube (Object Storage)</h2>
+              <p className="text-xs text-slate-600 mt-0.5 max-w-2xl">
+                Sube a la nube los PDF de anexos que hoy solo existen en el disco local del servidor.
+                La memoria local se borra en cada despliegue, así que ejecuta esto <strong>antes de
+                apagar tus respaldos manuales</strong>. Primero puedes <strong>Auditar</strong> (simulación,
+                no sube nada) para ver cuántos anexos faltan.
+              </p>
+            </div>
+          </div>
+
+          <div className="px-4 py-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => runBackfill(true)}
+                disabled={backfillBusy}
+                className="border-sky-300 text-sky-700 hover:bg-sky-50"
+                data-testid="backfill-audit-btn"
+              >
+                {backfillBusy && backfillMode === 'audit'
+                  ? <Loader2 size={16} className="mr-1.5 animate-spin" />
+                  : <Search size={16} className="mr-1.5" />}
+                Auditar (simulación)
+              </Button>
+              <Button
+                onClick={() => runBackfill(false)}
+                disabled={backfillBusy}
+                className="bg-sky-600 hover:bg-sky-700"
+                data-testid="backfill-run-btn"
+              >
+                {backfillBusy && backfillMode === 'upload'
+                  ? <Loader2 size={16} className="mr-1.5 animate-spin" />
+                  : <CloudUpload size={16} className="mr-1.5" />}
+                Ejecutar Respaldo a la Nube
+              </Button>
+            </div>
+
+            {backfillBusy && (
+              <div className="mt-4" data-testid="backfill-progress">
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span>{backfillMode === 'audit' ? 'Auditando anexos…' : 'Subiendo anexos a la nube…'}</span>
+                  <span>{backfillProgress}%</span>
+                </div>
+                <Progress value={backfillProgress} className="h-2" />
+              </div>
+            )}
+
+            {backfillResult && (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="backfill-result">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mb-2">
+                  <CheckCircle2 size={15} className="text-emerald-600" />
+                  {backfillMode === 'audit' || (backfillBusy && backfillMode === 'audit') ? 'Resultado de la auditoría' : 'Resultado del respaldo'}
+                  <span className="text-xs font-normal text-slate-400">· {backfillResult.total} anexo(s) en total</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                  <div className="rounded-lg bg-white border border-slate-200 py-2" data-testid="backfill-stat-uploaded">
+                    <p className="text-lg font-bold text-sky-700">{backfillResult.uploaded}</p>
+                    <p className="text-[11px] text-slate-500">Subidos / por subir</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 py-2" data-testid="backfill-stat-already">
+                    <p className="text-lg font-bold text-emerald-700">{backfillResult.already_in_storage}</p>
+                    <p className="text-[11px] text-slate-500">Ya en la nube</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 py-2" data-testid="backfill-stat-missing">
+                    <p className="text-lg font-bold text-amber-600">{backfillResult.missing_everywhere}</p>
+                    <p className="text-[11px] text-slate-500">Faltantes (perdidos)</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 py-2" data-testid="backfill-stat-errors">
+                    <p className="text-lg font-bold text-red-600">{backfillResult.errors}</p>
+                    <p className="text-[11px] text-slate-500">Errores</p>
+                  </div>
+                </div>
+
+                {backfillResult.missing_details?.length > 0 && (
+                  <div className="mt-3" data-testid="backfill-missing-list">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 mb-1">
+                      <AlertTriangle size={13} />
+                      Anexos faltantes (no están ni en el disco local ni en la nube)
+                    </div>
+                    <div className="max-h-56 overflow-auto rounded-lg border border-amber-200 bg-amber-50/50">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-amber-700/80 border-b border-amber-200">
+                            <th className="px-2.5 py-1.5 font-semibold">Cotización</th>
+                            <th className="px-2.5 py-1.5 font-semibold">Archivo</th>
+                            <th className="px-2.5 py-1.5 font-semibold">Origen</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {backfillResult.missing_details.map((m, i) => (
+                            <tr key={i} className="border-b border-amber-100 last:border-0" data-testid={`backfill-missing-row-${i}`}>
+                              <td className="px-2.5 py-1.5 text-slate-700">{m.parent_number || m.parent_id || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-600 truncate max-w-[220px]" title={m.filename || m.rel_path}>{m.filename || m.rel_path || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-500">{m.collection === 'quote_history' ? 'Histórico' : 'Cotización'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Acciones masivas */}

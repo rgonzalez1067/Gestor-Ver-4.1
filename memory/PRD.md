@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+
+### NUEVO: Botón "Respaldar Anexos en la Nube" (Backfill a Object Storage) en Centro de Respaldos — Jul 2026
+- **Objetivo:** dar al admin un botón en la UI para forzar el volcado de los PDF de anexos que solo existen en el disco local del pod hacia el Object Storage, antes de apagar los respaldos manuales previos a un deploy (el FS del pod es efímero).
+- **Frontend** (`pages/BackupCenter.jsx`): nueva tarjeta `attachments-backfill-card` con 2 botones — `backfill-audit-btn` (dry-run, no sube nada) y `backfill-run-btn` (respaldo real). Ejecuta el endpoint de forma **paginada en bucle** (limit=100, avanza con `next_skip` hasta `done=true`), acumulando contadores. Muestra barra de progreso (`backfill-progress`), 4 KPIs (`backfill-stat-uploaded/already/missing/errors`) y una lista de anexos faltantes/perdidos (`backfill-missing-list`, columnas Cotización/Archivo/Origen).
+- **Backend** (endpoint ya existente `POST /api/admin/attachments/recover-to-storage` en `routes/data_migration.py` L1530): params `dry_run`, `skip`, `limit` (máx 200); audita `quotes.attachments` + `quote_history.attachments`, sube al storage lo que falta y devuelve `{total, processed_so_far, done, next_skip, scanned, already_in_storage, uploaded, missing_everywhere, errors, missing_details, by_collection}`.
+- **QA:** verificado por screenshot E2E (admin) — auditoría real sobre 805 anexos: 147 por subir, 653 ya en la nube, 5 faltantes (listados), 0 errores; paginación multi-lote OK. ⚠️ PREVIEW; requiere REDEPLOY para uso en producción.
+
 ### NUEVO: Reporte de Gestión de Implementadores V2 — Jul 2026
 - **Objetivo:** evaluación cuantitativa de rendimiento/carga/entregables por implementador, con TODAS las métricas estrictamente acotadas al periodo (Desde/Hasta).
 - **Backend** (`routes/implementer_report.py`, registrado en `server.py`):
