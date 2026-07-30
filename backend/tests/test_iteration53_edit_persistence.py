@@ -15,7 +15,7 @@ import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://perfilado-contactos.preview.emergentagent.com"
+    BASE_URL = "https://pdf-backfill-hub.preview.emergentagent.com"
 
 class TestIteration53EditPersistence:
     """Tests for the edit/modify quote persistence bug fixes"""
