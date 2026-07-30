@@ -1246,7 +1246,7 @@ const Projects = () => {
                                   title={tip}
                                   className={`h-8 px-2 ${on
                                     ? 'text-white bg-emerald-600 border-emerald-600 hover:bg-emerald-700'
-                                    : 'text-slate-400 hover:text-slate-600'} ${!allowed ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                    : 'text-white bg-rose-600 border-rose-600 hover:bg-rose-700'} ${!allowed ? 'opacity-60 cursor-not-allowed' : ''}`}
                                   data-testid={`cobro-recurrente-btn-${project.project_id}`}
                                   data-cobro-status={on ? 'on' : 'off'}
                                   data-cobro-allowed={allowed ? 'true' : 'false'}>

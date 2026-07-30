@@ -1460,3 +1460,5 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 **Feature · Filtro de Cobro Recurrente en grilla de Proyectos · 2026-06:**
 - Projects.jsx: nuevo Select 'Cobro: Todos/Cobrado/Pendiente' (data-testid project-cobro-filter) que filtra client-side por cobro_recurrente_status. Integrado con hasActiveFilters y el botón 'Limpiar'.
 - Verificado (screenshot): 'Cobrado' muestra solo proyectos con $ en verde. Solo frontend.
+
+**UI · Indicador $ por defecto en ROJO (pendiente) · 2026-06:** Projects.jsx: estado off del botón de cobro recurrente cambiado de gris a rojo sólido (bg-rose-600); on sigue en verde (bg-emerald-600). Verificado por screenshot.
