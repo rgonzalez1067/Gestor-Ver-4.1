@@ -854,6 +854,7 @@ export const Integrators = () => {
   const [closeModal2Open, setCloseModal2Open] = useState(false);
   const [closeComponente, setCloseComponente] = useState('');
   const [closeVersion, setCloseVersion] = useState('');
+  const [closeRespEmail, setCloseRespEmail] = useState('');
   const [closeFiles, setCloseFiles] = useState([]);
   const [closeExtraList, setCloseExtraList] = useState([]);
   const [closeNewRecipient, setCloseNewRecipient] = useState('');
@@ -901,16 +902,20 @@ export const Integrators = () => {
       return;
     }
     // Proyecto estándar → secuencia de modales.
-    // Validación OBLIGATORIA: el "Responsable por parte del Integrador" debe tener
-    // un e-mail válido (vive en principal_contact_email o en contacts[0].email),
-    // porque es el destinatario ("Usuario Integrador") del correo de cierre.
-    const respEmail = (intg?.principal_contact_email
-      || (Array.isArray(intg?.contacts) ? (intg.contacts.find((c) => c?.email)?.email) : '')
-      || '').trim();
-    if (!respEmail || !EMAIL_RE.test(respEmail)) {
-      toast.error('El campo "Responsable por parte del Integrador" debe contener un e-mail válido para poder cerrar el proyecto. Edite el Proyecto de Integración y complete el correo del Responsable.');
-      return;
-    }
+    // Precarga el correo del "Responsable por parte del Integrador" (destinatario
+    // "Usuario Integrador") desde donde exista; si está vacío, el usuario lo
+    // completará en el modal de cierre. Soporta formato "Nombre <correo>".
+    const extractEmail = (s) => {
+      const m = String(s || '').match(/[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+/);
+      return m ? m[0] : '';
+    };
+    const initialResp = (
+      extractEmail(intg?.principal_contact_email)
+      || (Array.isArray(intg?.contacts) ? (intg.contacts.map((c) => extractEmail(c?.email)).find(Boolean)) : '')
+      || extractEmail(intg?.email)
+      || ''
+    ).trim();
+    setCloseRespEmail(initialResp);
     setCloseTarget(intg);
     setCloseComponente('');
     setCloseVersion('');
@@ -970,11 +975,17 @@ export const Integrators = () => {
 
   const submitCloseProject = async () => {
     if (!closeTarget) return;
+    const respEmail = (closeRespEmail || '').trim();
+    if (!respEmail || !EMAIL_RE.test(respEmail)) {
+      toast.error('El campo "Correo del Responsable del Integrador" debe contener un e-mail válido para poder cerrar el proyecto.');
+      return;
+    }
     setClosing(true);
     try {
       const fd = new FormData();
       fd.append('componente', closeComponente.trim());
       fd.append('version_componente', closeVersion.trim());
+      fd.append('responsable_email', respEmail);
       if (closeExtraList.length > 0) fd.append('extra_recipients', closeExtraList.join(', '));
       (closeFiles || []).forEach((f) => fd.append('files', f));
       const res = await api.post(`/integrators/${closeTarget.integrator_id}/close`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -1229,6 +1240,25 @@ export const Integrators = () => {
                       {closeTarget && <p className="text-xs text-blue-600 mt-0.5">Integrador: {closeTarget.name}{closeTarget.app_name ? ` — ${closeTarget.app_name}` : ''}</p>}
                     </div>
                     <div>
+                      <Label className="text-sm font-medium">
+                        Correo del Responsable del Integrador <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        type="email"
+                        value={closeRespEmail}
+                        onChange={(e) => setCloseRespEmail(e.target.value)}
+                        placeholder="responsable@empresa.com"
+                        data-testid="close-resp-email-input"
+                        className={`mt-1 ${closeRespEmail && !EMAIL_RE.test(closeRespEmail.trim()) ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        Recibirá el correo de cierre con el certificado (variable «Usuario Integrador»). Obligatorio.
+                      </p>
+                      {closeRespEmail && !EMAIL_RE.test(closeRespEmail.trim()) && (
+                        <p className="text-[11px] text-red-500 mt-0.5" data-testid="close-resp-email-error">Formato de correo inválido</p>
+                      )}
+                    </div>
+                    <div>
                       <Label className="text-sm font-medium">Anexos complementarios <span className="text-xs text-slate-400">(opcional)</span></Label>
                       <input type="file" multiple onChange={handleCloseFilesAdd} className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white file:cursor-pointer hover:file:bg-slate-800" data-testid="close-files-input" />
                       {closeFiles.length > 0 && (
@@ -1283,7 +1313,7 @@ export const Integrators = () => {
                     </div>
                     <div className="flex justify-end gap-3 pt-3 border-t">
                       <Button variant="outline" onClick={() => { setCloseModal2Open(false); setCloseModal1Open(true); }} data-testid="close-modal2-back">Atrás</Button>
-                      <Button onClick={submitCloseProject} disabled={closing} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="close-modal2-submit">
+                      <Button onClick={submitCloseProject} disabled={closing || !closeRespEmail.trim() || !EMAIL_RE.test(closeRespEmail.trim())} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="close-modal2-submit">
                         <ShieldCheck size={14} className="mr-1.5" />
                         {closing ? 'Cerrando…' : 'Cerrar y Certificar'}
                       </Button>

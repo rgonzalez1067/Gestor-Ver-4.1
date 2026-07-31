@@ -5,7 +5,12 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
-### Critical Fix: "Usuario Integrador" ahora se resuelve desde contacts[0] (wizard) + validación obligatoria — Jul 2026
+### Fix (continuación): campo editable "Correo del Responsable del Integrador" en el modal de Cierre — Jul 2026
+- **Síntoma:** al cerrar ciertos proyectos (p.ej. scope `component`: Yango, Aznara Tech) la validación bloqueaba con "el campo Responsable está vacío". Causa: esos proyectos NUNCA guardaron correo del Responsable en ningún campo (`email`, `principal_contact_email`, `contacts` vacíos) — el flujo que los creó no lo capturó.
+- **Solución:** el **Modal 2 del Cierre** ahora incluye un campo editable **"Correo del Responsable del Integrador"** (`close-resp-email-input`), precargado con cascada (`principal_contact_email` → `contacts[].email` → parseo de `email` "Nombre <correo>"). Es obligatorio; el botón "Cerrar y Certificar" se deshabilita si el correo es inválido. El backend `close_integrator_project` acepta `responsable_email` (Form), lo prioriza en la cascada, lo usa como destinatario garantizado + variable `usuario_integrador`, y lo **persiste** en `principal_contact_email` para el futuro. La validación 400 queda como red de seguridad.
+- **QA:** self-test curl E2E — CASE A (con responsable_email): 200, dispatch incluye `integrador.desarrollo@cliente.com`, email_log con Certificado+anexo, `principal_contact_email` persistido, status→Certificado; CASE B (sin ningún correo): 400 y el integrador NO cambia de estatus. Screenshot: campo visible y precargado desde `contacts[0]`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 - **Causa raíz real:** en el wizard "Nuevo Proyecto de Integración" el "Responsable por parte del Integrador" (Nombre/Email/Teléfono) se guarda como `integrator.contacts[0]`, NO en `principal_contact_email`. El mapeo previo (iter305) leía solo `principal_contact_email` (vacío en proyectos del wizard) → la variable `{usuario_integrador}` quedaba vacía y el Responsable no recibía el correo de cierre.
 - **Fix backend** (`routes/integrators.py::close_integrator_project`): cascada `_valid_email(principal_contact_email) → primer contacts[].email válido`. `resp_email` alimenta `guaranteed_close` (recibe SIEMPRE) y `tpl_vars.usuario_integrador/Usuario_Integrador/email_responsable_integrador`. Igual cascada en `services/other_actions_engine.py` para el destinatario tipo `integrator_user`.
 - **Validación obligatoria (nuevo requerimiento):** si no hay email válido de Responsable, el cierre se bloquea con **HTTP 400** (no cambia estatus a 'Certificado'). El frontend (`Integrators.jsx::handleCloseProject`) valida ANTES de abrir los modales y muestra toast: «El campo "Responsable por parte del Integrador" debe contener un e-mail válido…».

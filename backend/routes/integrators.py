@@ -669,6 +669,7 @@ async def close_integrator_project(
     componente: Optional[str] = Form(None),
     version_componente: Optional[str] = Form(None),
     extra_recipients: Optional[str] = Form(None),
+    responsable_email: Optional[str] = Form(None),
     files: List[UploadFile] = File(default=[]),
     authorization: Optional[str] = Header(None),
 ):
@@ -728,15 +729,24 @@ async def close_integrator_project(
     def _valid_email(e) -> bool:
         e = (e or "").strip()
         return bool(e) and "@" in e and "." in e.rsplit("@", 1)[-1]
+    def _extract_email(s) -> str:
+        m = re.search(r"[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+", str(s or ""))
+        return m.group(0) if m else ""
+    # Fuente del correo: 1) el enviado desde el modal de cierre; 2) principal_contact_email;
+    # 3) primer contacts[].email; 4) el campo `email` (puede venir "Nombre <correo>").
     resp_name = (existing.get("principal_contact_name") or "").strip()
-    resp_email = (existing.get("principal_contact_email") or "").strip()
+    resp_email = _extract_email(responsable_email)
     if not _valid_email(resp_email):
-        resp_email = ""
+        resp_email = _extract_email(existing.get("principal_contact_email"))
+    if not _valid_email(resp_email):
         for _c in (existing.get("contacts") or []):
-            if _valid_email(_c.get("email")):
-                resp_email = (_c.get("email") or "").strip()
+            _ce = _extract_email(_c.get("email"))
+            if _valid_email(_ce):
+                resp_email = _ce
                 resp_name = resp_name or (_c.get("name") or "").strip()
                 break
+    if not _valid_email(resp_email):
+        resp_email = _extract_email(existing.get("email"))
     if not _valid_email(resp_email):
         raise HTTPException(
             status_code=400,
@@ -786,7 +796,12 @@ async def close_integrator_project(
         "cert_products": productos_str, "certified_at": now_iso, "certified_by": closed_by,
         "closed_at": now_iso, "closed_by": closed_by,
         "integrator_status": "Certificado", "project_scope": None,
+        # Persistir el correo del Responsable resuelto (Usuario Integrador) para
+        # futuras notificaciones/consultas.
+        "principal_contact_email": resp_email,
     }
+    if resp_name:
+        cert_set["principal_contact_name"] = resp_name
 
     replaced = False
     if scope == "expansion":
