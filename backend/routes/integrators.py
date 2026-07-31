@@ -722,6 +722,29 @@ async def close_integrator_project(
     if not componente or not version_componente:
         raise HTTPException(status_code=400, detail="Componente y Versión del Componente son obligatorios")
 
+    # "Usuario Integrador" = correo del "Responsable por parte del Integrador".
+    # En el wizard de creación se guarda como contacts[0]; en la ficha completa
+    # como principal_contact_email. Cascada robusta + validación OBLIGATORIA.
+    def _valid_email(e) -> bool:
+        e = (e or "").strip()
+        return bool(e) and "@" in e and "." in e.rsplit("@", 1)[-1]
+    resp_name = (existing.get("principal_contact_name") or "").strip()
+    resp_email = (existing.get("principal_contact_email") or "").strip()
+    if not _valid_email(resp_email):
+        resp_email = ""
+        for _c in (existing.get("contacts") or []):
+            if _valid_email(_c.get("email")):
+                resp_email = (_c.get("email") or "").strip()
+                resp_name = resp_name or (_c.get("name") or "").strip()
+                break
+    if not _valid_email(resp_email):
+        raise HTTPException(
+            status_code=400,
+            detail=("El campo 'Responsable por parte del Integrador' debe contener un "
+                    "e-mail válido para poder cerrar el proyecto. Edite el Proyecto de "
+                    "Integración y complete el correo del Responsable."),
+        )
+
     productos_str = _certified_products_string(existing)
     medios_bullets = _certified_products_bullets_html(existing)
 
@@ -752,10 +775,9 @@ async def close_integrator_project(
     if _ie and "@" in _ie:
         guaranteed_close.append(_ie)
     # Responsable por parte del Integrador (Usuario Integrador): SIEMPRE recibe el
-    # correo de cierre. Su correo vive en `principal_contact_email`.
-    _resp_intg = (existing.get("principal_contact_email") or "").strip()
-    if _resp_intg and "@" in _resp_intg:
-        guaranteed_close.append(_resp_intg)
+    # correo de cierre (resuelto arriba con cascada principal_contact_email → contacts[0]).
+    if _valid_email(resp_email):
+        guaranteed_close.append(resp_email)
     guaranteed_close.extend(extra_cc)
 
     # ---------- Persistencia / grillas ----------
@@ -821,10 +843,10 @@ async def close_integrator_project(
         "cerrado_por": closed_by, "Cerrado_Por": closed_by,
         "usuario_ejecutor": closed_by, "fecha_sistema": now_str, "Fecha_Sistema": now_str,
         # "Usuario Integrador" = correo del "Responsable por parte del Integrador".
-        "usuario_integrador": existing.get("principal_contact_email", ""),
-        "Usuario_Integrador": existing.get("principal_contact_email", ""),
-        "responsable_integrador": existing.get("principal_contact_name", ""),
-        "email_responsable_integrador": existing.get("principal_contact_email", ""),
+        "usuario_integrador": resp_email,
+        "Usuario_Integrador": resp_email,
+        "responsable_integrador": resp_name,
+        "email_responsable_integrador": resp_email,
     }
     dispatch_result = None
     try:

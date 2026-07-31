@@ -900,7 +900,17 @@ export const Integrators = () => {
       }
       return;
     }
-    // Proyecto estándar → secuencia de modales
+    // Proyecto estándar → secuencia de modales.
+    // Validación OBLIGATORIA: el "Responsable por parte del Integrador" debe tener
+    // un e-mail válido (vive en principal_contact_email o en contacts[0].email),
+    // porque es el destinatario ("Usuario Integrador") del correo de cierre.
+    const respEmail = (intg?.principal_contact_email
+      || (Array.isArray(intg?.contacts) ? (intg.contacts.find((c) => c?.email)?.email) : '')
+      || '').trim();
+    if (!respEmail || !EMAIL_RE.test(respEmail)) {
+      toast.error('El campo "Responsable por parte del Integrador" debe contener un e-mail válido para poder cerrar el proyecto. Edite el Proyecto de Integración y complete el correo del Responsable.');
+      return;
+    }
     setCloseTarget(intg);
     setCloseComponente('');
     setCloseVersion('');

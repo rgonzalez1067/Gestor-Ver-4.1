@@ -199,15 +199,23 @@ async def dispatch_other_action(
                     f"(proyecto {(project or {}).get('project_number', 's/n')}) → {rcpt_email}"
                 )
         elif rtype == "integrator_user":
-            # "Usuario Integrador": el integrador asignado al proyecto. Mapea al
-            # correo de su Contacto Principal (principal_contact_email). Externo:
-            # sin user_id → siempre por email (no Centro de Mensajes).
+            # "Usuario Integrador": el "Responsable por parte del Integrador".
+            # Su correo puede vivir en `principal_contact_email` (ficha completa)
+            # o en `contacts[0].email` (wizard de creación). Cascada robusta.
             email = ((integrator or {}).get("principal_contact_email") or "").strip()
+            iname = (integrator or {}).get("principal_contact_name") or ""
             if not email or '@' not in email:
-                skipped.append({"row_id": row.get("row_id"), "reason": "Integrador sin correo de contacto principal"})
+                for _c in ((integrator or {}).get("contacts") or []):
+                    _ce = (_c.get("email") or "").strip()
+                    if _ce and '@' in _ce:
+                        email = _ce
+                        iname = iname or (_c.get("name") or "")
+                        break
+            if not email or '@' not in email:
+                skipped.append({"row_id": row.get("row_id"), "reason": "Integrador sin correo de Responsable (Usuario Integrador)"})
                 continue
             rcpt_email = email
-            rcpt_name = (integrator or {}).get("name") or email
+            rcpt_name = iname or (integrator or {}).get("name") or email
             rcpt_user_id = None
         elif rtype == "client_field":
             # "Correo del Cliente": correo del cliente externo asociado al evento.
