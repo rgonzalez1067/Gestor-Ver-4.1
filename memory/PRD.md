@@ -5,6 +5,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### NUEVO: Vista previa de anexos sin descargar (Carpeta de Anexos de Cotizaciones) — Jul 2026
+- **Objetivo:** poder visualizar un anexo dentro de la app sin tener que descargarlo, y ofrecer un botón de descarga dentro de esa vista por si se necesita.
+- **Frontend** (`components/AnexosModal.jsx`): botón "ojo" (`anexo-preview-{id}`) por cada anexo abre un nuevo componente `AnexoPreviewDialog` (`anexo-preview-dialog`, 85vw × 90vh). Descarga el archivo como blob autenticado (fetch con Bearer token → `URL.createObjectURL`) y lo renderiza inline: **PDF** en `<iframe>` (`anexo-preview-iframe`), **imágenes** (png/jpg/jpeg/webp/gif) en `<img>` (`anexo-preview-image`); para tipos no visualizables (.docx/.xlsx/.csv) muestra aviso + botón de descarga. Incluye botón **"Descargar"** (`anexo-preview-download-btn`) en el header del visor. Limpieza de objectURL al cerrar. Se conserva el botón de descarga rápida en la fila.
+- **Sin cambios de backend:** reutiliza `GET /api/quotes/{quote_id}/attachments/{attachment_id}/download` (sirve `application/pdf`); el render inline se logra vía blob object URL en el cliente, respetando el RBAC (token en el header).
+- **QA:** verificado por screenshot E2E (admin, /quotes → Anexos → ojo) — el visor abre con nombre de archivo, iframe, botón Descargar y cerrar; content-type confirmado `application/pdf` por curl. El iframe se ve en blanco solo en el navegador headless de prueba (no trae visor PDF); en navegadores reales renderiza. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### NUEVO: Botón "Respaldar Anexos en la Nube" (Backfill a Object Storage) en Centro de Respaldos — Jul 2026
 - **Objetivo:** dar al admin un botón en la UI para forzar el volcado de los PDF de anexos que solo existen en el disco local del pod hacia el Object Storage, antes de apagar los respaldos manuales previos a un deploy (el FS del pod es efímero).
 - **Frontend** (`pages/BackupCenter.jsx`): nueva tarjeta `attachments-backfill-card` con 2 botones — `backfill-audit-btn` (dry-run, no sube nada) y `backfill-run-btn` (respaldo real). Ejecuta el endpoint de forma **paginada en bucle** (limit=100, avanza con `next_skip` hasta `done=true`), acumulando contadores. Muestra barra de progreso (`backfill-progress`), 4 KPIs (`backfill-stat-uploaded/already/missing/errors`) y una lista de anexos faltantes/perdidos (`backfill-missing-list`, columnas Cotización/Archivo/Origen).

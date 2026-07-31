@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { formatDateTime, formatDate, formatTime } from '../utils/dateFormat';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { FileText, Upload, Trash2, Download, FolderOpen, File, Image, FileSpreadsheet, Loader2, CreditCard, DollarSign, User, Clock } from 'lucide-react';
+import { FileText, Upload, Trash2, Download, FolderOpen, File, Image, FileSpreadsheet, Loader2, CreditCard, DollarSign, User, Clock, Eye, X } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -37,6 +37,7 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(null);
+  const [previewAtt, setPreviewAtt] = useState(null);
   const fileInputRefs = useRef({});
 
   // Anexos de COTIZACIONES VIGENTES → gobernados por el módulo `cotizaciones`
@@ -224,8 +225,19 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
                               <Button
                                 size="sm"
                                 variant="ghost"
+                                className="h-7 w-7 p-0 text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                                onClick={() => setPreviewAtt(att)}
+                                title="Vista previa"
+                                data-testid={`anexo-preview-${att.attachment_id}`}
+                              >
+                                <Eye size={14} />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                                 onClick={() => handleDownload(att)}
+                                title="Descargar"
                                 data-testid={`anexo-download-${att.attachment_id}`}
                               >
                                 <Download size={14} />
@@ -265,6 +277,138 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
             })}
           </div>
         )}
+      </DialogContent>
+      <AnexoPreviewDialog
+        attachment={previewAtt}
+        quoteId={quoteId}
+        onClose={() => setPreviewAtt(null)}
+      />
+    </Dialog>
+  );
+}
+
+function AnexoPreviewDialog({ attachment, quoteId, onClose }) {
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [blob, setBlob] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  const filename = attachment?.filename || '';
+  const ext = filename.split('.').pop().toLowerCase();
+  const isPdf = ext === 'pdf';
+  const isImage = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
+  const canPreview = isPdf || isImage;
+
+  useEffect(() => {
+    let objUrl = null;
+    let cancelled = false;
+    if (!attachment) return undefined;
+
+    setLoading(true);
+    setError(false);
+    setBlob(null);
+    setBlobUrl(null);
+
+    (async () => {
+      try {
+        const url = `${BACKEND_URL}/api/quotes/${quoteId}/attachments/${attachment.attachment_id}/download`;
+        const token = localStorage.getItem('session_token');
+        const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok) throw new Error('preview failed');
+        const b = await response.blob();
+        if (cancelled) return;
+        objUrl = URL.createObjectURL(b);
+        setBlob(b);
+        setBlobUrl(objUrl);
+      } catch (err) {
+        if (!cancelled) {
+          setError(true);
+          toast.error('No se pudo cargar la vista previa');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objUrl) URL.revokeObjectURL(objUrl);
+    };
+  }, [attachment, quoteId]);
+
+  const handleDownloadFromPreview = () => {
+    if (!blobUrl) return;
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  return (
+    <Dialog open={!!attachment} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent
+        className="max-w-[85vw] w-[85vw] h-[90vh] flex flex-col p-0 gap-0"
+        data-testid="anexo-preview-dialog"
+      >
+        <DialogHeader className="px-5 py-3 border-b border-slate-200 flex-row items-center justify-between space-y-0">
+          <DialogTitle className="flex items-center gap-2 text-base min-w-0">
+            {getFileIcon(filename)}
+            <span className="truncate">{filename}</span>
+          </DialogTitle>
+          <div className="flex items-center gap-2 shrink-0 pr-6">
+            <Button
+              size="sm"
+              onClick={handleDownloadFromPreview}
+              disabled={!blobUrl}
+              className="gap-1.5 bg-brand-blue-600 hover:bg-brand-blue-700"
+              data-testid="anexo-preview-download-btn"
+            >
+              <Download size={14} /> Descargar
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 min-h-0 bg-slate-100" data-testid="anexo-preview-body">
+          {loading ? (
+            <div className="h-full flex items-center justify-center">
+              <Loader2 className="animate-spin h-7 w-7 text-slate-400" />
+            </div>
+          ) : error ? (
+            <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500">
+              <X size={28} className="text-red-400" />
+              <p className="text-sm">No se pudo cargar el documento.</p>
+            </div>
+          ) : !canPreview ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-500 px-6 text-center">
+              <File size={40} className="text-slate-400" />
+              <p className="text-sm">
+                Este tipo de archivo (<strong>.{ext}</strong>) no admite vista previa en el navegador.
+                <br />Descárgalo para abrirlo en tu equipo.
+              </p>
+              <Button onClick={handleDownloadFromPreview} disabled={!blobUrl} className="gap-1.5 bg-brand-blue-600 hover:bg-brand-blue-700">
+                <Download size={15} /> Descargar archivo
+              </Button>
+            </div>
+          ) : isPdf ? (
+            <iframe
+              src={blobUrl}
+              title={filename}
+              className="w-full h-full border-0"
+              data-testid="anexo-preview-iframe"
+            />
+          ) : (
+            <div className="h-full overflow-auto flex items-center justify-center p-4">
+              <img
+                src={blobUrl}
+                alt={filename}
+                className="max-w-full max-h-full object-contain"
+                data-testid="anexo-preview-image"
+              />
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
