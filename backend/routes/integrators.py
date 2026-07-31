@@ -751,6 +751,11 @@ async def close_integrator_project(
     _ie = (existing.get("email") or "").strip()
     if _ie and "@" in _ie:
         guaranteed_close.append(_ie)
+    # Responsable por parte del Integrador (Usuario Integrador): SIEMPRE recibe el
+    # correo de cierre. Su correo vive en `principal_contact_email`.
+    _resp_intg = (existing.get("principal_contact_email") or "").strip()
+    if _resp_intg and "@" in _resp_intg:
+        guaranteed_close.append(_resp_intg)
     guaranteed_close.extend(extra_cc)
 
     # ---------- Persistencia / grillas ----------
@@ -815,6 +820,11 @@ async def close_integrator_project(
         "medios_certificados": medios_bullets, "Medios_Certificados": medios_bullets,
         "cerrado_por": closed_by, "Cerrado_Por": closed_by,
         "usuario_ejecutor": closed_by, "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+        # "Usuario Integrador" = correo del "Responsable por parte del Integrador".
+        "usuario_integrador": existing.get("principal_contact_email", ""),
+        "Usuario_Integrador": existing.get("principal_contact_email", ""),
+        "responsable_integrador": existing.get("principal_contact_name", ""),
+        "email_responsable_integrador": existing.get("principal_contact_email", ""),
     }
     dispatch_result = None
     try:

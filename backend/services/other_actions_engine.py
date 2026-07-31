@@ -269,6 +269,8 @@ async def dispatch_other_action(
                     subject=subject or fallback_subject or "Notificación",
                     html=body,
                     action_id=action_id,
+                    project_id=(project or {}).get("project_id") if project else None,
+                    attachments=extra_attachments,
                 )
             else:
                 cc_list = [e for e in (extra_cc or []) if e != rcpt_email] or None
