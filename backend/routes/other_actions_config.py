@@ -55,6 +55,7 @@ OTHER_ACTIONS = [
             "Nombre_Cliente", "nombre_cliente", "Rif_Cliente", "rif_cliente",
             "Cantidad_Equipos", "Equipos_Recibidos", "Equipos_Recibidos_HTML",
             "Fecha_Recepcion", "usuario_ejecutor", "fecha_sistema",
+            "Detalles_Recepcion_Equipos",
         ],
     },
     {

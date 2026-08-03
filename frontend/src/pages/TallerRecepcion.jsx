@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import {
-  PackageCheck, Search, Plus, X, Trash2, ClipboardCheck, Loader2, Building2, Barcode, FileSpreadsheet
+  PackageCheck, Search, Plus, X, Trash2, ClipboardCheck, Loader2, Building2, Barcode, FileSpreadsheet, MessageSquareText
 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -30,6 +30,9 @@ export default function TallerRecepcion() {
   const [models, setModels] = useState([]);
   // Filas de equipos a recibir
   const [rows, setRows] = useState([newRow()]);
+  // Instrucciones especiales al Equipo de Operaciones (máx 500)
+  const [detalles, setDetalles] = useState('');
+  const DETALLES_MAX = 500;
 
   // Resumen / guardado
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -132,12 +135,13 @@ export default function TallerRecepcion() {
         client_id: selectedClient.client_id,
         client_name: selectedClient.fantasy_name || selectedClient.legal_name || '',
         client_rif: selectedClient.rif || '',
+        detalles_recepcion: detalles.trim(),
         models: validRows.map((r) => ({ model_id: r.model_id, model_name: r.model_name, serials: r.serials })),
       };
       const r = await api.post('/taller/recepcion', payload);
       toast.success(`Recepción confirmada: ${r.data?.created || totalEquipos} equipo(s) ingresado(s) al taller como "Recibido".`);
       // reset
-      setSelectedClient(null); setClientQuery(''); setRows([newRow()]); setSummaryOpen(false);
+      setSelectedClient(null); setClientQuery(''); setRows([newRow()]); setDetalles(''); setSummaryOpen(false);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Error al confirmar la recepción');
     } finally {
@@ -279,7 +283,33 @@ export default function TallerRecepcion() {
             </div>
           </div>
 
-          {/* Acción */}
+          {/* Instrucciones especiales al Equipo de Operaciones */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4" data-testid="recepcion-detalles-card">
+          <label htmlFor="recepcion-detalles" className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-1">
+            <MessageSquareText size={16} className="text-slate-400" /> Detalles de la recepción para Operaciones
+            <span className="text-xs font-normal text-slate-400">(opcional)</span>
+          </label>
+          <p className="text-xs text-slate-500 mb-2">
+            Instrucciones especiales para el Equipo de Operaciones. Se incluirán en la notificación de recepción.
+          </p>
+          <textarea
+            id="recepcion-detalles"
+            data-testid="recepcion-detalles-input"
+            value={detalles}
+            maxLength={DETALLES_MAX}
+            onChange={(e) => setDetalles(e.target.value.slice(0, DETALLES_MAX))}
+            rows={4}
+            placeholder="Ej.: Los equipos llegaron con caja dañada; revisar prioridad de este cliente…"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-y"
+          />
+          <div className="flex justify-end mt-1">
+            <span className={`text-xs ${detalles.length >= DETALLES_MAX ? 'text-rose-500' : 'text-slate-400'}`} data-testid="recepcion-detalles-counter">
+              {detalles.length}/{DETALLES_MAX}
+            </span>
+          </div>
+        </div>
+
+        {/* Acción */}
           <div className="flex items-center justify-between">
             <div className="text-sm text-slate-500" data-testid="recepcion-total">
               Total a recibir: <span className="font-semibold text-slate-800">{totalEquipos}</span> equipo(s)
@@ -313,6 +343,12 @@ export default function TallerRecepcion() {
                 ))}
               </div>
               <div className="mt-3 text-slate-600">Total: <span className="font-semibold">{totalEquipos}</span> equipo(s) ingresarán como <span className="font-semibold text-emerald-700">"Recibido"</span>.</div>
+              {detalles.trim() && (
+                <div className="mt-3 border border-slate-200 rounded-lg p-2.5 bg-slate-50" data-testid="recepcion-summary-detalles">
+                  <div className="text-xs font-semibold text-slate-600 mb-0.5">Detalles para Operaciones:</div>
+                  <div className="text-xs text-slate-600 whitespace-pre-wrap">{detalles.trim()}</div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setSummaryOpen(false)} disabled={saving} data-testid="recepcion-cancel-btn">Cancelar</Button>

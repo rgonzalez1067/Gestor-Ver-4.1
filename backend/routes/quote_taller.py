@@ -31,6 +31,7 @@ class RecepcionRequest(BaseModel):
     client_id: str
     client_name: str = ""
     client_rif: str = ""
+    detalles_recepcion: str = ""
     models: List[RecepcionModelo] = []
 
 
@@ -86,6 +87,7 @@ async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[s
 
     from zoneinfo import ZoneInfo
     fecha_str = now.astimezone(ZoneInfo("America/Caracas")).strftime("%d/%m/%Y %H:%M")
+    detalles = (payload.detalles_recepcion or "").strip()[:500]
     tpl_vars = {
         "Nombre_Cliente": client_name, "nombre_cliente": client_name,
         "Rif_Cliente": client_rif, "rif_cliente": client_rif,
@@ -94,6 +96,9 @@ async def recepcion_equipos(payload: RecepcionRequest, authorization: Optional[s
         "Equipos_Recibidos_HTML": "<br>".join(equipos_desc),
         "Fecha_Recepcion": fecha_str, "fecha_sistema": fecha_str,
         "usuario_ejecutor": user.get("email", ""),
+        # Instrucciones especiales que el receptor deja al Equipo de Operaciones.
+        "Detalles_Recepcion_Equipos": detalles,
+        "detalles_recepcion_equipos": detalles,
     }
     try:
         pdf_bytes = _generate_reception_pdf(client_name, client_rif, equipos_pairs, fecha_str, user.get("email", ""))
