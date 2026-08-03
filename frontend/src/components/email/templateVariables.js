@@ -123,6 +123,10 @@ export const VARIABLE_CATEGORIES = [
       { key: 'lista_equipos_seriales', label: 'Lista de equipos y seriales (HTML)' },
       { key: 'modelos_resumen', label: 'Resumen de modelos' },
       { key: 'almacen_custodia', label: 'Almacén de custodia' },
+      { key: 'Cantidad_Equipos', label: 'Recepción · Cantidad de equipos recibidos' },
+      { key: 'Equipos_Recibidos_HTML', label: 'Recepción · Lista de equipos recibidos (HTML)' },
+      { key: 'Fecha_Recepcion', label: 'Recepción · Fecha de recepción' },
+      { key: 'Detalles_Recepcion_Equipos', label: 'Recepción · Detalles/instrucciones para Operaciones' },
     ],
   },
   {
