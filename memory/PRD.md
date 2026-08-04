@@ -5,7 +5,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
-### Feature: Reporte CSV de anexos perdidos (Centro de Respaldos) — Jul 2026
+### Feature (Portal de Integradores V3): 3 campos nuevos + plantilla Excel reordenada + Upsert por clave compuesta de 4 campos — Jul 2026
+- **Modelo/UI:** nuevos campos `accespay_product` (Producto AccesPay), `comercios_relacionados`, `componente_version` en `IntegratorCreate`/`Integrator` (models.py) y en el formulario de edición (Integrators.jsx, tras Observaciones; testids `integrator-accespay-input`, `integrator-comercios-input`, `integrator-componente-version-input`). Persisten vía PUT (model_dump).
+- **Plantilla Excel** (`GET /api/integrators/import/template`): orden exacto AH=Lysto, **AI=Producto AccesPay (nuevo)**, AJ=Nombre del Proyecto, AK=Observaciones, **AL=Comercios relacionados (nuevo)**, **AM=Versión Componente (nuevo)**, AN=Nombre del Contacto Principal. Filas de instrucciones y reglas actualizadas.
+- **Import Upsert (clave compuesta V3):** ahora el match usa EXACTAMENTE 4 campos → `name + integrator_type + app_name + integration_modality` (se removió `integration_type` del `composite_query`). Match→UPDATE (inyecta nuevos campos, nunca borra); no match→INSERT. column_mapping + extracción + update_data + constructor extendidos con los 3 campos.
+- **QA:** testing_agent iter308 → **backend 100% / frontend 100%**. Verificado: columnas AI..AN exactas; edición manual persiste; Prueba A (match 4-key → updated_count=1, sin duplicado, campos actualizados); Prueba B (distinta Modalidad → INSERT, 2 registros, original preservado). Test: `/app/backend/tests/test_iter308_integrators_v3.py`. Notas (no bugs): dedup en-archivo sigue 5-tupla (no crea duplicados) y UPDATE no vacía campos (coherente con prohibición de borrado). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 - **Qué:** botón **"Descargar reporte CSV"** en la sección de anexos faltantes/perdidos del Centro de Respaldos, para analizar y recuperar los archivos que no están ni en disco ni en la nube.
 - **Backend** (`routes/data_migration.py`): `missing_details` ahora incluye `client_name`, `content_type`, `uploaded_at` (además de collection, parent_number, attachment_id, filename, rel_path) y se devuelve la lista **completa por lote** (se quitó el tope de 50). Proyecciones de `quotes`/`quote_history` extienden `client_name`.
 - **Frontend** (`pages/BackupCenter.jsx`): `downloadMissingCsv()` genera CSV (con BOM UTF-8) con columnas Colección/Cotización/Cliente/Archivo/Tipo/ID Anexo/Ruta/Fecha; botón `backfill-missing-csv-btn`. La tabla en pantalla agrega columna **Cliente**.
