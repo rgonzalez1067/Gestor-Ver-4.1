@@ -1,0 +1,35 @@
+{
+  "summary": "Iter 309 — Access Pay migrated from standalone input into the certification matrix. Backend & frontend fully verified. 4/4 pytest tests pass and UI shows Access Pay as a product with P/C/N-A toggle; edit form no longer has 'integrator-accespay-input' while V3 fields (comercios, componente_version) remain.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Integrators list (Dashboard/Integrators tables)", "issues": ["React hydration warnings — <span data-ve-dynamic=\"true\"> is being rendered as a direct child of <tbody> and around <tr> elements (Integrators.jsx around line 1928 and Dashboard.jsx around line 374). Not blocking, but pollutes the console and can cause hydration mismatches."]},
+      {"screen": "Edit Integrator dialog", "issues": ["DialogContent missing aria-describedby (a11y warning).", "Duplicate React key detected in a Select ('Arnoldo Hernandez'), suggests two active users with identical display names in the coordinator or gestor dropdown — should use user_id as key."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter309_access_pay_as_product.py",
+    "/app/test_reports/pytest/iter309.xml"
+  ],
+  "action_items": [
+    "(Low) Replace name-based keys in Integrator edit dialog user Selects with user_id to avoid duplicate-key warning.",
+    "(Low) Fix ve-dynamic <span> wrappers being emitted inside <tbody>/around <tr> — either use React.Fragment or move the wrapper outside the table to remove hydration warnings.",
+    "(Low) Add DialogDescription (or aria-describedby) to Editar Proyecto de Integración modal."
+  ],
+  "critical_code_review_comments": [
+    "routes/integrators.py is very large (~2872 lines) — consider splitting import/template/export logic into a dedicated module.",
+    "In list_integrator_products, response uses key 'service_id' for a 'prod_*' id — legacy naming; documented as intentional (drop-in for /services) — OK but worth a code comment."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter309_access_pay_as_product.py (new)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% on targeted checks"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin) — from request",
+  "seed_data_creation": "Created 1 QAAP_UI_AccessPay integrator via UI script and 1 QAAP_AccessPayCert via import; both deleted at end of run. No leftover QAAP_ data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file /app/backend/tests/test_iter309_access_pay_as_product.py covers products endpoint, import template column positions (AI..AN), import upsert with 'Access Pay'->certifications.prod_access_pay, and confirms 'accespay_product' is not persisted. All pass. Frontend: cert-<intg>-prod_access_pay button appears inside cert-matrix-<intg>; integrator-accespay-input has been removed; V3 fields intact.",
+  "rca of the issue": "N/A — feature verification, no bug found."
+}

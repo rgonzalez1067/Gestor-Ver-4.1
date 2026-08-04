@@ -45,6 +45,7 @@ INTEGRATOR_PRODUCTS = [
     {"id": "prod_xcapit",                       "name": "Xcapit"},
     {"id": "prod_crixto",                       "name": "Crixto"},
     {"id": "prod_lysto",                        "name": "Lysto"},
+    {"id": "prod_access_pay",                   "name": "Access Pay"},
 ]
 INTEGRATOR_PRODUCT_IDS = [p["id"] for p in INTEGRATOR_PRODUCTS]
 INTEGRATOR_PRODUCT_NAME_TO_ID = {p["name"].lower().strip(): p["id"] for p in INTEGRATOR_PRODUCTS}
@@ -1994,11 +1995,9 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         'Último contacto con el Cliente': ['15/01/2026', '28/02/2026', ''],
         'Correo': ['contacto@techpay.com', 'info@comercioapp.com', 'soporte@gw.ve'],
     }
-    # Productos (matriz de certificación)
+    # Productos (matriz de certificación). Incluye "Access Pay" (col AI) como último producto.
     for i, prod in enumerate(INTEGRATOR_PRODUCTS):
         data[prod['name']] = [sample_vals[i % 3], sample_vals[(i + 1) % 3], sample_vals[(i + 2) % 3]]
-    # V3 — Access Pay (col AI): JUSTO después del último producto (Lysto).
-    data['Access Pay'] = ['Sí', 'No', '']
     # Campos de seguimiento de texto libre
     data['Nombre del Proyecto'] = ['Migración PG Fase 1', '', 'Integración VPOS Retail']  # AJ
     data['Observaciones'] = ['Pendiente kickoff', '', 'Requiere ambiente de pruebas']     # AK
@@ -2036,7 +2035,6 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Correo',                         'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
             {'Campo': 'Nombre del Proyecto',            'Descripcion': 'Nombre del proyecto (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Migración PG Fase 1'},
             {'Campo': 'Observaciones',                  'Descripcion': 'Notas/observaciones (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Pendiente kickoff'},
-            {'Campo': 'Access Pay',                     'Descripcion': 'Col AI — ¿Usa Access Pay? Texto libre (ej: Sí/No).', 'Obligatorio': 'No', 'Ejemplo': 'Sí'},
             {'Campo': 'Comercios relacionados',         'Descripcion': 'Col AL — Comercios relacionados (texto libre / cantidad).', 'Obligatorio': 'No', 'Ejemplo': '15'},
             {'Campo': 'Versión Componente',             'Descripcion': 'Col AM — Versión del componente (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'v1.2.0'},
             {'Campo': 'Nombre del Contacto Principal',  'Descripcion': 'Nombre del contacto principal del integrador (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Ana Pérez'},
@@ -2231,9 +2229,6 @@ async def import_integrators(
             'Negociacion de Interfaz': 'interface_negotiation', 'negociacion de interfaz': 'interface_negotiation',
             'negociacion_de_interfaz': 'interface_negotiation',
             # V3 — nuevos campos
-            'Access Pay': 'accespay_product', 'access pay': 'accespay_product', 'access_pay': 'accespay_product',
-            'AccessPay': 'accespay_product', 'accesspay': 'accespay_product',
-            'Producto AccesPay': 'accespay_product', 'producto accespay': 'accespay_product', 'producto_accespay': 'accespay_product',
             'Comercios relacionados': 'comercios_relacionados', 'comercios relacionados': 'comercios_relacionados', 'comercios_relacionados': 'comercios_relacionados',
             'Versión Componente': 'componente_version', 'versión componente': 'componente_version',
             'Version Componente': 'componente_version', 'version componente': 'componente_version', 'version_componente': 'componente_version',
@@ -2466,7 +2461,6 @@ async def import_integrators(
                 project_name = _safe_val(row, 'project_name')
                 observations = _safe_val(row, 'observations')
                 # V3 — nuevos campos
-                accespay_product = _safe_val(row, 'accespay_product')
                 comercios_relacionados = _safe_val(row, 'comercios_relacionados')
                 componente_version = _safe_val(row, 'componente_version')
 
@@ -2593,8 +2587,6 @@ async def import_integrators(
                         update_data["project_name"] = project_name
                     if observations:
                         update_data["observations"] = observations
-                    if accespay_product:
-                        update_data["accespay_product"] = accespay_product
                     if comercios_relacionados:
                         update_data["comercios_relacionados"] = comercios_relacionados
                     if componente_version:
@@ -2641,7 +2633,6 @@ async def import_integrators(
                         project_start_date=project_start_date,
                         project_name=project_name or None,
                         observations=observations or None,
-                        accespay_product=accespay_product or None,
                         comercios_relacionados=comercios_relacionados or None,
                         componente_version=componente_version or None,
                         principal_contact_name=principal_contact_name or None,

@@ -441,7 +441,6 @@ class IntegratorCreate(BaseModel):
     project_name: Optional[str] = None
     observations: Optional[str] = None
     # V3: nuevos campos comerciales/técnicos del integrador.
-    accespay_product: Optional[str] = None
     comercios_relacionados: Optional[str] = None
     componente_version: Optional[str] = None
     # Alcance comercial de la certificación (texto libre) y correo CC eventual.
@@ -516,7 +515,6 @@ class Integrator(BaseModel):
     project_name: Optional[str] = None
     observations: Optional[str] = None
     # V3: nuevos campos comerciales/técnicos del integrador.
-    accespay_product: Optional[str] = None
     comercios_relacionados: Optional[str] = None
     componente_version: Optional[str] = None
     # Alcance comercial de la certificación (texto libre) y correo CC eventual.
