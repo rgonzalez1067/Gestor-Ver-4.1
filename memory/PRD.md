@@ -5,6 +5,12 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
+### Update: lista de "Modalidad de Integración" V3 (renombres/altas/bajas) + migración de arranque — Jul 2026
+- **Reemplazos:** `PG Universal`→`PG Modalidad Universal`, `PG No universal`→`PG Modalidad No Universal`, `REST`→`Rest`. **Bajas:** `TKN Universal`, `TKN No Universal`. **Altas:** 4× `Web Tokenizador Modalidad {Universal|No Universal} {con|sin} Verificación de Micro` + `Linux`.
+- **Dónde:** `models.py::INTEGRATION_MODALITIES` (fuente), `routes/integrators.py` (plantilla: sample, hoja Valores Válidos ahora usa `list(INTEGRATION_MODALITIES)`, ejemplos), `frontend/src/pages/Integrators.jsx` (dropdown), `frontend/src/utils/integratorModality.js` (Rest/PG Modalidad/Web Tokenizador → DIGITAL; Linux → FÍSICO).
+- **Migración de arranque idempotente** `routes/integrators.py::migrate_integration_modalities` (llamada en server startup): renombra en `integrators` los 3 valores legacy 1:1 → aplicó 74+54+147 en preview; correrá también en producción al redeploy. Los 10 registros TKN se dejan intactos (decisión del usuario: se reescribirán al importar la nueva data; ⚠️ ojo: como Modalidad es parte de la clave única, un import con modalidad distinta INSERTA un registro nuevo y el TKN viejo permanece hasta borrarlo).
+- **QA:** self-test — plantilla lista las 14 modalidades V3 (sin TKN), migración verificada por conteo en DB, compilación OK. ⚠️ PREVIEW; requiere REDEPLOY.
+
 ### Feature (Portal de Integradores V3): 3 campos nuevos + plantilla Excel reordenada + Upsert por clave compuesta de 4 campos — Jul 2026
 - **Modelo/UI:** nuevos campos `accespay_product` (Access Pay), `comercios_relacionados`, `componente_version` en `IntegratorCreate`/`Integrator` (models.py) y en el formulario de edición (Integrators.jsx, tras Observaciones; testids `integrator-accespay-input`, `integrator-comercios-input`, `integrator-componente-version-input`). Persisten vía PUT (model_dump).
 - **Plantilla Excel** (`GET /api/integrators/import/template`): orden exacto AH=Lysto, **AI=Producto AccesPay (nuevo)**, AJ=Nombre del Proyecto, AK=Observaciones, **AL=Comercios relacionados (nuevo)**, **AM=Versión Componente (nuevo)**, AN=Nombre del Contacto Principal. Filas de instrucciones y reglas actualizadas.

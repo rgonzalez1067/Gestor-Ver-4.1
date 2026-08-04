@@ -11,7 +11,7 @@
 
 const _norm = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
 
-export const PHYSICAL_MODALITIES = ['Rest', 'Stand Alone', 'Wrapper', 'MPOS'];
+export const PHYSICAL_MODALITIES = ['Rest', 'Stand Alone', 'Wrapper', 'MPOS', 'Linux'];
 
 export const DIGITAL_MODALITIES = [
   'Bridge PG',
