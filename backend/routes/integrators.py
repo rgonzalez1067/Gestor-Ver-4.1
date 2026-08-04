@@ -1972,10 +1972,15 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
     # Productos (matriz de certificación)
     for i, prod in enumerate(INTEGRATOR_PRODUCTS):
         data[prod['name']] = [sample_vals[i % 3], sample_vals[(i + 1) % 3], sample_vals[(i + 2) % 3]]
-    # Campos de seguimiento de texto libre — AL FINAL
-    data['Nombre del Proyecto'] = ['Migración PG Fase 1', '', 'Integración VPOS Retail']
-    data['Observaciones'] = ['Pendiente kickoff', '', 'Requiere ambiente de pruebas']
-    # Contacto Principal — 4 columnas nuevas al final
+    # V3 — Producto AccesPay (col AI): JUSTO después del último producto (Producto Lysto).
+    data['Producto AccesPay'] = ['Sí', 'No', '']
+    # Campos de seguimiento de texto libre
+    data['Nombre del Proyecto'] = ['Migración PG Fase 1', '', 'Integración VPOS Retail']  # AJ
+    data['Observaciones'] = ['Pendiente kickoff', '', 'Requiere ambiente de pruebas']     # AK
+    # V3 — nuevos campos (col AL y AM)
+    data['Comercios relacionados'] = ['15', '', '3']   # AL
+    data['Versión Componente'] = ['v1.2.0', '', 'v3.0']  # AM
+    # Contacto Principal — 4 columnas al final (AN en adelante)
     data['Nombre del Contacto Principal'] = ['Ana Pérez', 'Luis Díaz', '']
     data['Teléfono Contacto Principal'] = ['+58 412-5551234', '0212-7654321', '']
     data['Email Contacto Principal'] = ['ana.perez@techpay.com', 'luis@comercioapp.com', '']
@@ -2006,6 +2011,9 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Correo',                         'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
             {'Campo': 'Nombre del Proyecto',            'Descripcion': 'Nombre del proyecto (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Migración PG Fase 1'},
             {'Campo': 'Observaciones',                  'Descripcion': 'Notas/observaciones (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Pendiente kickoff'},
+            {'Campo': 'Producto AccesPay',              'Descripcion': 'Col AI — ¿Usa Producto AccesPay? Texto libre (ej: Sí/No).', 'Obligatorio': 'No', 'Ejemplo': 'Sí'},
+            {'Campo': 'Comercios relacionados',         'Descripcion': 'Col AL — Comercios relacionados (texto libre / cantidad).', 'Obligatorio': 'No', 'Ejemplo': '15'},
+            {'Campo': 'Versión Componente',             'Descripcion': 'Col AM — Versión del componente (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'v1.2.0'},
             {'Campo': 'Nombre del Contacto Principal',  'Descripcion': 'Nombre del contacto principal del integrador (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Ana Pérez'},
             {'Campo': 'Teléfono Contacto Principal',    'Descripcion': 'Teléfono del contacto principal (texto libre).', 'Obligatorio': 'No', 'Ejemplo': '+58 412-5551234'},
             {'Campo': 'Email Contacto Principal',       'Descripcion': 'Email del contacto principal. Si se indica, debe tener formato válido (usuario@dominio.com), si no la fila se rechaza.', 'Obligatorio': 'No', 'Ejemplo': 'ana.perez@empresa.com'},
@@ -2046,9 +2054,9 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             'Formato de Fechas (Col K)': pad(['DD/MM/AAAA (ej: 15/01/2026)', 'AAAA-MM-DD (ej: 2026-01-15)',
                 'DD-MM-AAAA (ej: 15-01-2026)', 'No se permiten fechas futuras']),
             'Reglas de Importación': pad([
-                '1. La clave única es: Nombre + Tipo Integración',
-                '2. Si un registro ya existe (misma clave), se ACTUALIZAN sus datos',
-                '3. La Matriz de Certificación existente se preserva al actualizar',
+                '1. La CLAVE ÚNICA (V3) es: Nombre + Tipo + Aplicativo + Modalidad de Integración (4 campos)',
+                '2. Si un registro ya existe (misma clave de 4 campos), se ACTUALIZAN sus datos (Upsert)',
+                '3. La Matriz de Certificación existente se preserva al actualizar; NUNCA se borran registros',
                 '4. Los campos marcados con * son OBLIGATORIOS',
                 '5. Si no indica Estatus, se asigna "En proceso" por defecto',
                 '6. El Gestor e Implementador deben estar registrados en el sistema (nombre o email)',
@@ -2199,6 +2207,11 @@ async def import_integrators(
             'Negociación de Interfaz': 'interface_negotiation', 'negociación de interfaz': 'interface_negotiation',
             'Negociacion de Interfaz': 'interface_negotiation', 'negociacion de interfaz': 'interface_negotiation',
             'negociacion_de_interfaz': 'interface_negotiation',
+            # V3 — nuevos campos
+            'Producto AccesPay': 'accespay_product', 'producto accespay': 'accespay_product', 'producto_accespay': 'accespay_product',
+            'Comercios relacionados': 'comercios_relacionados', 'comercios relacionados': 'comercios_relacionados', 'comercios_relacionados': 'comercios_relacionados',
+            'Versión Componente': 'componente_version', 'versión componente': 'componente_version',
+            'Version Componente': 'componente_version', 'version componente': 'componente_version', 'version_componente': 'componente_version',
         }
         
         # Pre-load users and products
@@ -2427,6 +2440,10 @@ async def import_integrators(
 
                 project_name = _safe_val(row, 'project_name')
                 observations = _safe_val(row, 'observations')
+                # V3 — nuevos campos
+                accespay_product = _safe_val(row, 'accespay_product')
+                comercios_relacionados = _safe_val(row, 'comercios_relacionados')
+                componente_version = _safe_val(row, 'componente_version')
 
                 # Contacto Principal (4 campos nuevos)
                 principal_contact_name = _safe_val(row, 'principal_contact_name')
@@ -2500,20 +2517,16 @@ async def import_integrators(
                     continue
                 seen_row_keys.add(row_key)
 
-                # Composite key for upsert: Nombre + Tipo + Tipo de Integración + Aplicativo + Modalidad.
-                # Permite que un mismo integrador con distinto Aplicativo/Modalidad/Tipo de Integración
-                # genere registros independientes (en vez de sobrescribir uno con otro).
+                # Clave compuesta ÚNICA (V3): EXACTAMENTE 4 campos —
+                # Nombre + Tipo (integrator_type) + Aplicativo + Modalidad de Integración.
+                # NO incluye "Tipo de Integración". Si estos 4 coinciden → UPDATE; si no → INSERT.
                 composite_query = {
                     "name": name,
                     "integrator_type": integrator_type,
                     "app_name": app_name,
                     "integration_modality": integration_modality,
                 }
-                if integration_type:
-                    composite_query["integration_type"] = integration_type
-                else:
-                    composite_query["$or"] = [{"integration_type": None}, {"integration_type": ""}, {"integration_type": {"$exists": False}}]
-                
+
                 existing = await db.integrators.find_one(composite_query, {"_id": 0})
                 
                 if existing and mode == "insert_only":
@@ -2555,6 +2568,12 @@ async def import_integrators(
                         update_data["project_name"] = project_name
                     if observations:
                         update_data["observations"] = observations
+                    if accespay_product:
+                        update_data["accespay_product"] = accespay_product
+                    if comercios_relacionados:
+                        update_data["comercios_relacionados"] = comercios_relacionados
+                    if componente_version:
+                        update_data["componente_version"] = componente_version
                     if principal_contact_name:
                         update_data["principal_contact_name"] = principal_contact_name
                     if principal_contact_phone:
@@ -2597,6 +2616,9 @@ async def import_integrators(
                         project_start_date=project_start_date,
                         project_name=project_name or None,
                         observations=observations or None,
+                        accespay_product=accespay_product or None,
+                        comercios_relacionados=comercios_relacionados or None,
+                        componente_version=componente_version or None,
                         principal_contact_name=principal_contact_name or None,
                         principal_contact_phone=principal_contact_phone or None,
                         principal_contact_email=principal_contact_email or None,

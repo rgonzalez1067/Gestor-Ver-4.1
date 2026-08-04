@@ -1,0 +1,32 @@
+{
+  "summary": "Portal de Integradores V3 (iter308): validado end-to-end. Plantilla Excel con columnas AI=Producto AccesPay, AJ=Nombre del Proyecto, AK=Observaciones, AL=Comercios relacionados, AM=Versión Componente, AN=Nombre del Contacto Principal en el orden exacto (índices 34..39). PUT /api/integrators/{id} persiste los 3 nuevos campos. Import upsert Prueba A (match 4 campos clave) → updated_count=1, sin duplicado, campos v3 actualizados. Import upsert Prueba B (misma Nombre+Tipo+Aplicativo, distinta Modalidad) → success_count=1, se crean 2 registros independientes, el original preserva sus valores actualizados (sin borrado). UI: al abrir Editar de un integrador se ven los 3 inputs, al guardar y reabrir los valores persisten.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (Dashboard + modales)", "issues": ["Consola muestra advertencias de hidratación de React: '<span> cannot be a child of <tbody>' y '<span> cannot be a child of <tr>'. No bloquea flujos pero ensucia consola en producción."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter308_integrators_v3.py",
+    "/app/test_reports/pytest/iter308.xml"
+  ],
+  "action_items": [
+    "Opcional: limpiar warnings de hidratación en la Bandeja / Dashboard (spans dentro de tbody/tr) para tener consola limpia."
+  ],
+  "critical_code_review_comments": [
+    "routes/integrators.py:2504 — Dedup en-archivo aún usa 5-tupla (incluye integration_type). Ok porque solo detecta filas 100% idénticas del mismo archivo, pero puede ser confuso frente a la nueva clave compuesta de 4 campos: dos filas con mismo Nombre/Tipo/App/Modalidad y distinto 'Tipo de Integración' sí procesarán ambas y la segunda simplemente sobrescribirá el registro creado por la primera; considerar alinear el dedup a los 4 campos oficiales o documentarlo.",
+    "routes/integrators.py:2571-2576 — Los 3 nuevos campos en UPDATE solo se setean si el valor es truthy: una fila que EXPLÍCITAMENTE quiera vaciar Versión Componente o Producto AccesPay no puede hacerlo (no soporta 'clear'). Esto es consistente con el resto del import, pero conviene documentarlo."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter308_integrators_v3.py"
+  ],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (session_token vía POST /api/auth/login).",
+  "seed_data_creation": "Se creó por prueba un integrador temporal con nombre 'QATESTV3_*' vía POST /api/integrators y un segundo registro insertado por el import (modalidad REST). Ambos eliminados al final por DELETE. No se tocaron datos maestros.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Los tests residen en /app/backend/tests/test_iter308_integrators_v3.py. Requiere REACT_APP_BACKEND_URL en env (o exportarlo). Cubre plantilla, PUT y ambos escenarios de upsert por clave compuesta de 4 campos. UI: /integrators está detrás de ProtectedRoute; hay un modal 'Pulse ENTER para ocultar' que debe cerrarse antes de navegar por sidebar; navegación directa a /integrators funciona una vez inyectado session_token en localStorage.",
+  "rca of the issue": "N/A — no bugs detectados en los 3 flujos objetivo (plantilla, edición manual UI, import upsert por clave compuesta de 4 campos)."
+}

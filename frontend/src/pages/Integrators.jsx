@@ -105,6 +105,7 @@ export const Integrators = () => {
     name: '', integrator_type: '', integration_type: '', app_name: '',
     integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '',
     productos_certificar: '', correo_eventual: '',
+    accespay_product: '', comercios_relacionados: '', componente_version: '',
     principal_contact_name: '', principal_contact_phone: '', principal_contact_email: '', interface_negotiation: '',
     contacts: []
   });
@@ -319,6 +320,9 @@ export const Integrators = () => {
       project_start_date: intg.project_start_date || '',
       project_name: intg.project_name || '',
       observations: intg.observations || '',
+      accespay_product: intg.accespay_product || '',
+      comercios_relacionados: intg.comercios_relacionados || '',
+      componente_version: intg.componente_version || '',
       productos_certificar: intg.productos_certificar || '',
       correo_eventual: intg.correo_eventual || '',
       principal_contact_name: intg.principal_contact_name || '',
@@ -331,7 +335,7 @@ export const Integrators = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', project_start_date: '', project_name: '', observations: '', productos_certificar: '', correo_eventual: '', principal_contact_name: '', principal_contact_phone: '', principal_contact_email: '', interface_negotiation: '', contacts: [] });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', project_start_date: '', project_name: '', observations: '', accespay_product: '', comercios_relacionados: '', componente_version: '', productos_certificar: '', correo_eventual: '', principal_contact_name: '', principal_contact_phone: '', principal_contact_email: '', interface_negotiation: '', contacts: [] });
     setEditingIntegrator(null);
     resetWizard();
   };
@@ -1475,6 +1479,35 @@ export const Integrators = () => {
                           rows={3}
                           data-testid="integrator-observations-textarea"
                         />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <Label>Producto AccesPay</Label>
+                          <Input
+                            value={formData.accespay_product || ''}
+                            onChange={(e) => setFormData({ ...formData, accespay_product: e.target.value })}
+                            placeholder="Ej: Sí / No"
+                            data-testid="integrator-accespay-input"
+                          />
+                        </div>
+                        <div>
+                          <Label>Comercios relacionados</Label>
+                          <Input
+                            value={formData.comercios_relacionados || ''}
+                            onChange={(e) => setFormData({ ...formData, comercios_relacionados: e.target.value })}
+                            placeholder="Ej: 15"
+                            data-testid="integrator-comercios-input"
+                          />
+                        </div>
+                        <div>
+                          <Label>Versión Componente</Label>
+                          <Input
+                            value={formData.componente_version || ''}
+                            onChange={(e) => setFormData({ ...formData, componente_version: e.target.value })}
+                            placeholder="Ej: v1.2.0"
+                            data-testid="integrator-componente-version-input"
+                          />
+                        </div>
                       </div>
                     </div>
 
