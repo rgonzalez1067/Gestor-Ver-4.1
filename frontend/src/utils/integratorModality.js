@@ -11,16 +11,18 @@
 
 const _norm = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
 
-export const PHYSICAL_MODALITIES = ['REST', 'Stand Alone', 'Wrapper', 'MPOS'];
+export const PHYSICAL_MODALITIES = ['Rest', 'Stand Alone', 'Wrapper', 'MPOS'];
 
 export const DIGITAL_MODALITIES = [
   'Bridge PG',
   'Web Link de Pago Modalidad No Universal',
   'Web Link de Pago Modalidad Universal',
-  'TKN No Universal',
-  'TKN Universal',
-  'PG Universal',
-  'PG No universal',
+  'Web Tokenizador Modalidad No Universal con Verificación de Micro',
+  'Web Tokenizador Modalidad No Universal sin Verificación de Micro',
+  'Web Tokenizador Modalidad Universal con Verificación de Micro',
+  'Web Tokenizador Modalidad Universal Sin Verificación de Micro',
+  'PG Modalidad Universal',
+  'PG Modalidad No Universal',
 ];
 
 const PHYSICAL_SET = new Set(PHYSICAL_MODALITIES.map(_norm));

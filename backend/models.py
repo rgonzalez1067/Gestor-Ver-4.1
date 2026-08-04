@@ -302,7 +302,7 @@ class Service(BaseModel):
 
 # ==================== INTEGRATOR MODELS ====================
 INTEGRATOR_TYPES = ["Integrador", "Comercio"]
-INTEGRATION_MODALITIES = ["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone", "TKN No Universal", "TKN Universal", "Web Link de Pago Modalidad No Universal", "Web Link de Pago Modalidad Universal", "Wrapper"]
+INTEGRATION_MODALITIES = ["Bridge PG", "MPOS", "PG Modalidad Universal", "PG Modalidad No Universal", "Rest", "Stand Alone", "Web Link de Pago Modalidad No Universal", "Web Link de Pago Modalidad Universal", "Wrapper", "Web Tokenizador Modalidad No Universal con Verificación de Micro", "Web Tokenizador Modalidad No Universal sin Verificación de Micro", "Web Tokenizador Modalidad Universal con Verificación de Micro", "Web Tokenizador Modalidad Universal Sin Verificación de Micro", "Linux"]
 INTEGRATOR_STATUSES = ["Certificado", "En proceso", "Suspendido"]
 INTEGRATION_PHASES = ["Negociación", "Desarrollo", "QA", "SQA", "Producción"]
 

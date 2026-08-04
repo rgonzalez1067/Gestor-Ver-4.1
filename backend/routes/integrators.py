@@ -1169,6 +1169,31 @@ async def upload_integration_certificate(file: UploadFile = File(...), authoriza
     return {"status": "ok", "original_name": file.filename, "content_type": _CERT_MIME.get(ext, "")}
 
 
+async def migrate_integration_modalities():
+    """Migración idempotente: renombra valores legacy de `integration_modality`
+    en la colección `integrators` a la nomenclatura V3, para que la clave compuesta
+    de importación (que usa integration_modality) siga coincidiendo y no genere
+    duplicados. Solo cambios 1:1 seguros (no toca TKN, cuyo remapeo es manual)."""
+    RENAMES = {
+        "PG Universal": "PG Modalidad Universal",
+        "PG No universal": "PG Modalidad No Universal",
+        "REST": "Rest",
+    }
+    try:
+        total = 0
+        for old, new in RENAMES.items():
+            res = await db.integrators.update_many(
+                {"integration_modality": old},
+                {"$set": {"integration_modality": new}},
+            )
+            total += res.modified_count
+        if total:
+            logging.info(f"[migrate] integration_modalities renombradas: {total} registro(s)")
+    except Exception as e:
+        logging.warning(f"[migrate] migrate_integration_modalities failed: {e}")
+
+
+
 async def restore_integration_certificate():
     """Restaura el PDF/imagen del depósito 'Certificado' desde Mongo hacia el disco
     al arrancar el servidor (el FS del contenedor es efímero → sobrevive redeploys)."""
@@ -1957,7 +1982,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         'Nombre': ['TechPay Solutions', 'ComercioApp', 'GatewayVe'],
         'Tipo': ['Integrador', 'Comercio', 'Integrador'],
         'Aplicativo': ['PaymentHub v3', 'MiTienda App', 'GW-Connect'],
-        'Modalidad de Integración': ['PG Universal', 'MPOS', 'REST'],
+        'Modalidad de Integración': ['PG Modalidad Universal', 'MPOS', 'Rest'],
         'Estatus': ['En proceso', 'Certificado', 'En proceso'],
         'Tipo de Integracion': ['PG', 'MP', 'CR'],
         'Gestor Administrativo': ['', '', ''],
@@ -1998,7 +2023,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Nombre *',                       'Descripcion': 'Nombre del integrador (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'TechPay Solutions'},
             {'Campo': 'Tipo *',                         'Descripcion': 'Integrador o Comercio (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'Integrador'},
             {'Campo': 'Aplicativo *',                   'Descripcion': 'Nombre del aplicativo (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PaymentHub v3'},
-            {'Campo': 'Modalidad de Integración *',     'Descripcion': 'Modalidad de integración (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PG Universal'},
+            {'Campo': 'Modalidad de Integración *',     'Descripcion': 'Modalidad de integración (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PG Modalidad Universal'},
             {'Campo': 'Estatus',                        'Descripcion': 'Estado actual (def: En proceso)', 'Obligatorio': 'No', 'Ejemplo': 'En proceso'},
             {'Campo': 'Tipo de Integracion',            'Descripcion': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
             {'Campo': 'Gestor Administrativo',          'Descripcion': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Perez'},
@@ -2030,9 +2055,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         pd.DataFrame(base_fields).to_excel(writer, index=False, sheet_name='Instrucciones')
         
         # Valid values sheet — COMPLETE reference
-        all_modalities = ['Bridge PG', 'MPOS', 'PG Universal', 'PG No universal', 'REST',
-                          'Stand Alone', 'TKN No Universal', 'TKN Universal',
-                          'Web Link de Pago Modalidad No Universal', 'Web Link de Pago Modalidad Universal', 'Wrapper']
+        all_modalities = list(INTEGRATION_MODALITIES)
         all_categories = [
             'Cliente/Integrador actual de PG', 'Cliente/Integrador actual de VPOS',
             'Cliente/Integrador actual Tokenizador', 'Cliente/Integrador nuevo Link de Pago',

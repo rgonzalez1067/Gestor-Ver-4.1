@@ -87,6 +87,11 @@ async def _on_startup():
     except Exception as e:
         logging.warning(f"[startup] restore_integration_certificate failed: {e}")
     try:
+        from routes.integrators import migrate_integration_modalities
+        await migrate_integration_modalities()
+    except Exception as e:
+        logging.warning(f"[startup] migrate_integration_modalities failed: {e}")
+    try:
         # Precargar snapshot de feriados para el fallback síncrono del generador de PDF.
         from services.business_calendar import get_holiday_sets
         await get_holiday_sets()
