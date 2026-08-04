@@ -5,7 +5,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
-### Feature: "Detalles de la recepción para Operaciones" en Recepción de Equipos — Jul 2026
+### Bug Fix (crítico): backfill de anexos no convergía — inventario de storage truncado a 1000 — Jul 2026
+- **Síntoma:** en el Centro de Respaldos, "Ejecutar Respaldo a la Nube" subía los anexos pero el KPI "Subidos/por subir" NO convergía (seguían apareciendo como por subir en cada corrida) y el conteo "Faltantes (perdidos)" estaba inflado.
+- **Causa raíz:** el chequeo de existencia usaba `list_storage_keys()` → `list_objects(prefix)`, y el API de Object Storage **topa en 1000 claves y NO pagina** (probado: ignora limit/offset/cursor/marker). Con >1000 objetos, los archivos más allá de la clave #1000 se veían como "no están en la nube" → se re-subían indefinidamente (si estaban en disco local) o se marcaban "perdidos" (si no), sin converger nunca.
+- **Fix:** nueva `services/pdf_storage.py::storage_key_exists(rel)` — verificación **autoritativa por-archivo** vía `list_objects(clave_exacta)` (solo metadata, sin descargar). En `routes/data_migration.py::recover_attachments_to_storage`, cuando `rel` no está en el inventario global (truncado), se hace la verificación por-archivo antes de decidir subir/marcar-perdido. Esto también corrige el conteo de "perdidos" (muchos estaban a salvo en la nube, solo fuera del tope de 1000).
+- **QA:** testing_agent iter307 → **backend 100%** (`test_backfill_convergence.py`): real-run completo seguido de dry-run inmediato ⇒ **uploaded=0** (converge), 0 errores, latencia por lote <7s. Prueba directa adicional: anexo real `attachments/quo_d7b16affbd9a/att_77a60c963c8c.pdf` NO estaba en el inventario truncado pero `storage_key_exists`=True (antes se re-subía; ahora se detecta). ⚠️ PREVIEW; requiere REDEPLOY para corregir producción.
+
+
 - **Qué:** nueva área de texto (máx **500 caracteres**, con contador) en el módulo Gestión de Taller → Recepción de Equipos, ubicada **entre la sección "Equipos a recibir" y el botón "Revisar y confirmar"**, para que el receptor deje instrucciones especiales al Equipo de Operaciones.
 - **Frontend** (`pages/TallerRecepcion.jsx`): textarea `recepcion-detalles-input` + contador `recepcion-detalles-counter`, se muestra también en el resumen de confirmación (`recepcion-summary-detalles`), se envía en el payload como `detalles_recepcion` y se resetea al confirmar.
 - **Backend** (`routes/quote_taller.py`): `RecepcionRequest.detalles_recepcion` (truncado a 500). Se expone como variable de plantilla **`{Detalles_Recepcion_Equipos}`** (y alias `detalles_recepcion_equipos`) en `tpl_vars`, consumida por la notificación `taller_recepcion_equipos` que recibe Operaciones. Variable registrada en el catálogo (`routes/other_actions_config.py`) para poder insertarla desde el editor de Otras Acciones.
