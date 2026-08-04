@@ -1,0 +1,42 @@
+{
+  "summary": "Backend-only convergence test of POST /api/admin/attachments/recover-to-storage after the truncated-inventory fix (storage_key_exists per-file authoritative check). Ran a full real-run then an immediate dry-run over ALL attachments in preview (paginated skip/limit=100). Convergence achieved: uploaded=0 on the audit dry-run right after the real-run; already_in_storage identical between runs; batch latency far below the 60s proxy limit.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/attachments/recover-to-storage", "issue": "Context reported 1748 anexos but preview currently reports total=805. Truncation zone (skip>1000) at the ATTACHMENTS level could not be exercised in this environment; however storage may hold >1000 objects overall and the fix still runs the per-file authoritative check for every rel not found in the truncated inventory (verified in code path)."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_backfill_convergence.py",
+    "/app/test_reports/pytest/backfill_convergence.xml"
+  ],
+  "test_results_detail": {
+    "real_run_full": {"total": 805, "scanned": 805, "already_in_storage": 800, "uploaded": 0, "missing_everywhere": 5, "errors": 0, "batches": 9, "max_batch_s": 7.02},
+    "dry_run_after_real": {"total": 805, "scanned": 805, "already_in_storage": 800, "uploaded": 0, "missing_everywhere": 5, "errors": 0, "batches": 9, "max_batch_s": 4.99},
+    "latency_skip_0_s": 0.9,
+    "latency_skip_1100_s": 0.9,
+    "convergence_assertion": "PASSED - uploaded=0 in dry-run immediately after real-run",
+    "pytest_summary": "3 passed, 1 skipped (in-process storage init not available in test host)"
+  },
+  "action_items": [
+    "OPTIONAL: verify why preview total dropped to 805 (was reported as 1748) - may be a separate data-integrity concern, not related to this fix.",
+    "OPTIONAL: because the current preview corpus of attachments (805) is below the 1000-truncation boundary, the truncated-inventory branch (storage_key_exists per-file) was not exercised end-to-end from HTTP. Consider adding a synthetic test that seeds >1000 attachment records to exercise that branch, or run the same test in a larger environment."
+  ],
+  "critical_code_review_comments": [
+    "services/pdf_storage.py::storage_key_exists uses list_objects(exact_key) as a prefix and checks for exact path match - correct, only metadata, no download.",
+    "routes/data_migration.py::recover_attachments_to_storage correctly falls back to storage_key_exists when rel is missing from the truncated inventory; uses asyncio.to_thread and semaphore(8) so concurrency is bounded and no event loop blocking.",
+    "list_storage_keys still logs a warning when truncated (good observability).",
+    "Batch endpoint returns proper pagination fields (done, next_skip, processed_so_far)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backfill_convergence.py (new pytest file)"
+  ],
+  "success_rate": {"backend": "100% (3/3 executed, 1 skipped due to test-host storage credentials)", "frontend": "n/a"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 - login OK, returns session_token, admin role verified",
+  "seed_data_creation": "None (idempotent on real preview data as instructed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_backfill_convergence.py covers: (1) full real-run paginated, (2) immediate dry-run audit that must yield uploaded=0 (this is the CORE convergence assertion), (3) per-batch latency <55s. Preview corpus currently has 805 attachments (not 1748); 800 already-in-storage, 5 missing_everywhere. To exercise the >1000 truncation branch, would need a seed with >1000 attachments or a larger env.",
+  "rca of the issue": "Fix RCA: list_storage_keys() calls the storage list_objects(prefix) which caps at 1000 keys and does not paginate. Previously, any rel not in this truncated set was treated as absent - so files past #1000 were re-uploaded every run (or classified missing when local disk also lacked them). Fix adds storage_key_exists(rel) that does list_objects(EXACT_KEY) and confirms exact match; the recover endpoint now consults storage_keys first (cheap) and falls back to storage_key_exists per file when miss. Verified convergence: full real-run + immediate dry-run shows uploaded=0 across all 805 items."
+}

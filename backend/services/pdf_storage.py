@@ -65,6 +65,25 @@ def get_pdf_from_storage(filename: str) -> Optional[Tuple[bytes, str]]:
         return None
 
 
+def storage_key_exists(filename: str) -> bool:
+    """Verificación AUTORITATIVA de existencia de un archivo en Object Storage
+    (solo metadata, sin descargar el contenido).
+
+    A diferencia de `list_storage_keys` (que el storage trunca a 1000 claves y
+    puede dar falsos negativos en cuentas grandes), esto consulta la clave exacta
+    como prefijo y confirma coincidencia exacta. Devuelve True/False.
+    """
+    from services.object_storage import list_objects
+
+    key = _storage_key(filename)
+    try:
+        objs, _ = list_objects(key)
+        return any((o.get("path") or "") == key for o in objs)
+    except Exception as e:
+        logger.warning(f"[pdf_storage] storage_key_exists error {filename}: {e}")
+        return False
+
+
 def list_storage_keys() -> set:
     """Devuelve el conjunto de claves RELATIVAS (sin el prefijo de ambiente) que
     existen actualmente en Object Storage para este entorno.
@@ -73,6 +92,8 @@ def list_storage_keys() -> set:
 
     Se usa para auditar existencia en lote con UNA sola llamada de red (en vez de
     descargar cada archivo), evitando timeouts del proxy en la auto-recuperación.
+    ⚠️ El storage trunca a 1000 claves; para grandes volúmenes usar
+    `storage_key_exists` como verificación autoritativa por archivo.
     """
     from services.object_storage import list_objects
 

@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from starlette.background import BackgroundTask
 
 from config import db, get_current_user, UPLOADS_DIR
-from services.pdf_storage import get_pdf_from_storage, save_pdf_dual, save_pdf_to_storage, list_storage_keys
+from services.pdf_storage import get_pdf_from_storage, save_pdf_dual, save_pdf_to_storage, list_storage_keys, storage_key_exists
 
 logger = logging.getLogger(__name__)
 
@@ -1609,6 +1609,11 @@ async def recover_attachments_to_storage(
 
             try:
                 obj = rel in storage_keys
+                if not obj:
+                    # El inventario global se trunca a 1000 claves; verificar de forma
+                    # autoritativa por archivo evita re-subir archivos que YA existen
+                    # (por eso el KPI "por subir" no convergía).
+                    obj = await _asyncio.to_thread(storage_key_exists, rel)
             except Exception as e:
                 obj = None
                 logger.warning(f"[recover] storage existence check error {rel}: {e}")

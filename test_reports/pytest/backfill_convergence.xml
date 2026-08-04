@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="4" time="46.782" timestamp="2026-08-04T01:34:02.558102+00:00" hostname="agent-env-c3f85cd4-b33e-468e-8582-5cee8dd0ede6"><testcase classname="tests.test_backfill_convergence.TestBackfillConvergence" name="test_1_real_run_full" time="23.611" /><testcase classname="tests.test_backfill_convergence.TestBackfillConvergence" name="test_2_dry_run_after_real_converges" time="21.235" /><testcase classname="tests.test_backfill_convergence.TestBackfillConvergence" name="test_3_batch_latency_truncated_zone" time="1.737" /><testcase classname="tests.test_backfill_convergence.TestBackfillConvergence" name="test_4_storage_key_exists_beyond_1000" time="0.002"><failure message="RuntimeError: Storage not initialized">tests/test_backfill_convergence.py:156: in test_4_storage_key_exists_beyond_1000
+    keys = list_storage_keys()
+           ^^^^^^^^^^^^^^^^^^^
+services/pdf_storage.py:100: in list_storage_keys
+    objs, truncated = list_objects(PDF_PREFIX)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^
+services/object_storage.py:72: in list_objects
+    raise RuntimeError("Storage not initialized")
+E   RuntimeError: Storage not initialized</failure></testcase></testsuite></testsuites>
