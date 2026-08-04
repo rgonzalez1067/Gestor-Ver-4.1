@@ -1557,21 +1557,23 @@ async def recover_attachments_to_storage(
     skip = max(0, int(skip or 0))
 
     # 1) Recolectar TODOS los pares (ordenados de forma estable) para paginar
-    all_tasks: list = []  # (coll_name, parent_id, parent_number, attachment)
+    all_tasks: list = []  # (coll_name, parent_id, parent_number, client_name, attachment)
 
     async for q in db.quotes.find(
         {"attachments": {"$exists": True, "$ne": []}},
-        {"_id": 0, "quote_id": 1, "quote_number": 1, "attachments": 1},
+        {"_id": 0, "quote_id": 1, "quote_number": 1, "client_name": 1, "attachments": 1},
     ).sort("quote_id", 1):
         for att in (q.get("attachments") or []):
-            all_tasks.append(("quotes", q.get("quote_id"), q.get("quote_number") or "", att))
+            all_tasks.append(("quotes", q.get("quote_id"), q.get("quote_number") or "",
+                              q.get("client_name") or "", att))
 
     async for h in db.quote_history.find(
         {"attachments": {"$exists": True, "$ne": []}},
-        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "attachments": 1},
+        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "client_name": 1, "attachments": 1},
     ).sort("history_id", 1):
         for att in (h.get("attachments") or []):
-            all_tasks.append(("quote_history", h.get("history_id"), h.get("quote_number") or "", att))
+            all_tasks.append(("quote_history", h.get("history_id"), h.get("quote_number") or "",
+                              h.get("client_name") or "", att))
 
     total = len(all_tasks)
     batch = all_tasks[skip: skip + limit]
@@ -1594,7 +1596,7 @@ async def recover_attachments_to_storage(
     by_collection = {"quotes": {"scanned": 0, "ok": 0, "uploaded": 0, "missing": 0},
                      "quote_history": {"scanned": 0, "ok": 0, "uploaded": 0, "missing": 0}}
 
-    async def _process(coll_name: str, parent_id: str, parent_number: str, attachment: dict):
+    async def _process(coll_name: str, parent_id: str, parent_number: str, client_name: str, attachment: dict):
         async with sem:
             counters["scanned"] += 1
             by_collection[coll_name]["scanned"] += 1
@@ -1629,8 +1631,11 @@ async def recover_attachments_to_storage(
                 by_collection[coll_name]["missing"] += 1
                 missing_details.append({
                     "collection": coll_name, "parent_id": parent_id,
-                    "parent_number": parent_number, "attachment_id": att_id,
+                    "parent_number": parent_number, "client_name": client_name,
+                    "attachment_id": att_id,
                     "filename": attachment.get("filename"), "rel_path": rel,
+                    "content_type": attachment.get("content_type") or "",
+                    "uploaded_at": attachment.get("uploaded_at") or attachment.get("created_at") or "",
                 })
                 return
 
@@ -1683,7 +1688,7 @@ async def recover_attachments_to_storage(
         "missing_everywhere": counters["missing_everywhere"],
         "errors": counters["errors"],
         "by_collection": by_collection,
-        "missing_details": missing_details[:50],
+        "missing_details": missing_details,
         "missing_details_total": len(missing_details),
         "error_details": error_details[:20],
         "message": (

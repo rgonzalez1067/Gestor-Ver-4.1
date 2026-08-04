@@ -95,6 +95,29 @@ export default function BackupCenter() {
     }
   };
 
+  const downloadMissingCsv = () => {
+    const rows = backfillResult?.missing_details || [];
+    if (rows.length === 0) return;
+    const headers = ['Colección', 'Cotización', 'Cliente', 'Archivo', 'Tipo', 'ID Anexo', 'Ruta', 'Fecha'];
+    const esc = (v) => {
+      const s = String(v ?? '');
+      return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = rows.map((m) => [
+      m.collection === 'quote_history' ? 'Histórico' : 'Cotización',
+      m.parent_number || m.parent_id || '',
+      m.client_name || '',
+      m.filename || '',
+      m.content_type || '',
+      m.attachment_id || '',
+      m.rel_path || '',
+      m.uploaded_at || '',
+    ].map(esc).join(','));
+    const csv = '\uFEFF' + [headers.join(','), ...lines].join('\n');
+    downloadBlob(csv, `anexos_perdidos_${tsNow()}.csv`, 'text/csv;charset=utf-8;');
+    toast.success(`Reporte de ${rows.length} anexo(s) perdido(s) descargado`);
+  };
+
   const loadEntities = useCallback(async () => {
     setLoading(true);
     try {
@@ -298,15 +321,28 @@ export default function BackupCenter() {
 
                 {backfillResult.missing_details?.length > 0 && (
                   <div className="mt-3" data-testid="backfill-missing-list">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 mb-1">
-                      <AlertTriangle size={13} />
-                      Anexos faltantes (no están ni en el disco local ni en la nube)
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+                        <AlertTriangle size={13} />
+                        Anexos faltantes (no están ni en el disco local ni en la nube)
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={downloadMissingCsv}
+                        disabled={!backfillResult.missing_details?.length}
+                        className="h-7 border-amber-300 text-amber-700 hover:bg-amber-100"
+                        data-testid="backfill-missing-csv-btn"
+                      >
+                        <Download size={13} className="mr-1" /> Descargar reporte CSV
+                      </Button>
                     </div>
                     <div className="max-h-56 overflow-auto rounded-lg border border-amber-200 bg-amber-50/50">
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-left text-amber-700/80 border-b border-amber-200">
                             <th className="px-2.5 py-1.5 font-semibold">Cotización</th>
+                            <th className="px-2.5 py-1.5 font-semibold">Cliente</th>
                             <th className="px-2.5 py-1.5 font-semibold">Archivo</th>
                             <th className="px-2.5 py-1.5 font-semibold">Origen</th>
                           </tr>
@@ -315,6 +351,7 @@ export default function BackupCenter() {
                           {backfillResult.missing_details.map((m, i) => (
                             <tr key={i} className="border-b border-amber-100 last:border-0" data-testid={`backfill-missing-row-${i}`}>
                               <td className="px-2.5 py-1.5 text-slate-700">{m.parent_number || m.parent_id || '—'}</td>
+                              <td className="px-2.5 py-1.5 text-slate-600 truncate max-w-[160px]" title={m.client_name}>{m.client_name || '—'}</td>
                               <td className="px-2.5 py-1.5 text-slate-600 truncate max-w-[220px]" title={m.filename || m.rel_path}>{m.filename || m.rel_path || '—'}</td>
                               <td className="px-2.5 py-1.5 text-slate-500">{m.collection === 'quote_history' ? 'Histórico' : 'Cotización'}</td>
                             </tr>

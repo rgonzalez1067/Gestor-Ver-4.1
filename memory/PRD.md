@@ -5,7 +5,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 
-### Bug Fix (crítico): backfill de anexos no convergía — inventario de storage truncado a 1000 — Jul 2026
+### Feature: Reporte CSV de anexos perdidos (Centro de Respaldos) — Jul 2026
+- **Qué:** botón **"Descargar reporte CSV"** en la sección de anexos faltantes/perdidos del Centro de Respaldos, para analizar y recuperar los archivos que no están ni en disco ni en la nube.
+- **Backend** (`routes/data_migration.py`): `missing_details` ahora incluye `client_name`, `content_type`, `uploaded_at` (además de collection, parent_number, attachment_id, filename, rel_path) y se devuelve la lista **completa por lote** (se quitó el tope de 50). Proyecciones de `quotes`/`quote_history` extienden `client_name`.
+- **Frontend** (`pages/BackupCenter.jsx`): `downloadMissingCsv()` genera CSV (con BOM UTF-8) con columnas Colección/Cotización/Cliente/Archivo/Tipo/ID Anexo/Ruta/Fecha; botón `backfill-missing-csv-btn`. La tabla en pantalla agrega columna **Cliente**.
+- **QA:** self-test — curl confirma `missing_details` enriquecido (client_name/content_type/uploaded_at) y lista completa (5/5 sin pérdida por batching); screenshot: botón CSV + columna Cliente visibles, KPIs convergidos (0 por subir / 800 en nube / 5 perdidos). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 - **Síntoma:** en el Centro de Respaldos, "Ejecutar Respaldo a la Nube" subía los anexos pero el KPI "Subidos/por subir" NO convergía (seguían apareciendo como por subir en cada corrida) y el conteo "Faltantes (perdidos)" estaba inflado.
 - **Causa raíz:** el chequeo de existencia usaba `list_storage_keys()` → `list_objects(prefix)`, y el API de Object Storage **topa en 1000 claves y NO pagina** (probado: ignora limit/offset/cursor/marker). Con >1000 objetos, los archivos más allá de la clave #1000 se veían como "no están en la nube" → se re-subían indefinidamente (si estaban en disco local) o se marcaban "perdidos" (si no), sin converger nunca.
 - **Fix:** nueva `services/pdf_storage.py::storage_key_exists(rel)` — verificación **autoritativa por-archivo** vía `list_objects(clave_exacta)` (solo metadata, sin descargar). En `routes/data_migration.py::recover_attachments_to_storage`, cuando `rel` no está en el inventario global (truncado), se hace la verificación por-archivo antes de decidir subir/marcar-perdido. Esto también corrige el conteo de "perdidos" (muchos estaban a salvo en la nube, solo fuera del tope de 1000).
