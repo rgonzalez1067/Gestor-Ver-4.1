@@ -1482,7 +1482,7 @@ export const Integrators = () => {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <Label>Producto AccesPay</Label>
+                          <Label>Access Pay</Label>
                           <Input
                             value={formData.accespay_product || ''}
                             onChange={(e) => setFormData({ ...formData, accespay_product: e.target.value })}

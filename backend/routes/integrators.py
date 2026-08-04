@@ -1972,8 +1972,8 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
     # Productos (matriz de certificación)
     for i, prod in enumerate(INTEGRATOR_PRODUCTS):
         data[prod['name']] = [sample_vals[i % 3], sample_vals[(i + 1) % 3], sample_vals[(i + 2) % 3]]
-    # V3 — Producto AccesPay (col AI): JUSTO después del último producto (Producto Lysto).
-    data['Producto AccesPay'] = ['Sí', 'No', '']
+    # V3 — Access Pay (col AI): JUSTO después del último producto (Lysto).
+    data['Access Pay'] = ['Sí', 'No', '']
     # Campos de seguimiento de texto libre
     data['Nombre del Proyecto'] = ['Migración PG Fase 1', '', 'Integración VPOS Retail']  # AJ
     data['Observaciones'] = ['Pendiente kickoff', '', 'Requiere ambiente de pruebas']     # AK
@@ -2011,7 +2011,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Correo',                         'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
             {'Campo': 'Nombre del Proyecto',            'Descripcion': 'Nombre del proyecto (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Migración PG Fase 1'},
             {'Campo': 'Observaciones',                  'Descripcion': 'Notas/observaciones (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Pendiente kickoff'},
-            {'Campo': 'Producto AccesPay',              'Descripcion': 'Col AI — ¿Usa Producto AccesPay? Texto libre (ej: Sí/No).', 'Obligatorio': 'No', 'Ejemplo': 'Sí'},
+            {'Campo': 'Access Pay',                     'Descripcion': 'Col AI — ¿Usa Access Pay? Texto libre (ej: Sí/No).', 'Obligatorio': 'No', 'Ejemplo': 'Sí'},
             {'Campo': 'Comercios relacionados',         'Descripcion': 'Col AL — Comercios relacionados (texto libre / cantidad).', 'Obligatorio': 'No', 'Ejemplo': '15'},
             {'Campo': 'Versión Componente',             'Descripcion': 'Col AM — Versión del componente (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'v1.2.0'},
             {'Campo': 'Nombre del Contacto Principal',  'Descripcion': 'Nombre del contacto principal del integrador (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'Ana Pérez'},
@@ -2208,6 +2208,8 @@ async def import_integrators(
             'Negociacion de Interfaz': 'interface_negotiation', 'negociacion de interfaz': 'interface_negotiation',
             'negociacion_de_interfaz': 'interface_negotiation',
             # V3 — nuevos campos
+            'Access Pay': 'accespay_product', 'access pay': 'accespay_product', 'access_pay': 'accespay_product',
+            'AccessPay': 'accespay_product', 'accesspay': 'accespay_product',
             'Producto AccesPay': 'accespay_product', 'producto accespay': 'accespay_product', 'producto_accespay': 'accespay_product',
             'Comercios relacionados': 'comercios_relacionados', 'comercios relacionados': 'comercios_relacionados', 'comercios_relacionados': 'comercios_relacionados',
             'Versión Componente': 'componente_version', 'versión componente': 'componente_version',
