@@ -11,7 +11,7 @@ import zipfile
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://pdf-backfill-hub.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://inbox-fixes.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "rgonzalez@megasoft.com.ve"
 ADMIN_PASS = "admin123"
 

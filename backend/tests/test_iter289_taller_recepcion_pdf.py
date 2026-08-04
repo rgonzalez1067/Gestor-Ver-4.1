@@ -46,7 +46,7 @@ from routes.quote_taller import _generate_reception_pdf  # noqa: E402
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://pdf-backfill-hub.preview.emergentagent.com",
+    "https://inbox-fixes.preview.emergentagent.com",
 ).rstrip("/")
 ADMIN_EMAIL = "rgonzalez@megasoft.com.ve"
 ADMIN_PASSWORD = "admin123"
