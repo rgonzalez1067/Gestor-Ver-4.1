@@ -4,6 +4,16 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Aislamiento por segmento (sede del creador) en Histórico de Cotizaciones — Jun 2026
+- **Requerimiento:** los usuarios de cada segmento solo ven registros históricos emitidos por usuarios de SU MISMA sede (Corp ve Corp, Pyme ve Pyme). Base del filtro: `quote.sede` = sede del USUARIO creador (no `client_segment`). Excepción: Administrador y cargo 'Director' ven TODO.
+- **Backend** (`routes/quote_history.py`):
+  - `archive_quote_to_history` ahora persiste `sede` a nivel raíz del registro (= `quote.sede`, fallback 'PYME').
+  - Nuevo `backfill_history_sede()` idempotente (flag `config.history_sede_backfilled`), registrado en `server.py` startup: pobló los 128 registros existentes leyendo `snapshot.sede` (dist: PYME 105, TBP 18, CORP 5).
+  - `list_quote_history` inyecta `query["sede"] = user_sede` salvo admin/Director.
+  - Helper `_segment_allows(user, doc)` aplicado a acceso por ID directo: `GET /quote-history/{id}`, `GET .../pdf`, y endpoints de anexos (list/upload/download) → 403 si el segmento no coincide (evita evasión por ID).
+- **QA (self-test curl E2E):** Admin=128 (Corp+Pyme+TBP); gteran/PYME=105 (solo PYME); ablanco/CORP=5 (solo CORP); Director acastro/CORP=128 (excepción OK). 403 confirmado: usuario PYME → registro CORP en GET individual y PDF. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 
 ### Update: lista de "Modalidad de Integración" V3 (renombres/altas/bajas) + migración de arranque — Jul 2026
 - **Reemplazos:** `PG Universal`→`PG Modalidad Universal`, `PG No universal`→`PG Modalidad No Universal`, `REST`→`Rest`. **Bajas:** `TKN Universal`, `TKN No Universal`. **Altas:** 4× `Web Tokenizador Modalidad {Universal|No Universal} {con|sin} Verificación de Micro` + `Linux`.

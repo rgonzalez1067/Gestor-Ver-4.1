@@ -409,6 +409,13 @@ async def create_indexes():
         except Exception as e:
             logging.warning(f"[startup] quote origin backfill failed: {e}")
 
+        # Backfill de `sede` en el Histórico de Cotizaciones (aislamiento por segmento) — idempotente, flag
+        try:
+            from routes.quote_history import backfill_history_sede
+            await backfill_history_sede()
+        except Exception as e:
+            logging.warning(f"[startup] history sede backfill failed: {e}")
+
         # Sincronizar plantillas de correo por defecto a MongoDB (sin sobreescribir las editadas)
         try:
             from routes.seed_and_templates import generate_email_templates_by_sede

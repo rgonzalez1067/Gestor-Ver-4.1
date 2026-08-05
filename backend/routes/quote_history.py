@@ -29,6 +29,49 @@ def _can_access_history(user: dict) -> bool:
     return (user.get("permissions", {}) or {}).get("quote_history", "none") != "none"
 
 
+def _segment_allows(user: dict, doc: dict) -> bool:
+    """Aislamiento por segmento: Admin y Director ven todo; el resto solo
+    registros cuya `sede` (sede del creador) coincida con la suya."""
+    if (user.get("role") or "").lower() == "admin":
+        return True
+    if (user.get("cargo") or "").strip().lower() == "director":
+        return True
+    return (doc.get("sede") or "PYME") == (user.get("sede") or "PYME")
+
+
+async def backfill_history_sede() -> int:
+    """Idempotente: puebla el campo `sede` a nivel raíz de los registros del
+    Histórico que aún no lo tienen, leyéndolo del `snapshot.sede` (sede del
+    creador). Fallback 'PYME'. Guardado por flag en `config`.
+
+    Necesario para el aislamiento por segmento: usuarios no-admin/no-Director
+    solo ven registros del histórico cuya sede de creador coincida con la suya.
+    """
+    flag = await db.config.find_one({"key": "history_sede_backfilled"})
+    if flag:
+        return 0
+    updated = 0
+    cursor = db.quote_history.find(
+        {"sede": {"$exists": False}},
+        {"_id": 0, "history_id": 1, "snapshot": 1},
+    )
+    async for d in cursor:
+        snap = d.get("snapshot") or {}
+        sede = snap.get("sede") or "PYME"
+        await db.quote_history.update_one(
+            {"history_id": d.get("history_id")},
+            {"$set": {"sede": sede}},
+        )
+        updated += 1
+    await db.config.insert_one({
+        "key": "history_sede_backfilled",
+        "updated": updated,
+        "at": datetime.now(timezone.utc).isoformat(),
+    })
+    logging.info(f"[quote_history] backfill_history_sede: {updated} registros")
+    return updated
+
+
 async def archive_quote_to_history(quote_id: str, trigger: str, user: Optional[dict] = None) -> Optional[dict]:
     """Genera snapshot del quote y lo archiva. Marca el quote original con archived=True.
 
@@ -79,6 +122,8 @@ async def archive_quote_to_history(quote_id: str, trigger: str, user: Optional[d
     history_doc = {
         "history_id": f"qhist_{quote_id}",
         "quote_id": quote_id,
+        # Sede del USUARIO que emitió la cotización (aislamiento por segmento en el Histórico).
+        "sede": (quote.get("sede") or "PYME"),
         "quote_number": quote.get("quote_number"),
         "quote_category": quote.get("quote_category"),
         "quote_type": quote.get("quote_type"),
@@ -164,6 +209,14 @@ async def list_quote_history(
         raise HTTPException(status_code=403, detail="Acceso restringido a Director o Administrador del Sistema")
 
     query = {}
+    # ===== Aislamiento por segmento (sede del creador) =====
+    # Regla: los usuarios solo ven registros históricos emitidos por usuarios de
+    # su MISMA sede (Corp ve Corp, Pyme ve Pyme, etc.). Excepción: Administrador
+    # del Sistema y cargo 'Director' conservan visibilidad total (Corp + Pyme).
+    is_admin = (current_user.get("role") or "").lower() == "admin"
+    is_director = (current_user.get("cargo") or "").strip().lower() == "director"
+    if not is_admin and not is_director:
+        query["sede"] = (current_user.get("sede") or "PYME")
     if quote_category:
         query["quote_category"] = quote_category
     if client_id:
@@ -233,6 +286,8 @@ async def get_quote_history(history_id: str, authorization: Optional[str] = Head
         doc = await db.quote_history.find_one({"quote_id": history_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Registro no encontrado")
+    if not _segment_allows(current_user, doc):
+        raise HTTPException(status_code=403, detail="No tiene acceso a este registro (restricción de segmento)")
     return doc
 
 
@@ -280,6 +335,8 @@ async def download_quote_history_pdf(history_id: str, authorization: Optional[st
         doc = await db.quote_history.find_one({"quote_id": history_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Registro no encontrado")
+    if not _segment_allows(current_user, doc):
+        raise HTTPException(status_code=403, detail="No tiene acceso a este registro (restricción de segmento)")
 
     category = doc.get("quote_category", "implementation")
     quote_id = doc["quote_id"]
@@ -362,10 +419,12 @@ async def list_history_attachments(history_id: str, authorization: Optional[str]
         raise HTTPException(status_code=403, detail="Acceso restringido a Director o Administrador del Sistema")
     doc = await db.quote_history.find_one(
         {"$or": [{"history_id": history_id}, {"quote_id": history_id}]},
-        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "attachments": 1},
+        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "attachments": 1, "sede": 1},
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Registro histórico no encontrado")
+    if not _segment_allows(current_user, doc):
+        raise HTTPException(status_code=403, detail="No tiene acceso a este registro (restricción de segmento)")
     return {
         "history_id": doc.get("history_id"),
         "quote_id": doc.get("quote_id"),
@@ -392,10 +451,12 @@ async def upload_history_attachment(
 
     doc = await db.quote_history.find_one(
         {"$or": [{"history_id": history_id}, {"quote_id": history_id}]},
-        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "attachments": 1},
+        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "attachments": 1, "sede": 1},
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Registro histórico no encontrado")
+    if not _segment_allows(current_user, doc):
+        raise HTTPException(status_code=403, detail="No tiene acceso a este registro (restricción de segmento)")
 
     # Tamaño máx. 10 MB
     content = await file.read()
@@ -507,10 +568,12 @@ async def download_history_attachment(history_id: str, attachment_id: str, autho
         raise HTTPException(status_code=403, detail="Acceso restringido")
     doc = await db.quote_history.find_one(
         {"$or": [{"history_id": history_id}, {"quote_id": history_id}]},
-        {"_id": 0, "attachments": 1},
+        {"_id": 0, "attachments": 1, "sede": 1},
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Registro no encontrado")
+    if not _segment_allows(current_user, doc):
+        raise HTTPException(status_code=403, detail="No tiene acceso a este registro (restricción de segmento)")
     attachment = next((a for a in (doc.get("attachments") or []) if a.get("attachment_id") == attachment_id), None)
     if not attachment:
         raise HTTPException(status_code=404, detail="Anexo no encontrado")

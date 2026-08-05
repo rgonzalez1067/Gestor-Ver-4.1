@@ -1,3 +1,11 @@
+## QA — Aislamiento por segmento en Histórico de Cotizaciones (Jun 2026)
+Password para todos: Test1234! (reseteado por el agente con config.hash_password → campo `password_hash`)
+- gteran@megasoft.com.ve  → sede PYME, Coordinador, quote_history=edit. Ve SOLO histórico de sede PYME (105 registros).
+- ablanco@megasoft.com.ve → sede CORP, Coordinador, quote_history=read (otorgado por el agente para QA). Ve SOLO histórico de sede CORP (5 registros).
+- acastro@megasoft.com.ve → sede CORP, cargo Director. EXCEPCIÓN: ve TODO (128, Corp+Pyme+TBP).
+- Admin (rgonzalez@megasoft.com.ve / admin123): ve TODO (128).
+Regla: usuarios no-admin/no-Director solo ven registros del Histórico cuya `sede` (sede del USUARIO creador) coincida con la suya.
+
 # Test Credentials
 
 ## Usuario de Operaciones (Reparaciones + Equipos)
