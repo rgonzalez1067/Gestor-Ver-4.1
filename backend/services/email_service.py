@@ -186,12 +186,15 @@ def _send_smtp(
     attachments: list = None,
     cc: List[str] = None,
     bcc: List[str] = None,
+    reply_to: str = None,
 ) -> dict:
     """Envío síncrono vía SMTP (se ejecuta en thread aparte)."""
     msg = MIMEMultipart("mixed")
     msg["From"] = sender
     msg["To"] = ", ".join(to) if to else sender
     msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
     if cc:
         msg["Cc"] = ", ".join(cc)
 
@@ -385,12 +388,16 @@ async def send_email(
     sender: str = None,
     cc: List[str] = None,
     bcc: List[str] = None,
+    reply_to: str = None,
 ) -> dict:
     """
     Envía un email con soporte para CC y BCC (copia oculta).
     Prioridad: 1) SMTP propio  2) Resend  3) Simulado.
     """
     sender = sender or SENDER_EMAIL
+    # Reply-To: por defecto igual al remitente (From), para que las respuestas
+    # del destinatario lleguen a la cuenta configurada por área.
+    reply_to = reply_to or sender
     # Filter empty emails
     to = [e for e in to if e and e.strip() and '@' in e]
     cc = [e for e in (cc or []) if e and e.strip() and '@' in e]
@@ -443,6 +450,7 @@ async def send_email(
         "quote_id": quote_id,
         "quote_number": quote_number,
         "from": sender,
+        "reply_to": reply_to,
         "to": to,
         "cc": cc,
         "bcc_count": len(bcc),
@@ -458,7 +466,7 @@ async def send_email(
     if SMTP_AVAILABLE:
         try:
             result = await asyncio.to_thread(
-                _send_smtp, to, subject, html, sender, attachments, cc, bcc
+                _send_smtp, to, subject, html, sender, attachments, cc, bcc, reply_to
             )
             email_log["status"] = "sent"
             email_log["method"] = "smtp"
@@ -483,6 +491,8 @@ async def send_email(
             if api_key:
                 resend.api_key = api_key
                 params = {"from": sender, "to": to or [sender], "subject": subject, "html": html}
+                if reply_to:
+                    params["reply_to"] = reply_to
                 if bcc:
                     params["bcc"] = bcc
                 if attachments:

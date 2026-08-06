@@ -62,6 +62,7 @@ async def _dispatch_guaranteed_only(
     guaranteed_to: list,
     extra_attachments: Optional[list],
     prepend_signature_html: Optional[str],
+    sender: Optional[str] = None,
 ) -> dict:
     """Envío mínimo garantizado cuando la acción no tiene config: notifica igual
     al Integrador y a los correos adicionales con un cuerpo genérico + firma."""
@@ -84,7 +85,8 @@ async def _dispatch_guaranteed_only(
     for g_email in guaranteed_to:
         try:
             await send_email(to=[g_email], subject=subject, html=body,
-                             action=f"{action_id}_other", attachments=(extra_attachments or None))
+                             action=f"{action_id}_other", attachments=(extra_attachments or None),
+                             sender=sender, reply_to=sender)
             sent_to.append(g_email)
         except Exception as e:  # noqa: BLE001
             logger.error(f"[other-actions] Error (garantizado/no_config) enviando a {g_email}: {e}")
@@ -105,6 +107,7 @@ async def dispatch_other_action(
     extra_attachments: Optional[list] = None,
     client: Optional[dict] = None,
     guaranteed_to: Optional[list] = None,
+    sender: Optional[str] = None,
 ) -> dict:
     """Despacha la acción según la config dinámica. Ver reglas en el docstring
     del módulo.
@@ -137,7 +140,7 @@ async def dispatch_other_action(
         if guaranteed_to:
             return await _dispatch_guaranteed_only(
                 action_id, template_vars, current_user, fallback_subject,
-                guaranteed_to, extra_attachments, prepend_signature_html,
+                guaranteed_to, extra_attachments, prepend_signature_html, sender,
             )
         return {"dispatched": False, "reason": "no_config"}
 
@@ -232,6 +235,13 @@ async def dispatch_other_action(
             skipped.append({"row_id": row.get("row_id"), "reason": f"Tipo de destinatario no soportado: {rtype}"})
             continue
 
+        # Idempotencia por-destinatario: si este correo ya fue notificado por una
+        # fila anterior (o como CC), NO se vuelve a enviar. Evita el despacho
+        # duplicado al mismo destinatario dentro de un mismo evento.
+        if rcpt_email and rcpt_email.strip().lower() in delivered:
+            skipped.append({"row_id": row.get("row_id"), "reason": "Destinatario ya notificado (dedup)"})
+            continue
+
         tpl = await _load_template(row.get("template_id"))
         if not tpl:
             # Sin plantilla seleccionada → cuerpo genérico por defecto. Evita el
@@ -280,6 +290,10 @@ async def dispatch_other_action(
                     project_id=(project or {}).get("project_id") if project else None,
                     attachments=extra_attachments,
                 )
+                # Registrar también el destinatario de inbox para evitar que el
+                # envío garantizado (o filas posteriores) le mande un correo redundante.
+                if rcpt_email:
+                    delivered.add(rcpt_email.strip().lower())
             else:
                 cc_list = [e for e in (extra_cc or []) if e != rcpt_email] or None
                 await send_email(
@@ -289,6 +303,8 @@ async def dispatch_other_action(
                     action=f"{action_id}_other",
                     cc=cc_list,
                     attachments=(extra_attachments or None),
+                    sender=sender,
+                    reply_to=sender,
                 )
                 delivered.add(rcpt_email.lower())
                 for _cc in (cc_list or []):
@@ -337,6 +353,8 @@ async def dispatch_other_action(
                     html=g_body,
                     action=f"{action_id}_other",
                     attachments=(extra_attachments or None),
+                    sender=sender,
+                    reply_to=sender,
                 )
                 delivered.add(g_email.lower())
                 sent_count += 1

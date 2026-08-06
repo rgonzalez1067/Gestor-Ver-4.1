@@ -867,6 +867,7 @@ async def close_integrator_project(
     dispatch_result = None
     try:
         from services.other_actions_engine import dispatch_other_action
+        from services.email_service import resolve_sender_for_area
         dispatch_result = await dispatch_other_action(
             "integration_project_closed", tpl_vars, current_user=current_user,
             fallback_subject=f"Cierre de Proyecto de Integración: {existing.get('name', '')} — {existing.get('app_name', '')}",
@@ -874,6 +875,7 @@ async def close_integrator_project(
             extra_attachments=attachments or None,
             extra_cc=extra_cc or None,
             guaranteed_to=guaranteed_close or None,
+            sender=await resolve_sender_for_area("integradores"),
         )
     except Exception as e:
         logger.warning(f"[close] dispatch integration_project_closed falló: {e}")
@@ -1600,9 +1602,11 @@ async def assign_integrator_implementador(integrator_id: str, body: dict, author
         "fecha_sistema": now_str, "Fecha_Sistema": now_str,
     }
     from services.other_actions_engine import dispatch_other_action
+    from services.email_service import resolve_sender_for_area
     dispatch_result = await dispatch_other_action(
         "implementer_assignment", tpl_vars, current_user=current_user,
         fallback_subject=f"Asignación de proyecto: {integrator.get('name', '')} — {integrator.get('app_name', '')}",
+        sender=await resolve_sender_for_area("integradores"),
     )
 
     updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
@@ -2800,11 +2804,13 @@ async def notify_new_integration_project(
     # Motor dinámico "Configuración de otras Acciones" (con fallback legacy)
     try:
         from services.other_actions_engine import dispatch_other_action
+        from services.email_service import resolve_sender_for_area
         _dyn = await dispatch_other_action(
             "new_integration_project", variables, current_user=current_user,
             fallback_subject=f"Nuevo Proyecto de Integracion — {integrator.get('name','')}",
             extra_cc=extra_cc,
             prepend_signature_html=info_block or None,
+            sender=await resolve_sender_for_area("integradores"),
         )
         if _dyn.get("dispatched"):
             # Auditoría en la bitácora del proyecto (correo eventual incluido).

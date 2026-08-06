@@ -1,0 +1,28 @@
+{
+  "summary": "Backend regression tests for iter312 — Bug fix de correos a INTEGRADORES: (A) From/Reply-To = impl_merchant@megasoft.com.ve (área integradores) en vez de gestor@megasoft.com.ve; (B) sin duplicados por destinatario en un mismo evento (dispatch_other_action dedup). Todos los tests pasan (4/4). Fix confirmado E2E vía POST /api/integrators/{id}/notify-new-project (action 'new_integration_project_other') y unitariamente sobre dispatch_other_action con overlap guaranteed_to↔recipients.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter312_integrator_sender_dedup.py",
+    "/app/test_reports/pytest/iter312.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "services/other_actions_engine.py::dispatch_other_action ahora dedup por-destinatario ANTES de enviar en el bucle de recipients (set `delivered` chequeado en línea 241 con `rcpt_email.strip().lower() in delivered`) y en el envío garantizado (línea 347). Correcto.",
+    "El caso 'inbox' también registra el email en `delivered` (línea 296) — evita que un mismo destinatario reciba inbox + email redundante.",
+    "send_email (services/email_service.py) usa reply_to = reply_to or sender (línea 400) — asegura Reply-To coherente con From cuando el caller pasa sender. Bien.",
+    "Los 3 call-sites en routes/integrators.py (L878 close, L1609 assign_implementador, L2813 notify-new-project) propagan sender=await resolve_sender_for_area('integradores'). Verificado E2E que 'new_integration_project_other' genera from=impl_merchant.",
+    "Nota (no-blocker): dispatch_other_action normaliza rcpt_email con .strip().lower() al chequear duplicados pero al insertarlo en delivered en la línea 309 usa rcpt_email.lower() sin .strip(). En la práctica los emails ya vienen limpios de _resolve_user_email/_resolve_client_email, así que no hay inconsistencia observable, pero conviene homogeneizar a .strip().lower() en ambos lados por robustez.",
+    "Regresión OK: send_email(sender='cotizador_test@...') registra `from` = ese sender (no fuerza impl_merchant globalmente)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter312_integrator_sender_dedup.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "N/A"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Test 3 crea/borra una config sintética `other_action_configs.action_id=iter312_dedup_<ts>` durante la ejecución (limpieza automática). Test 4 crea un email_log de prueba con subject TEST_iter312_regression_*.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Evidencia directa en DB: db.email_logs último 'new_integration_project_other' → from='impl_merchant@megasoft.com.ve', reply_to='impl_merchant@megasoft.com.ve', to=['ragg1008@gmail.com'], cc=['Rgonzalez@Megasoft.com.ve','qa_extra_iter312@example.com']. Los logs anteriores al fix (mismo action) tenían from='gestor@megasoft.com.ve'. La acción 'implementer_assignment' tiene delivery_channel='inbox' en la config real, por eso NO genera email_log; usé notify-new-project para el E2E (idéntico dispatch_other_action con sender).",
+  "rca of the issue": "FALLA A: Los call-sites en routes/integrators.py llamaban dispatch_other_action sin `sender`, por lo que send_email caía en `sender or SENDER_EMAIL` = gestor@megasoft.com.ve. Fix: pasar sender=await resolve_sender_for_area('integradores') en cada llamada; other_actions_engine propaga sender+reply_to a todos los send_email (recipients y guaranteed). FALLA B: originalmente el bucle de recipients NO consultaba `delivered` antes de enviar (solo el envío garantizado lo chequeaba), permitiendo que dos filas apuntando al mismo email o overlap con guaranteed_to generaran 2 envíos. Fix: chequeo case-insensitive `rcpt_email.strip().lower() in delivered` antes del send_email, y también en el bucle guaranteed."
+}
