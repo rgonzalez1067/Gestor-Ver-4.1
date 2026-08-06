@@ -2607,6 +2607,13 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
 
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
 
+    # Anexar condiciones legales según el tipo de equipo y la SEDE del creador
+    # de la cotización (persistida en el doc). Igual que en la generación inicial,
+    # para que al MODIFICAR la cotización el PDF conserve las Condiciones Verifone
+    # (PyME/TBP vs LCH) y las demás condiciones por tipo.
+    _cond_sede = quote.get("sede") or current_user.get("sede", "PYME")
+    pdf_bytes = append_equipment_conditions(pdf_bytes, equipment_type, _cond_sede)
+
     # Guardar PDF + Object Storage
     pdf_filename = f"{quote_number}_Cotizacion_Equipo.pdf"
     pdf_path = UPLOADS_DIR / pdf_filename

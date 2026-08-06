@@ -1,0 +1,25 @@
+{
+  "summary": "Verified Verifone conditions PDF attachment fix. All 3 backend tests passed: (1) CREATE Verifone quote as PYME user attaches condiciones_verifone_tbp.pdf (2 pages total in both response bytes and disk file). (2) MODIFY/regenerate existing PYME Verifone quote (quo_34d3d4705085 / COT-2026-04-076-PYME) now includes TBP conditions (2 pages) — bug fix confirmed. (3) Regression: MODIFY of a non-PYME (CORP/LCH) Verifone quote attaches condiciones_verifone.pdf (3 pages total: 1 base + 2 LCH conditions). The fix applied in routes/quotes.py::regenerate_equipment_pdf (call to append_equipment_conditions after weasyprint.HTML.write_pdf) works correctly for both sedes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_verifone_conditions.py",
+    "/app/test_reports/pytest/verifone_conditions.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "config.append_equipment_conditions correctly branches PYME→TBP vs other→LCH; no changes needed.",
+    "Consider migrating from deprecated PyPDF2 to pypdf (deprecation warning emitted).",
+    "routes/quotes.py is very large (>3000 lines); could be split into smaller modules for maintainability."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_verifone_conditions.py (new test file)"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "PYME exec agodoy@megasoft.com.ve / Test1234!; Admin rgonzalez@megasoft.com.ve / admin123 (both login successful, session_token from /api/auth/login)",
+  "seed_data_creation": "Created one test equipment quote via POST /api/quotes/generate-equipment-pdf as PYME user (cliente_nombre='TEST_Cliente_Verifone_PYME'). Quote persists in DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Verifone conditions attachment on CREATE + MODIFY (regenerate) verified. TBP for PYME (1 page → total 2), LCH for CORP (2 pages → total 3). Test file: /app/backend/tests/test_verifone_conditions.py. Existing target quote_id=quo_34d3d4705085 currently sits at 2 pages on disk.",
+  "rca of the issue": "Bug: routes/quotes.py::regenerate_equipment_pdf regenerated PDF via weasyprint but did NOT call append_equipment_conditions(), so on Modify the Verifone TBP/LCH conditions page was stripped. Fix: after pdf_bytes = weasyprint.HTML(...).write_pdf(), call append_equipment_conditions(pdf_bytes, equipment_type, quote.get('sede') or current_user.get('sede','PYME')). Verified: regenerated PDF for PYME Verifone quo_34d3d4705085 now has 2 pages (1 base + 1 TBP)."
+}
