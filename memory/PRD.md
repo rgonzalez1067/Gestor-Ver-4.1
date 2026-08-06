@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Bug Fix: Correos a Integradores — From/Reply-To por área + eliminación de duplicados — Jun 2026
+- **Falla A (From incorrecto):** las notificaciones a Integradores salían con `From=gestor@megasoft.com.ve` (default) ignorando la asignación del área 'Integradores' = `impl_merchant@megasoft.com.ve`. RCA: los 3 call-sites de `dispatch_other_action` en `routes/integrators.py` (close L~878, assign_implementador L~1609, notify new-project L~2813) NO pasaban `sender`, y `other_actions_engine` no lo propagaba → `send_email` caía en `sender or SENDER_EMAIL`.
+- **Falla B (duplicado):** el mismo destinatario podía recibir 2 correos por evento. RCA: el bucle de `recipients` en `dispatch_other_action` NO consultaba el set `delivered` antes de enviar (solo el envío garantizado lo hacía) → dos filas al mismo email u overlap recipients↔guaranteed_to duplicaban.
+- **Fix:** (1) `email_service.send_email`/`_send_smtp`/Resend soportan `reply_to` (default = sender) y `email_logs` guarda `reply_to`; (2) `dispatch_other_action`/`_dispatch_guaranteed_only` aceptan `sender` y lo propagan (sender+reply_to) a TODOS los `send_email`; (3) dedup por-destinatario case-insensitive (`rcpt_email.strip().lower() in delivered`) chequeado ANTES de enviar en el bucle de recipients y en el garantizado; inbox también registra en `delivered`; (4) los 3 call-sites de integradores pasan `sender=await resolve_sender_for_area('integradores')`. NO se fuerza globalmente (cotizaciones/proyectos conservan su propio remitente → sin regresión).
+- **QA:** testing_agent iter312 → **backend 100% (4/4)**. Evidencia E2E en email_logs: `new_integration_project_other` → from/reply_to=impl_merchant@megasoft.com.ve, sin destinatarios duplicados; regresión de remitente por área de cotizaciones OK. Test: `/app/backend/tests/test_iter312_integrator_sender_dedup.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: Flujo simplificado de Factura/Proforma y Registro de Pago para Sector Corporativo — Jun 2026
 - **Requerimiento:** en Cotizaciones CORP, las acciones 'Cargar Factura/Proforma' y 'Registrar Pago' deben OMITIR los modales de comunicación ('Seleccionar Destinatarios' y 'Personalizar Comunicación') e ir directo al modal de carga de anexo; la notificación predeterminada se dispara en background (headers vacíos). PyME/otros conservan el flujo completo. Solo frontend (backend sin cambios: los endpoints invoice/collect ya usan la regla por defecto con headers vacíos).
 - **Frontend** (`pages/Quotes.jsx`):

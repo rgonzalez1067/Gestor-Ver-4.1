@@ -306,7 +306,7 @@ async def dispatch_other_action(
                     sender=sender,
                     reply_to=sender,
                 )
-                delivered.add(rcpt_email.lower())
+                delivered.add(rcpt_email.strip().lower())
                 for _cc in (cc_list or []):
                     delivered.add(_cc.lower())
             sent_count += 1
