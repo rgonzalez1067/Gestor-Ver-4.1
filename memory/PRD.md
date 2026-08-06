@@ -4,6 +4,17 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Flujo simplificado de Factura/Proforma y Registro de Pago para Sector Corporativo — Jun 2026
+- **Requerimiento:** en Cotizaciones CORP, las acciones 'Cargar Factura/Proforma' y 'Registrar Pago' deben OMITIR los modales de comunicación ('Seleccionar Destinatarios' y 'Personalizar Comunicación') e ir directo al modal de carga de anexo; la notificación predeterminada se dispara en background (headers vacíos). PyME/otros conservan el flujo completo. Solo frontend (backend sin cambios: los endpoints invoice/collect ya usan la regla por defecto con headers vacíos).
+- **Frontend** (`pages/Quotes.jsx`):
+  - Helper `isCorpQuote(quote)` = `client_segment==='CORP'` O `creator_departamento` incluye 'corporativ'.
+  - `openInvoiceModal`: rama CORP → respeta chequeo de flujo irregular; regular → `_openInvoiceModalDirect(quoteId, null, {})` (sin contact-select ni email modal).
+  - Nuevo `handleCollect(id)` (cableado a `onCollect`): rama CORP → `openCollectConfirm(id, null, {})`; otros → `checkIrregularAndProceed`.
+  - `_openInvoiceModalDirect` y `openCollectConfirm` aceptan `emailHeadersOverride` ({} para CORP → getEmailHeaders() no se usa, sin CC/mensaje).
+  - `confirmException` propaga `skipEmailModal` para que el flujo irregular CORP (ej. Aprobada→Factura) también omita los modales de comunicación.
+- **QA:** testing_agent iter311 → **frontend 100% (4/4)**. CORP Factura y Pago → workflow-upload-modal directo (sin contact-select ni email); PYME Factura → contact-select→email; PYME Pago → email modal (flujo intacto). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix: Condiciones Verifone (PyME/TBP) no se anexaban al MODIFICAR Cotización de Equipos — Jun 2026
 - **Síntoma:** las Cotizaciones de Equipos tipo 'Verifone' de Ejecutivos PYME perdían la página de "Condiciones Verifone (PyME/TBP)" al MODIFICAR la cotización (la creación sí las anexaba).
 - **RCA:** `routes/quotes.py::regenerate_equipment_pdf` (flujo de Modificar → `POST /quotes/{id}/regenerate-equipment-pdf`, invocado por `EditEquipRepairDialog.jsx`) generaba el PDF con weasyprint pero NUNCA llamaba a `append_equipment_conditions()`, a diferencia del flujo de creación (`generate_equipment_quote_pdf`, que sí lo hacía).
