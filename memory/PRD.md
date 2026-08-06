@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Bug Fix: Condiciones Verifone (PyME/TBP) no se anexaban al MODIFICAR Cotización de Equipos — Jun 2026
+- **Síntoma:** las Cotizaciones de Equipos tipo 'Verifone' de Ejecutivos PYME perdían la página de "Condiciones Verifone (PyME/TBP)" al MODIFICAR la cotización (la creación sí las anexaba).
+- **RCA:** `routes/quotes.py::regenerate_equipment_pdf` (flujo de Modificar → `POST /quotes/{id}/regenerate-equipment-pdf`, invocado por `EditEquipRepairDialog.jsx`) generaba el PDF con weasyprint pero NUNCA llamaba a `append_equipment_conditions()`, a diferencia del flujo de creación (`generate_equipment_quote_pdf`, que sí lo hacía).
+- **Fix:** tras `pdf_bytes = weasyprint.HTML(...).write_pdf()` se agregó `pdf_bytes = append_equipment_conditions(pdf_bytes, equipment_type, quote.get('sede') or current_user.get('sede','PYME'))`. Usa la SEDE persistida del creador (no la del usuario que modifica): PYME→`condiciones_verifone_tbp.pdf`, otra→`condiciones_verifone.pdf` (LCH). Regla existente en `config.append_equipment_conditions`.
+- **QA:** testing_agent iter310 → **backend 100% (3/3)**. Verificado: CREATE PYME Verifone=2 págs (base+TBP); MODIFY PYME Verifone quo_34d3d4705085=2 págs (fix confirmado); regresión CORP/LCH=3 págs (base+2 LCH). Test: `/app/backend/tests/test_verifone_conditions.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: Aislamiento por segmento (sede del creador) en Histórico de Cotizaciones — Jun 2026
 - **Requerimiento:** los usuarios de cada segmento solo ven registros históricos emitidos por usuarios de SU MISMA sede (Corp ve Corp, Pyme ve Pyme). Base del filtro: `quote.sede` = sede del USUARIO creador (no `client_segment`). Excepción: Administrador y cargo 'Director' ven TODO.
 - **Backend** (`routes/quote_history.py`):
