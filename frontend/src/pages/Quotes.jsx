@@ -2334,6 +2334,16 @@ export const Quotes = () => {
   // === FUNCIONES DE ACCIONES DE COTIZACIÓN ===
   
   // === Modal de Envío: helpers ===
+  // Detecta si una cotización pertenece al Sector Corporativo. Criterio alineado
+  // con proceedSendToClient: segmento del cliente CORP o creador de Ventas
+  // Corporativas (origen inmutable). Usado para el flujo simplificado de
+  // Factura/Proforma y Registro de Pago (sin modales de comunicación).
+  const isCorpQuote = (quote) => {
+    const seg = (quote?.client_segment || '').toUpperCase();
+    const creatorDept = (quote?.creator_departamento || '').toLowerCase();
+    return seg === 'CORP' || creatorDept.includes('corporativ');
+  };
+
   const openEmailModal = (action, quoteId, initialRecipients = []) => {
     const q = quotes.find(q => q.quote_id === quoteId);
     setEmailModalConfig({ action, quoteId, quoteName: q?.quote_number || '' });
@@ -2643,6 +2653,17 @@ export const Quotes = () => {
     if (!currentReason.trim()) { toast.error('Debe ingresar el motivo de la excepción'); return; }
     const finalData = { ...exceptionData, reason: currentReason };
     setExceptionModalOpen(false);
+    // Sector Corporativo (Factura/Proforma o Registro de Pago): se OMITEN los
+    // modales de comunicación (Seleccionar Destinatarios / Personalizar
+    // Comunicación) y se pasa directo al modal de carga de anexos. La regla de
+    // notificación predeterminada se dispara en background con headers vacíos.
+    if (pendingAction?.skipEmailModal) {
+      const { action, quoteId } = pendingAction;
+      setPendingAction({ ...pendingAction, exceptionHeaders: finalData });
+      if (action === 'invoice') _openInvoiceModalDirect(quoteId, finalData, {});
+      else if (action === 'collect') openCollectConfirm(quoteId, finalData, {});
+      return;
+    }
     // Abrir email modal con la excepción pendiente
     openEmailModal(pendingAction.action, pendingAction.quoteId);
     setPendingAction({ ...pendingAction, exceptionHeaders: finalData });
@@ -2659,7 +2680,7 @@ export const Quotes = () => {
   };
 
   // Abrir modal de workflow para Cobrar (requiere Comprobante de Pago - múltiple)
-  const openCollectConfirm = (quoteId, exceptionInfo) => {
+  const openCollectConfirm = (quoteId, exceptionInfo, emailHeadersOverride = null) => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
       title: 'Registrar Cobranza',
@@ -2673,9 +2694,31 @@ export const Quotes = () => {
       stateEndpoint: 'collect',
       successMessage: 'Cobranza registrada exitosamente',
       exceptionHeaders: exceptionInfo || null,
-      emailHeaders: getEmailHeaders(),
+      emailHeaders: emailHeadersOverride || getEmailHeaders(),
     });
     setWorkflowModalOpen(true);
+  };
+
+  // Registrar Pago (onCollect). Para el Sector Corporativo se omiten los modales
+  // de comunicación (Seleccionar Destinatarios / Personalizar Comunicación) y se
+  // abre directo el modal de carga del Comprobante de Pago; la notificación
+  // predeterminada se dispara en background. Otros sectores conservan el flujo.
+  const handleCollect = (id) => {
+    const quote = quotes.find(q => q.quote_id === id);
+    if (isCorpQuote(quote)) {
+      const currentStatus = quote?.quote_status || 'Borrador';
+      const expectedStatus = REGULAR_FLOW_MAP['collect'];
+      if (expectedStatus && currentStatus !== expectedStatus) {
+        setPendingAction({ quoteId: id, action: 'collect', proceedFn: openCollectConfirm, currentStatus, expectedStatus, skipEmailModal: true });
+        setExceptionData({ reason: '', regularization_date: '' });
+        exceptionReasonRef.current = '';
+        setExceptionModalOpen(true);
+        return;
+      }
+      openCollectConfirm(id, null, {});
+      return;
+    }
+    checkIrregularAndProceed(id, 'collect', openCollectConfirm);
   };
 
   const handleWorkflowSuccess = () => {
@@ -3872,6 +3915,26 @@ export const Quotes = () => {
   // Abrir modal de factura
   // Abrir modal de workflow para Facturar (requiere Factura)
   const openInvoiceModal = (quoteId) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    // Sector Corporativo: flujo simplificado — se omiten los modales de
+    // comunicación (Seleccionar Destinatarios / Personalizar Comunicación) y se
+    // abre directo el modal de carga de Factura/Proforma. La notificación
+    // predeterminada se dispara en background con headers vacíos.
+    if (isCorpQuote(quote)) {
+      const currentStatus = quote?.quote_status || 'Borrador';
+      const isRepairQuote = quote?.quote_category === 'repair';
+      const isFastTrack = quote?.quote_category === 'fast_track';
+      const expectedStatus = isRepairQuote ? 'Reparada' : isFastTrack ? 'Configurada' : 'Aprobada';
+      if (currentStatus !== expectedStatus) {
+        setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, currentStatus, expectedStatus, skipEmailModal: true });
+        setExceptionData({ reason: '', regularization_date: '' });
+        exceptionReasonRef.current = '';
+        setExceptionModalOpen(true);
+        return;
+      }
+      _openInvoiceModalDirect(quoteId, null, {});
+      return;
+    }
     // Paso 1: selección de contactos de la ficha del cliente con propósito Facturación.
     openContactSelect(quoteId, 'invoice', 'facturacion');
   };
@@ -3895,7 +3958,7 @@ export const Quotes = () => {
     setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, exceptionHeaders: null });
   };
 
-  const _openInvoiceModalDirect = (quoteId, exceptionInfo) => {
+  const _openInvoiceModalDirect = (quoteId, exceptionInfo, emailHeadersOverride = null) => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
       title: 'Factura / Proforma',
@@ -3912,7 +3975,7 @@ export const Quotes = () => {
         { name: 'invoice_number', label: 'Número de Factura', placeholder: 'Ej: FAC-001234', required: false }
       ],
       exceptionHeaders: exceptionInfo || null,
-      emailHeaders: getEmailHeaders(),
+      emailHeaders: emailHeadersOverride || getEmailHeaders(),
     });
     setWorkflowModalOpen(true);
   };
@@ -4115,7 +4178,7 @@ export const Quotes = () => {
             onSendToClient={handleSendToClient}
             onApprove={(id) => checkIrregularAndProceed(id, 'approve', openApproveConfirm)}
             onInvoice={openInvoiceModal}
-            onCollect={(id) => checkIrregularAndProceed(id, 'collect', openCollectConfirm)}
+            onCollect={(id) => handleCollect(id)}
             onDeliver={(id) => checkIrregularAndProceed(id, 'deliver', handleDeliverQuote)}
             onSendToImplementation={(id) => checkIrregularAndProceed(id, 'send-to-implementation', handleSendToImplementation)}
             onRepairComplete={(id) => {

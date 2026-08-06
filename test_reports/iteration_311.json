@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only verification of CORP direct-flow simplification vs PYME intact-flow for invoice/collect actions. All 4 required scenarios PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Quotes table", "issues": ["React hydration warnings due to <span data-ve-dynamic> wrapper being placed between <tbody> and <tr>. Not functional but pollutes console."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": ["(Optional) Clean the hydration warnings caused by inline visual-editor <span data-ve-dynamic> wrappers inside <tbody>. Not a blocker."],
+  "critical_code_review_comments": [
+    "isCorpQuote helper covers client_segment==='CORP' or creator_departamento containing 'corporativ' — correct.",
+    "confirmException correctly propagates skipEmailModal so that CORP irregular-flow (e.g., Aprobada → Factura) also bypasses contact-select and email modals. Verified live.",
+    "For CORP with regular status, _openInvoiceModalDirect / openCollectConfirm are called directly without comm modals — verified.",
+    "For PYME, contact-select-modal → contact-select-continue → email-modal chain works as expected on both invoice and collect."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100% (4/4 scenarios)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Menu action item labels in QuotesTable dropdown: 'Factura / Proforma' (invoice) and 'Registrar pago' (collect) — NOT 'Cobranza' as the review request wording implied. quote-actions-{quote_id} data-testid works reliably. For irregular-status quotes (e.g., Aprobada attempting Factura), an 'Alerta de Flujo Irregular' modal appears first; fill textarea + click 'Confirmar Acción' to proceed. skipEmailModal flag correctly forwarded for CORP.",
+  "rca of the issue": "N/A - feature working as designed. Verified: (1) CORP quo_147e0210bbd6 Factura/Proforma → exception modal → confirm → workflow-upload-modal DIRECTLY (no contact-select, no email). (2) CORP quo_147e0210bbd6 Registrar pago → same behavior. (3) PYME quo_9372666b2757 Factura/Proforma → contact-select-modal appears, then continue → email-modal appears (flow intact). (4) PYME quo_09407aabad08 Registrar pago (Facturada, regular flow) → email-modal appears directly (flow intact, no exception since status is correct)."
+}
