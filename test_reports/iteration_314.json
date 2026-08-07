@@ -1,0 +1,36 @@
+{
+  "summary": "Verified new Workload XLSX export endpoint + quick-range chips in the Workload Filters modal. Backend: 5/5 pytest cases pass on /api/projects/reports/workload-xlsx: (1) HTTP 200 with correct Content-Type + valid .xlsx (PK zip); sheet 'Reporte de Carga' has title A1, subtitle A2 with 'Generado'/'Agrupado', headers on row 4 exactly matching spec, data rows and a 'TOTAL (N proyectos)' row at the end. (2) group_by=type honored (subtitle contains 'Tipo de Proyecto'). (3) date_from=2026-06-10&date_to=2026-06-10 reduces rows and count equals the mongo universe (str(assigned_at)[:10] in range). (4) Parity: XLSX data-row count == PDF 'Total: N proyecto(s)' (both = 26 for 06-10). (5) Impossible future range (2030) yields 0 data rows but still a valid xlsx. Frontend: modal shows chips quick-range-7, quick-range-30 (and quick-range-clear after selection) plus filter-generate-xlsx-btn. quick-range-7 populated 2026-08-01..2026-08-07 (today-6d..today); quick-range-30 populated 2026-07-09..2026-08-07. Clear chip empties both inputs. Generar Excel triggered fetch to workload-xlsx?...=200, download anchor fired, modal closed, no 'Error al generar el reporte' toast. Generar PDF still present (data-testid filter-generate-btn) and non-regressed (iteration 313 already validated the flow; identical fetch path here).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Projects list / Dashboard", "issues": ["Pre-existing React hydration warnings (<span> child of <tr>/<tbody> from visual-editor wrappers x-ve-dynamic on Dashboard.jsx L389 and Projects.jsx L1027/1081). Not caused by this change."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_workload_xlsx.py",
+    "/app/backend/tests/test_workload_pdf.py",
+    "/app/test_reports/pytest/workload_xlsx.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Good: PDF and XLSX share _workload_dataset(...) so filters (assigned_to, original_implementer, status, client, quote_type, date_from, date_to) apply identically. Verified via row-count parity XLSX==PDF for the 2026-06-10 slice.",
+    "Good: XLSX subtitle includes 'Filtros → ...' chips including Periodo de Asignación, so the report is self-describing.",
+    "Good: TOTAL row present with sum of Cajas and PVV; number formatted as int; last_col autofilter + freeze_panes A5 are set.",
+    "Nit: date_from/date_to are parsed both as query params and again as _df/_dt (str[:10]) locally in projects_workload_xlsx but not used except for subtitle chip formatting; the actual filtering lives inside _workload_dataset — no bug, but the local _df/_dt could be removed to avoid duplication or reused when passing to helper for consistency."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_workload_xlsx.py"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5)",
+    "frontend": "100% for modal chips, xlsx generation and filter autopopulation"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Used existing 128 projects (119 with assigned_at, mostly Jun 2026). Environment 'today' ~ 2026-08-07.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend regression files: /app/backend/tests/test_workload_pdf.py and /app/backend/tests/test_workload_xlsx.py. To run: export REACT_APP_BACKEND_URL from /app/frontend/.env then `pytest backend/tests/test_workload_xlsx.py`. Frontend note: the PDF button uses window.open(blob-url) after fetch — a fetch-hook works for detection; the XLSX button uses <a download> + a.click(). For Playwright, page 'download' event may not fire with blob-URL clicks; hook window.fetch to catch the workload-xlsx GET. Modal open requires JS click on [data-testid=projects-workload-pdf-btn] because the 'unread messages' Atención toast overlays the header — press Enter first to hide the toast.",
+  "rca of the issue": "N/A — no bugs found in this iteration; feature verified end-to-end."
+}

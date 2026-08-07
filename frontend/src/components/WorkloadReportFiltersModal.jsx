@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Checkbox } from './ui/checkbox';
-import { FileText, Filter, Loader2, X } from 'lucide-react';
+import { FileText, FileSpreadsheet, Filter, Loader2, X } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -43,7 +43,7 @@ const Chip = ({ active, onClick, children, testid }) => (
 export function WorkloadReportFiltersModal({ open, onClose }) {
   const [projects, setProjects] = useState([]);
   const [loadingMeta, setLoadingMeta] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generatingFmt, setGeneratingFmt] = useState(null); // null | 'pdf' | 'xlsx'
 
   const [assignedTo, setAssignedTo] = useState([]);      // current implementers
   const [originalImpl, setOriginalImpl] = useState([]);  // reassigned from
@@ -92,12 +92,22 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
     setArr(arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]);
   };
 
-    const generate = async () => {
+  // Atajo de rango rápido: setea Desde=hoy-(n-1) días y Hasta=hoy.
+  const setQuickRange = (days) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - (days - 1));
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    setDateFrom(fmt(from));
+    setDateTo(fmt(to));
+  };
+
+    const generate = async (format = 'pdf') => {
     if (dateFrom && dateTo && dateFrom > dateTo) {
       toast.error('El "Desde" no puede ser posterior al "Hasta"');
       return;
     }
-    setGenerating(true);
+    setGeneratingFmt(format);
     try {
       const params = new URLSearchParams();
       assignedTo.forEach(v => params.append('assigned_to', v));
@@ -111,18 +121,29 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
 
       const token = localStorage.getItem('session_token');
       const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-      const res = await fetch(`${BACKEND_URL}/api/projects/reports/workload-pdf?${params.toString()}`, {
+      const endpoint = format === 'xlsx' ? 'workload-xlsx' : 'workload-pdf';
+      const res = await fetch(`${BACKEND_URL}/api/projects/reports/${endpoint}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('fail');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      if (format === 'xlsx') {
+        // Excel: forzar descarga con nombre de archivo.
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reporte_carga_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        window.open(url, '_blank');
+      }
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       onClose();
     } catch {
       toast.error('Error al generar el reporte');
-    } finally { setGenerating(false); }
+    } finally { setGeneratingFmt(null); }
   };
 
   return (
@@ -171,6 +192,13 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
 
             <div>
               <Label className="text-xs font-semibold text-slate-700">Periodo de Asignación <span className="text-slate-400 font-normal">(por Fecha de Asignación del proyecto)</span></Label>
+              <div className="flex flex-wrap gap-1.5 mt-1.5" data-testid="quick-range-chips">
+                <Chip active={false} onClick={() => setQuickRange(7)} testid="quick-range-7">Últimos 7 días</Chip>
+                <Chip active={false} onClick={() => setQuickRange(30)} testid="quick-range-30">Últimos 30 días</Chip>
+                {(dateFrom || dateTo) && (
+                  <Chip active={false} onClick={() => { setDateFrom(''); setDateTo(''); }} testid="quick-range-clear">Quitar periodo</Chip>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-2 mt-1.5">
                 <div>
                   <Label className="text-[10px] text-slate-500">Desde</Label>
@@ -260,12 +288,22 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose} data-testid="filter-cancel-btn">Cancelar</Button>
             <Button
-              onClick={generate}
-              disabled={generating || loadingMeta}
+              variant="outline"
+              onClick={() => generate('xlsx')}
+              disabled={!!generatingFmt || loadingMeta}
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              data-testid="filter-generate-xlsx-btn"
+            >
+              {generatingFmt === 'xlsx' ? <Loader2 size={14} className="animate-spin mr-1" /> : <FileSpreadsheet size={14} className="mr-1" />}
+              Generar Excel
+            </Button>
+            <Button
+              onClick={() => generate('pdf')}
+              disabled={!!generatingFmt || loadingMeta}
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
               data-testid="filter-generate-btn"
             >
-              {generating ? <Loader2 size={14} className="animate-spin mr-1" /> : <FileText size={14} className="mr-1" />}
+              {generatingFmt === 'pdf' ? <Loader2 size={14} className="animate-spin mr-1" /> : <FileText size={14} className="mr-1" />}
               Generar PDF
             </Button>
           </div>

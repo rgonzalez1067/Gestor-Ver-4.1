@@ -3577,28 +3577,19 @@ def _format_es_date(iso: Optional[str]) -> str:
         return iso[:10] if len(iso) >= 10 else iso
 
 
-@router.get("/projects/reports/workload-pdf")
-async def projects_workload_pdf(
-    authorization: Optional[str] = Header(None),
-    assigned_to: Optional[List[str]] = Query(None, description="Filtrar por Implementador Actual (nombre). Multi-select."),
-    original_implementer: Optional[List[str]] = Query(None, description="Filtrar por Implementador Original (reasignados). Multi-select."),
-    status: Optional[List[str]] = Query(None, description="Filtrar por Estatus. Multi-select."),
-    client: Optional[str] = Query(None, description="Búsqueda parcial por Razón Social o Nombre de Fantasía del cliente."),
-    quote_type: Optional[List[str]] = Query(None, description="Filtrar por Tipo de Proyecto (VPOS, MPOS, GATEWAY, LINK). Multi-select."),
-    date_from: Optional[str] = Query(None, description="Periodo de Asignación — Desde (YYYY-MM-DD). Filtra por Fecha de Asignación (assigned_at)."),
-    date_to: Optional[str] = Query(None, description="Periodo de Asignación — Hasta (YYYY-MM-DD, inclusive). Filtra por Fecha de Asignación (assigned_at)."),
-    group_by: str = Query("implementer", description="Modo de agrupación del reporte: 'implementer' (por implementador, default) o 'type' (por Tipo de Proyecto)."),
-):
-    """PDF: carga de proyectos agrupados por implementador.
-    Columnas: Cliente, Tipo (badge), Cajas (solo VPOS/MPOS), Implementador Original
-    (si reasignado), Fecha asignación, Último contacto.
-    Acceso: usuarios con permiso `proyectos`. Accesible para admin, coordinadores y gerentes.
-    Soporta filtros multi-selección (parámetros repetibles en query).
+async def _workload_dataset(
+    assigned_to: Optional[List[str]],
+    original_implementer: Optional[List[str]],
+    status: Optional[List[str]],
+    client: Optional[str],
+    quote_type: Optional[List[str]],
+    date_from: Optional[str],
+    date_to: Optional[str],
+) -> list:
+    """Consulta, enriquece (cajas, PVV, días hábiles, % avance) y filtra los
+    proyectos para el Reporte de Carga. Compartido por las salidas PDF y Excel
+    para garantizar consistencia total de datos y filtros entre ambos formatos.
     """
-    import weasyprint
-
-    user = await get_current_user(authorization)
-
     # Normalizar el rango de Periodo de Asignación (YYYY-MM-DD). Solo la porción
     # de fecha; assigned_at se guarda como ISO string, comparable lexicográficamente.
     _df = (date_from or "").strip()[:10] or None
@@ -3614,11 +3605,11 @@ async def projects_workload_pdf(
             "last_contact_at": 1, "last_contact_by": 1,
             "reassigned_from_name": 1, "reassignment_history": 1,
             "fantasy_name": 1,
-            "implementation_matrix": 1,  # Iter39: necesario para calcular PVV
-            "project_type": 1, "rifs": 1,  # Multi-RIF: total de cajas vive en rifs
+            "implementation_matrix": 1,
+            "project_type": 1, "rifs": 1,
             "status_changed_at": 1, "sent_to_implementation_at": 1,
-            "created_at": 1, "unblocked_at": 1,  # para días hábiles en estado
-            "stores": 1, "is_multistore": 1,  # para % de avance (rollup multitienda)
+            "created_at": 1, "unblocked_at": 1,
+            "stores": 1, "is_multistore": 1,
         },
     ).to_list(5000)
 
@@ -3626,21 +3617,17 @@ async def projects_workload_pdf(
         color = "#16a34a" if pct >= 100 else "#d97706" if pct > 0 else "#94a3b8"
         return f'<span style="font-weight:700;color:{color};">{pct}%</span>'
 
-    # Iter39: pre-calcular PVV por proyecto para no recalcular en cada uso.
     from services.project_pvv import compute_project_pvv
     from services.business_calendar import get_holiday_sets, business_days_between
     from services.project_sla_engine import stage_entered_at
     _specific, _recurring = await get_holiday_sets()
     _today = datetime.now(timezone.utc).date()
     for _p in projects:
-        # Total de cajas robusto (Multi-RIF incluido) y PVV consistente con ese total.
         _p["_cajas"] = _project_total_cajas(_p)
         _p["box_count"] = _p["_cajas"]
         _p["_pvv"] = compute_project_pvv(_p)
-        # Días hábiles transcurridos en el estado actual (excluye sáb/dom + feriados).
         _entered = stage_entered_at(_p)
         _p["_bdays"] = business_days_between(_entered.date(), _today, _specific, _recurring) if _entered else 0
-        # % de avance global del proyecto (rollup por tiendas si es multitienda, si no la matriz principal).
         if _p.get("stores"):
             _prog = _calculate_rollup_progress(_p)
         else:
@@ -3648,7 +3635,6 @@ async def projects_workload_pdf(
         _p["_avance"] = int(round(_prog.get("global_progress", 0) or 0))
         _p["_avance_html"] = _avance_cell_html(_p["_avance"])
 
-    # Aplicar filtros en memoria (dataset pequeño <5k)
     def _matches(p: dict) -> bool:
         if assigned_to:
             impl_now = p.get("assigned_to_name") or "Sin asignar"
@@ -3676,8 +3662,6 @@ async def projects_workload_pdf(
             if qt not in wanted:
                 return False
         if _df or _dt:
-            # Filtro estricto por Fecha de Asignación (assigned_at). Proyectos sin
-            # fecha de asignación quedan fuera del rango.
             a = p.get("assigned_at")
             if not a:
                 return False
@@ -3688,7 +3672,38 @@ async def projects_workload_pdf(
                 return False
         return True
 
-    projects = [p for p in projects if _matches(p)]
+    return [p for p in projects if _matches(p)]
+
+
+@router.get("/projects/reports/workload-pdf")
+async def projects_workload_pdf(
+    authorization: Optional[str] = Header(None),
+    assigned_to: Optional[List[str]] = Query(None, description="Filtrar por Implementador Actual (nombre). Multi-select."),
+    original_implementer: Optional[List[str]] = Query(None, description="Filtrar por Implementador Original (reasignados). Multi-select."),
+    status: Optional[List[str]] = Query(None, description="Filtrar por Estatus. Multi-select."),
+    client: Optional[str] = Query(None, description="Búsqueda parcial por Razón Social o Nombre de Fantasía del cliente."),
+    quote_type: Optional[List[str]] = Query(None, description="Filtrar por Tipo de Proyecto (VPOS, MPOS, GATEWAY, LINK). Multi-select."),
+    date_from: Optional[str] = Query(None, description="Periodo de Asignación — Desde (YYYY-MM-DD). Filtra por Fecha de Asignación (assigned_at)."),
+    date_to: Optional[str] = Query(None, description="Periodo de Asignación — Hasta (YYYY-MM-DD, inclusive). Filtra por Fecha de Asignación (assigned_at)."),
+    group_by: str = Query("implementer", description="Modo de agrupación del reporte: 'implementer' (por implementador, default) o 'type' (por Tipo de Proyecto)."),
+):
+    """PDF: carga de proyectos agrupados por implementador.
+    Columnas: Cliente, Tipo (badge), Cajas (solo VPOS/MPOS), Implementador Original
+    (si reasignado), Fecha asignación, Último contacto.
+    Acceso: usuarios con permiso `proyectos`. Accesible para admin, coordinadores y gerentes.
+    Soporta filtros multi-selección (parámetros repetibles en query).
+    """
+    import weasyprint
+
+    user = await get_current_user(authorization)
+
+    # Normalizar rango para el chip del PDF (el filtrado real vive en el helper).
+    _df = (date_from or "").strip()[:10] or None
+    _dt = (date_to or "").strip()[:10] or None
+
+    projects = await _workload_dataset(
+        assigned_to, original_implementer, status, client, quote_type, date_from, date_to,
+    )
 
     # Agrupar por implementador asignado
     groups: dict = {}
@@ -4073,6 +4088,157 @@ async def projects_workload_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/projects/reports/workload-xlsx")
+async def projects_workload_xlsx(
+    authorization: Optional[str] = Header(None),
+    assigned_to: Optional[List[str]] = Query(None),
+    original_implementer: Optional[List[str]] = Query(None),
+    status: Optional[List[str]] = Query(None),
+    client: Optional[str] = Query(None),
+    quote_type: Optional[List[str]] = Query(None),
+    date_from: Optional[str] = Query(None, description="Periodo de Asignación — Desde (YYYY-MM-DD)."),
+    date_to: Optional[str] = Query(None, description="Periodo de Asignación — Hasta (YYYY-MM-DD, inclusive)."),
+    group_by: str = Query("implementer", description="'implementer' o 'type'."),
+):
+    """Excel (.xlsx) del Reporte de Carga. Mismos filtros y datos que el PDF
+    (comparten `_workload_dataset`). Una hoja con encabezado, resumen de filtros,
+    tabla con autofiltro y fila de totales.
+    """
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    await get_current_user(authorization)
+
+    _df = (date_from or "").strip()[:10] or None
+    _dt = (date_to or "").strip()[:10] or None
+
+    projects = await _workload_dataset(
+        assigned_to, original_implementer, status, client, quote_type, date_from, date_to,
+    )
+
+    # Orden: por dimensión de agrupación (implementador o tipo), luego cliente.
+    def _grp_key(p):
+        if group_by == "type":
+            return (_TYPE_FULL_LABEL.get(_norm_type(p.get("quote_type")), "Sin Tipo"), p.get("client_name") or "")
+        impl = p.get("assigned_to_name") or "Sin asignar"
+        return (impl == "Sin asignar", impl, p.get("client_name") or "")
+    projects_sorted = sorted(projects, key=_grp_key)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Reporte de Carga"
+
+    # Estilos
+    title_font = Font(size=14, bold=True, color="1E1B4B")
+    sub_font = Font(size=9, color="64748B")
+    header_font = Font(size=9, bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="4F46E5")
+    total_font = Font(size=9, bold=True, color="0F172A")
+    total_fill = PatternFill("solid", fgColor="EEF2FF")
+    center = Alignment(horizontal="center", vertical="center")
+    thin = Side(style="thin", color="E2E8F0")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    headers = [
+        "Implementador", "Cliente", "RIF", "Tipo", "Cajas", "PVV",
+        "Estado", "% Avance", "Días háb.", "Impl. Original",
+        "Fecha Asignación", "Último Contacto",
+    ]
+
+    # Título
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    ws.cell(row=1, column=1, value="Reporte de Carga y Estatus").font = title_font
+
+    # Subtítulo: fecha de generación + filtros aplicados
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
+    chips = []
+    if assigned_to: chips.append(f"Implementador Actual: {', '.join(assigned_to)}")
+    if original_implementer: chips.append(f"Implementador Original: {', '.join(original_implementer)}")
+    if status: chips.append(f"Estatus: {', '.join(status)}")
+    if client: chips.append(f"Cliente: {client}")
+    if quote_type: chips.append(f"Tipo: {', '.join(_TYPE_FULL_LABEL.get(t.upper(), t.upper()) for t in quote_type)}")
+    if _df or _dt:
+        chips.append(f"Periodo de Asignación: Desde {_format_es_date(_df) if _df else '—'} — Hasta {_format_es_date(_dt) if _dt else '—'}")
+    sub_txt = f"Generado: {now_str}  ·  Agrupado por: {'Tipo de Proyecto' if group_by == 'type' else 'Implementador'}  ·  Proyectos: {len(projects_sorted)}"
+    if chips:
+        sub_txt += "  ·  Filtros → " + "  |  ".join(chips)
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
+    ws.cell(row=2, column=1, value=sub_txt).font = sub_font
+
+    # Encabezados (fila 4)
+    header_row = 4
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=header_row, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = center
+        c.border = border
+
+    # Datos
+    r = header_row + 1
+    tot_cajas = tot_pvv = 0
+    for p in projects_sorted:
+        qtn = _norm_type(p.get("quote_type"))
+        cajas_val = int(p.get("_cajas") or 0) if _counts_cajas((p.get("quote_type") or "").upper()) else None
+        pvv_val = int(p.get("_pvv") or 0)
+        if cajas_val:
+            tot_cajas += cajas_val
+        tot_pvv += pvv_val
+        row_vals = [
+            p.get("assigned_to_name") or "Sin asignar",
+            p.get("client_name") or "—",
+            p.get("client_rif") or "",
+            _TYPE_FULL_LABEL.get(qtn, "—"),
+            cajas_val if cajas_val else "—",
+            pvv_val if pvv_val > 0 else "—",
+            p.get("status") or "—",
+            f"{int(p.get('_avance') or 0)}%",
+            int(p.get("_bdays") or 0),
+            p.get("reassigned_from_name") or "—",
+            _format_es_date(p.get("assigned_at")),
+            _format_es_date(p.get("last_contact_at")),
+        ]
+        for col, v in enumerate(row_vals, start=1):
+            c = ws.cell(row=r, column=col, value=v)
+            c.border = border
+            if col in (5, 6, 8, 9):
+                c.alignment = center
+        r += 1
+
+    # Fila de totales
+    if projects_sorted:
+        for col in range(1, len(headers) + 1):
+            c = ws.cell(row=r, column=col)
+            c.fill = total_fill
+            c.border = border
+        ws.cell(row=r, column=1, value=f"TOTAL ({len(projects_sorted)} proyectos)").font = total_font
+        tc = ws.cell(row=r, column=5, value=tot_cajas); tc.font = total_font; tc.alignment = center
+        tp = ws.cell(row=r, column=6, value=tot_pvv); tp.font = total_font; tp.alignment = center
+
+    # Anchos de columna
+    widths = [22, 30, 16, 16, 8, 8, 16, 10, 10, 22, 16, 16]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+
+    # Autofiltro + congelar encabezado
+    last_col = openpyxl.utils.get_column_letter(len(headers))
+    ws.auto_filter.ref = f"A{header_row}:{last_col}{max(header_row, r - 1)}"
+    ws.freeze_panes = f"A{header_row + 1}"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"carga_implementadores_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 
 
 
