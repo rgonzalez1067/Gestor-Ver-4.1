@@ -4,6 +4,14 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature + Bug Fix: Reporte de Carga — Filtro por Periodo de Asignación + generación sin filtros — Jun 2026
+- **Feature:** filtro por rango de fechas "Periodo de Asignación" (Desde/Hasta) en el Reporte de Carga (Workload PDF), que segmenta ESTRICTAMENTE por la Fecha de Asignación del proyecto (`assigned_at`), ignorando otras fechas.
+- **Bug fix:** la generación "en blanco" (sin filtros) ahora emite el reporte completo consolidado sin error/cuelgue (ya era robusta en preview; se blindó ante el nuevo filtro vacío).
+- **Backend** (`routes/projects.py::projects_workload_pdf`): nuevos params `date_from`/`date_to` (YYYY-MM-DD); en `_matches()` compara `str(assigned_at)[:10]` (lexicográfico, `date_to` inclusive); proyectos sin `assigned_at` se excluyen cuando hay rango; chip "Periodo de Asignación" agregado al resumen de filtros del PDF.
+- **Frontend** (`WorkloadReportFiltersModal.jsx`): bloque "Periodo de Asignación" con dos `Input type=date` (`filter-date-from`/`filter-date-to`) + hint; `generate()` agrega los params y valida `dateFrom<=dateTo` (toast); `resetFilters` los limpia.
+- **QA:** testing_agent iter313 → **backend 100% (9/9)**, **frontend 100%** (modal, campos, generar sin filtros y con rango). Test: `/app/backend/tests/test_workload_pdf.py`. Conteos validados (26 el 06-10, 88 desde 06-10, 0 en 2030 sin crash). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix: Correos a Integradores — From/Reply-To por área + eliminación de duplicados — Jun 2026
 - **Falla A (From incorrecto):** las notificaciones a Integradores salían con `From=gestor@megasoft.com.ve` (default) ignorando la asignación del área 'Integradores' = `impl_merchant@megasoft.com.ve`. RCA: los 3 call-sites de `dispatch_other_action` en `routes/integrators.py` (close L~878, assign_implementador L~1609, notify new-project L~2813) NO pasaban `sender`, y `other_actions_engine` no lo propagaba → `send_email` caía en `sender or SENDER_EMAIL`.
 - **Falla B (duplicado):** el mismo destinatario podía recibir 2 correos por evento. RCA: el bucle de `recipients` en `dispatch_other_action` NO consultaba el set `delivered` antes de enviar (solo el envío garantizado lo hacía) → dos filas al mismo email u overlap recipients↔guaranteed_to duplicaban.
