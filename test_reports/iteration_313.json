@@ -1,0 +1,29 @@
+{
+  "summary": "Verified Workload PDF endpoint bug fix + assigned_at date range feature. Backend: 9/9 pytest cases pass (empty filters returns valid PDF, date_from/date_to strictly filter by assigned_at, only-from / only-to variants work, empty 2030 range returns valid non-crashing PDF, and status combo intersects). Frontend: modal opens with all required elements including 'Periodo de Asignación', filter-date-from / filter-date-to fields and hint 'Deje ambos campos vacíos...'. Empty-filter Generate closes modal without any error toast (window.open with blob URL fires in a new tab; the fetch succeeds). Date-range Generate also completes successfully. Client-side validation is enforced two ways: (a) HTML5 min/max on inputs prevents entering an invalid range from the UI directly and (b) an explicit toast 'El \"Desde\" no puede ser posterior al \"Hasta\"' guard exists in code (WorkloadReportFiltersModal.jsx L96-97).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Projects list", "issues": ["React hydration warnings: <span> as child of <tr>/<tbody> (Dashboard.jsx ~L389, Projects.jsx ~L1027/1081). Pre-existing, not caused by this change; recommend wrapping the visual-editor <span data-ve-dynamic> with valid table markup or using Fragment."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_workload_pdf.py",
+    "/app/test_reports/pytest/workload_pdf.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/projects.py projects_workload_pdf uses lexicographic string comparison on str(assigned_at)[:10] which is correct ONLY when assigned_at is a ISO YYYY-MM-DD... string. If any project stored assigned_at as datetime object, str(dt)[:10] still yields 'YYYY-MM-DD' — works. Good.",
+    "Projects without assigned_at are explicitly excluded when either date_from or date_to is set — matches acceptance criteria.",
+    "Frontend hint text 'Deje ambos campos vacíos para consolidar toda la data histórica' is present and clear.",
+    "The Generate button on invalid HTML5 constraints (max/min) actively prevents user from setting an invalid range interactively; the toast validation still exists as defensive fallback — good defense-in-depth."
+  ],
+  "updated_files": ["/app/backend/tests/test_workload_pdf.py"],
+  "success_rate": { "backend": "100% (9/9)", "frontend": "100% for the tested modal + date-range flow" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Used existing 128 projects (119 with assigned_at, mostly Jun 2026).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend regression file at /app/backend/tests/test_workload_pdf.py. Empty-filter (bug fix) and date-range (feature) both pass end-to-end. When Playwright-testing the modal, MUST wait for [data-testid=filter-date-from] after opening because modal fetches its own initial data (spinner while loading). The blob-URL window.open used by generate() does NOT reliably fire Playwright's page-context 'page' event; verify success by (a) no error toast, (b) modal closes, or (c) hook window.fetch."
+}

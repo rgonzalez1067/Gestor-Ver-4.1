@@ -3585,6 +3585,8 @@ async def projects_workload_pdf(
     status: Optional[List[str]] = Query(None, description="Filtrar por Estatus. Multi-select."),
     client: Optional[str] = Query(None, description="Búsqueda parcial por Razón Social o Nombre de Fantasía del cliente."),
     quote_type: Optional[List[str]] = Query(None, description="Filtrar por Tipo de Proyecto (VPOS, MPOS, GATEWAY, LINK). Multi-select."),
+    date_from: Optional[str] = Query(None, description="Periodo de Asignación — Desde (YYYY-MM-DD). Filtra por Fecha de Asignación (assigned_at)."),
+    date_to: Optional[str] = Query(None, description="Periodo de Asignación — Hasta (YYYY-MM-DD, inclusive). Filtra por Fecha de Asignación (assigned_at)."),
     group_by: str = Query("implementer", description="Modo de agrupación del reporte: 'implementer' (por implementador, default) o 'type' (por Tipo de Proyecto)."),
 ):
     """PDF: carga de proyectos agrupados por implementador.
@@ -3596,6 +3598,11 @@ async def projects_workload_pdf(
     import weasyprint
 
     user = await get_current_user(authorization)
+
+    # Normalizar el rango de Periodo de Asignación (YYYY-MM-DD). Solo la porción
+    # de fecha; assigned_at se guarda como ISO string, comparable lexicográficamente.
+    _df = (date_from or "").strip()[:10] or None
+    _dt = (date_to or "").strip()[:10] or None
 
     projects = await db.projects.find(
         {},
@@ -3667,6 +3674,17 @@ async def projects_workload_pdf(
             qt = _norm_type(p.get("quote_type"))
             wanted = [_norm_type(t) for t in quote_type]
             if qt not in wanted:
+                return False
+        if _df or _dt:
+            # Filtro estricto por Fecha de Asignación (assigned_at). Proyectos sin
+            # fecha de asignación quedan fuera del rango.
+            a = p.get("assigned_at")
+            if not a:
+                return False
+            day = str(a)[:10]
+            if _df and day < _df:
+                return False
+            if _dt and day > _dt:
                 return False
         return True
 
@@ -3929,6 +3947,9 @@ async def projects_workload_pdf(
         filters_chips.append(f"Cliente: {client}")
     if quote_type:
         filters_chips.append(f"Tipo: {', '.join(_TYPE_FULL_LABEL.get(t.upper(), t.upper()) for t in quote_type)}")
+    if _df or _dt:
+        _periodo = f"Desde {_format_es_date(_df) if _df else '—'} — Hasta {_format_es_date(_dt) if _dt else '—'}"
+        filters_chips.append(f"Periodo de Asignación: {_periodo}")
     filters_html = ""
     if filters_chips:
         chips = "".join(

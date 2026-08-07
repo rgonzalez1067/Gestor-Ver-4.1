@@ -50,6 +50,8 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
   const [statuses, setStatuses] = useState([]);
   const [types, setTypes] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [groupBy, setGroupBy] = useState('implementer'); // 'implementer' | 'type'
 
   useEffect(() => {
@@ -83,14 +85,18 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
   }, [projects]);
 
   const resetFilters = () => {
-    setAssignedTo([]); setOriginalImpl([]); setStatuses([]); setTypes([]); setClientSearch(''); setGroupBy('implementer');
+    setAssignedTo([]); setOriginalImpl([]); setStatuses([]); setTypes([]); setClientSearch(''); setDateFrom(''); setDateTo(''); setGroupBy('implementer');
   };
 
   const toggle = (arr, setArr, value) => {
     setArr(arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]);
   };
 
-  const generate = async () => {
+    const generate = async () => {
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      toast.error('El "Desde" no puede ser posterior al "Hasta"');
+      return;
+    }
     setGenerating(true);
     try {
       const params = new URLSearchParams();
@@ -99,6 +105,8 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
       statuses.forEach(v => params.append('status', v));
       types.forEach(v => params.append('quote_type', v));
       if (clientSearch.trim()) params.append('client', clientSearch.trim());
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
       params.append('group_by', groupBy);
 
       const token = localStorage.getItem('session_token');
@@ -159,6 +167,35 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
                   ? 'El PDF se segmenta por Tipo de Proyecto (VPOS, MPOS, Payment Gateway, Link de Pago) con subtotales y un resumen del mix comercial.'
                   : 'El PDF se agrupa por implementador con ranking de carga por PVV.'}
               </p>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Periodo de Asignación <span className="text-slate-400 font-normal">(por Fecha de Asignación del proyecto)</span></Label>
+              <div className="grid grid-cols-2 gap-2 mt-1.5">
+                <div>
+                  <Label className="text-[10px] text-slate-500">Desde</Label>
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="mt-1"
+                    data-testid="filter-date-from"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-slate-500">Hasta</Label>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="mt-1"
+                    data-testid="filter-date-to"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Deje ambos campos vacíos para consolidar toda la data histórica.</p>
             </div>
 
             <div>
