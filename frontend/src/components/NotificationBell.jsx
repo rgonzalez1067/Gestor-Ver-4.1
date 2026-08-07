@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import useNotifications from '../hooks/useNotifications';
 import IntenseAlertToast from './IntenseAlertToast';
+import AlertsCenterModal from './AlertsCenterModal';
 import { playNotifBeep } from '../utils/notificationSound';
 
 const PRIORITY_COLORS = {
@@ -29,8 +30,9 @@ function timeAgo(iso) {
 
 export const NotificationBell = () => {
   const navigate = useNavigate();
-  const { items, unread, connected, markRead, markAllRead, setOnIncoming } = useNotifications();
+  const { items, unread, connected, markRead, markAllRead, refresh, setOnIncoming } = useNotifications();
   const [open, setOpen] = useState(false);
+  const [centerOpen, setCenterOpen] = useState(false);
   const [pulse, setPulse] = useState(false);
   const seenRef = useRef(new Set());
 
@@ -231,13 +233,26 @@ export const NotificationBell = () => {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-slate-200 px-4 py-2 text-center">
+          <div className="border-t border-slate-200 px-3 py-2 flex items-center justify-between gap-2">
             <span className={`text-[10px] ${connected ? 'text-emerald-600' : 'text-slate-400'}`}>
-              {connected ? '● Conectado en tiempo real' : '○ Sin conexión en vivo'}
+              {connected ? '● En vivo' : '○ Sin conexión'}
             </span>
+            <button
+              onClick={() => { setOpen(false); setCenterOpen(true); }}
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded hover:bg-indigo-50"
+              data-testid="notification-open-center"
+            >
+              Ver todas las alertas
+            </button>
           </div>
         </div>
       )}
+
+      <AlertsCenterModal
+        open={centerOpen}
+        onClose={() => setCenterOpen(false)}
+        onChanged={refresh}
+      />
     </div>
   );
 };
