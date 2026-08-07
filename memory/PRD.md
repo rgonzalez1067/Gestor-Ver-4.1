@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Enhancement: Reporte de Carga — Exportación Excel + Rango Rápido de fechas — Jun 2026
+- **Excel (.xlsx):** nuevo endpoint `GET /api/projects/reports/workload-xlsx` que genera el Reporte de Carga en Excel (openpyxl) con los MISMOS filtros que el PDF. Se extrajo un helper compartido `_workload_dataset(...)` (query + enriquecimiento cajas/PVV/días/avance + filtros) reutilizado por PDF y Excel → paridad garantizada. La hoja incluye título, subtítulo con filtros aplicados, encabezados, datos ordenados por agrupación, fila TOTAL (cajas+PVV), autofiltro y freeze panes.
+- **Rango Rápido:** chips "Últimos 7 días" / "Últimos 30 días" (+"Quitar periodo") en el bloque Periodo de Asignación del modal; autocompletan Desde/Hasta (hoy-(n-1) .. hoy) sin teclear.
+- **Frontend** (`WorkloadReportFiltersModal.jsx`): `generate(format)` soporta 'pdf'|'xlsx' (Excel fuerza descarga con `<a download>`), estado `generatingFmt`, `setQuickRange(days)`, botón `filter-generate-xlsx-btn`.
+- **QA:** testing_agent iter314 → **backend 100% (5/5)**, **frontend 100%**. Paridad de conteos XLSX==PDF (26 para 06-10), estructura Excel validada, atajos pueblan fechas correctas, descarga sin error. Test: `/app/backend/tests/test_workload_xlsx.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature + Bug Fix: Reporte de Carga — Filtro por Periodo de Asignación + generación sin filtros — Jun 2026
 - **Feature:** filtro por rango de fechas "Periodo de Asignación" (Desde/Hasta) en el Reporte de Carga (Workload PDF), que segmenta ESTRICTAMENTE por la Fecha de Asignación del proyecto (`assigned_at`), ignorando otras fechas.
 - **Bug fix:** la generación "en blanco" (sin filtros) ahora emite el reporte completo consolidado sin error/cuelgue (ya era robusta en preview; se blindó ante el nuevo filtro vacío).
