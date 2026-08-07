@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Bell, CheckCheck, Check, Search, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
@@ -122,6 +122,9 @@ export function AlertsCenterModal({ open, onClose, onChanged }) {
               </span>
             )}
           </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500">
+            Filtra, busca y gestiona todas tus alertas en una sola vista.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Toolbar de filtros */}

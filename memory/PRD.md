@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Centro de Alertas (visualización amplia de notificaciones) — Jun 2026
+- **Requerimiento:** el popover de la campanita (esquina inferior izquierda) era pequeño, no movible y "inútil" (solo marcar leídas). Se creó un **Centro de Alertas**: modal grande y CENTRADO para visualizar/gestionar todas las alertas.
+- **Frontend** (`components/AlertsCenterModal.jsx` NUEVO): Dialog centrado (max-w-3xl) que carga hasta 200 alertas (`GET /notifications?limit=200`); filtros por estado (Todas/No leídas) y prioridad (Alta/Media/Baja), búsqueda por texto (título/mensaje/categoría), marcar leída individual y todas, botón "Abrir" para navegar al recurso vinculado, contador de "sin leer" y footer "Mostrando N de M". Sincroniza el badge de la campanita vía `onChanged=refresh`.
+- **Wiring** (`components/NotificationBell.jsx`): CTA `notification-open-center` ("Ver todas las alertas") en el footer del dropdown abre el modal. Backend sin cambios (endpoints ya existían).
+- **QA:** testing_agent iter315 → **frontend 100%** de los flujos (abrir, filtros AND, búsqueda, marcar una/todas con actualización de contadores, abrir link + cierre). Se añadió `DialogDescription` (a11y). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Enhancement: Reporte de Carga — Exportación Excel + Rango Rápido de fechas — Jun 2026
 - **Excel (.xlsx):** nuevo endpoint `GET /api/projects/reports/workload-xlsx` que genera el Reporte de Carga en Excel (openpyxl) con los MISMOS filtros que el PDF. Se extrajo un helper compartido `_workload_dataset(...)` (query + enriquecimiento cajas/PVV/días/avance + filtros) reutilizado por PDF y Excel → paridad garantizada. La hoja incluye título, subtítulo con filtros aplicados, encabezados, datos ordenados por agrupación, fila TOTAL (cajas+PVV), autofiltro y freeze panes.
 - **Rango Rápido:** chips "Últimos 7 días" / "Últimos 30 días" (+"Quitar periodo") en el bloque Periodo de Asignación del modal; autocompletan Desde/Hasta (hoy-(n-1) .. hoy) sin teclear.
