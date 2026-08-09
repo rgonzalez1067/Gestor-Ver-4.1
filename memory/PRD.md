@@ -5,7 +5,8 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
 ### Feature: Centro de Alertas (visualización amplia de notificaciones) — Jun 2026
-- **Requerimiento:** el popover de la campanita (esquina inferior izquierda) era pequeño, no movible y "inútil" (solo marcar leídas). Se creó un **Centro de Alertas**: modal grande y CENTRADO para visualizar/gestionar todas las alertas.
+- **Requerimiento:** el popover de la campanita (esquina inferior izquierda) era pequeño, no movible y "inútil". Se reemplazó por un **Centro de Alertas**: modal grande y CENTRADO.
+- **Ajuste (feedback usuario):** la campanita ahora abre **directamente** el Centro de Alertas centrado (onClick → setCenterOpen); se ELIMINÓ por completo el popover de esquina (`notification-dropdown`) que seguía apareciendo al pulsar la campana. `NotificationBell.jsx` conserva intacta la lógica de alertas entrantes (toast intenso/pulse/beep) y el badge/indicador WS.
 - **Frontend** (`components/AlertsCenterModal.jsx` NUEVO): Dialog centrado (max-w-3xl) que carga hasta 200 alertas (`GET /notifications?limit=200`); filtros por estado (Todas/No leídas) y prioridad (Alta/Media/Baja), búsqueda por texto (título/mensaje/categoría), marcar leída individual y todas, botón "Abrir" para navegar al recurso vinculado, contador de "sin leer" y footer "Mostrando N de M". Sincroniza el badge de la campanita vía `onChanged=refresh`.
 - **Wiring** (`components/NotificationBell.jsx`): CTA `notification-open-center` ("Ver todas las alertas") en el footer del dropdown abre el modal. Backend sin cambios (endpoints ya existían).
 - **QA:** testing_agent iter315 → **frontend 100%** de los flujos (abrir, filtros AND, búsqueda, marcar una/todas con actualización de contadores, abrir link + cierre). Se añadió `DialogDescription` (a11y). ⚠️ PREVIEW; requiere REDEPLOY.
