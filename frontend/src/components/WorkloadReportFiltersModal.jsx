@@ -47,6 +47,7 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
 
   const [assignedTo, setAssignedTo] = useState([]);      // current implementers
   const [originalImpl, setOriginalImpl] = useState([]);  // reassigned from
+  const [generator, setGenerator] = useState([]);        // Generador del Proyecto (created_by_name)
   const [statuses, setStatuses] = useState([]);
   const [types, setTypes] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
@@ -84,8 +85,14 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
     return [...s].sort();
   }, [projects]);
 
+  const generatorOptions = useMemo(() => {
+    const s = new Set();
+    projects.forEach(p => { if (p.created_by_name) s.add(p.created_by_name); });
+    return [...s].sort();
+  }, [projects]);
+
   const resetFilters = () => {
-    setAssignedTo([]); setOriginalImpl([]); setStatuses([]); setTypes([]); setClientSearch(''); setDateFrom(''); setDateTo(''); setGroupBy('implementer');
+    setAssignedTo([]); setOriginalImpl([]); setGenerator([]); setStatuses([]); setTypes([]); setClientSearch(''); setDateFrom(''); setDateTo(''); setGroupBy('implementer');
   };
 
   const toggle = (arr, setArr, value) => {
@@ -112,6 +119,7 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
       const params = new URLSearchParams();
       assignedTo.forEach(v => params.append('assigned_to', v));
       originalImpl.forEach(v => params.append('original_implementer', v));
+      generator.forEach(v => params.append('generator', v));
       statuses.forEach(v => params.append('status', v));
       types.forEach(v => params.append('quote_type', v));
       if (clientSearch.trim()) params.append('client', clientSearch.trim());
@@ -244,6 +252,17 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
                 {originalOptions.map(name => (
                   <Chip key={name} active={originalImpl.includes(name)} onClick={() => toggle(originalImpl, setOriginalImpl, name)}
                     testid={`filter-original-${name.replace(/\s+/g, '-')}`}>{name}</Chip>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Generador del Proyecto <span className="text-slate-400 font-normal">(quién generó el proyecto)</span></Label>
+              <div className="flex flex-wrap gap-1.5 mt-1.5" data-testid="filter-generator-group">
+                {generatorOptions.length === 0 && <p className="text-[11px] text-slate-400 italic">Sin opciones</p>}
+                {generatorOptions.map(name => (
+                  <Chip key={name} active={generator.includes(name)} onClick={() => toggle(generator, setGenerator, name)}
+                    testid={`filter-generator-${name.replace(/\s+/g, '-')}`}>{name}</Chip>
                 ))}
               </div>
             </div>

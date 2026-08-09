@@ -3585,6 +3585,7 @@ async def _workload_dataset(
     quote_type: Optional[List[str]],
     date_from: Optional[str],
     date_to: Optional[str],
+    generator: Optional[List[str]] = None,
 ) -> list:
     """Consulta, enriquece (cajas, PVV, días hábiles, % avance) y filtra los
     proyectos para el Reporte de Carga. Compartido por las salidas PDF y Excel
@@ -3602,6 +3603,7 @@ async def _workload_dataset(
             "project_id": 1, "client_name": 1, "client_rif": 1,
             "quote_type": 1, "status": 1, "cantidad_cajas": 1, "box_count": 1,
             "assigned_to_name": 1, "assigned_at": 1,
+            "created_by_name": 1, "created_by_user_id": 1,
             "last_contact_at": 1, "last_contact_by": 1,
             "reassigned_from_name": 1, "reassignment_history": 1,
             "fantasy_name": 1,
@@ -3661,6 +3663,9 @@ async def _workload_dataset(
             wanted = [_norm_type(t) for t in quote_type]
             if qt not in wanted:
                 return False
+        if generator:
+            if (p.get("created_by_name") or "Sin generador") not in generator:
+                return False
         if _df or _dt:
             a = p.get("assigned_at")
             if not a:
@@ -3685,11 +3690,12 @@ async def projects_workload_pdf(
     quote_type: Optional[List[str]] = Query(None, description="Filtrar por Tipo de Proyecto (VPOS, MPOS, GATEWAY, LINK). Multi-select."),
     date_from: Optional[str] = Query(None, description="Periodo de Asignación — Desde (YYYY-MM-DD). Filtra por Fecha de Asignación (assigned_at)."),
     date_to: Optional[str] = Query(None, description="Periodo de Asignación — Hasta (YYYY-MM-DD, inclusive). Filtra por Fecha de Asignación (assigned_at)."),
+    generator: Optional[List[str]] = Query(None, description="Filtrar por Generador del Proyecto (created_by_name). Multi-select."),
     group_by: str = Query("implementer", description="Modo de agrupación del reporte: 'implementer' (por implementador, default) o 'type' (por Tipo de Proyecto)."),
 ):
     """PDF: carga de proyectos agrupados por implementador.
-    Columnas: Cliente, Tipo (badge), Cajas (solo VPOS/MPOS), Implementador Original
-    (si reasignado), Fecha asignación, Último contacto.
+    Columnas: Cliente, Generador, Tipo (badge), Cajas (solo VPOS/MPOS), Implementador
+    Original (si reasignado), Fecha asignación, Último contacto.
     Acceso: usuarios con permiso `proyectos`. Accesible para admin, coordinadores y gerentes.
     Soporta filtros multi-selección (parámetros repetibles en query).
     """
@@ -3702,7 +3708,7 @@ async def projects_workload_pdf(
     _dt = (date_to or "").strip()[:10] or None
 
     projects = await _workload_dataset(
-        assigned_to, original_implementer, status, client, quote_type, date_from, date_to,
+        assigned_to, original_implementer, status, client, quote_type, date_from, date_to, generator,
     )
 
     # Agrupar por implementador asignado
@@ -3759,6 +3765,7 @@ async def projects_workload_pdf(
             rows_html += f"""
             <tr>
               <td>{p.get('client_name') or '—'}<div class="rif">{p.get('client_rif') or ''}</div></td>
+              <td class="gen">{p.get('created_by_name') or '—'}</td>
               <td>{type_badge}</td>
               <td class="num">{cajas}</td>
               <td class="num pvv">{pvv_cell}</td>
@@ -3779,6 +3786,7 @@ async def projects_workload_pdf(
           <table class="rep">
             <colgroup>
               <col class="c-cliente" />
+              <col class="c-gen" />
               <col class="c-tipo" />
               <col class="c-cajas" />
               <col class="c-pvv" />
@@ -3791,7 +3799,7 @@ async def projects_workload_pdf(
             </colgroup>
             <thead>
               <tr>
-                <th>Cliente</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
+                <th>Cliente</th><th>Generador</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
                 <th>Estado</th><th>% Avance</th><th>Días háb.</th><th>Implementador Original</th>
                 <th>Fecha Asignación</th><th>Último Contacto</th>
               </tr>
@@ -3892,6 +3900,7 @@ async def projects_workload_pdf(
                 rows_html += f"""
                 <tr>
                   <td>{p.get('client_name') or '—'}<div class="rif">{p.get('client_rif') or ''}</div></td>
+                  <td class="gen">{p.get('created_by_name') or '—'}</td>
                   <td>{type_badge}</td>
                   <td class="num">{cajas}</td>
                   <td class="num pvv">{pvv_cell}</td>
@@ -3911,12 +3920,12 @@ async def projects_workload_pdf(
               </div>
               <table class="rep">
                 <colgroup>
-                  <col class="c-cliente" /><col class="c-tipo" /><col class="c-cajas" /><col class="c-pvv" />
+                  <col class="c-cliente" /><col class="c-gen" /><col class="c-tipo" /><col class="c-cajas" /><col class="c-pvv" />
                   <col class="c-estado" /><col class="c-avance" /><col class="c-bdays" /><col class="c-orig" /><col class="c-fasign" /><col class="c-ultcont" />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Cliente</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
+                    <th>Cliente</th><th>Generador</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
                     <th>Estado</th><th>% Avance</th><th>Días háb.</th><th>Implementador</th>
                     <th>Fecha Asignación</th><th>Último Contacto</th>
                   </tr>
@@ -3962,6 +3971,8 @@ async def projects_workload_pdf(
         filters_chips.append(f"Cliente: {client}")
     if quote_type:
         filters_chips.append(f"Tipo: {', '.join(_TYPE_FULL_LABEL.get(t.upper(), t.upper()) for t in quote_type)}")
+    if generator:
+        filters_chips.append(f"Generador: {', '.join(generator)}")
     if _df or _dt:
         _periodo = f"Desde {_format_es_date(_df) if _df else '—'} — Hasta {_format_es_date(_dt) if _dt else '—'}"
         filters_chips.append(f"Periodo de Asignación: {_periodo}")
@@ -3998,16 +4009,18 @@ async def projects_workload_pdf(
       .group-head .count {{ font-size: 10px; color: #4338ca; font-weight: 600; }}
       table.rep {{ width: 100%; border-collapse: collapse; margin-top: 6px; table-layout: fixed; }}
       /* Anchos fijos por columna para que TODAS las tablas (por implementador) queden alineadas */
-      table.rep col.c-cliente  {{ width: 16%; }}
-      table.rep col.c-tipo     {{ width: 6%; }}
-      table.rep col.c-cajas    {{ width: 5%; }}
-      table.rep col.c-pvv      {{ width: 5%; }}
-      table.rep col.c-estado   {{ width: 11%; }}
-      table.rep col.c-avance   {{ width: 7%; }}
-      table.rep col.c-bdays    {{ width: 6%; }}
-      table.rep col.c-orig     {{ width: 13%; }}
-      table.rep col.c-fasign   {{ width: 13%; }}
-      table.rep col.c-ultcont  {{ width: 13%; }}
+      table.rep col.c-cliente  {{ width: 15%; }}
+      table.rep col.c-gen      {{ width: 11%; }}
+      table.rep col.c-tipo     {{ width: 5%; }}
+      table.rep col.c-cajas    {{ width: 4%; }}
+      table.rep col.c-pvv      {{ width: 4%; }}
+      table.rep col.c-estado   {{ width: 10%; }}
+      table.rep col.c-avance   {{ width: 6%; }}
+      table.rep col.c-bdays    {{ width: 5%; }}
+      table.rep col.c-orig     {{ width: 12%; }}
+      table.rep col.c-fasign   {{ width: 14%; }}
+      table.rep col.c-ultcont  {{ width: 14%; }}
+      table.rep td.gen {{ font-size: 9px; color: #475569; }}
       table.rep td.pvv {{ font-weight: 700; color: #4f46e5; }}
       table.rep td.bdays {{ font-weight: 700; color: #0f766e; }}
       table.rep th {{
@@ -4100,6 +4113,7 @@ async def projects_workload_xlsx(
     quote_type: Optional[List[str]] = Query(None),
     date_from: Optional[str] = Query(None, description="Periodo de Asignación — Desde (YYYY-MM-DD)."),
     date_to: Optional[str] = Query(None, description="Periodo de Asignación — Hasta (YYYY-MM-DD, inclusive)."),
+    generator: Optional[List[str]] = Query(None, description="Filtrar por Generador del Proyecto (created_by_name). Multi-select."),
     group_by: str = Query("implementer", description="'implementer' o 'type'."),
 ):
     """Excel (.xlsx) del Reporte de Carga. Mismos filtros y datos que el PDF
@@ -4116,7 +4130,7 @@ async def projects_workload_xlsx(
     _dt = (date_to or "").strip()[:10] or None
 
     projects = await _workload_dataset(
-        assigned_to, original_implementer, status, client, quote_type, date_from, date_to,
+        assigned_to, original_implementer, status, client, quote_type, date_from, date_to, generator,
     )
 
     # Orden: por dimensión de agrupación (implementador o tipo), luego cliente.
@@ -4143,7 +4157,7 @@ async def projects_workload_xlsx(
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
     headers = [
-        "Implementador", "Cliente", "RIF", "Tipo", "Cajas", "PVV",
+        "Implementador", "Cliente", "Generador", "RIF", "Tipo", "Cajas", "PVV",
         "Estado", "% Avance", "Días háb.", "Impl. Original",
         "Fecha Asignación", "Último Contacto",
     ]
@@ -4160,6 +4174,7 @@ async def projects_workload_xlsx(
     if status: chips.append(f"Estatus: {', '.join(status)}")
     if client: chips.append(f"Cliente: {client}")
     if quote_type: chips.append(f"Tipo: {', '.join(_TYPE_FULL_LABEL.get(t.upper(), t.upper()) for t in quote_type)}")
+    if generator: chips.append(f"Generador: {', '.join(generator)}")
     if _df or _dt:
         chips.append(f"Periodo de Asignación: Desde {_format_es_date(_df) if _df else '—'} — Hasta {_format_es_date(_dt) if _dt else '—'}")
     sub_txt = f"Generado: {now_str}  ·  Agrupado por: {'Tipo de Proyecto' if group_by == 'type' else 'Implementador'}  ·  Proyectos: {len(projects_sorted)}"
@@ -4190,6 +4205,7 @@ async def projects_workload_xlsx(
         row_vals = [
             p.get("assigned_to_name") or "Sin asignar",
             p.get("client_name") or "—",
+            p.get("created_by_name") or "—",
             p.get("client_rif") or "",
             _TYPE_FULL_LABEL.get(qtn, "—"),
             cajas_val if cajas_val else "—",
@@ -4204,7 +4220,7 @@ async def projects_workload_xlsx(
         for col, v in enumerate(row_vals, start=1):
             c = ws.cell(row=r, column=col, value=v)
             c.border = border
-            if col in (5, 6, 8, 9):
+            if col in (6, 7, 9, 10):
                 c.alignment = center
         r += 1
 
@@ -4215,11 +4231,11 @@ async def projects_workload_xlsx(
             c.fill = total_fill
             c.border = border
         ws.cell(row=r, column=1, value=f"TOTAL ({len(projects_sorted)} proyectos)").font = total_font
-        tc = ws.cell(row=r, column=5, value=tot_cajas); tc.font = total_font; tc.alignment = center
-        tp = ws.cell(row=r, column=6, value=tot_pvv); tp.font = total_font; tp.alignment = center
+        tc = ws.cell(row=r, column=6, value=tot_cajas); tc.font = total_font; tc.alignment = center
+        tp = ws.cell(row=r, column=7, value=tot_pvv); tp.font = total_font; tp.alignment = center
 
     # Anchos de columna
-    widths = [22, 30, 16, 16, 8, 8, 16, 10, 10, 22, 16, 16]
+    widths = [22, 30, 22, 16, 16, 8, 8, 16, 10, 10, 22, 16, 16]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 

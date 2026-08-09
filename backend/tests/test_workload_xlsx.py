@@ -90,7 +90,7 @@ class TestWorkloadXlsxStructure:
         sub = ws.cell(row=2, column=1).value or ""
         assert "Generado" in sub and "Agrupado" in sub
         # Headers row 4
-        expected = ["Implementador", "Cliente", "RIF", "Tipo", "Cajas", "PVV",
+        expected = ["Implementador", "Cliente", "Generador", "RIF", "Tipo", "Cajas", "PVV",
                     "Estado", "% Avance", "Días háb.", "Impl. Original",
                     "Fecha Asignación", "Último Contacto"]
         actual = [ws.cell(row=4, column=i + 1).value for i in range(len(expected))]
