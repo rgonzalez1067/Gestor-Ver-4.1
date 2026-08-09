@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Reporte de Carga — Campo y filtro "Generador del Proyecto" — Jun 2026
+- **Requerimiento:** agregar el "Generador del Proyecto" (quién generó/creó el proyecto = `created_by_name`) como COLUMNA en el Reporte de Carga (PDF y Excel) y como FILTRO adicional para solicitar el reporte.
+- **Backend** (`routes/projects.py`): `_workload_dataset` — nuevo param `generator` (filtra por `created_by_name`) y `created_by_name`/`created_by_user_id` añadidos a la proyección (faltaban → causaban 0 resultados al filtrar). `projects_workload_pdf` — query param `generator`, chip "Generador" y columna "Generador" (después de Cliente) en AMBAS tablas (group_by implementer y type) con anchos reajustados. `projects_workload_xlsx` — param `generator`, chip y columna "Generador" como 3ra columna (índices de alineación/totales/anchos reajustados).
+- **Frontend** (`WorkloadReportFiltersModal.jsx`): estado `generator`, `generatorOptions` (derivado de created_by_name), bloque UI "Generador del Proyecto" (`filter-generator-group` + chips), `generate()` envía `generator`, `resetFilters` lo limpia.
+- **QA:** testing_agent iter316 → **backend 100% (8/8)**, **frontend 100%**. Excel encabezado incluye 'Generador' col 3; filtro generator='Manuel Martin' → 29 filas (==DB); paridad XLSX==PDF; sin filtro=128. Test: `/app/backend/tests/test_iter316_workload_generator.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: Centro de Alertas (visualización amplia de notificaciones) — Jun 2026
 - **Requerimiento:** el popover de la campanita (esquina inferior izquierda) era pequeño, no movible y "inútil". Se reemplazó por un **Centro de Alertas**: modal grande y CENTRADO.
 - **Ajuste (feedback usuario):** la campanita ahora abre **directamente** el Centro de Alertas centrado (onClick → setCenterOpen); se ELIMINÓ por completo el popover de esquina (`notification-dropdown`) que seguía apareciendo al pulsar la campana. `NotificationBell.jsx` conserva intacta la lógica de alertas entrantes (toast intenso/pulse/beep) y el badge/indicador WS.
