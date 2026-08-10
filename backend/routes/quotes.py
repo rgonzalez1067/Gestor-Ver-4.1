@@ -2417,6 +2417,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         "equipment_serial_number": data.equipment_serial_number or None,
         "estimated_delivery_date": data.estimated_delivery_date or None,
         "repair_models": [m.dict() for m in data.repair_models] if data.repair_models else [],
+        "bulk_serials": data.bulk_serials or [],
         "linked_taller_equipo_ids": data.linked_taller_equipo_ids or [],
         "iva_exempt": bool(getattr(data, "iva_exempt", False)),
         # Iter50: descuento aplicado.
@@ -2496,6 +2497,7 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
     repair_description = quote.get("repair_description", "")
     equipment_serial_number = quote.get("equipment_serial_number", "")
     repair_models = quote.get("repair_models", [])
+    bulk_serials = quote.get("bulk_serials", []) or []
 
     now = datetime.now(timezone.utc)
     fecha = now.strftime("%d/%m/%Y")
@@ -2521,9 +2523,28 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
     items_html = ""
     for item in items:
         line_total = (item.get("quantity", 1)) * (item.get("unit_price_usd", 0))
+        # Paridad con la generación inicial: desglose de seriales por ítem.
+        serials_block = ""
+        if item.get("no_serial"):
+            serials_block = (
+                '<div style="margin-top:4px;font-size:10px;font-style:italic;color:#94a3b8">'
+                '<span style="font-weight:600;color:#64748b">Sin serial</span> · concepto administrativo/logístico'
+                '</div>'
+            )
+        elif item.get("serials"):
+            _sers = item.get("serials") or []
+            serial_spans = "".join(
+                f'<span style="display:inline-block;margin:1px 4px 1px 0;padding:1px 6px;background:#fff7ed;border:1px solid #fed7aa;border-radius:3px;font-family:monospace;font-size:9.5px;color:#9a3412">{s}</span>'
+                for s in _sers
+            )
+            serials_block = (
+                f'<div style="margin-top:4px;font-size:10px;font-style:italic;color:#6b7280">'
+                f'<span style="font-weight:600;color:#9a3412">Seriales ({len(_sers)}):</span> {serial_spans}'
+                f'</div>'
+            )
         items_html += f"""<tr>
             <td><span style="font-weight:600;color:#1e293b;display:block">{item.get('name', '')}</span>
-            <span style="font-size:11px;color:#94a3b8">{item.get('hardware_type', '')}</span></td>
+            <span style="font-size:11px;color:#94a3b8">{item.get('hardware_type', '')}</span>{serials_block}</td>
             <td style="text-align:center">{item.get('quantity', 1)}</td>
             <td style="text-align:right">${item.get('unit_price_usd', 0):,.2f}</td>
             <td style="text-align:right">${line_total:,.2f}</td>
@@ -2546,6 +2567,10 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
                     <th style="padding:6px 10px;text-align:center;font-size:11px;color:#92400e;border-bottom:1px solid #fed7aa">Cantidad</th>
                     <th style="padding:6px 10px;text-align:center;font-size:11px;color:#92400e;border-bottom:1px solid #fed7aa">Seriales</th>
                 </tr></thead><tbody>{models_rows}</tbody></table>"""
+        elif bulk_serials:
+            serial_list = "".join(f"<li style='font-size:11px;color:#475569'>{s}</li>" for s in bulk_serials)
+            models_summary = f"""<br><strong style="font-size:12px;color:#9a3412">Seriales ({len(bulk_serials)}):</strong>
+                <ul style="margin:4px 0 0 16px;padding:0;columns:2;column-gap:24px">{serial_list}</ul>"""
         elif equipment_serial_number:
             models_summary = f'<br><span style="font-size:12px;color:#64748b">Serial: {equipment_serial_number}</span>'
 
@@ -2606,6 +2631,58 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
     </div></body></html>"""
 
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+
+    # Paridad con la generación inicial: Anexo de Seriales por Modelo (si aplica).
+    if repair_models and any(m.get("serials") for m in repair_models):
+        model_blocks = ""
+        for m in repair_models:
+            _ms = m.get("serials") or []
+            if not _ms:
+                continue
+            serial_items = "".join(
+                f'<span style="display:inline-block;width:48%;padding:3px 0;font-size:11px;font-family:monospace;color:#334155">{s}</span>'
+                for s in _ms
+            )
+            model_blocks += f"""
+                <div style="margin-bottom:20px">
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+                        <strong style="font-size:14px;color:#1e293b">{m.get('model_name','')}</strong>
+                        <span style="float:right;font-size:12px;color:#64748b">{len(_ms)} equipo(s)</span>
+                    </div>
+                    <div style="padding:0 8px;display:flex;flex-wrap:wrap">
+                        {serial_items}
+                    </div>
+                </div>"""
+
+        annexe_html = f"""<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<style>
+    @page {{ size: letter; margin: 40px; }}
+    body {{ font-family: Helvetica, Arial, sans-serif; color: #475569; margin: 0; padding: 0; }}
+</style></head><body>
+    <div style="border-bottom:2px solid #e2e8f0;padding-bottom:14px;margin-bottom:24px">
+        <h2 style="font-size:18px;color:#1e293b;margin:0">Anexo de Seriales por Modelo</h2>
+        <p style="font-size:12px;color:#94a3b8;margin:4px 0 0 0">Cotización #{quote_number} — {cliente_nombre}</p>
+    </div>
+    {model_blocks}
+    <div style="margin-top:30px;padding:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
+        <p style="font-size:12px;color:#92400e;margin:0;line-height:1.6">
+            <strong>Nota importante:</strong> Estimado cliente, al momento de aprobar esta Cotización asegúrese de los modelos
+            y la cantidad de equipos de cada modelo que está enviando a reparación.
+        </p>
+    </div>
+</body></html>"""
+
+        annexe_bytes = weasyprint.HTML(string=annexe_html).write_pdf()
+        from PyPDF2 import PdfReader, PdfWriter
+        writer = PdfWriter()
+        for page in PdfReader(io.BytesIO(pdf_bytes)).pages:
+            writer.add_page(page)
+        for page in PdfReader(io.BytesIO(annexe_bytes)).pages:
+            writer.add_page(page)
+        combined = io.BytesIO()
+        writer.write(combined)
+        pdf_bytes = combined.getvalue()
 
     # Anexar condiciones legales según el tipo de equipo y la SEDE del creador
     # de la cotización (persistida en el doc). Igual que en la generación inicial,

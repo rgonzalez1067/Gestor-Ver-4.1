@@ -1,0 +1,25 @@
+{
+  "summary": "Backend-only regression for repair-quote PDF serials parity fix (quo_fb10e377bbf3 / COT-2026-05-022-PYME). Created pytest suite that exercises POST /api/quotes/{id}/regenerate-equipment-pdf as ADMIN and as NON-ADMIN operator, reads the on-disk PDF with PyPDF2, and verifies (a) all known serials render, (b) 'Anexo de Seriales' title present, (c) DB (Mongo) serials match PDF, and (d) simulating ephemeral disk (unlink then regenerate) still yields a PDF containing all serials — which is what _ensure_quote_pdf_bytes does in the send-to-client flow. 4/4 tests PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_repair_serials_parity.py",
+    "/app/test_reports/pytest/repair_serials_parity.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Public GET /api/quotes/{quote_id} does NOT expose equipment_items[].serials, repair_models[].serials nor bulk_serials in the response payload. If the frontend ever needs to display serials before download, add them to the serializer; otherwise this is fine.",
+    "PyPDF2 is deprecated (pypdf recommended). Non-blocking, but plan a migration.",
+    "regenerate-equipment-pdf appears to have no explicit RBAC gate — anyone authenticated with knowledge of the quote_id can regenerate. This matches the RCA note ('no hay gate RBAC real') and is intentional for parity, but consider adding at least a permission check for cotizaciones:reparaciones/equipos to prevent cross-team snooping."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_repair_serials_parity.py (new)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve/admin123. Non-admin operator: kherrera@megasoft.com.ve/Test1234!.",
+  "seed_data_creation": "None. Used existing quote quo_fb10e377bbf3.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_repair_serials_parity.py is idempotent and can be re-run to verify serials parity. It intentionally unlinks the on-disk PDF in test_04 to simulate ephemeral disk; regenerate rebuilds it. Requires REACT_APP_BACKEND_URL, MONGO_URL, DB_NAME env vars (already in .env). Regenerated PDF is 3 pages: main + Anexo de Seriales + conditions.",
+  "rca_verification": "Fix verified: regenerated PDF (3 pages) contains all 7 expected serials (806-409-808, 809-203-093, 903-461-347, 324-666-051, 327-564-976, 323-092-168, 303-982-648) and the 'Anexo de Seriales' section. Identical text length (2676 chars) between admin-triggered and non-admin-triggered regeneration — confirms role independence. Send-to-client path (_ensure_quote_pdf_bytes) validated indirectly by deleting the on-disk PDF and reinvoking regenerate — result identical: serials present."
+}

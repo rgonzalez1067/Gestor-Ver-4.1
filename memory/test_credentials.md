@@ -6,6 +6,10 @@ Password para todos: Test1234! (reseteado por el agente con config.hash_password
 - Admin (rgonzalez@megasoft.com.ve / admin123): ve TODO (128).
 Regla: usuarios no-admin/no-Director solo ven registros del Histórico cuya `sede` (sede del USUARIO creador) coincida con la suya.
 
+## QA — Cotizaciones de Reparación / seriales (Jun 2026)
+- kherrera@megasoft.com.ve / Test1234!  → Analista PYME, role=user (NO admin), special_permissions: proyectos:create, cotizaciones:equipos, cotizaciones:reparaciones. Usado para la prueba cruzada RBAC de paridad de seriales.
+- Cotización reparación de prueba con seriales: quo_fb10e377bbf3 (COT-2026-05-022-PYME).
+
 # Test Credentials
 
 ## Usuario de Operaciones (Reparaciones + Equipos)

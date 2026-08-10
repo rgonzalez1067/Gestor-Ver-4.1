@@ -4,6 +4,14 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Bug Fix: Cotizaciones de Reparación — seriales vacíos en el correo/PDF enviado (paridad + RBAC) — Jun 2026
+- **Síntoma:** el PDF inicial (descargado) mostraba los seriales, pero el PDF/correo despachado al cliente llegaba con seriales vacíos; intermitente, más frecuente en usuarios no-admin.
+- **RCA (real):** NO había gate RBAC. El PDF adjunto del envío se arma con `_ensure_quote_pdf_bytes` (routes/quote_actions.py): lee el PDF de disco si existe, si no lo **regenera** con `regenerate_equipment_pdf`. En producción el disco es efímero → el PDF de creación frecuentemente ya no está → se regenera. Y `regenerate_equipment_pdf` NO renderizaba los seriales reales (solo el CONTEO por modelo) ni el "Anexo de Seriales por Modelo". El "admin sí funciona" era coincidencia de si el PDF seguía en disco.
+- **Fix** (`routes/quotes.py`): `generate_equipment_quote_pdf` ahora persiste `bulk_serials`. `regenerate_equipment_pdf` ahora: (a) renderiza el bloque de seriales por ítem (incl. `no_serial`), (b) rama legacy `bulk_serials`, (c) genera y anexa la página "Anexo de Seriales por Modelo" (merge PyPDF2), logrando **paridad total** con la generación inicial, independiente del rol.
+- **QA:** testing_agent iter317 → **backend 100% (4/4)**. PDF regenerado (3 págs) contiene los 7 seriales + "Anexo de Seriales"; texto idéntico admin vs no-admin (kherrera); simulación de disco efímero (unlink→regenerar) mantiene seriales. Test: `/app/backend/tests/test_repair_serials_parity.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+- Nota (futuro/opcional, no era el bug): `regenerate-equipment-pdf` no valida permiso explícito; se dejó abierto a propósito para garantizar paridad sin dependencia de rol.
+
+
 ### Feature: Reporte de Carga — Campo y filtro "Generador del Proyecto" — Jun 2026
 - **Requerimiento:** agregar el "Generador del Proyecto" (quién generó/creó el proyecto = `created_by_name`) como COLUMNA en el Reporte de Carga (PDF y Excel) y como FILTRO adicional para solicitar el reporte.
 - **Backend** (`routes/projects.py`): `_workload_dataset` — nuevo param `generator` (filtra por `created_by_name`) y `created_by_name`/`created_by_user_id` añadidos a la proyección (faltaban → causaban 0 resultados al filtrar). `projects_workload_pdf` — query param `generator`, chip "Generador" y columna "Generador" (después de Cliente) en AMBAS tablas (group_by implementer y type) con anchos reajustados. `projects_workload_xlsx` — param `generator`, chip y columna "Generador" como 3ra columna (índices de alineación/totales/anchos reajustados).
