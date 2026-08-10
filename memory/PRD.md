@@ -4,6 +4,12 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Mejora: Columna "Envío a Imple / Último Contacto" multilínea en Grilla de Proyectos — Jun 2026
+- **Requerimiento:** reestructurar la columna "Envío a Imple" de la grilla de Proyectos para mostrar dos fechas en multilínea.
+- **Frontend** (`pages/Projects.jsx`): encabezado renombrado a "Envío a Imple / Último Contacto". El `<td>` ahora muestra en línea 1 (normal) la fecha `sent_to_implementation_at` (o "—"), y en línea 2 (gris/itálica, text-xs) `last_contact_at` (o "--/--/----" si es nula). testids `project-sent-impl-date-{id}` y `project-last-contact-date-{id}`.
+- **QA:** verificado por screenshot (admin, /projects) — encabezado y ambas fechas renderizan correctamente (envío 8/7/2026, último contacto --/--/---- cuando null). Solo frontend, backend ya retornaba ambos campos. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: Notificaciones Push — enriquecimiento (Cliente + Ticket) y sanitización financiera — Jun 2026
 - **Requerimiento:** todas las notificaciones Push (WebSocket + campanita/Centro de Alertas) deben (1) anteponer `[Cliente: {nombre}]`; (2) en Proyectos de Implementación agregar `[Ticket #: {ticket}]` (omitir si no hay ticket); (3) SANITIZAR datos financieros (prohibido mostrar montos/costos con $, USD, Bs, VES, €).
 - **Backend** (`services/notification_service.py`, punto único `notify()`):

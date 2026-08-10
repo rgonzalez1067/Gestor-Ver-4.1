@@ -1017,7 +1017,7 @@ const Projects = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Tipo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Estado</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Envío a Imple</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Envío a Imple / Último Contacto</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Implementador</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Generador</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Patrocinador</th>
@@ -1199,9 +1199,16 @@ const Projects = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600" data-testid={`project-sent-impl-${project.project_id}`}>
-                          {project.sent_to_implementation_at
-                            ? new Date(project.sent_to_implementation_at).toLocaleDateString('es-VE')
-                            : <span className="text-slate-400 italic">—</span>}
+                          <p className="text-slate-700" data-testid={`project-sent-impl-date-${project.project_id}`}>
+                            {project.sent_to_implementation_at
+                              ? new Date(project.sent_to_implementation_at).toLocaleDateString('es-VE')
+                              : <span className="text-slate-400 italic">—</span>}
+                          </p>
+                          <p className="text-xs italic text-slate-400 mt-0.5" data-testid={`project-last-contact-date-${project.project_id}`}>
+                            {project.last_contact_at
+                              ? new Date(project.last_contact_at).toLocaleDateString('es-VE')
+                              : '--/--/----'}
+                          </p>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">
                           {project.assigned_to_name ? (
