@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -459,6 +460,39 @@ async def _resolve_recipients(event_type: str, context: Dict[str, Any]) -> List[
 
 # ==================== Main API ====================
 
+# ==================== Push Payload Builder: enriquecimiento + sanitización ====================
+
+# Detecta importes monetarios en cualquier orden (símbolo/código antes o después):
+#   $1,500.00 · USD 1500 · Bs. 1.500,00 · 1500$ · 1.500,00 Bs · €200 · VES 100
+_FIN_RE = re.compile(
+    r"(?ix)(?:(?:us\$|u\$s|\$|€|bs\.?s?|bss|ves|usd|eur)\s*\d[\d.,]*"
+    r"|\d[\d.,]*\s*(?:us\$|u\$s|\$|€|bs\.?s?|bss|ves|usd|eur)\b)"
+)
+
+
+def _sanitize_financial(text: Optional[str]) -> Optional[str]:
+    """Filtro absoluto de datos financieros para notificaciones Push: elimina
+    montos/costos con divisa ($, USD, Bs, VES, €). Deja el mensaje operativo limpio."""
+    if not text:
+        return text
+    cleaned = _FIN_RE.sub("", text)
+    cleaned = re.sub(r"\(\s*\)|\[\s*\]", "", cleaned)      # paréntesis/corchetes vacíos
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)               # espacios dobles
+    cleaned = re.sub(r"\s+([.,;:])", r"\1", cleaned)        # espacio antes de puntuación
+    return cleaned.strip()
+
+
+def _strip_redundant_client(message: str, client_name: str) -> str:
+    """Quita un prefijo redundante 'Cliente {name}' del mensaje base, ya que el
+    prefijo estándar [Cliente: ...] se agrega aparte. Solo actúa si coincide exacto."""
+    if not message or not client_name:
+        return message
+    for pat in (f"cliente: {client_name}", f"cliente {client_name}"):
+        if message.lower().startswith(pat.lower()):
+            return message[len(pat):].lstrip(" -–—:,·")
+    return message
+
+
 async def notify(
     event_type: str,
     title: str,
@@ -468,13 +502,13 @@ async def notify(
     quote_id: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> int:
-    """Dispara una notificación.
+    """Dispara una notificación (Push: WebSocket + DB).
 
-    1. Valida que el evento esté en catálogo.
-    2. Lee config (activo + prioridad).
-    3. Resuelve destinatarios.
-    4. Inserta N docs (uno por usuario) en `notifications`.
-    5. Empuja via WebSocket a los que estén online.
+    Reglas del payload Push:
+    - Prefijo estándar con Nombre del Cliente: `[Cliente: X] - {mensaje}`.
+    - En Proyectos de Implementación agrega `[Ticket #: Y]` si existe ticket
+      (si no hay ticket, se omite la etiqueta sin interrumpir el envío).
+    - Sanitización financiera: se eliminan montos/costos/divisas del título y cuerpo.
 
     Returns: cantidad de usuarios notificados.
     """
@@ -492,6 +526,44 @@ async def notify(
     if not recipients:
         logger.info(f"[notify] Sin destinatarios para {event_type}")
         return 0
+
+    # ===== Enriquecimiento del payload Push (Cliente + Ticket) + sanitización financiera =====
+    client_name = (ctx.get("client_name") or "").strip()
+    ticket_number = (ctx.get("ticket_number") or "").strip()
+    is_project = bool(project_id) or cfg.get("category") == "Proyectos"
+    try:
+        if project_id and (not client_name or not ticket_number):
+            proj = await db.projects.find_one(
+                {"project_id": project_id}, {"_id": 0, "client_name": 1, "ticket_number": 1}
+            )
+            if proj:
+                client_name = client_name or (proj.get("client_name") or "").strip()
+                ticket_number = ticket_number or (proj.get("ticket_number") or "").strip()
+        elif quote_id and not client_name:
+            q = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "client_name": 1})
+            if q:
+                client_name = client_name or (q.get("client_name") or "").strip()
+    except Exception as e:
+        logger.warning(f"[notify] no se pudo resolver cliente/ticket: {e}")
+
+    # Sanitización financiera obligatoria (título y cuerpo)
+    title = _sanitize_financial(title) or title
+    message = _sanitize_financial(message) or ""
+
+    # Prefijo estándar: [Cliente: X] [Ticket #: Y] - {mensaje base}
+    base_msg = _strip_redundant_client(message, client_name)
+    if not base_msg:
+        # Fallback: usar la etiqueta operativa del evento para no dejar el mensaje
+        # como pura metadata (siempre debe describir la acción, sin costos).
+        base_msg = _sanitize_financial(cfg.get("label") or "") or ""
+    prefix_parts = []
+    if client_name:
+        prefix_parts.append(f"[Cliente: {client_name}]")
+    if is_project and ticket_number:
+        prefix_parts.append(f"[Ticket #: {ticket_number}]")
+    if prefix_parts:
+        prefix = " ".join(prefix_parts)
+        message = f"{prefix} - {base_msg}" if base_msg else prefix
 
     now = datetime.now(timezone.utc)
     docs = []

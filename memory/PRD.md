@@ -4,6 +4,15 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Notificaciones Push — enriquecimiento (Cliente + Ticket) y sanitización financiera — Jun 2026
+- **Requerimiento:** todas las notificaciones Push (WebSocket + campanita/Centro de Alertas) deben (1) anteponer `[Cliente: {nombre}]`; (2) en Proyectos de Implementación agregar `[Ticket #: {ticket}]` (omitir si no hay ticket); (3) SANITIZAR datos financieros (prohibido mostrar montos/costos con $, USD, Bs, VES, €).
+- **Backend** (`services/notification_service.py`, punto único `notify()`):
+  - `_sanitize_financial()` (regex `_FIN_RE`) elimina importes con divisa en cualquier orden, de título y cuerpo.
+  - En `notify()` se resuelve `client_name`/`ticket_number` desde `context` o desde `db.projects`/`db.quotes` (por project_id/quote_id), se sanitiza title+message y se antepone el prefijo estándar. `is_project = bool(project_id) or cfg.category=='Proyectos'`.
+  - `_strip_redundant_client()` evita duplicar "Cliente X"; si el mensaje base queda vacío se usa `cfg.label` como verbo de acción (mensaje nunca queda como pura metadata).
+- **QA:** testing_agent iter318 → **backend 100% (11/11)**, incl. E2E real de asignación → `[Cliente: KRAKEN COURIER AND CARGO, C.A] [Ticket #: 66341]` con 0 fugas financieras; casos sin ticket / cotización / multi-divisa / sin cliente validados. Test: `/app/backend/tests/test_notification_enrichment.py`. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix: Cotizaciones de Reparación — seriales vacíos en el correo/PDF enviado (paridad + RBAC) — Jun 2026
 - **Síntoma:** el PDF inicial (descargado) mostraba los seriales, pero el PDF/correo despachado al cliente llegaba con seriales vacíos; intermitente, más frecuente en usuarios no-admin.
 - **RCA (real):** NO había gate RBAC. El PDF adjunto del envío se arma con `_ensure_quote_pdf_bytes` (routes/quote_actions.py): lee el PDF de disco si existe, si no lo **regenera** con `regenerate_equipment_pdf`. En producción el disco es efímero → el PDF de creación frecuentemente ya no está → se regenera. Y `regenerate_equipment_pdf` NO renderizaba los seriales reales (solo el CONTEO por modelo) ni el "Anexo de Seriales por Modelo". El "admin sí funciona" era coincidencia de si el PDF seguía en disco.

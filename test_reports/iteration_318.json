@@ -1,0 +1,28 @@
+{
+  "summary": "Backend-only regression for notification-service push enrichment + financial sanitization (services/notification_service.notify). Created pytest suite /app/backend/tests/test_notification_enrichment.py with 11 tests: 7 unit tests for _sanitize_financial (removes $, USD, Bs, VES, €, keeps operational verbs, handles None/empty) + 3 unit tests for _strip_redundant_client + 1 aggregated async test (test_all_notification_scenarios) that exercises: (a) project notification with client_name + ticket_number resolved from db.projects → message starts with '[Cliente: Corporación Alfa] [Ticket #: T-9912] - ' with all $/USD/1,500/2,300 stripped from both title and message, operational verb preserved; (b) project WITHOUT ticket → prefix collapses to '[Cliente: Beta Corp] - ' (no [Ticket #: ] tag), notification still persisted; (c) quote (non-project) notification → '[Cliente: Gamma Ltda] - ' and NO [Ticket] tag; (d) multi-currency stress ($1,500.00 / USD 2,300 / Bs. 1.500,00 / 450 VES / €200) — 0 leaks in either field; (e) event without client/project/quote → sanitized notification still created (no crash, no [Cliente:] prefix); PLUS a live E2E against PUT /api/projects/{prj_e86a47af1bff}/assign as admin (rgonzalez) that produced a fresh db.notifications doc starting with '[Cliente: KRAKEN COURIER AND CARGO, C.A] [Ticket #: 66341]' — zero financial data leaked. 11/11 PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_notification_enrichment.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/iter318_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Behavior note (not a bug): when the caller passes a message that is only 'Cliente {name}' (as routes/projects.py::assign_project does on L447: message=f\"Cliente {project.get('client_name','')}\"), _strip_redundant_client removes it and base_msg becomes empty, so the final persisted message is exactly '[Cliente: X] [Ticket #: Y]' with NO trailing ' - '. This is intentional per the notify() code path (`message = f\"{prefix} - {base_msg}\" if base_msg else prefix`) and gracefully avoids a dangling ' - '. Consider adding a fallback operational verb (e.g. 'asignado' or cfg.label) to base_msg so the notification always ends with an action verb rather than pure metadata.",
+    "_FIN_RE catches most cases but does NOT catch bare numbers without an adjacent currency token (e.g. 'aprobado por 1500'). Intentional (avoids false positives on unrelated numeric IDs), but callers must not send financial amounts without their currency token, or leakage may occur.",
+    "notify() has a broad `try/except Exception` around DB lookups for client/ticket enrichment which will silently continue with empty strings on any DB error — good defensive design, but consider logging the resolved client_name/ticket_number at info level for observability when project_id is present.",
+    "Motor client (config.py L36) is instantiated at module import time. Any pytest that needs multiple async tests must consolidate them into ONE asyncio.run(), because Motor's _EXECUTOR binds to the first loop it saw. I've documented this pattern inline in the new test file for the next testing agent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_notification_enrichment.py (new, 11 tests)",
+    "/app/backend/tests/conftest.py (new, session-scoped event_loop fixture)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve/admin123 (used for E2E PUT /api/projects/{id}/assign).",
+  "seed_data_creation": "Ephemeral: each async scenario creates a synthetic user (tst_*), project (tstprj_*) and/or quote (tstq_*), runs notify(), and deletes them via _cleanup() in the finally block. Zero residue after suite. E2E test re-assigns an existing production project (prj_e86a47af1bff) to its current assignee (idempotent, only adds one push notification per run).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_notification_enrichment.py is idempotent and safe to re-run. Motor-loop constraint: all async DB scenarios MUST live inside a single asyncio.run() call, so add new scenarios inside test_all_notification_scenarios::_run_all. The E2E test bumps the notification count for prj_e86a47af1bff by +1 per run; not a concern (TTL/cleanup elsewhere), but if that project is re-purposed, update the selector query. Suite runs in ~1.3s.",
+  "rca of the issue": "N/A — feature verification. Enrichment + sanitization work as specified: [Cliente:] prefix always when client is resolvable, [Ticket #:] only for projects with a non-empty ticket_number, financial tokens ($, USD, Bs, VES, €, EUR) stripped from both title and message via _FIN_RE regex."
+}
