@@ -2684,7 +2684,7 @@ async def send_adhoc_email(
             "subject": full_subject,
             "recipients": to_list,
             "cc": cc_list,
-            "message": message,
+            "message": _html_to_plaintext(html),
             "html_content": html,
             "attachments": saved_files,
             "has_matrix": bool(matrix_html.strip()),
@@ -4563,9 +4563,18 @@ async def backfill_bitacora_plaintext(authorization: Optional[str] = Header(None
             if not isinstance(det, dict):
                 continue
             html = det.get("html_content")
-            has_msg = isinstance(det.get("message"), str) and det.get("message").strip()
-            if html and not has_msg:
+            msg = det.get("message")
+            has_msg = isinstance(msg, str) and msg.strip()
+            # Reconvertir también cuando el `message` guardado contiene HTML crudo
+            # (caso de "Otras Notificaciones"/adhoc_email antiguas que almacenaban
+            # el HTML en `message`), no solo cuando falta.
+            msg_is_html = has_msg and bool(re.search(r"<[a-zA-Z/][^>]*>", msg))
+            if html and (not has_msg or msg_is_html):
                 det["message"] = _html_to_plaintext(html)
+                entries_converted += 1
+                changed = True
+            elif msg_is_html:
+                det["message"] = _html_to_plaintext(msg)
                 entries_converted += 1
                 changed = True
         if changed:

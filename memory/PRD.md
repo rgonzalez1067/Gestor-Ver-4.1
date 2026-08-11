@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Bug Fix: "Otras Notificaciones" de la Bitácora se veían como código HTML — Jun 2026
+- **Síntoma:** los correos de "Otras Notificaciones" (tipo `adhoc_email`) del menú de Proyectos se almacenaban/mostraban como HTML crudo (`<p>…</p>`), ilegibles; en cambio las Notificaciones a Cliente/Banco (tipo `notification`) sí se veían en texto simple.
+- **RCA:** en `routes/projects.py` (envío adhoc, L~2687) se guardaba `email_detail.message = message` (el HTML del editor) en vez de texto simple. El visor (`EmailDetailViewer.jsx`) prioriza `message` (whitespace-pre-wrap) → mostraba las etiquetas literales. Además el backfill `POST /projects/bitacora/backfill-plaintext` solo rellenaba `message` cuando faltaba, por lo que NO reconvertía las 25 entradas que ya tenían `message` con HTML.
+- **Fix:** (1) al enviar adhoc se guarda `message = _html_to_plaintext(html)` (paridad con el flujo de Cliente/Banco); (2) el backfill ahora detecta `message` que contiene etiquetas HTML (`<tag>`) y lo regenera desde `html_content` (o del propio `message` si no hay html_content).
+- **QA:** backfill ejecutado en preview → `entries_converted=25` (14 proyectos). Verificación en DB: 0 entradas con HTML en `message`. Screenshot del visor "Detalle del Correo": contenido en texto simple legible con matriz separada por " | ". ⚠️ PREVIEW; requiere REDEPLOY + re-ejecutar el botón "Rescatar Correos Antiguos" (Configuración) en PRODUCCIÓN.
+
+
 ### Feature: "Filtro por Avance" en Grilla de Proyectos — Jun 2026
 - **Requerimiento:** nuevo filtro en la pantalla de Proyectos por estado de avance/criticidad temporal (Al día / Retraso Medio / Retraso Crítico), combinable con el resto de filtros.
 - **Frontend** (`pages/Projects.jsx`): estado `avanceFilter` ('all'|'al_dia'|'medio'|'critico'). Se movieron los helpers `_stageKeyOf`/`_avanceLevel` (que ya calculaban el nivel del semáforo SLA reutilizando `slaConfig` + `business_days_in_state`) arriba de `matchesNonStatus`; se añadió `matchAvance = _avanceLevel(p) === avanceFilter` al AND de filtros no-estado → combina con búsqueda/tipo/cobro/patrocinador/integrador/fechas/estado. Nuevo `<Select>` con ícono Gauge y puntos de color (testid `project-avance-filter`, opciones `project-avance-option-{all|al_dia|medio|critico}`). Incluido en `hasActiveFilters` y `resetFilters`.
