@@ -157,6 +157,7 @@ const Projects = () => {
   const [sponsorSearch, setSponsorSearch] = useState('');
   const [integratorFilter, setIntegratorFilter] = useState('all');
   const [cobroFilter, setCobroFilter] = useState('all'); // 'all' | 'cobrado' | 'pendiente'
+  const [avanceFilter, setAvanceFilter] = useState('all'); // 'all' | 'al_dia' | 'medio' | 'critico'
   const [integratorPickerOpen, setIntegratorPickerOpen] = useState(false);
   const [integratorSearch, setIntegratorSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -402,6 +403,28 @@ const Projects = () => {
   // Predicado de filtros que NO dependen del estado (búsqueda, tipo, patrocinador,
   // integrador, rango de fechas). Sirve de base tanto para las tarjetas de estado
   // como para el set final mostrado en la grilla.
+  // === Nivel de AVANCE (criticidad temporal) por proyecto ===
+  // Reutiliza los MISMOS umbrales del semáforo SLA por etapa (backend calcula
+  // `business_days_in_state` con el Calendario Laboral).
+  const _stageKeyOf = (p) => {
+    if (!p.assigned_to_name) return 'por_asignar';
+    if (!p.ticket_number) return 'asignado';
+    return 'en_gestion';
+  };
+  const _avanceLevel = (p) => {
+    // Estados terminales/cerrados no tienen criticidad temporal pendiente: se
+    // contabilizan como "Al día" (evita mostrar 'Crítico' en proyectos cerrados).
+    const FINISHED = ['Culminado', 'Implementado parcial', 'Anulado', 'Cancelado', 'Finalizado'];
+    if (FINISHED.includes(p.status)) return 'al_dia';
+    const c = (slaConfig && slaConfig[_stageKeyOf(p)]) || {};
+    const w = Number(c.warning_days ?? 2);
+    const d = Number(c.delay_days ?? 4);
+    const days = Number(p.business_days_in_state ?? 0);
+    if (days >= d) return 'critico';
+    if (days >= w) return 'medio';
+    return 'al_dia';
+  };
+
   const matchesNonStatus = (p) => {
     const sponsorLabel = getPatrocinadorLabel(p);
     // Filtro "Cliente": busca por Nº proyecto/ticket, Nombre de Fantasía, RIF,
@@ -443,7 +466,8 @@ const Projects = () => {
       : cobroFilter === 'cobrado'
         ? !!p.cobro_recurrente_status
         : !p.cobro_recurrente_status;
-    return matchSearch && matchSponsor && matchType && matchIntegrator && matchDate && matchCobro;
+    const matchAvance = avanceFilter === 'all' ? true : _avanceLevel(p) === avanceFilter;
+    return matchSearch && matchSponsor && matchType && matchIntegrator && matchDate && matchCobro && matchAvance;
   };
 
   const matchesStatus = (p) => statusFilter === 'all'
@@ -510,27 +534,8 @@ const Projects = () => {
   };
 
   // === Desglose de AVANCE (criticidad temporal) para tooltips de KPIs ===
-  // Reutiliza los MISMOS umbrales del semáforo SLA por etapa (backend calcula
-  // `business_days_in_state` con el Calendario Laboral). Cada tarjeta se desglosa
-  // sobre su MISMO subconjunto, por lo que la suma de los 3 niveles == total.
-  const _stageKeyOf = (p) => {
-    if (!p.assigned_to_name) return 'por_asignar';
-    if (!p.ticket_number) return 'asignado';
-    return 'en_gestion';
-  };
-  const _avanceLevel = (p) => {
-    // Estados terminales/cerrados no tienen criticidad temporal pendiente: se
-    // contabilizan como "Al día" (evita mostrar 'Crítico' en proyectos cerrados).
-    const FINISHED = ['Culminado', 'Implementado parcial', 'Anulado', 'Cancelado', 'Finalizado'];
-    if (FINISHED.includes(p.status)) return 'al_dia';
-    const c = (slaConfig && slaConfig[_stageKeyOf(p)]) || {};
-    const w = Number(c.warning_days ?? 2);
-    const d = Number(c.delay_days ?? 4);
-    const days = Number(p.business_days_in_state ?? 0);
-    if (days >= d) return 'critico';
-    if (days >= w) return 'medio';
-    return 'al_dia';
-  };
+  // Reutiliza `_avanceLevel`; cada tarjeta se desglosa sobre su MISMO subconjunto,
+  // por lo que la suma de los 3 niveles == total.
   const avanceBreakdown = (subset) => {
     const bd = { al_dia: 0, medio: 0, critico: 0 };
     for (const p of (subset || [])) bd[_avanceLevel(p)]++;
@@ -593,10 +598,10 @@ const Projects = () => {
   );
 
   const hasActiveFilters = searchTerm || statusFilter !== 'active' || typeFilter !== 'all'
-    || sponsorFilter !== 'all' || integratorFilter !== 'all' || cobroFilter !== 'all' || dateFrom || dateTo;
+    || sponsorFilter !== 'all' || integratorFilter !== 'all' || cobroFilter !== 'all' || avanceFilter !== 'all' || dateFrom || dateTo;
   const resetFilters = () => {
     setSearchTerm(''); setStatusFilter('active'); setTypeFilter('all');
-    setSponsorFilter('all'); setIntegratorFilter('all'); setCobroFilter('all'); setDateFrom(''); setDateTo('');
+    setSponsorFilter('all'); setIntegratorFilter('all'); setCobroFilter('all'); setAvanceFilter('all'); setDateFrom(''); setDateTo('');
   };
 
   if (loading) {
@@ -832,6 +837,27 @@ const Projects = () => {
                   <SelectItem value="all" data-testid="project-cobro-option-all">Cobro: Todos</SelectItem>
                   <SelectItem value="cobrado" data-testid="project-cobro-option-cobrado">Cobro: Cobrado</SelectItem>
                   <SelectItem value="pendiente" data-testid="project-cobro-option-pendiente">Cobro: Pendiente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Filtro por Avance (criticidad temporal / semáforo SLA) */}
+            <div className="flex items-center gap-2">
+              <Gauge size={16} className="text-slate-400" />
+              <Select value={avanceFilter} onValueChange={setAvanceFilter}>
+                <SelectTrigger className={`w-[200px] ${avanceFilter !== 'all' ? 'border-violet-500 text-violet-700' : ''}`} data-testid="project-avance-filter">
+                  <SelectValue placeholder="Avance: Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="project-avance-option-all">Avance: Todos</SelectItem>
+                  <SelectItem value="al_dia" data-testid="project-avance-option-al_dia">
+                    <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />Al día</span>
+                  </SelectItem>
+                  <SelectItem value="medio" data-testid="project-avance-option-medio">
+                    <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />Retraso Medio</span>
+                  </SelectItem>
+                  <SelectItem value="critico" data-testid="project-avance-option-critico">
+                    <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />Retraso Crítico</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

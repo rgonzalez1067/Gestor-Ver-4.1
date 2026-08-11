@@ -4,6 +4,12 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: "Filtro por Avance" en Grilla de Proyectos — Jun 2026
+- **Requerimiento:** nuevo filtro en la pantalla de Proyectos por estado de avance/criticidad temporal (Al día / Retraso Medio / Retraso Crítico), combinable con el resto de filtros.
+- **Frontend** (`pages/Projects.jsx`): estado `avanceFilter` ('all'|'al_dia'|'medio'|'critico'). Se movieron los helpers `_stageKeyOf`/`_avanceLevel` (que ya calculaban el nivel del semáforo SLA reutilizando `slaConfig` + `business_days_in_state`) arriba de `matchesNonStatus`; se añadió `matchAvance = _avanceLevel(p) === avanceFilter` al AND de filtros no-estado → combina con búsqueda/tipo/cobro/patrocinador/integrador/fechas/estado. Nuevo `<Select>` con ícono Gauge y puntos de color (testid `project-avance-filter`, opciones `project-avance-option-{all|al_dia|medio|critico}`). Incluido en `hasActiveFilters` y `resetFilters`.
+- **QA:** verificado por screenshot (admin, /projects) — al elegir "Retraso Crítico" el trigger marca borde violeta y el conteo se recalcula (128→116); consistente con el semáforo de la grilla. Solo frontend. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Mejora: Columna "Envío a Imple / Último Contacto" multilínea en Grilla de Proyectos — Jun 2026
 - **Requerimiento:** reestructurar la columna "Envío a Imple" de la grilla de Proyectos para mostrar dos fechas en multilínea.
 - **Frontend** (`pages/Projects.jsx`): encabezado renombrado a "Envío a Imple / Último Contacto". El `<td>` ahora muestra en línea 1 (normal) la fecha `sent_to_implementation_at` (o "—"), y en línea 2 (gris/itálica, text-xs) `last_contact_at` (o "--/--/----" si es nula). testids `project-sent-impl-date-{id}` y `project-last-contact-date-{id}`.
