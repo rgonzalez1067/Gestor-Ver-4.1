@@ -317,6 +317,8 @@ export const Integrators = () => {
       email: intg.email || '',
       coordinador: intg.coordinador || '',
       coordinador_user_id: intg.coordinador_user_id || '',
+      implementador: intg.implementador || '',
+      implementador_user_id: intg.implementador_user_id || '',
       project_start_date: intg.project_start_date || '',
       project_name: intg.project_name || '',
       observations: intg.observations || '',
@@ -334,7 +336,7 @@ export const Integrators = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', project_start_date: '', project_name: '', observations: '', comercios_relacionados: '', componente_version: '', productos_certificar: '', correo_eventual: '', principal_contact_name: '', principal_contact_phone: '', principal_contact_email: '', interface_negotiation: '', contacts: [] });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', coordinador: '', coordinador_user_id: '', implementador: '', implementador_user_id: '', project_start_date: '', project_name: '', observations: '', comercios_relacionados: '', componente_version: '', productos_certificar: '', correo_eventual: '', principal_contact_name: '', principal_contact_phone: '', principal_contact_email: '', interface_negotiation: '', contacts: [] });
     setEditingIntegrator(null);
     resetWizard();
   };
@@ -1450,6 +1452,28 @@ export const Integrators = () => {
                           </Select>
                           <p className="text-[10px] text-slate-400 mt-1">Solo Coordinadores del Depto. de Implementación.</p>
                         </div>
+                        <div>
+                          <Label>Implementador</Label>
+                          <Select
+                            value={formData.implementador_user_id || ''}
+                            onValueChange={(userId) => {
+                              const u = implementadores.find((x) => x.user_id === userId);
+                              setFormData({ ...formData, implementador_user_id: userId, implementador: u ? (u.full_name || u.email) : '' });
+                            }}
+                          >
+                            <SelectTrigger data-testid="integrator-implementador-select"><SelectValue placeholder="Seleccione implementador..." /></SelectTrigger>
+                            <SelectContent>
+                              {implementadores.length === 0 ? (
+                                <div className="px-3 py-2 text-xs text-slate-400 italic">No hay Implementadores activos</div>
+                              ) : implementadores.map((u) => (
+                                <SelectItem key={u.user_id} value={u.user_id} data-testid={`integrator-implementador-option-${u.user_id}`}>{u.full_name || u.email}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-slate-400 mt-1">Solo usuarios con cargo "Implementador".</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
                           <Label>Fecha de Inicio del Proyecto</Label>
                           <Input

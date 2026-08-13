@@ -289,6 +289,11 @@ async def update_integrator(integrator_id: str, integrator: IntegratorCreate, au
     update_data["project_scope"] = existing.get("project_scope")
     update_data.pop("closed_at", None)
     update_data.pop("closed_by", None)
+    # IMPLEMENTADOR: solo se actualiza si viene un valor desde la ficha (evita
+    # borrar accidentalmente una asignación previa cuando el payload no lo trae).
+    if not update_data.get("implementador_user_id"):
+        update_data.pop("implementador", None)
+        update_data.pop("implementador_user_id", None)
     incoming_status = update_data.get("integrator_status")
     if existing.get("integrator_status") == "Cerrado" or incoming_status == "Cerrado":
         # Ni se cierra por edición, ni se reactiva un proyecto ya cerrado editando la ficha.

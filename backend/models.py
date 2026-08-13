@@ -437,6 +437,8 @@ class IntegratorCreate(BaseModel):
     # Campos de seguimiento operativo (ficha ampliada).
     coordinador: Optional[str] = None          # nombre del Coordinador de Implementación
     coordinador_user_id: Optional[str] = None
+    implementador: Optional[str] = None        # nombre del Implementador responsable
+    implementador_user_id: Optional[str] = None
     project_start_date: Optional[str] = None   # ISO (dd/mm/aaaa en UI/plantilla)
     project_name: Optional[str] = None
     observations: Optional[str] = None

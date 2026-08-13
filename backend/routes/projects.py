@@ -2696,6 +2696,14 @@ async def send_adhoc_email(
         {"$push": {"bitacora": bitacora_entry}}
     )
 
+    # Automatización "Fecha de Último Contacto": toda comunicación (Otras
+    # Notificaciones) dirigida al cliente desde el proyecto actualiza el
+    # timestamp de último contacto → se refleja en la grilla de Proyectos.
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"last_contact_at": now, "last_contact_by": user_name, "last_contact_target": "client", "updated_at": now}},
+    )
+
     total_recipients = len(to_list) + len(cc_list)
     return {
         "message": f"Correo enviado a {total_recipients} destinatario(s) ({email_result.get('status', 'unknown')})",

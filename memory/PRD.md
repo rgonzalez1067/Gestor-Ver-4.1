@@ -4,6 +4,14 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Implementador editable en Ficha de Integrador + auto "Último Contacto" por Otras Notificaciones — Jun 2026
+- **A. Selector de Implementador (ficha de edición):** el modal "Editar Proyecto de Integración" ahora incluye un selector dinámico "Implementador" (junto a Coordinador, bloque "Seguimiento del Proyecto"), alimentado por `GET /api/auth/implementadores` (usuarios activos con cargo "Implementador"). Al elegir, se setean `implementador` (nombre) + `implementador_user_id` y se persisten vía `PUT /api/integrators/{id}` en **silencio** (sin correo).
+  - **Backend:** `IntegratorCreate` (models.py) += `implementador`/`implementador_user_id`. `update_integrator` (integrators.py) guarda solo si viene valor (guard: si `implementador_user_id` vacío → NO sobreescribe, evita borrar una asignación previa hecha desde la grilla).
+  - **Frontend** (`pages/Integrators.jsx`): `openEditDialog`/`resetForm` cargan los campos; `<Select data-testid="integrator-implementador-select">` (opciones `integrator-implementador-option-{user_id}`).
+- **B. Auto "Fecha de Último Contacto":** el envío de "Otras Notificaciones" (`POST /projects/{id}/send-adhoc-email`) ahora actualiza `last_contact_at`=now, `last_contact_by`, `last_contact_target='client'` → se refleja en la 2ª línea de la columna "Envío a Imple / Último Contacto" de la grilla. (Las Notificaciones a Cliente/Banco ya lo hacían.)
+- **QA (self-test):** curl E2E → PUT persiste implementador (Omar Jiménez) y el guard mantiene el valor en un PUT sin el campo; endpoint implementadores devuelve 14 usuarios; adhoc email movió `last_contact_at` de 2026-07-04 → hoy (target client). Screenshot: selector "Implementador" precargado en la ficha. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Bug Fix: "Otras Notificaciones" de la Bitácora se veían como código HTML — Jun 2026
 - **Síntoma:** los correos de "Otras Notificaciones" (tipo `adhoc_email`) del menú de Proyectos se almacenaban/mostraban como HTML crudo (`<p>…</p>`), ilegibles; en cambio las Notificaciones a Cliente/Banco (tipo `notification`) sí se veían en texto simple.
 - **RCA:** en `routes/projects.py` (envío adhoc, L~2687) se guardaba `email_detail.message = message` (el HTML del editor) en vez de texto simple. El visor (`EmailDetailViewer.jsx`) prioriza `message` (whitespace-pre-wrap) → mostraba las etiquetas literales. Además el backfill `POST /projects/bitacora/backfill-plaintext` solo rellenaba `message` cuando faltaba, por lo que NO reconvertía las 25 entradas que ya tenían `message` con HTML.
