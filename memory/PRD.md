@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Performance: Listado de Proyectos aligerado (−71% payload) + índices — Jun 2026
+- **Diagnóstico:** el tiempo de la consulta de Proyectos crecía con el uso. Causa real: NO era el nº de registros (128 proyectos) sino el peso del payload — `GET /api/projects` pesaba ~3.9 MB y el **69% era el array `bitacora`** (que crece con cada notificación/cambio de estado) y que la grilla NO usa (solo el detalle). Cotizaciones ya era liviano (370 KB/0.14s): su peso está en `equipment_items`/`attachments`, que sí se usan en edición/anexos → no se recortan.
+- **Fix** (`routes/projects.py::get_projects`): projection de exclusión `{"_id":0,"bitacora":0,"notification_history":0,"status_history":0}` en el listado. El detalle (`GET /projects/{id}`) sigue trayendo el doc completo. El enriquecimiento (PVV/métricas/SLA) no depende de esos arrays (verificado). La grilla (`Projects.jsx`) no referencia ninguno.
+- **Índices** (`server.py::create_indexes`, background startup): `projects.created_at(-1)`; `quotes.created_at(-1)`, `quotes.{archived,created_at}`, `quotes.client_segment` — para blindar el crecimiento futuro del sort/filtros del listado.
+- **QA (self-test):** payload de `/projects` 3.9 MB → **1.12 MB (−71%)**; tiempo en caliente ~0.53s → **~0.25s (≈2×)**; el listado ya no trae `bitacora`, el detalle sí (7 entradas); índices confirmados en ambas colecciones; screenshot: grilla con 117 filas, KPIs, mini-tablero y filtros intactos (sin regresión). ⚠️ PREVIEW; requiere REDEPLOY (los índices se crean solos al arranque en producción).
+
+
 ### Feature: Implementador editable en Ficha de Integrador + auto "Último Contacto" por Otras Notificaciones — Jun 2026
 - **A. Selector de Implementador (ficha de edición):** el modal "Editar Proyecto de Integración" ahora incluye un selector dinámico "Implementador" (junto a Coordinador, bloque "Seguimiento del Proyecto"), alimentado por `GET /api/auth/implementadores` (usuarios activos con cargo "Implementador"). Al elegir, se setean `implementador` (nombre) + `implementador_user_id` y se persisten vía `PUT /api/integrators/{id}` en **silencio** (sin correo).
   - **Backend:** `IntegratorCreate` (models.py) += `implementador`/`implementador_user_id`. `update_integrator` (integrators.py) guarda solo si viene valor (guard: si `implementador_user_id` vacío → NO sobreescribe, evita borrar una asignación previa hecha desde la grilla).

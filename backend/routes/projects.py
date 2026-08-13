@@ -199,7 +199,13 @@ async def _build_project_visibility_query(user: dict) -> dict:
 async def get_projects(authorization: Optional[str] = Header(None)):
     user = await get_current_user(authorization)
     query = await _build_project_visibility_query(user)
-    projects = await db.projects.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    # PERFORMANCE: la grilla NO usa los arrays pesados (bitacora,
+    # notification_history, status_history) — solo el detalle del proyecto
+    # (GET /projects/{id}, que sí trae el doc completo). Excluirlos aquí reduce
+    # el payload ~70% y evita que el listado se degrade a medida que crece la
+    # bitácora. El enriquecimiento (PVV/métricas/SLA) no depende de estos campos.
+    _list_projection = {"_id": 0, "bitacora": 0, "notification_history": 0, "status_history": 0}
+    projects = await db.projects.find(query, _list_projection).sort("created_at", -1).to_list(1000)
     # Iter39: inyectar pvv_count para que la lista pueda mostrarlo / ordenarlo
     # sin un GET adicional por proyecto.
     from services.project_pvv import compute_project_pvv, compute_project_metrics

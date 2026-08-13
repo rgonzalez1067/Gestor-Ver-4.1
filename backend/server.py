@@ -380,9 +380,16 @@ async def create_indexes():
             await db.quotes.create_index([("quote_id", 1)], unique=True)
             await db.quotes.create_index([("client_id", 1)])
             await db.quotes.create_index([("quote_number", 1)])
+            # PERFORMANCE (crecimiento futuro): sort por created_at y filtros de
+            # listado (archived + segmento) de la grilla de Cotizaciones.
+            await db.quotes.create_index([("created_at", -1)])
+            await db.quotes.create_index([("archived", 1), ("created_at", -1)])
+            await db.quotes.create_index([("client_segment", 1)])
             await db.projects.create_index([("project_id", 1)], unique=True)
             await db.projects.create_index([("quote_id", 1)])
             await db.projects.create_index([("status", 1)])
+            # PERFORMANCE: sort principal del listado de Proyectos.
+            await db.projects.create_index([("created_at", -1)])
             await db.uploaded_images.create_index([("image_id", 1)], unique=True)
             logging.info("MongoDB indexes created successfully")
         except Exception as e:
