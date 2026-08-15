@@ -4,6 +4,17 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Multicertificado por Implementador + inyección dinámica en Cierre — Jun 2026
+- **Requerimiento:** el botón "Certificado" (Configuración de Integradores) evoluciona de UN certificado global a MÚLTIPLES plantillas PDF, una por Implementador. En el Cierre de Proyecto se inyecta automáticamente la plantilla del Implementador asignado a la ficha. Si el implementador no tiene plantilla (o el proyecto no tiene implementador) → se CANCELA el cierre con mensaje. Se retira la plantilla global; solo PDF.
+- **Backend** (`routes/integrators.py`):
+  - Colección `integrator_cert_templates` (upsert por `implementer_user_id`; campos: template_id, implementer_user_id, implementer_name, filename, content_b64, size, created_at, updated_at, uploaded_by_name).
+  - Endpoints (admin o flag `integradores:cerrar_proyecto`): `GET/POST /integrators/config/cert-templates`, `GET .../{uid}/download`, `DELETE .../{uid}`. POST valida cargo 'Implementador', extensión .pdf y cabecera `%PDF-`.
+  - `_resolve_implementer_cert_template(intg)`: 400 si no hay `implementador_user_id` o no hay plantilla (mensajes claros). Se llama en `close_integrator_project` y en `close/preview` ANTES de generar/persistir/enviar.
+  - `_generate_integration_certificate_pdf(..., base_pdf_bytes=)`: estampa el texto dinámico sobre la plantilla del implementador (temp file). Fallback autónomo solo ante error de estampado.
+- **Frontend** (`pages/Integrators.jsx`): diálogo "Certificados por Implementador" (`cert-templates-dialog`) — formulario (Select `cert-implementador-select` + uploader PDF `cert-upload-input` + `cert-save-btn`) y grilla `cert-templates-table` (Implementador / Archivo / Actualizado / descargar+eliminar). Reemplaza el uploader global anterior.
+- **QA (self-test curl + screenshot):** carga múltiple A y B OK; rechazo de no-PDF (400); **prueba de fuego**: integrador con Implementador A → certificado sobre base 300×200 (Certificado_A); con Implementador B → base 500×400 (Certificado_B); fallback sin plantilla → 400 con mensaje; fallback sin implementador → 400 con mensaje. Screenshot del gestor con la grilla. Datos de prueba limpiados. ⚠️ PREVIEW; requiere REDEPLOY. Nota: en producción cada Implementador debe cargar su plantilla antes de poder cerrar proyectos.
+
+
 ### Performance: Listado de Proyectos aligerado (−71% payload) + índices — Jun 2026
 - **Diagnóstico:** el tiempo de la consulta de Proyectos crecía con el uso. Causa real: NO era el nº de registros (128 proyectos) sino el peso del payload — `GET /api/projects` pesaba ~3.9 MB y el **69% era el array `bitacora`** (que crece con cada notificación/cambio de estado) y que la grilla NO usa (solo el detalle). Cotizaciones ya era liviano (370 KB/0.14s): su peso está en `equipment_items`/`attachments`, que sí se usan en edición/anexos → no se recortan.
 - **Fix** (`routes/projects.py::get_projects`): projection de exclusión `{"_id":0,"bitacora":0,"notification_history":0,"status_history":0}` en el listado. El detalle (`GET /projects/{id}`) sigue trayendo el doc completo. El enriquecimiento (PVV/métricas/SLA) no depende de esos arrays (verificado). La grilla (`Projects.jsx`) no referencia ninguno.

@@ -1028,42 +1028,39 @@ export const Integrators = () => {
     }
   };
 
-  // Repositorio de Certificados de Integración (Configuración)
+  // Gestión Multicertificado por Implementador (Configuración)
   const [certDialogOpen, setCertDialogOpen] = useState(false);
-  const [certInfo, setCertInfo] = useState({ exists: false });
+  const [certTemplates, setCertTemplates] = useState([]);
+  const [certSelImpl, setCertSelImpl] = useState('');
+  const [certFile, setCertFile] = useState(null);
   const [certUploading, setCertUploading] = useState(false);
-  const fetchCertInfo = async () => {
-    try { const r = await api.get('/integrators/config/certificate'); setCertInfo(r.data || { exists: false }); }
-    catch { setCertInfo({ exists: false }); }
+  const fetchCertTemplates = async () => {
+    try { const r = await api.get('/integrators/config/cert-templates'); setCertTemplates(r.data?.templates || []); }
+    catch { setCertTemplates([]); }
   };
-  const openCertDialog = () => { setCertDialogOpen(true); fetchCertInfo(); };
-  const handleCertUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (!['jpg', 'jpeg', 'png', 'pdf'].includes(ext)) {
-      toast.error('Formato no permitido. Solo se aceptan .jpg, .png y .pdf');
-      e.target.value = '';
-      return;
-    }
+  const openCertDialog = () => { setCertDialogOpen(true); setCertSelImpl(''); setCertFile(null); fetchCertTemplates(); };
+  const handleCertSave = async () => {
+    if (!certSelImpl) { toast.error('Seleccione un Implementador'); return; }
+    if (!certFile) { toast.error('Seleccione un archivo PDF'); return; }
+    const ext = (certFile.name.split('.').pop() || '').toLowerCase();
+    if (ext !== 'pdf') { toast.error('Formato no permitido. Solo se aceptan archivos .pdf'); return; }
     setCertUploading(true);
     try {
       const fd = new FormData();
-      fd.append('file', file);
-      await api.post('/integrators/config/certificate', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      toast.success('Certificado cargado correctamente');
-      fetchCertInfo();
+      fd.append('implementer_user_id', certSelImpl);
+      fd.append('file', certFile);
+      const r = await api.post('/integrators/config/cert-templates', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success(r.data?.replaced ? 'Plantilla reemplazada correctamente' : 'Plantilla guardada correctamente');
+      setCertSelImpl(''); setCertFile(null);
+      fetchCertTemplates();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al cargar el certificado');
-    } finally {
-      setCertUploading(false);
-      e.target.value = '';
-    }
+      toast.error(err.response?.data?.detail || 'Error al guardar la plantilla');
+    } finally { setCertUploading(false); }
   };
-  const handleCertDelete = async () => {
-    if (!window.confirm('¿Eliminar el certificado cargado?')) return;
-    try { await api.delete('/integrators/config/certificate'); toast.success('Certificado eliminado'); fetchCertInfo(); }
-    catch (err) { toast.error('Error al eliminar el certificado'); }
+  const handleCertTplDelete = async (implId) => {
+    if (!window.confirm('¿Eliminar la plantilla de certificado de este Implementador?')) return;
+    try { await api.delete(`/integrators/config/cert-templates/${implId}`); toast.success('Plantilla eliminada'); fetchCertTemplates(); }
+    catch (err) { toast.error(err.response?.data?.detail || 'Error al eliminar la plantilla'); }
   };
 
 
@@ -1148,30 +1145,72 @@ export const Integrators = () => {
               {canEdit && (
                 <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
                   <Button variant="outline" onClick={openCertDialog} data-testid="cert-config-btn" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"><ShieldCheck size={16} className="mr-1" />Certificado</Button>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle className="font-manrope text-lg flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600" />Certificado de Integración</DialogTitle></DialogHeader>
+                  <DialogContent className="max-w-2xl" data-testid="cert-templates-dialog">
+                    <DialogHeader><DialogTitle className="font-manrope text-lg flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600" />Certificados por Implementador</DialogTitle></DialogHeader>
                     <div className="space-y-4 mt-1">
-                      <p className="text-sm text-slate-500">Documento (aval) que se adjunta automáticamente en el correo de Cierre Exitoso de un Proyecto de Integración. Formatos permitidos: .jpg, .png, .pdf.</p>
-                      {certInfo.exists ? (
-                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2" data-testid="cert-current">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-emerald-800 truncate">{certInfo.original_name}</p>
-                            <p className="text-xs text-emerald-600">Cargado: {certInfo.uploaded_at ? formatDate(certInfo.uploaded_at) : ''}</p>
+                      <p className="text-sm text-slate-500">Cada Implementador tiene su propia plantilla PDF de certificado. Al Cerrar un Proyecto de Integración se inyecta automáticamente la plantilla del Implementador asignado en la ficha. Formato: solo .pdf.</p>
+
+                      {/* Formulario de carga/asignación */}
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs font-medium text-slate-700 mb-1 block">Implementador</Label>
+                            <Select value={certSelImpl} onValueChange={setCertSelImpl}>
+                              <SelectTrigger data-testid="cert-implementador-select"><SelectValue placeholder="Seleccione implementador..." /></SelectTrigger>
+                              <SelectContent>
+                                {implementadores.length === 0 ? (
+                                  <div className="px-3 py-2 text-xs text-slate-400 italic">No hay Implementadores activos</div>
+                                ) : implementadores.map((u) => (
+                                  <SelectItem key={u.user_id} value={u.user_id} data-testid={`cert-impl-option-${u.user_id}`}>{u.full_name || u.email}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <div className="flex gap-1 shrink-0">
-                            <a href={`${process.env.REACT_APP_BACKEND_URL}/api/integrators/config/certificate/download`} target="_blank" rel="noreferrer">
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-700" title="Descargar" data-testid="cert-download-btn"><Download size={15} /></Button>
-                            </a>
-                            <Button size="sm" variant="ghost" onClick={handleCertDelete} className="h-8 w-8 p-0 text-red-500" title="Eliminar" data-testid="cert-delete-btn"><Trash2 size={15} /></Button>
+                          <div>
+                            <Label className="text-xs font-medium text-slate-700 mb-1 block">Plantilla de Certificado (PDF)</Label>
+                            <input type="file" accept=".pdf,application/pdf" onChange={(e) => setCertFile(e.target.files?.[0] || null)} disabled={certUploading} className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white file:cursor-pointer hover:file:bg-emerald-700" data-testid="cert-upload-input" />
                           </div>
                         </div>
-                      ) : (
-                        <p className="text-sm text-slate-400 italic" data-testid="cert-empty">No hay certificado cargado.</p>
-                      )}
-                      <div>
-                        <input type="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" onChange={handleCertUpload} disabled={certUploading} className="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white file:cursor-pointer hover:file:bg-emerald-700" data-testid="cert-upload-input" />
-                        {certUploading && <p className="text-xs text-slate-400 mt-1">Cargando…</p>}
+                        <div className="flex justify-end">
+                          <Button onClick={handleCertSave} disabled={certUploading || !certSelImpl || !certFile} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="cert-save-btn">
+                            <Upload size={14} className="mr-1.5" />{certUploading ? 'Guardando…' : 'Guardar Certificado'}
+                          </Button>
+                        </div>
                       </div>
+
+                      {/* Grilla de plantillas registradas */}
+                      <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        <table className="w-full text-sm" data-testid="cert-templates-table">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Implementador</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Archivo</th>
+                              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Actualizado</th>
+                              <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {certTemplates.length === 0 ? (
+                              <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-400 italic" data-testid="cert-templates-empty">No hay plantillas registradas.</td></tr>
+                            ) : certTemplates.map((t) => (
+                              <tr key={t.implementer_user_id} className="hover:bg-slate-50" data-testid={`cert-template-row-${t.implementer_user_id}`}>
+                                <td className="px-3 py-2 text-slate-800 font-medium">{t.implementer_name}</td>
+                                <td className="px-3 py-2 text-slate-600 truncate max-w-[220px]" title={t.filename}>{t.filename}</td>
+                                <td className="px-3 py-2 text-slate-500 text-xs">{t.updated_at ? formatDate(t.updated_at) : '—'}</td>
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <a href={`${process.env.REACT_APP_BACKEND_URL}/api/integrators/config/cert-templates/${t.implementer_user_id}/download`} target="_blank" rel="noreferrer">
+                                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-700" title="Descargar" data-testid={`cert-tpl-download-${t.implementer_user_id}`}><Download size={15} /></Button>
+                                    </a>
+                                    <Button size="sm" variant="ghost" onClick={() => handleCertTplDelete(t.implementer_user_id)} className="h-8 w-8 p-0 text-red-500" title="Eliminar" data-testid={`cert-tpl-delete-${t.implementer_user_id}`}><Trash2 size={15} /></Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[11px] text-slate-400">Para <strong>reemplazar</strong> una plantilla, seleccione el mismo Implementador y cargue el nuevo PDF.</p>
                     </div>
                   </DialogContent>
                 </Dialog>

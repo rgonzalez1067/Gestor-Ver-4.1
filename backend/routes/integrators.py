@@ -429,27 +429,37 @@ def _build_standalone_certificate_pdf(intg: dict, componente: str, version: str,
     return buf.read()
 
 
-async def _generate_integration_certificate_pdf(intg: dict, componente: str, version: str, productos_str: str):
+async def _generate_integration_certificate_pdf(intg: dict, componente: str, version: str, productos_str: str, base_pdf_bytes: Optional[bytes] = None):
     """Genera el Certificado de Integración para adjuntar al cierre.
 
-    - Si existe un PDF base en el depósito 'Certificado' (db.config
-      type=integration_certificate), estampa el texto dinámico sobre él.
-    - Si NO existe un PDF base (o es una imagen / archivo no-PDF), construye un
-      Certificado corporativo COMPLETO desde cero, de modo que SIEMPRE haya un
-      certificado que adjuntar (nunca retorna None por falta de depósito)."""
+    - Si se recibe `base_pdf_bytes` (plantilla del Implementador responsable),
+      estampa el texto dinámico sobre ESE PDF.
+    - Si no, y existe un PDF base legacy en el depósito global, lo usa.
+    - Si no hay base válido, construye un Certificado corporativo autónomo (solo
+      como recuperación ante error de estampado; el caso "sin plantilla" se
+      bloquea ANTES en el flujo de cierre/preview)."""
     base_path = None
-    doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
-    if doc and doc.get("filename") and str(doc["filename"]).lower().endswith(".pdf"):
-        fpath = UPLOADS_DIR / doc["filename"]
-        # Si el archivo no está en disco (FS efímero tras redeploy) pero sí en Mongo,
-        # lo restauramos para poder estampar sobre TU PDF cargado.
-        if not fpath.exists() and doc.get("content_b64"):
-            try:
-                fpath.write_bytes(base64.b64decode(doc["content_b64"]))
-            except Exception as e:
-                logger.warning(f"[cert] no se pudo restaurar el PDF base desde Mongo: {e}")
-        if fpath.exists():
-            base_path = fpath
+    _tmp_base = None
+    if base_pdf_bytes:
+        import tempfile
+        _tmp_base = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        _tmp_base.write(base_pdf_bytes)
+        _tmp_base.flush()
+        _tmp_base.close()
+        base_path = _tmp_base.name
+    else:
+        doc = await db.config.find_one({"type": "integration_certificate"}, {"_id": 0})
+        if doc and doc.get("filename") and str(doc["filename"]).lower().endswith(".pdf"):
+            fpath = UPLOADS_DIR / doc["filename"]
+            # Si el archivo no está en disco (FS efímero tras redeploy) pero sí en Mongo,
+            # lo restauramos para poder estampar sobre TU PDF cargado.
+            if not fpath.exists() and doc.get("content_b64"):
+                try:
+                    fpath.write_bytes(base64.b64decode(doc["content_b64"]))
+                except Exception as e:
+                    logger.warning(f"[cert] no se pudo restaurar el PDF base desde Mongo: {e}")
+            if fpath.exists():
+                base_path = fpath
     try:
         if base_path is None:
             # Sin PDF base válido → certificado autónomo corporativo.
@@ -644,6 +654,29 @@ async def _generate_integration_certificate_pdf(intg: dict, componente: str, ver
             return None
 
 
+async def _resolve_implementer_cert_template(intg: dict) -> bytes:
+    """Devuelve los bytes del PDF de plantilla del Implementador asignado al
+    proyecto. Lanza HTTP 400 si no hay implementador asignado o si éste no tiene
+    plantilla cargada (regla estricta: sin plantilla NO se cierra el proyecto)."""
+    impl_uid = (intg.get("implementador_user_id") or "").strip()
+    impl_name = (intg.get("implementador") or "").strip()
+    if not impl_uid:
+        raise HTTPException(status_code=400, detail=(
+            "El proyecto no tiene un Implementador asignado. Edite la ficha del "
+            "Proyecto de Integración y asigne un Implementador antes de cerrar."))
+    tpl = await db.integrator_cert_templates.find_one({"implementer_user_id": impl_uid})
+    if not tpl or not tpl.get("content_b64"):
+        raise HTTPException(status_code=400, detail=(
+            f"El Implementador '{impl_name or impl_uid}' no tiene una plantilla de "
+            "certificado cargada. Cárguela en Configuración → Integradores → "
+            "Certificado antes de cerrar el proyecto."))
+    try:
+        return base64.b64decode(tpl["content_b64"])
+    except Exception:
+        raise HTTPException(status_code=400, detail=(
+            "La plantilla de certificado del Implementador está dañada. Vuelva a cargarla."))
+
+
 async def _store_integrator_certificate(integrator_id: str, filename: str, content: bytes,
                                         origin: str, origin_label: str, user: dict = None) -> str:
     """Inserta un Certificado como NUEVA versión (INSERT acumulativo, nunca UPDATE/UPSERT).
@@ -764,9 +797,12 @@ async def close_integrator_project(
     productos_str = _certified_products_string(existing)
     medios_bullets = _certified_products_bullets_html(existing)
 
-    # Certificado PDF (estampado sobre el depósito) + anexos del Modal 2
+    # Certificado PDF (estampado sobre la plantilla del Implementador asignado)
+    # + anexos del Modal 2. Si el implementador no tiene plantilla → 400 (cancela
+    # el cierre ANTES de persistir estatus o enviar correos).
     attachments = []
-    cert_bytes = await _generate_integration_certificate_pdf(existing, componente, version_componente, productos_str)
+    _impl_tpl_bytes = await _resolve_implementer_cert_template(existing)
+    cert_bytes = await _generate_integration_certificate_pdf(existing, componente, version_componente, productos_str, base_pdf_bytes=_impl_tpl_bytes)
     if cert_bytes:
         attachments.append({"filename": f"Certificado_{existing.get('name', 'Integracion')}.pdf", "content": cert_bytes})
     for f in (files or []):
@@ -913,9 +949,10 @@ async def preview_integration_certificate(
     if not componente or not version_componente:
         raise HTTPException(status_code=400, detail="Componente y Versión del Componente son obligatorios")
     productos_str = _certified_products_string(existing)
-    cert_bytes = await _generate_integration_certificate_pdf(existing, componente, version_componente, productos_str)
+    _impl_tpl_bytes = await _resolve_implementer_cert_template(existing)
+    cert_bytes = await _generate_integration_certificate_pdf(existing, componente, version_componente, productos_str, base_pdf_bytes=_impl_tpl_bytes)
     if not cert_bytes:
-        raise HTTPException(status_code=422, detail="No hay PDF base de certificado en el depósito para previsualizar")
+        raise HTTPException(status_code=422, detail="No se pudo generar el certificado para previsualizar")
     return Response(content=cert_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": "inline; filename=preview_certificado.pdf"})
 
@@ -1243,6 +1280,101 @@ async def delete_integration_certificate(authorization: Optional[str] = Header(N
             pass
     await db.config.delete_one({"type": "integration_certificate"})
     return {"status": "ok"}
+
+
+# ============ PLANTILLAS DE CERTIFICADO POR IMPLEMENTADOR (Multicertificado) ============
+# Colección: db.integrator_cert_templates (una plantilla PDF por implementer_user_id).
+# El Cierre de Proyecto inyecta la plantilla del Implementador asignado a la ficha.
+
+def _cert_tpl_admin_guard(current_user: dict):
+    role = (current_user or {}).get("role", "")
+    special = (current_user or {}).get("special_permissions") or []
+    if role != "admin" and "integradores:cerrar_proyecto" not in special:
+        raise HTTPException(status_code=403, detail="No tiene permisos para gestionar plantillas de certificado")
+
+
+@router.get("/integrators/config/cert-templates")
+async def list_cert_templates(authorization: Optional[str] = Header(None)):
+    """Lista las asociaciones Implementador → plantilla de certificado (grilla)."""
+    await get_current_user(authorization)
+    items = []
+    async for t in db.integrator_cert_templates.find(
+        {}, {"_id": 0, "content_b64": 0}
+    ).sort("updated_at", -1):
+        items.append(t)
+    return {"templates": items, "total": len(items)}
+
+
+@router.post("/integrators/config/cert-templates")
+async def upsert_cert_template(
+    implementer_user_id: str = Form(...),
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Crea/Reemplaza la plantilla PDF del Implementador (upsert por user_id)."""
+    current_user = await get_current_user(authorization)
+    _cert_tpl_admin_guard(current_user)
+
+    impl_uid = (implementer_user_id or "").strip()
+    if not impl_uid:
+        raise HTTPException(status_code=400, detail="Debe seleccionar un Implementador")
+    impl = await db.users.find_one({"user_id": impl_uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1})
+    if not impl:
+        raise HTTPException(status_code=404, detail="Implementador no encontrado")
+    if (impl.get("cargo") or "").strip().lower() != "implementador":
+        raise HTTPException(status_code=400, detail="El usuario seleccionado no tiene cargo 'Implementador'")
+
+    fname = file.filename or "certificado.pdf"
+    if not fname.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Formato no permitido. Solo se aceptan archivos .pdf")
+    content = await file.read()
+    if not content or content[:5] != b"%PDF-":
+        raise HTTPException(status_code=400, detail="El archivo no es un PDF válido")
+
+    impl_name = f"{impl.get('first_name', '')} {impl.get('last_name', '')}".strip() or impl.get("email", "")
+    uploader = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    existing_tpl = await db.integrator_cert_templates.find_one({"implementer_user_id": impl_uid}, {"_id": 0, "template_id": 1, "created_at": 1})
+    doc = {
+        "template_id": (existing_tpl or {}).get("template_id") or f"ctpl_{uuid.uuid4().hex[:12]}",
+        "implementer_user_id": impl_uid,
+        "implementer_name": impl_name,
+        "filename": fname,
+        "content_b64": base64.b64encode(content).decode("ascii"),
+        "content_type": "application/pdf",
+        "size": len(content),
+        "created_at": (existing_tpl or {}).get("created_at") or now_iso,
+        "updated_at": now_iso,
+        "uploaded_by_name": uploader,
+    }
+    await db.integrator_cert_templates.update_one(
+        {"implementer_user_id": impl_uid}, {"$set": doc}, upsert=True
+    )
+    return {"status": "ok", "template_id": doc["template_id"], "implementer_name": impl_name, "filename": fname, "replaced": bool(existing_tpl)}
+
+
+@router.get("/integrators/config/cert-templates/{implementer_user_id}/download")
+async def download_cert_template(implementer_user_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    tpl = await db.integrator_cert_templates.find_one({"implementer_user_id": implementer_user_id}, {"_id": 0})
+    if not tpl or not tpl.get("content_b64"):
+        raise HTTPException(status_code=404, detail="No hay plantilla para este Implementador")
+    return Response(
+        content=base64.b64decode(tpl["content_b64"]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename={tpl.get('filename', 'certificado.pdf')}"},
+    )
+
+
+@router.delete("/integrators/config/cert-templates/{implementer_user_id}")
+async def delete_cert_template(implementer_user_id: str, authorization: Optional[str] = Header(None)):
+    current_user = await get_current_user(authorization)
+    _cert_tpl_admin_guard(current_user)
+    res = await db.integrator_cert_templates.delete_one({"implementer_user_id": implementer_user_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="No hay plantilla para este Implementador")
+    return {"status": "ok"}
+
 
 
 class TestEnvironmentPayload(BaseModel):
