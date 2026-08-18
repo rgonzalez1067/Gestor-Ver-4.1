@@ -4,6 +4,12 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Refactor: Render ÚNICO de PDF de Cotizaciones de Equipos/Reparación (elimina duplicación creación↔regeneración) — Jun 2026
+- **Objetivo:** eliminar la deuda técnica de código duplicado entre `generate_equipment_quote_pdf` (creación) y `regenerate_equipment_pdf` (modificar/reenviar) en `routes/quotes.py`, que ya había causado bugs recurrentes (pérdida de seriales, condiciones Verifone). Requisito del usuario: garantizar que el bug de pérdida de seriales NO reaparezca.
+- **Implementación:** nueva función fuente-de-verdad `_render_equipment_quote_pdf(...)` que produce el PDF completo (HTML canónico con encabezado repetido, seriales por ítem, resumen por modelo, **Anexo de Seriales por Modelo**, y **Condiciones Legales** por tipo/sede vía `append_equipment_conditions`) y devuelve `(pdf_bytes, meta)` con los totales. Helpers `_normalize_equip_items`/`_normalize_repair_models` (aceptan Pydantic o dict) y `_equip_logo_html`. Ambos endpoints normalizan sus datos y llaman al MISMO render → paridad absoluta imposible de divergir. Beneficio extra: la regeneración ahora aplica descuento y usa el mismo layout canónico que la creación (antes divergían).
+- **QA (pytest E2E):** `test_repair_serials_parity.py` **4/4** (seriales idénticos creación vs regeneración, incl. disco efímero y RBAC admin/no-admin), `test_equipment_pdf_serials.py` **6/6** (seriales por ítem, N:N, sin repair_models), `test_iter288_repair_seriales_and_autoria.py` **3/3**. Total **14/14** verdes. Los 2 fallos de `test_verifone_conditions.py` (espera 2 págs, obtiene 3) se confirmaron **PREEXISTENTES** vía `git stash` (el archivo `condiciones_verifone_tbp.pdf` tiene 2 págs; expectativa del test obsoleta) — NO introducidos por este refactor. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: Multicertificado por Implementador + inyección dinámica en Cierre — Jun 2026
 - **Requerimiento:** el botón "Certificado" (Configuración de Integradores) evoluciona de UN certificado global a MÚLTIPLES plantillas PDF, una por Implementador. En el Cierre de Proyecto se inyecta automáticamente la plantilla del Implementador asignado a la ficha. Si el implementador no tiene plantilla (o el proyecto no tiene implementador) → se CANCELA el cierre con mensaje. Se retira la plantilla global; solo PDF.
 - **Backend** (`routes/integrators.py`):
