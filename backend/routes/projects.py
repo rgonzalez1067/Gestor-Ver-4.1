@@ -1705,7 +1705,8 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         client_history_copy.append(client_entry)
         notification_history["client"] = client_history_copy
 
-    update_set = {"notification_history": notification_history, "updated_at": now, "last_contact_at": now, "last_contact_by": user_name, "last_contact_target": target}
+    update_set = {"notification_history": notification_history, "updated_at": now, "last_contact_at": now, "last_contact_by": user_name, "last_contact_target": target,
+                  "last_followup_at": now, "last_followup_by": user_name}
 
     # Disparador de semáforo (En Gestión): un correo EXITOSO a Cliente o Banco es
     # una acción de interacción válida → reinicia el contador de inactividad a Verde.
@@ -2561,7 +2562,8 @@ async def add_bitacora_entry(project_id: str, entry: BitacoraEntry, authorizatio
 
     await db.projects.update_one(
         {"project_id": project_id},
-        {"$push": {"bitacora": bitacora_entry}}
+        {"$push": {"bitacora": bitacora_entry},
+         "$set": {"last_followup_at": bitacora_entry["created_at"], "last_followup_by": user_name, "updated_at": bitacora_entry["created_at"]}}
     )
 
     return bitacora_entry
@@ -2702,12 +2704,15 @@ async def send_adhoc_email(
         {"$push": {"bitacora": bitacora_entry}}
     )
 
-    # Automatización "Fecha de Último Contacto": toda comunicación (Otras
-    # Notificaciones) dirigida al cliente desde el proyecto actualiza el
-    # timestamp de último contacto → se refleja en la grilla de Proyectos.
+    # Automatización "Fecha de Último Contacto" + "Último Seguimiento" + semáforo:
+    # una "Otra Notificación" al cliente actualiza Último Contacto y Último
+    # Seguimiento, y reinicia el semáforo SLA a verde (last_qualified_activity_at)
+    # igual que las notificaciones formales cliente/banco.
     await db.projects.update_one(
         {"project_id": project_id},
-        {"$set": {"last_contact_at": now, "last_contact_by": user_name, "last_contact_target": "client", "updated_at": now}},
+        {"$set": {"last_contact_at": now, "last_contact_by": user_name, "last_contact_target": "client",
+                  "last_followup_at": now, "last_followup_by": user_name,
+                  "last_qualified_activity_at": now, "updated_at": now}},
     )
 
     total_recipients = len(to_list) + len(cc_list)

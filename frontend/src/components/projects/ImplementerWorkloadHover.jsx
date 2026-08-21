@@ -6,7 +6,7 @@ import api from '../../utils/api';
 // Tooltip enriquecido (HoverCard) con el resumen de carga de un implementador.
 // Estrategia A: carga bajo demanda al abrir (con micro-retraso de 300ms de Radix),
 // cacheada por user_id para no re-consultar en cada hover.
-export const ImplementerWorkloadHover = ({ userId, name, assignedAt, lastContactAt, projectId }) => {
+export const ImplementerWorkloadHover = ({ userId, name, assignedAt, lastFollowupAt, projectId }) => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -73,9 +73,9 @@ export const ImplementerWorkloadHover = ({ userId, name, assignedAt, lastContact
           {assignedAt && (
             <p className="text-[10px] text-slate-400 mt-0.5">Asignado: {new Date(assignedAt).toLocaleDateString('es-VE')}</p>
           )}
-          {lastContactAt && (
-            <p className="text-[10px] text-emerald-600 mt-0.5" data-testid={`last-contact-${projectId}`}>
-              Último contacto: {new Date(lastContactAt).toLocaleDateString('es-VE')}
+          {lastFollowupAt && (
+            <p className="text-[10px] text-emerald-600 mt-0.5" data-testid={`last-followup-${projectId}`}>
+              Último Seguimiento: {new Date(lastFollowupAt).toLocaleDateString('es-VE')}
             </p>
           )}
         </div>

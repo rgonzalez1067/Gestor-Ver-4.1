@@ -1242,7 +1242,7 @@ const Projects = () => {
                               userId={project.assigned_to_user_id}
                               name={project.assigned_to_name}
                               assignedAt={project.assigned_at}
-                              lastContactAt={project.last_contact_at}
+                              lastFollowupAt={project.last_followup_at}
                               projectId={project.project_id}
                             />
                           ) : <span className="text-slate-400 italic">Sin asignar</span>}
