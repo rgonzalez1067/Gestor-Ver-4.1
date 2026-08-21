@@ -1,0 +1,30 @@
+{
+  "summary": "Verified iter319 fix for 'Último Seguimiento' label in Projects grid. Backend endpoints (bitacora, send-notification client, send-adhoc-email) update last_followup_at as spec'd. Frontend renders label ALWAYS under implementer name with fallback '--/--/----'. All 4 pytest cases pass. Target project prj_e86a47af1bff shows updated 'Último Seguimiento: 21/8/2026' after tests.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/projects and /dashboard tables", "issues": ["Pre-existing React hydration warnings: <span data-ve-dynamic> injected as direct child of <tbody>/<tr> (from visual-edit wrapper). Not related to iter319 but noisy in console."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_last_followup_grid.py",
+    "/app/test_reports/pytest/iter319.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ImplementerWorkloadHover.jsx line 76-78: fix correctly renders label unconditionally with fallback — matches spec.",
+    "projects.py add_bitacora_entry (line 2544) correctly $sets last_followup_at/last_followup_by only, without touching last_contact_at / last_qualified_activity_at — spec compliant.",
+    "_send_sequential_notification (line 1708-1714) sets last_contact_at + last_followup_at + last_qualified_activity_at (only when target=client/bank per current logic) — verified for target=client.",
+    "send-adhoc-email (line 2713-2715) sets all three timestamps and resets SLA — verified."
+  ],
+  "updated_files": ["/app/backend/tests/test_last_followup_grid.py"],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (label visible always, target project shows updated date)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (session_token)",
+  "seed_data_creation": "Added 1 bitacora entry and triggered send-notification + send-adhoc-email on prj_e86a47af1bff. Marked with '[TEST_iter319]' prefix.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite for last_followup at /app/backend/tests/test_last_followup_grid.py. Uses PROJECT_ID=prj_e86a47af1bff (Kraken, En Gestión, has implementer). If project state changes, adjust the assertion on business_days_in_state=0.",
+  "rca of the issue": "User couldn't see 'Último Seguimiento' because the component previously rendered the label only when lastFollowupAt was truthy. Fix (already applied in ImplementerWorkloadHover.jsx L76-78) renders the label unconditionally with '--/--/----' fallback. Verified in preview."
+}

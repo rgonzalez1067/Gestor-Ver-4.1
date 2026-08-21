@@ -73,11 +73,9 @@ export const ImplementerWorkloadHover = ({ userId, name, assignedAt, lastFollowu
           {assignedAt && (
             <p className="text-[10px] text-slate-400 mt-0.5">Asignado: {new Date(assignedAt).toLocaleDateString('es-VE')}</p>
           )}
-          {lastFollowupAt && (
-            <p className="text-[10px] text-emerald-600 mt-0.5" data-testid={`last-followup-${projectId}`}>
-              Último Seguimiento: {new Date(lastFollowupAt).toLocaleDateString('es-VE')}
-            </p>
-          )}
+          <p className="text-[10px] text-emerald-600 mt-0.5" data-testid={`last-followup-${projectId}`}>
+            Último Seguimiento: {lastFollowupAt ? new Date(lastFollowupAt).toLocaleDateString('es-VE') : '--/--/----'}
+          </p>
         </div>
       </HoverCardTrigger>
       <HoverCardContent align="start" className="w-72 p-0 overflow-hidden" data-testid={`workload-popover-${projectId}`}>
