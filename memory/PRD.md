@@ -4,6 +4,15 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Seguridad: Endurecimiento de la API externa (fail-closed + endpoint destructivo eliminado) — Jun 2026
+- **Contexto:** el usuario reportó preocupación por acceso a datos "desde fuera" tras un incidente en otra app. Auditoría: el resto de la API SÍ exige sesión autenticada (session_token `secrets.token_urlsafe(32)`, exp 7 días) + middleware RBAC por módulo; no hay lecturas de datos sensibles abiertas. Único riesgo: módulo `routes/external_api.py`.
+- **Vulnerabilidades corregidas:**
+  1. **Clave hardcodeada**: `EXTERNAL_API_KEY` tenía default `"mnx-ext-2026-key"` en el código (no estaba en .env → default vivo). Eliminado; ahora se lee del entorno SIN default → **fail-closed** (503 si no está configurada). Comparación con `secrets.compare_digest` (anti-timing).
+  2. **Endpoint destructivo `POST /api/external/import-data`** (borraba TODAS las colecciones y reimportaba, protegido solo por la clave pública) → **ELIMINADO** del código.
+- **QA (curl):** `/external/import-data`→404; `/external/contacts` con la clave vieja→503 fail-closed; `/external/health`→200. Verificado.
+- **Pendiente del usuario (producción):** configurar `EXTERNAL_API_KEY` como Secret en Emergent + redeploy para reactivar la captación de leads (`/external/contacts`). La clave debe quedar server-side (no en frontend). Endpoint solo-escritura, rate-limit 30/h por IP + dedupe 24h. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: "Último Seguimiento" + barra de avance verde por notificación — Jun 2026
 - **Aclaración del usuario:** "Vigente" NO es un estatus nuevo → significa que al enviar una notificación la **barra de avance (semáforo SLA) se ponga verde** (aplica a proyectos "En Gestión"). Ya funcionaba para notificaciones formales cliente/banco (vía `last_qualified_activity_at`); faltaba para "Otras Notificaciones" (adhoc).
 - **Barra verde (`last_qualified_activity_at=now`):** cliente/banco (ya existía) + **adhoc "Otras Notificaciones"** (agregado en `send-adhoc-email`). La bitácora NO reinicia el semáforo (regla intacta).

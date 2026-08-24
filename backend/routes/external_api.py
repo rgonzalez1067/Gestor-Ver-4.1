@@ -11,13 +11,29 @@ from pydantic import BaseModel, Field
 import uuid
 import logging
 import os
+import secrets as _secrets
 
 from config import db
 
 router = APIRouter()
 
-# API Key para autenticación de fuentes externas
-EXTERNAL_API_KEY = os.environ.get("EXTERNAL_API_KEY", "mnx-ext-2026-key")
+
+def _get_external_api_key() -> Optional[str]:
+    """Clave de la API externa desde el entorno. SIN valor por defecto:
+    si no está configurada, los endpoints /external quedan deshabilitados
+    (fail-closed) para evitar accesos con una clave pública/hardcodeada."""
+    key = os.environ.get("EXTERNAL_API_KEY")
+    return key.strip() if key and key.strip() else None
+
+
+def _require_external_api_key(x_api_key: Optional[str]):
+    """Valida la API Key con comparación de tiempo constante. Falla cerrado
+    si no hay clave configurada en el servidor."""
+    configured = _get_external_api_key()
+    if not configured:
+        raise HTTPException(status_code=503, detail="API externa deshabilitada: no hay EXTERNAL_API_KEY configurada en el servidor.")
+    if not x_api_key or not _secrets.compare_digest(x_api_key.strip(), configured):
+        raise HTTPException(status_code=401, detail="API Key inválida o no proporcionada")
 
 # Rate limiting simple en memoria
 _rate_limits = {}  # ip -> (count, window_start)
@@ -64,9 +80,8 @@ async def create_external_contact(
     
     **Rate Limit**: 30 peticiones por hora por IP.
     """
-    # Validar API Key
-    if not x_api_key or x_api_key != EXTERNAL_API_KEY:
-        raise HTTPException(status_code=401, detail="API Key inválida o no proporcionada")
+    # Validar API Key (fail-closed: deshabilitado si no hay clave en el servidor)
+    _require_external_api_key(x_api_key)
     
     # Rate limiting
     client_ip = request.client.host if request.client else "unknown"
@@ -158,56 +173,3 @@ async def create_external_contact(
 async def external_health():
     """Health check para verificar disponibilidad de la API externa."""
     return {"status": "ok", "service": "MegaNexus External API", "version": "1.0"}
-
-
-@router.post("/external/import-data")
-async def import_data_endpoint(x_api_key: Optional[str] = Header(None)):
-    """Endpoint para importar datos desde archivos de exportación.
-    Protegido por API Key. Ejecutar UNA VEZ después del deploy."""
-    if not x_api_key or x_api_key != EXTERNAL_API_KEY:
-        raise HTTPException(status_code=401, detail="API Key inválida")
-
-    import json as json_mod
-    from pathlib import Path
-
-    export_dir = Path("/app/db_export")
-    manifest_path = export_dir / "manifest.json"
-    if not manifest_path.exists():
-        raise HTTPException(status_code=404, detail="No se encontró manifest.json")
-
-    with open(manifest_path) as f:
-        manifest = json_mod.load(f)
-
-    results = {}
-    total = 0
-
-    for coll_name, expected_count in manifest["collections"].items():
-        filepath = export_dir / f"{coll_name}.json"
-        if not filepath.exists():
-            results[coll_name] = "archivo no encontrado"
-            continue
-
-        with open(filepath, "r", encoding="utf-8") as f:
-            docs = json_mod.load(f)
-
-        if not docs:
-            results[coll_name] = "vacío"
-            continue
-
-        existing = await db[coll_name].count_documents({})
-        if existing > 0:
-            await db[coll_name].delete_many({})
-
-        batch_size = 500
-        for i in range(0, len(docs), batch_size):
-            batch = docs[i:i+batch_size]
-            await db[coll_name].insert_many(batch)
-
-        total += len(docs)
-        results[coll_name] = f"{len(docs)} importados"
-
-    return {
-        "status": "completed",
-        "total_documents": total,
-        "collections": results
-    }
