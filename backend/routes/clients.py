@@ -170,57 +170,85 @@ async def _consolidated_contacts_for_client(client: dict):
 
 
 def parse_rif_data(text: str) -> dict:
-    """Extrae RIF, razón social y dirección fiscal del texto"""
+    """Extrae RIF, razón social y dirección fiscal del texto.
+
+    Soporta DOS diseños del RIF (SENIAT):
+    - ANTIGUO: el RIF y la razón social van en la MISMA línea, y la dirección
+      viene tras 'DOMICILIO FISCAL' (sin dos puntos).
+    - NUEVO (RIF Digital v2.0): etiqueta 'RIF:' + código en una línea, la razón
+      social en la línea SIGUIENTE, y 'DOMICILIO FISCAL:' (con dos puntos) con la
+      dirección en líneas posteriores hasta 'DATOS DE REGISTRO Y VIGENCIA'."""
     if not text.strip():
         raise HTTPException(status_code=400, detail="No se pudo extraer texto del documento. Verifique que sea un RIF válido.")
 
     # Correcciones comunes de OCR para la letra del RIF
     OCR_CORRECTIONS = {'3': 'J', '1': 'J', 'I': 'J', '0': 'G', '6': 'G'}
 
+    def _fix_letter(ch: str) -> str:
+        ch = (ch or '').upper()
+        if ch not in 'JGVEP' and ch in OCR_CORRECTIONS:
+            ch = OCR_CORRECTIONS[ch]
+        return ch
+
     rif = None
     legal_name = ""
+    rif_line_idx = None
 
     lines = text.split('\n')
 
-    # Estrategia 1: Buscar RIF en la línea posterior a "REGISTRO ÚNICO DE INFORMACIÓN FISCAL"
+    # Estrategia NUEVA (RIF Digital v2.0): etiqueta 'RIF:' seguida del código.
     for i, line in enumerate(lines):
-        if re.search(r'REGISTRO\s+.{0,10}NICO.*FISCAL', line, re.IGNORECASE):
-            for next_line in lines[i+1:i+4]:
-                # Patrón exacto: [JGVEP] + 9 dígitos
-                m = re.match(r'\s*([JGVEP]\d{9})\s+(.*)', next_line)
-                if m:
-                    rif = m.group(1)
-                    legal_name = m.group(2).strip()
-                    break
-                # Patrón OCR: cualquier carácter + 9 dígitos al inicio de línea
-                m = re.match(r'\s*(\S)(\d{9})\s+(.*)', next_line)
-                if m:
-                    first_char = m.group(1).upper()
-                    if first_char in OCR_CORRECTIONS:
-                        first_char = OCR_CORRECTIONS[first_char]
-                    if first_char in 'JGVEP':
-                        rif = first_char + m.group(2)
-                        legal_name = m.group(3).strip()
-                        break
-            break
+        m = re.search(r'RIF\s*:\s*(\S)\s*(\d{9})', line, re.IGNORECASE)
+        if m:
+            first_char = _fix_letter(m.group(1))
+            if first_char in 'JGVEP':
+                rif = first_char + m.group(2)
+                rif_line_idx = i
+                after = line[m.end():].strip()
+                if after:
+                    legal_name = after  # (diseño antiguo con etiqueta: nombre en misma línea)
+                break
 
-    # Estrategia 2 (fallback): Buscar línea que EMPIECE con el patrón RIF
+    # Estrategia 1 (diseño antiguo): RIF en la línea posterior a "REGISTRO ÚNICO..."
     if not rif:
-        for line in lines:
+        for i, line in enumerate(lines):
+            if re.search(r'REGISTRO\s+.{0,10}NICO.*FISCAL', line, re.IGNORECASE):
+                for j, next_line in enumerate(lines[i+1:i+4], start=i+1):
+                    m = re.match(r'\s*([JGVEP]\d{9})\s+(.*)', next_line)
+                    if m:
+                        rif = m.group(1)
+                        legal_name = m.group(2).strip()
+                        rif_line_idx = j
+                        break
+                    m = re.match(r'\s*(\S)(\d{9})\s+(.*)', next_line)
+                    if m:
+                        first_char = _fix_letter(m.group(1))
+                        if first_char in 'JGVEP':
+                            rif = first_char + m.group(2)
+                            legal_name = m.group(3).strip()
+                            rif_line_idx = j
+                            break
+                break
+
+    # Estrategia 2 (fallback): línea que EMPIECE con el patrón RIF
+    if not rif:
+        for i, line in enumerate(lines):
             m = re.match(r'\s*([JGVEP]\d{9})\s+(.*)', line)
             if m:
                 rif = m.group(1)
                 legal_name = m.group(2).strip()
+                rif_line_idx = i
                 break
 
-    # Estrategia 3 (último recurso): Buscar el patrón en cualquier parte, pero excluir líneas de comprobante
+    # Estrategia 3 (último recurso): patrón en cualquier parte, excluyendo comprobante
     if not rif:
-        for line in lines:
+        for i, line in enumerate(lines):
             if re.search(r'COMPROBANTE', line, re.IGNORECASE):
                 continue
             rif_match = re.search(r'([JGVEP]\d{9})', line)
             if rif_match:
                 rif = rif_match.group(1)
+                rif_line_idx = i
                 after_rif = line.split(rif, 1)[1].strip()
                 if after_rif:
                     legal_name = after_rif
@@ -229,15 +257,32 @@ def parse_rif_data(text: str) -> dict:
     if not rif:
         raise HTTPException(status_code=400, detail="No se encontró un código RIF válido en el documento")
 
+    # Razón social (diseño NUEVO): si quedó vacía, tomar la línea siguiente a la
+    # del RIF, saltando etiquetas/encabezados de sección.
+    if not legal_name and rif_line_idx is not None:
+        for cand_line in lines[rif_line_idx + 1: rif_line_idx + 4]:
+            cand = cand_line.strip()
+            if not cand:
+                continue
+            if re.search(r'DOMICILIO|FISCAL|IDENTIFICACI|DATOS\s+DE|FECHA\s+DE|COMPROBANTE|DIVISI[ÓO]N|REGISTRO', cand, re.IGNORECASE):
+                continue
+            legal_name = cand
+            break
+
     # Formatear RIF: sin guiones ni caracteres especiales
     rif_clean = sanitize_rif(rif)
 
-    # Limpiar razón social: remover "FECHA DE..." que puede quedar pegado
+    # Limpiar razón social: remover etiquetas que puedan quedar pegadas
     legal_name = re.split(r'\s*FECHA\s+DE', legal_name, flags=re.IGNORECASE)[0].strip()
+    legal_name = re.split(r'\s*DOMICILIO\s+FISCAL', legal_name, flags=re.IGNORECASE)[0].strip()
 
-    # Extraer Dirección Fiscal
+    # Extraer Dirección Fiscal (tolerante a ':' del nuevo diseño y a múltiples
+    # terminadores para no arrastrar la sección 'DATOS DE REGISTRO Y VIGENCIA').
     address = ""
-    domicilio_match = re.search(r'DOMICILIO\s+FISCAL\s+(.*?)(?=FECHA\s+DE)', text, re.DOTALL | re.IGNORECASE)
+    domicilio_match = re.search(
+        r'DOMICILIO\s+FISCAL\s*:?\s*(.*?)(?=DATOS\s+DE\s+REGISTRO|FECHA\s+DE|N[°ºo]\s*COMPROBANTE|DIVISI[ÓO]N\s+DE|$)',
+        text, re.DOTALL | re.IGNORECASE,
+    )
     if domicilio_match:
         addr_raw = domicilio_match.group(1).strip()
         address = re.sub(r'\s+', ' ', addr_raw).strip()

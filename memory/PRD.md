@@ -4,6 +4,13 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Lectura del NUEVO diseño de RIF (SENIAT "RIF Digital v2.0") — Jun 2026
+- **Requerimiento:** aprender a leer RIF, razón social y dirección fiscal del nuevo diseño de RIF, manteniendo la lectura del diseño antiguo.
+- **Diferencias del nuevo diseño (texto extraído):** `RIF: Jxxxxxxxxx` (etiqueta + código en la misma línea, SIN el nombre); razón social en la LÍNEA SIGUIENTE; `DOMICILIO FISCAL:` con dos puntos y la dirección en líneas posteriores, glued con "DATOS DE REGISTRO Y VIGENCIA".
+- **Fix** (`routes/clients.py::parse_rif_data`, usada por `POST /clients/parse-rif` y `update_client_from_rif`): (1) nueva estrategia que detecta `RIF:\s*<letra><9 dígitos>` con corrección OCR de la letra; (2) si la razón social queda vacía (nuevo diseño), se toma la línea siguiente al RIF saltando etiquetas/encabezados; (3) regex de dirección tolerante a `:` y con múltiples terminadores (`DATOS DE REGISTRO|FECHA DE|N° COMPROBANTE|DIVISIÓN DE`) para no arrastrar secciones. Se conservan intactas las estrategias 1/2/3 del diseño antiguo (nombre en misma línea, corrección OCR 3→J, etc.).
+- **QA (self-test):** nuevo PDF real (Mega Soft) → RIF `J003430757`, razón `MEGA SOFT COMPUTACION C.A.`, dirección completa correctamente recortada + detección de duplicado; regresión diseño antiguo (nombre en misma línea, sin `:`) y variante OCR (3→J) → OK. Endpoint `/clients/parse-rif` verificado por curl. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Seguridad: Endurecimiento de la API externa (fail-closed + endpoint destructivo eliminado) — Jun 2026
 - **Contexto:** el usuario reportó preocupación por acceso a datos "desde fuera" tras un incidente en otra app. Auditoría: el resto de la API SÍ exige sesión autenticada (session_token `secrets.token_urlsafe(32)`, exp 7 días) + middleware RBAC por módulo; no hay lecturas de datos sensibles abiertas. Único riesgo: módulo `routes/external_api.py`.
 - **Vulnerabilidades corregidas:**
