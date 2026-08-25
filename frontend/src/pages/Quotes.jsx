@@ -207,6 +207,7 @@ export const Quotes = () => {
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
   const [approvalQuoteId, setApprovalQuoteId] = useState(null);
   const [approvalConfig, setApprovalConfig] = useState(null);
+  const [pendingApproval, setPendingApproval] = useState(null); // {quoteId, exceptionInfo} en espera de elegir contacto Taller (escenario B)
   
   // Estado para "Cliente en Producción"
   const [isProductionClient, setIsProductionClient] = useState(false);
@@ -2536,6 +2537,11 @@ export const Quotes = () => {
     setContactSelectOpen(false);
     if (action === 'invoice') {
       proceedInvoiceFlow(quoteId, emails);
+    } else if (action === 'approve-taller') {
+      // Escenario B: destinatario(s) elegido(s) → abrir modal de aprobación.
+      const pend = pendingApproval;
+      setPendingApproval(null);
+      _openApprovalModal(quoteId, pend?.exceptionInfo || null, emails);
     } else {
       openEmailModal('send-to-client', quoteId, emails);
     }
@@ -2718,11 +2724,45 @@ export const Quotes = () => {
   };
 
   // Abrir modal de workflow para Aprobar (requiere Orden de Compra)
-  const openApproveConfirm = (quoteId, exceptionInfo) => {
+  // Para Cotizaciones de Reparación (Taller), resuelve el destinatario por
+  // perfilamiento antes de abrir: A) 1 contacto Taller → auto; B) 2+ → modal de
+  // selección primero; C) 0 → backend usa el Contacto Primario.
+  const openApproveConfirm = async (quoteId, exceptionInfo) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    if (quote?.quote_category === 'repair' && quote?.client_id) {
+      try {
+        const res = await api.get(`/clients/${quote.client_id}/consolidated-contacts`);
+        const contacts = (res.data?.contacts || []).filter(c => (c.email || '').includes('@'));
+        const taller = contacts.filter(c => Array.isArray(c.purposes) && c.purposes.includes('taller'));
+        if (taller.length === 1) {
+          return _openApprovalModal(quoteId, exceptionInfo, [taller[0].email]); // Escenario A
+        }
+        if (taller.length >= 2) {
+          // Escenario B: elegir destinatario en el modal, luego abrir aprobación.
+          setPendingApproval({ quoteId, exceptionInfo });
+          setContactSelectQuoteId(quoteId);
+          setContactSelectAction('approve-taller');
+          setContactSelectedEmails([]);
+          setContactList(taller);
+          setContactSelectLoading(false);
+          setContactSelectOpen(true);
+          return;
+        }
+        // Escenario C: sin contactos Taller → sin override (backend usa Primario).
+      } catch { /* si falla, backend resuelve con Contacto Primario */ }
+    }
+    _openApprovalModal(quoteId, exceptionInfo, null);
+  };
+
+  const _openApprovalModal = (quoteId, exceptionInfo, clientRecipients) => {
+    const emailHeaders = { ...getEmailHeaders() };
+    if (clientRecipients && clientRecipients.length) {
+      emailHeaders['x-client-recipients'] = clientRecipients.join(',');
+    }
     setApprovalQuoteId(quoteId);
     setApprovalConfig({
       exceptionHeaders: exceptionInfo || null,
-      emailHeaders: getEmailHeaders(),
+      emailHeaders,
     });
     setApprovalModalOpen(true);
   };

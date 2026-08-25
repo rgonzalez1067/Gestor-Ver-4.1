@@ -4,6 +4,15 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Bug Fix: Aprobación de Cotización de Reparación enviaba al Contacto Principal (no al de Taller) — Jun 2026
+- **Síntoma:** los correos disparados desde la acción **Aprobación** de cotizaciones de reparación iban al Contacto Principal aunque el cliente tuviera contactos con perfil 'taller'. (La feature de perfilamiento previa solo cubría "Enviar al Cliente", no "Aprobación".)
+- **RCA:** tanto el engine (`notification_engine.try_dispatch`, filas `client_field` usan `client_email`=contacts[0]) como el bloque legacy de reparación (`quote_actions.approve_quote`, `client_email=contacts[0]`) resolvían al Primario, sin filtrar por 'taller'.
+- **Fix:** reglas A/B/C resueltas en el frontend (reutilizando el modal de selección) y aplicadas en backend vía header override:
+  - **Frontend** (`Quotes.jsx`): `openApproveConfirm` ahora async → para repair consulta `consolidated-contacts`; A (1 taller)→abre aprobación con override; B (2+)→abre `contact-select-modal` (action `approve-taller`) y luego el modal de aprobación con el elegido; C (0)→sin override. `_openApprovalModal` inyecta `x-client-recipients` en `approvalConfig.emailHeaders` (el modal ya fusiona esos headers en el POST).
+  - **Backend** (`quote_actions.approve_quote`): nuevo header `x-client-recipients` → `client_to_override`; se pasa a `_engine_or_legacy(client_recipients_override=...)` y al bloque legacy. `notification_engine.try_dispatch`: si `ctx.client_recipients_override`, reemplaza el `To` de `client_field` (extras→CC).
+- **QA (testing_agent iter321):** backend **100% (4/4)** (A override, C primario, engine+legacy honran override, regresión Equipos) + frontend **100%** (Escenario B end-to-end). Sin issues. ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: Selección dinámica de destinatarios por Profiling en Cotizaciones de Reparación (Taller) — Jun 2026
 - **Requerimiento:** al enviar un correo desde una Cotización de Reparación (Taller), elegir el destinatario según el perfilamiento `Cotizaciones de Taller` de los contactos de la ficha (incluye heredados por Grupo Económico / RIF principal). A) 1 contacto con 'taller' → To automático (sin modal); B) 2+ → modal de selección solo con esos; C) 0 → fallback al Contacto Primario.
 - **Implementación (solo frontend, `pages/Quotes.jsx`):** `handleSendToClient` ahora, si `purposeForQuoteCategory(quote_category)==='taller'` (repair), delega en `routeTallerRecipients`. Éste consulta `GET /clients/{id}/consolidated-contacts`, filtra con **matching ESTRICTO** `Array.isArray(c.purposes) && c.purposes.includes('taller')` (un contacto sin perfil NO cuenta), y aplica A/B/C: A→`openEmailModal` con el email precargado; B→reutiliza el modal `contact-select-modal` prefiltrado a los contactos de taller; C→primer contacto `scope==='principal'` con email (o `contacts[0]`), y si no hay ninguno cae al modal manual. Otras categorías (equipment/implementación) conservan el flujo anterior (regresión OK).

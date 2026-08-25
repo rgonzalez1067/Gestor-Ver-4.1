@@ -1,0 +1,30 @@
+{
+  "summary": "Verified bug fix for APPROVE action of Repair (Taller) quotes routing email to Taller-profile contact via x-client-recipients header. Backend pytest (4/4 pass) + Frontend Playwright end-to-end (Scenario B) all confirm the correct behavior. The header override propagates through _engine_or_legacy into notification_engine.try_dispatch (ctx.client_recipients_override overrides client_email for client_field rows) as well as the legacy is_repair block (client_to_override[0] as To, extras to CC). Equipment regression unaffected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/quotes", "issues": ["Pre-existing hydration warnings from visual-edit wrapper injecting <span data-ve-dynamic> as child of <tr>/<tbody> — unrelated to this feature."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter321_approve_taller_recipient.py",
+    "/app/test_reports/pytest/iter321.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx openApproveConfirm (L2730-2755) mirrors iter320 routeTallerRecipients logic — correct: A→_openApprovalModal([email]); B→setContactList(taller)+contactSelectAction='approve-taller'; C→no override. Note there's still the minor duplication with routeTallerRecipients from iter320 — could be extracted to a shared helper resolveTallerRecipients(clientId).",
+    "quote_actions.py approve_quote (L634, L752, L840, L908-912): header x-client-recipients is parsed and passed both to the engine (ctx.client_recipients_override) AND to the legacy is_repair block (client_to_override). Consistent handling of To vs extra→CC.",
+    "notification_engine.try_dispatch (L481-485): override sets client_email = _ovr[0] and remaining go to cc later. Applied to type='client_field' rows only — correct scope. Coverage note: If dynamic config for repair|approve does NOT include a client_field recipient row, the override would not surface via engine — the tests confirmed action='approve_dynamic' does route to the override, so the current active config is compatible.",
+    "Frontend Scenario B tested end-to-end in preview: contact-select-modal displays exactly 2 taller contacts, selecting b2 sends header 'x-client-recipients: TEST_taller_b2_frontend@example.com' on POST /approve, and db.email_logs records to=[b2] as sole recipient (primary b1 NOT copied)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (Scenario B end-to-end + implicit A/C via backend header test)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (POST /api/auth/login -> session_token)",
+  "seed_data_creation": "Temporarily overwrote db.clients.contacts (with _backup_contacts_iter321 backup) on 4 clients for pytest scenarios and 1 for the frontend Scenario B end-to-end test. All originals restored and quote_status reset to 'Enviada' after each test. Approved quotes were rolled back (approved_at unset, quote_status='Enviada').",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite at /app/backend/tests/test_iter321_approve_taller_recipient.py (pytest, uses pymongo sync). Verified scenarios: A (single taller in header), B (chosen taller from 2+), C (no header→primary), Equipment regression. Engine's dynamic config action_id='approve' resulted in action='approve_dynamic' logs — matching by 'to' list rather than action name. Frontend flow: Aprobación menu item → email-modal (Personalizar Comunicación) → Continuar → openApproveConfirm → (A→approval-billing-modal | B→contact-select-modal with tallerContacts → contact-select-continue → approval-billing-modal | C→approval-billing-modal without override header). ApprovalBillingModal (L282-342) merges emailHeaders (which contain x-client-recipients) into the multipart POST /quotes/{id}/approve.",
+  "rca of the issue": "N/A — bug fix works as specified. Header 'x-client-recipients' is set by _openApprovalModal in Quotes.jsx, merged in ApprovalBillingModal's POST, parsed in quote_actions.approve_quote, and honored by both the notification_engine.try_dispatch (client_field rows) and the legacy is_repair path."
+}

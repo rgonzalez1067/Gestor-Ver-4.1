@@ -631,6 +631,7 @@ async def approve_quote(
     custom_message: Optional[str] = Header(None, alias="x-custom-message"),
     additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"),
     manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids"),
+    client_recipients: Optional[str] = Header(None, alias="x-client-recipients"),
 ):
     """Aprobar una cotización con instrucción de facturación.
 
@@ -745,6 +746,10 @@ async def approve_quote(
     
     # Preparar email via Workflow Notification
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+    # Override de destinatario del cliente (reglas de perfilamiento "Taller"
+    # resueltas por el frontend: A→único contacto Taller, B→contacto elegido en
+    # el modal). Si viene vacío, backend usa el Contacto Primario (escenario C).
+    client_to_override = [e.strip() for e in (client_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
     email_results = []
     is_repair = quote.get("quote_category") == "repair"
@@ -832,6 +837,7 @@ async def approve_quote(
         quote_pdf_bytes=_engine_pdf_quote_bytes,
         billing_pdf_bytes=_engine_pdf_billing_bytes,
         injected_html_block=_corp_matrix_html,
+        client_recipients_override=client_to_override or None,
     )
     if _engine_result is not None:
         email_results = _engine_result
@@ -898,7 +904,13 @@ async def approve_quote(
         # Enviar confirmación de aprobación al CLIENTE
         contacts = client.get('contacts', []) if client else []
         client_email = None
-        if contacts:
+        # Override por perfilamiento Taller (escenarios A/B resueltos en frontend).
+        if client_to_override:
+            client_email = client_to_override[0]
+            for _extra in client_to_override[1:]:
+                if _extra not in cc_emails:
+                    cc_emails.append(_extra)
+        if not client_email and contacts:
             client_email = contacts[0].get('email')
         if not client_email:
             contact1 = client.get('contact1') or {} if client else {}

@@ -475,6 +475,17 @@ async def try_dispatch(
 
     # Email del cliente (resolver una vez)
     client_email = tpl_vars.get("Email_Contacto") or quote.get("client_email") or ""
+    # Override del destinatario del cliente (reglas de perfilamiento "Taller"
+    # resueltas por el caller/frontend en aprobación de reparaciones). Reemplaza
+    # el "To" de las filas client_field; los adicionales pasan a CC.
+    _client_override = ctx.get("client_recipients_override")
+    if _client_override:
+        _ovr = [e.strip() for e in _client_override if e and "@" in e]
+        if _ovr:
+            client_email = _ovr[0]
+            _extra_client_cc = [e for e in _ovr[1:] if e]
+            if _extra_client_cc:
+                cc_emails = list(cc_emails or []) + _extra_client_cc
 
     pdf_attachments = await _collect_pdf_attachments(action_id, quote, ctx)
     custom_block = ""
