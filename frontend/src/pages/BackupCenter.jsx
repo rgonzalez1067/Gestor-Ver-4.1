@@ -103,14 +103,59 @@ export default function BackupCenter() {
 
   const exportFullDb = async () => {
     setDbBusy('export');
+    setDbProgress(0);
     try {
-      const res = await api.get('/admin/full-backup/export', { responseType: 'blob' });
-      downloadBlob(res.data, `full_backup_${dbInfo?.db_name || 'db'}_${tsNow()}.zip`, 'application/zip');
-      toast.success('Respaldo total descargado correctamente');
+      // Ensamblado en el navegador: descarga por colección en páginas pequeñas
+      // (memoria del pod acotada) y arma el ZIP local con JSZip.
+      const { data: info } = await api.get('/admin/full-backup/info');
+      const cols = info.collections || [];
+      const totalDocs = cols.reduce((a, c) => a + (c.count || 0), 0) || 1;
+      const zip = new JSZip();
+      const manifest = {
+        schema_version: 1,
+        type: 'full-database-backup',
+        format: 'mongodb-extended-json',
+        db_name: info.db_name,
+        exported_at: new Date().toISOString(),
+        exported_by: 'browser-assembled',
+        collections: [],
+      };
+      let doneDocs = 0;
+      for (const col of cols) {
+        const parts = [];
+        let after = '';
+        let count = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const resp = await api.get('/admin/full-backup/collection', {
+            params: { name: col.name, after: after || undefined, max_docs: 5000 },
+            responseType: 'text',
+            transformResponse: [(d) => d], // evita que axios intente parsear JSON
+          });
+          const text = resp.data || '';
+          if (text) parts.push(text);
+          const pageCount = parseInt(resp.headers['x-count'] || '0', 10);
+          count += pageCount;
+          doneDocs += pageCount;
+          hasMore = resp.headers['x-has-more'] === '1';
+          after = resp.headers['x-next-after'] || '';
+          setDbProgress(Math.min(80, Math.round((doneDocs / totalDocs) * 80)));
+        }
+        zip.file(`collections/${col.name}.json`, '[' + parts.join(',') + ']');
+        manifest.collections.push({ name: col.name, count });
+      }
+      zip.file('_manifest.json', JSON.stringify(manifest, null, 2));
+      const blob = await zip.generateAsync(
+        { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
+        (meta) => setDbProgress(80 + Math.round((meta.percent || 0) * 0.2)),
+      );
+      downloadBlob(blob, `full_backup_${info.db_name}_${tsNow()}.zip`, 'application/zip');
+      toast.success('Respaldo total ensamblado y descargado correctamente');
     } catch (err) {
       toast.error(`Error al exportar el respaldo total: ${err.response?.data?.detail || err.message}`);
     } finally {
       setDbBusy(null);
+      setDbProgress(0);
     }
   };
 
@@ -425,10 +470,14 @@ export default function BackupCenter() {
               </span>
             </div>
 
-            {dbBusy === 'restore' && (
+            {(dbBusy === 'restore' || dbBusy === 'export') && (
               <div className="mt-4" data-testid="full-backup-progress">
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                  <span>{dbProgress < 90 ? 'Subiendo respaldo…' : 'Restaurando colecciones…'}</span>
+                  <span>
+                    {dbBusy === 'export'
+                      ? (dbProgress < 80 ? 'Descargando colecciones…' : 'Comprimiendo ZIP…')
+                      : (dbProgress < 90 ? 'Subiendo respaldo…' : 'Restaurando colecciones…')}
+                  </span>
                   <span>{dbProgress}%</span>
                 </div>
                 <Progress value={dbProgress} className="h-2" />

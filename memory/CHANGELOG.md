@@ -1,6 +1,16 @@
 # CHANGELOG — MegaNexus
 
-## 2026-06 — Fix def.: OOM/520 y ZIP truncado al exportar Respaldo Total (producción)
+## 2026-06 — Fix def. OOM export: ensamblado del ZIP en el NAVEGADOR (Plan B/C)
+
+- **Contexto:** aun con el export en streaming O(1), el pod (tier_0, 512Mi) seguía cayendo por OOM durante exports grandes (baseline alto + ~56-82MB de working set). El usuario eligió la opción sin costo extra.
+- **Solución:** el ZIP ya NO se arma en el pod. Nuevo flujo:
+  - Backend: `GET /admin/full-backup/collection?name=&after=&max_docs=` → devuelve una PÁGINA de la colección (Extended-JSON separado por comas) paginada por `_id` (índice nativo), cortando a ~8MB por página. Headers `X-Has-More`, `X-Next-After`, `X-Count`. Memoria del pod por request: acotada (~pocos MB).
+  - Frontend (`BackupCenter.jsx` → `exportFullDb`): descarga cada colección por páginas y **ensambla el ZIP en el navegador con JSZip**, luego descarga. Barra de progreso 0-80% (descarga) / 80-100% (compresión).
+- **Validación:** simulación byte-idéntica al navegador → 81 requests, ZIP 43MB válido (`testzip`=OK), round-trip exacto (ObjectId/tipos/conteos), **pico de memoria del pod solo 25MB** (vs 56-82MB antes; y topado a 8MB por página). testing_agent iter325: frontend 100% (paginación, headers custom legibles en navegador, toast de éxito, sin errores; restore dialog intacto).
+- **Restore:** sin cambios (el ZIP ensamblado en navegador tiene el mismo formato `_manifest.json` + `collections/*.json`).
+- **⚠️ Requiere REDEPLOY.** Tras el redeploy el export no depende de la memoria del pod → no más OOM/520/truncado.
+
+
 
 - **Síntomas:** primero 520 (pod OOMKilled antes del 1er byte); tras un primer intento de streaming, el .zip llegaba **truncado** ("Unexpected end of archive") porque el pod seguía muriendo por OOM a mitad del stream (sin escribir el central directory).
 - **RCA (deployer):** OOMKilled real (exit 137) en el pod de 512Mi DURANTE el export.

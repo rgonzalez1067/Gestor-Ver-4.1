@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only test for client-side Full DB Backup export/restore wiring in /settings/backup-center. Verified export flow reads custom paginated headers (X-Has-More/X-Next-After/X-Count), assembles ZIP with JSZip and shows success toast. Also verified restore confirm dialog opens with checklist and Cancel closes it (non-destructive).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (all pages)", "issues": ["Pre-existing React hydration warnings in console: '<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>' — likely in a header/notification component. Not related to Backup Center but pollutes console noise on every page."]}
+    ]
+  },
+  "test_scenarios_executed": [
+    {"name": "Export Base Completa client-side", "result": "PASS", "details": "84 GET requests to /api/admin/full-backup/collection (all 200). 81 responses exposed custom headers X-Has-More/X-Count/X-Next-After to the frontend. Progress transitioned through 'Descargando colecciones…' -> 'Comprimiendo ZIP…' and finished in ~46s with toast 'Respaldo total ensamblado y descargado correctamente'. Multi-page pagination was exercised on inbox_messages (7 pages) and user_sessions (2 pages) and the loop terminated correctly (X-Has-More=0 on last page). No JS console errors emitted during the export process."},
+    {"name": "Custom header readability from browser (CORS Access-Control-Expose-Headers)", "result": "PASS", "details": "response.headers['x-has-more'] readable in browser context confirmed by loop advancing across pages and X-Count values matching document counts. If headers had not been exposed, pagination would have stalled."},
+    {"name": "Restore dialog opens and Cancel closes (non-destructive)", "result": "PASS", "details": "Clicking 'Restaurar Base Completa…' opens native file picker; selecting a minimal zip with _manifest.json opens data-testid='full-backup-confirm-dialog' with checklist row 'clients 642 → 10'. Clicking 'Cancelar' (data-testid='full-backup-cancel-btn') closes the dialog. No restore executed."}
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "(Optional, out-of-scope from this test) Fix pre-existing React hydration warnings ('<tr> as child of <span>' / '<span> as child of <tbody>') that appear on every page load. They are unrelated to Backup Center but visible in console."
+  ],
+  "critical_code_review_comments": [
+    "Client-side export flow in BackupCenter.jsx works end-to-end and correctly handles paginated collections via X-Has-More/X-Next-After headers.",
+    "Backend endpoint responds with the custom headers exposed to the browser (Access-Control-Expose-Headers likely configured), otherwise frontend loop could not progress across pages — verified empirically."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested per request)", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Created /tmp/zt/mini.zip (minimal backup ZIP with _manifest.json referencing clients collection) for restore dialog test — not used to actually restore.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Client-side Full DB Backup export is confirmed working in the browser: JSZip assembly + custom paginated headers read correctly + success toast + no console errors from the feature. Restore dialog opens and cancels cleanly. Destructive restore was NOT executed (as requested)."
+}

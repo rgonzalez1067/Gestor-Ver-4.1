@@ -13,6 +13,7 @@ Módulos soportados:
 import io
 import json
 import logging
+import gc
 import os
 import tempfile
 import uuid
@@ -23,7 +24,7 @@ from typing import Optional
 
 from bson.json_util import dumps as bson_dumps, loads as bson_loads
 from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form
-from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse, Response
 from starlette.background import BackgroundTask
 
 from config import db, get_current_user, UPLOADS_DIR
@@ -1775,6 +1776,7 @@ async def full_backup_export(authorization: Optional[str] = Header(None)):
 
     async def _gen():
         stream = _ZipStreamBuf()
+        _since_gc = 0
         manifest = {
             "schema_version": 1,
             "type": "full-database-backup",
@@ -1790,17 +1792,22 @@ async def full_backup_export(authorization: Optional[str] = Header(None)):
             for cname in cols:
                 count = 0
                 # batch_size chico → acota lo que motor precarga en memoria
-                cursor = db[cname].find({}).batch_size(50)
+                cursor = db[cname].find({}).batch_size(10)
                 with zf.open(f"collections/{cname}.json", "w") as entry:
                     entry.write(b"[")
                     first = True
                     async for doc in cursor:
                         piece = (b"" if first else b",") + b"\n" + bson_dumps(doc, ensure_ascii=False).encode("utf-8")
                         entry.write(piece)
+                        del piece, doc
                         first = False
                         count += 1
+                        _since_gc += 1
                         if len(stream.buf) >= FLUSH_BYTES:
                             yield stream.drain()
+                        if _since_gc >= 2000:  # liberar memoria del intérprete periódicamente
+                            gc.collect()
+                            _since_gc = 0
                     entry.write(b"\n]" if count else b"]")
                 if len(stream.buf):
                     yield stream.drain()
@@ -1835,6 +1842,63 @@ async def full_backup_export(authorization: Optional[str] = Header(None)):
         "X-Accel-Buffering": "no",  # evita que nginx bufferee toda la respuesta en RAM del contenedor
     }
     return StreamingResponse(_gen(), media_type="application/zip", headers=headers)
+
+
+@router.get("/admin/full-backup/collection")
+async def full_backup_collection_page(
+    name: str,
+    after: Optional[str] = None,
+    max_docs: int = 1000,
+    authorization: Optional[str] = Header(None),
+):
+    """Devuelve una PÁGINA de documentos de una colección en Extended JSON,
+    para ensamblar el ZIP en el navegador (evita cargar toda la base en el pod).
+    Paginación por _id (índice nativo). El cuerpo es Extended-JSON separado por
+    comas (sin corchetes); el cliente los concatena y envuelve en [ ... ].
+    Memoria del pod por request: acotada (~pocos MB)."""
+    await _require_admin(authorization)
+    MAX_BYTES = 8 * 1024 * 1024  # cortar la página al superar ~8MB (menos requests, memoria del pod acotada)
+    max_docs = max(1, min(int(max_docs or 1000), 20000))
+
+    q = {}
+    if after:
+        try:
+            q = {"_id": {"$gt": bson_loads(after)}}
+        except Exception:
+            raise HTTPException(status_code=400, detail="cursor 'after' inválido")
+
+    cursor = db[name].find(q).sort("_id", 1).batch_size(20)
+    parts = []
+    last_id = None
+    n = 0
+    nbytes = 0
+    stopped_early = False
+    async for doc in cursor:
+        last_id = doc.get("_id")
+        s = bson_dumps(doc, ensure_ascii=False)
+        parts.append(s)
+        n += 1
+        nbytes += len(s)
+        if n >= max_docs or nbytes >= MAX_BYTES:
+            stopped_early = True
+            break
+
+    has_more = False
+    next_after = ""
+    if stopped_early and last_id is not None:
+        nxt = await db[name].find_one({"_id": {"$gt": last_id}}, {"_id": 1})
+        has_more = nxt is not None
+        if has_more:
+            next_after = bson_dumps(last_id)
+
+    body = ",".join(parts)
+    headers = {
+        "X-Has-More": "1" if has_more else "0",
+        "X-Next-After": next_after,
+        "X-Count": str(n),
+        "Cache-Control": "no-store",
+    }
+    return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
 
 
 @router.post("/admin/full-backup/upload-init")
