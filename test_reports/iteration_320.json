@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend-only validation of dynamic recipient rules by profiling ('taller') on Repair Quotes Send-to-Client. All 4 scenarios (A one-taller / B two-taller / C no-taller fallback to primary / D equipment regression) PASS end-to-end in preview UI. routeTallerRecipients in Quotes.jsx correctly gates on purposeForQuoteCategory('repair')==='taller', uses GET /clients/{id}/consolidated-contacts, filters strictly by purposes.includes('taller'), preloads To badge in 'Personalizar Comunicación' (email-modal) for A and C, and only opens contact-select-modal for B (with exactly the 2 taller contacts) and for D (equipment, unchanged behavior).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/quotes (global)", "issues": ["Pre-existing hydration warnings: <span data-ve-dynamic> injected as child of <tr>/<tbody> by visual-edit wrapper — NOT related to this feature; also DialogContent missing aria-describedby warning in contact-select-modal and email-modal (a11y)."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Quotes.jsx routeTallerRecipients (L2460-2496): logic is correct and matches spec. Strict matching Array.isArray(c.purposes) && c.purposes.includes('taller') — good, empty purposes array is NOT treated as taller.",
+    "Scenario B correctly filters modal to only taller contacts by pre-setting contactList with tallerContacts before opening — verified UI shows exactly 2 rows (excluded 'facturacion' + inherited principal contact without purposes).",
+    "Scenario C fallback: contacts.find(c => c.scope === 'principal') || contacts[0]. Works when the primary client has at least 1 email-bearing contact. Edge case: if consolidated-contacts is empty entirely (or none have email), falls back to openContactSelect with empty list — acceptable but could be surfaced as a toast to operator.",
+    "Setting setActionLoading(null) BEFORE opening the modal in the B branch is fine, but branch B mutates setContactList(tallerContacts) directly (bypasses openContactSelect) — this duplicates state-set logic; consider refactoring openContactSelect to accept an override list to reduce duplication.",
+    "quote?.quote_category is read from the local list; if a quote's category is missing on the client (e.g. loaded via search) purposeForQuoteCategory returns null and falls through to standard flow — spec-compliant, but could be defensively logged for observability."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested per request)", "frontend": "100% (4/4 scenarios A/B/C/D)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (session_token in POST /api/auth/login)",
+  "seed_data_creation": "Set client.contacts via Mongo for 3 clients (temporarily switched quote_status to 'Borrador' during test and RESTORED to original values after):\n - cli_00bbd8a3c108 (Prueba) → 1 taller (test_taller_a@example.com) + 1 admin no-purpose. Quote: quo_280752b6698a (Scenario A).\n - cli_d7a6037a7cf7 (ASTROCEL) → 2 taller (test_taller_b1/b2@example.com) + 1 facturacion. Quote: quo_fd0248990ec7 (Scenario B).\n - cli_2aa0ea072c7f (Beijing La Gringa) → 2 contacts, 0 taller. Quote: quo_0c5d27ae2c22 (Scenario C).\n - Equipment regression used quo_69bead64a2fd on cli_969e7120f71c (untouched). \n IMPORTANT: The 3 test clients above had their original `contacts` arrays REPLACED with TEST_* contacts. If real contacts were present they were overwritten. Main agent may want to restore or leave as seed. Quote statuses were restored to originals (Enviada/Pagada/Enviada/Borrador).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature verified fully. Trigger testid = quote-actions-{quote_id} (dropdown three-dots). Action button testid = send-to-client-btn-{quote_id}. contact-select-modal opens only in Scenario B (2+ taller) and regression D (equipment). Scenarios A and C open the 'Personalizar Comunicación' email-modal directly with the correct email badge preloaded in 'Para (Destinatarios)'. To reproduce, ensure quote_status ∈ {Borrador, Enviada, ...} that enables the send_to_client action (send-to-client-btn is rendered when canEditNonConfig && !hidden — admin always sees it).",
+  "rca of the issue": "N/A — feature implementation is correct as per spec."
+}

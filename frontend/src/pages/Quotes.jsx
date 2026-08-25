@@ -2444,7 +2444,55 @@ export const Quotes = () => {
   const handleSendToClient = async (quoteId) => {
     const quote = quotes.find(q => q.quote_id === quoteId);
     const purpose = purposeForQuoteCategory(quote?.quote_category);
+    // Cotizaciones de Reparación (Taller): reglas de perfilamiento A/B/C.
+    if (purpose === 'taller') {
+      return routeTallerRecipients(quoteId, quote);
+    }
     await openContactSelect(quoteId, 'send-to-client', purpose);
+  };
+
+  // Reglas de selección dinámica de destinatarios para Cotizaciones de
+  // Reparación (Taller), según el perfilamiento "Cotizaciones de Taller" de los
+  // contactos de la ficha (incluye heredados por Grupo Económico / RIF principal):
+  //   A) Exactamente 1 contacto con 'taller' ON  -> To automático (sin modal).
+  //   B) 2+ contactos con 'taller' ON           -> Modal de selección (solo esos).
+  //   C) 0 contactos con 'taller' ON            -> Fallback al Contacto Primario.
+  const routeTallerRecipients = async (quoteId, quote) => {
+    if (!quote?.client_id) {
+      return openContactSelect(quoteId, 'send-to-client', 'taller');
+    }
+    setActionLoading(quoteId);
+    let contacts = [];
+    try {
+      const res = await api.get(`/clients/${quote.client_id}/consolidated-contacts`);
+      contacts = (res.data?.contacts || []).filter(c => (c.email || '').includes('@'));
+    } catch {
+      setActionLoading(null);
+      return openContactSelect(quoteId, 'send-to-client', 'taller');
+    }
+    setActionLoading(null);
+    // Matching ESTRICTO: el contacto debe tener 'taller' explícito en purposes.
+    const tallerContacts = contacts.filter(c => Array.isArray(c.purposes) && c.purposes.includes('taller'));
+    if (tallerContacts.length === 1) {
+      // Escenario A
+      openEmailModal('send-to-client', quoteId, [tallerContacts[0].email]);
+    } else if (tallerContacts.length >= 2) {
+      // Escenario B: reutiliza el modal de selección, prefiltrado a los de Taller.
+      setContactSelectQuoteId(quoteId);
+      setContactSelectAction('send-to-client');
+      setContactSelectedEmails([]);
+      setContactList(tallerContacts);
+      setContactSelectLoading(false);
+      setContactSelectOpen(true);
+    } else {
+      // Escenario C: Contacto Primario (primer contacto del Principal con email).
+      const primary = contacts.find(c => c.scope === 'principal') || contacts[0];
+      if (primary?.email) {
+        openEmailModal('send-to-client', quoteId, [primary.email]);
+      } else {
+        openContactSelect(quoteId, 'send-to-client', 'taller');
+      }
+    }
   };
 
   // Selector genérico de contactos filtrado por propósito del módulo.

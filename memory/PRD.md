@@ -4,6 +4,12 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Selección dinámica de destinatarios por Profiling en Cotizaciones de Reparación (Taller) — Jun 2026
+- **Requerimiento:** al enviar un correo desde una Cotización de Reparación (Taller), elegir el destinatario según el perfilamiento `Cotizaciones de Taller` de los contactos de la ficha (incluye heredados por Grupo Económico / RIF principal). A) 1 contacto con 'taller' → To automático (sin modal); B) 2+ → modal de selección solo con esos; C) 0 → fallback al Contacto Primario.
+- **Implementación (solo frontend, `pages/Quotes.jsx`):** `handleSendToClient` ahora, si `purposeForQuoteCategory(quote_category)==='taller'` (repair), delega en `routeTallerRecipients`. Éste consulta `GET /clients/{id}/consolidated-contacts`, filtra con **matching ESTRICTO** `Array.isArray(c.purposes) && c.purposes.includes('taller')` (un contacto sin perfil NO cuenta), y aplica A/B/C: A→`openEmailModal` con el email precargado; B→reutiliza el modal `contact-select-modal` prefiltrado a los contactos de taller; C→primer contacto `scope==='principal'` con email (o `contacts[0]`), y si no hay ninguno cae al modal manual. Otras categorías (equipment/implementación) conservan el flujo anterior (regresión OK).
+- **QA (testing_agent, iter320):** frontend **100% (4/4)** — A (1 taller, sin modal, To precargado), B (2 taller, modal con exactamente esos 2), C (0 taller → Contacto Primario), y regresión D (Equipos abre modal como antes). Sin bugs críticos/menores (solo warnings de hidratación/a11y preexistentes). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
 ### Feature: Lectura del NUEVO diseño de RIF (SENIAT "RIF Digital v2.0") — Jun 2026
 - **Requerimiento:** aprender a leer RIF, razón social y dirección fiscal del nuevo diseño de RIF, manteniendo la lectura del diseño antiguo.
 - **Diferencias del nuevo diseño (texto extraído):** `RIF: Jxxxxxxxxx` (etiqueta + código en la misma línea, SIN el nombre); razón social en la LÍNEA SIGUIENTE; `DOMICILIO FISCAL:` con dos puntos y la dirección en líneas posteriores, glued con "DATOS DE REGISTRO Y VIGENCIA".
