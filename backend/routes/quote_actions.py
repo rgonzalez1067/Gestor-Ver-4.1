@@ -1126,7 +1126,7 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
 
 
 @router.post("/quotes/{quote_id}/repair-complete")
-async def repair_complete(quote_id: str, body: dict = None, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
+async def repair_complete(quote_id: str, body: dict = None, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids"), client_recipients: Optional[str] = Header(None, alias="x-client-recipients")):
     """Marcar reparación como completada y notificar a Administración para facturar."""
     current_user = await get_current_user(authorization)
     if body is None:
@@ -1160,6 +1160,10 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
     )
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+    # Override de destinatario del cliente (reglas de perfilamiento "Taller"
+    # resueltas por el frontend: A→único contacto Taller, B→contacto elegido en
+    # el modal). Si viene vacío, backend usa el Contacto Primario (escenario C).
+    client_to_override = [e.strip() for e in (client_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
     # === Notification Engine (Phase 2) ===
     _engine_billing_pdf_bytes = None
@@ -1180,6 +1184,7 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
         custom_message=custom_message, cc_emails=cc_emails,
         billing_pdf_bytes=_engine_billing_pdf_bytes,
         extra_attachments=(await _resolve_manual_attachments(manual_attachment_ids)) or None,
+        client_recipients_override=client_to_override or None,
     )
     if _engine_result is not None:
         await _push_quote_event(
@@ -1209,7 +1214,13 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
     # Obtener datos del contacto del cliente
     contacts = client.get('contacts', []) if client else []
     client_email = None
-    if contacts:
+    # Override por perfilamiento Taller (escenarios A/B resueltos en frontend).
+    if client_to_override:
+        client_email = client_to_override[0]
+        for _extra in client_to_override[1:]:
+            if _extra not in cc_emails:
+                cc_emails.append(_extra)
+    if not client_email and contacts:
         client_email = contacts[0].get('email')
     if not client_email:
         contact1 = client.get('contact1') or {} if client else {}
@@ -1264,8 +1275,6 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
     if custom_message and custom_message.strip():
         user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
         rc_html = inject_custom_message(rc_html, custom_message, user_name, max_chars=1500)
-
-    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
     # Generar PDF "Cálculos Definitivos para la Factura" SOLO si vino billing_data del modal.
     # Este PDF se adjunta exclusivamente al correo de Administración/Ventas, NUNCA al cliente.

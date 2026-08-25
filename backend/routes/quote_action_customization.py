@@ -245,6 +245,7 @@ async def dispatch_custom_action(
     payload: dict = None,
     authorization: Optional[str] = Header(None),
     manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids"),
+    client_recipients: Optional[str] = Header(None, alias="x-client-recipients"),
 ):
     """Dispara una acción custom: envía correos según la matriz del Motor de
     Notificaciones para la combinación (biz × sub × action_id).
@@ -351,6 +352,10 @@ async def dispatch_custom_action(
             custom_message=custom_message,
             cc_emails=cc_emails,
             extra_attachments=await _resolve_manual_attachments_or_empty(manual_attachment_ids),
+            client_recipients_override=[
+                e.strip() for e in (client_recipients or "").split(",")
+                if e.strip() and "@" in e.strip()
+            ] or None,
         )
     except Exception as e:
         # Si el motor falla, NO revertimos la ejecución — el cambio de estado

@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Enrutamiento Taller (x-client-recipients) extendido a "Reparado" y "Pago Validado"
+
+- **Requerimiento:** replicar en las acciones **Reparado** (`repair-complete`) y **Pago Validado reparación** (custom action, ej. `pago_validado_rep`) el mismo ajuste ya aplicado a **Aprobación**: resolución de destinatario por perfilamiento "Taller" (reglas A/B/C) y reenvío vía header HTTP `x-client-recipients`.
+- **Backend `routes/quote_actions.py` (`repair_complete`):** nuevo header `client_recipients` (alias `x-client-recipients`); se parsea `client_to_override` y se pasa `client_recipients_override` al `_engine_or_legacy` y al flujo legacy (To = contacto Taller elegido; extras → CC). Se eliminó una reasignación duplicada de `cc_emails` que borraba los extras.
+- **Backend `routes/quote_action_customization.py` (`dispatch_custom_action`):** nuevo header `client_recipients`; se pasa `client_recipients_override` a `try_dispatch` (el motor solo lo aplica a filas `client_field`). Alcance confirmado por el usuario: aplica a TODAS las cotizaciones de categoría `repair`.
+- **Frontend `pages/Quotes.jsx`:** `handleRepairComplete` ahora async y resuelve Taller A/B/C; nuevos `_openRepairCompleteModal` (inyecta `x-client-recipients` en `emailHeaders`), `resolveTallerForCustom`, `executeCustomAction(...clientRecipients)`, branch `custom:` en `confirmEmailAndProceed` (solo repair), y branches `repair-complete-taller` / `custom-taller` en `handleContactSelectContinue`. Escenario B reutiliza el modal "Seleccionar Destinatarios".
+- **QA (testing_agent iter322): 5/5 backend + smoke frontend OK, sin regresiones.** Regresión: `/app/backend/tests/test_iter322_repair_taller_recipient.py`. Sin header → Contacto Principal (no regresión).
+- **⚠️ En PREVIEW; requiere REDEPLOY para producción.**
+
+
+
 ## 2026-07 — Ajuste: Fecha de Vencimiento de Cotizaciones = Emisión + 20 días hábiles
 
 - Cambiado el cálculo de vencimiento de **15 → 20 días hábiles** (excluyendo fines de semana y feriados) en las 4 ocurrencias: `hydrate_pdf_request`, sitios PG y CORP (`quotes.py`) y fallback del generador (`pdf_generator.py`).

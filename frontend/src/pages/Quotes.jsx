@@ -208,6 +208,8 @@ export const Quotes = () => {
   const [approvalQuoteId, setApprovalQuoteId] = useState(null);
   const [approvalConfig, setApprovalConfig] = useState(null);
   const [pendingApproval, setPendingApproval] = useState(null); // {quoteId, exceptionInfo} en espera de elegir contacto Taller (escenario B)
+  const [pendingCustomAction, setPendingCustomAction] = useState(null); // {quoteId, actionId, label} en espera de elegir contacto Taller (escenario B)
+  const [pendingRepairComplete, setPendingRepairComplete] = useState(null); // {quoteId} en espera de elegir contacto Taller (escenario B)
   
   // Estado para "Cliente en Producción"
   const [isProductionClient, setIsProductionClient] = useState(false);
@@ -2412,12 +2414,19 @@ export const Quotes = () => {
     } else if (action && action.startsWith('custom:')) {
       // Custom action (override de catálogo): action="custom:<action_id>"
       const actionId = action.slice('custom:'.length);
-      executeCustomAction(quoteId, actionId, emailModalConfig.actionLabel || actionId);
+      const q = quotes.find(qq => qq.quote_id === quoteId);
+      // Cotizaciones de Reparación (Taller): resolver destinatario por
+      // perfilamiento antes de disparar (A/B/C), igual que Aprobación/Reparado.
+      if (q?.quote_category === 'repair' && q?.client_id) {
+        resolveTallerForCustom(quoteId, actionId, emailModalConfig.actionLabel || actionId);
+      } else {
+        executeCustomAction(quoteId, actionId, emailModalConfig.actionLabel || actionId);
+      }
     }
   };
 
   // Ejecuta una custom action con mensaje personalizado + CCs + adjuntos del modal
-  const executeCustomAction = async (quoteId, actionId, label) => {
+  const executeCustomAction = async (quoteId, actionId, label, clientRecipients = null) => {
     try {
       setActionLoading(quoteId);
       const payload = {
@@ -2427,6 +2436,9 @@ export const Quotes = () => {
       const headers = {};
       if (emailManualAttachments.length > 0) {
         headers['x-manual-attachment-ids'] = emailManualAttachments.map(a => a.attachment_id).join(',');
+      }
+      if (clientRecipients && clientRecipients.length) {
+        headers['x-client-recipients'] = clientRecipients.join(',');
       }
       const res = await api.post(`/quotes/${quoteId}/custom-action/${actionId}`, payload, { headers });
       // Limpiar adjuntos: ya fueron consumidos en el backend.
@@ -2438,6 +2450,35 @@ export const Quotes = () => {
       setActionLoading(null);
     }
   };
+
+  // Resolver destinatario "Taller" (A/B/C) para una acción custom sobre
+  // cotizaciones de Reparación, antes de dispararla. Mismo criterio que
+  // Aprobación/Reparado: A→auto, B→modal de selección, C→backend usa Primario.
+  const resolveTallerForCustom = async (quoteId, actionId, label) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    try {
+      const res = await api.get(`/clients/${quote.client_id}/consolidated-contacts`);
+      const contacts = (res.data?.contacts || []).filter(c => (c.email || '').includes('@'));
+      const taller = contacts.filter(c => Array.isArray(c.purposes) && c.purposes.includes('taller'));
+      if (taller.length === 1) {
+        return executeCustomAction(quoteId, actionId, label, [taller[0].email]); // Escenario A
+      }
+      if (taller.length >= 2) {
+        // Escenario B: elegir destinatario en el modal, luego disparar la acción.
+        setPendingCustomAction({ quoteId, actionId, label });
+        setContactSelectQuoteId(quoteId);
+        setContactSelectAction('custom-taller');
+        setContactSelectedEmails([]);
+        setContactList(taller);
+        setContactSelectLoading(false);
+        setContactSelectOpen(true);
+        return;
+      }
+      // Escenario C: sin contactos Taller → sin override (backend usa Primario).
+    } catch { /* si falla, backend resuelve con Contacto Primario */ }
+    executeCustomAction(quoteId, actionId, label, null);
+  };
+
 
   // Enviar al cliente — Paso 1: selección de contactos de la ficha del cliente.
   // Intercepta el flujo: antes de "Personalizar Comunicación" se eligen los
@@ -2542,6 +2583,15 @@ export const Quotes = () => {
       const pend = pendingApproval;
       setPendingApproval(null);
       _openApprovalModal(quoteId, pend?.exceptionInfo || null, emails);
+    } else if (action === 'repair-complete-taller') {
+      // Escenario B: destinatario(s) elegido(s) → abrir modal de reparación.
+      setPendingRepairComplete(null);
+      _openRepairCompleteModal(quoteId, emails);
+    } else if (action === 'custom-taller') {
+      // Escenario B: destinatario(s) elegido(s) → disparar la acción custom.
+      const pend = pendingCustomAction;
+      setPendingCustomAction(null);
+      executeCustomAction(quoteId, pend?.actionId, pend?.label, emails);
     } else {
       openEmailModal('send-to-client', quoteId, emails);
     }
@@ -3972,10 +4022,41 @@ export const Quotes = () => {
 
   // Marcar reparación como completada — ahora abre modal con calculadora
   const handleRepairComplete = async (quoteId) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    if (quote?.quote_category === 'repair' && quote?.client_id) {
+      try {
+        const res = await api.get(`/clients/${quote.client_id}/consolidated-contacts`);
+        const contacts = (res.data?.contacts || []).filter(c => (c.email || '').includes('@'));
+        const taller = contacts.filter(c => Array.isArray(c.purposes) && c.purposes.includes('taller'));
+        if (taller.length === 1) {
+          return _openRepairCompleteModal(quoteId, [taller[0].email]); // Escenario A
+        }
+        if (taller.length >= 2) {
+          // Escenario B: elegir destinatario en el modal, luego abrir el modal de reparación.
+          setPendingRepairComplete({ quoteId });
+          setContactSelectQuoteId(quoteId);
+          setContactSelectAction('repair-complete-taller');
+          setContactSelectedEmails([]);
+          setContactList(taller);
+          setContactSelectLoading(false);
+          setContactSelectOpen(true);
+          return;
+        }
+        // Escenario C: sin contactos Taller → sin override (backend usa Primario).
+      } catch { /* si falla, backend resuelve con Contacto Primario */ }
+    }
+    _openRepairCompleteModal(quoteId, null);
+  };
+
+  const _openRepairCompleteModal = (quoteId, clientRecipients) => {
+    const emailHeaders = { ...getEmailHeaders() };
+    if (clientRecipients && clientRecipients.length) {
+      emailHeaders['x-client-recipients'] = clientRecipients.join(',');
+    }
     setRepairCompleteQuoteId(quoteId);
     setRepairCompleteConfig({
       exceptionHeaders: pendingAction?.exceptionHeaders || null,
-      emailHeaders: getEmailHeaders(),
+      emailHeaders,
     });
     setRepairCompleteModalOpen(true);
   };
