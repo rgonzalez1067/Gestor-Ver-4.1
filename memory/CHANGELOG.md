@@ -1,5 +1,20 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Respaldo Total de Base de Datos (todas las colecciones)
+
+- **Requerimiento:** función para respaldar y restaurar TODAS las colecciones de MongoDB (no solo las ~17 del Centro de Respaldos). Incluye bitácora, correos, notificaciones, plantillas, config, contadores, sesiones, mensajería, etc. Objetivo: clonar un ambiente completo (Producción → Preview) con réplica exacta.
+- **Backend `routes/data_migration.py` (nuevos endpoints, admin-only):**
+  - `GET /api/admin/full-backup/info` → conteo de colecciones y documentos.
+  - `GET /api/admin/full-backup/export` → ZIP con un JSON (MongoDB Extended JSON) por colección + `_manifest.json`. Preserva `_id` (ObjectId), fechas y tipos BSON. Streaming por documento a temp file (bajo consumo de memoria).
+  - `POST /api/admin/full-backup/upload-init` + `upload-chunk` → carga por chunks (4MB) para evitar límites del proxy (backup ~43MB).
+  - `POST /api/admin/full-backup/restore` (mode `replace`|`merge`) → drop+insert por colección = réplica exacta. `replace` además elimina colecciones que no estén en el respaldo. Preserva la sesión del admin que ejecuta para no perder acceso.
+- **Frontend `pages/BackupCenter.jsx`:** tarjeta `full-backup-card` con Exportar/Restaurar, progreso de subida, checkbox "Réplica exacta" y diálogo de confirmación con gating por texto "RESTAURAR".
+- **QA:** backend probado end-to-end por el agente (round-trip real con chunks; `_id`/datetime/anidados preservados; restauración completa medida ~4.2s, bajo el límite de 60s del ingress). testing_agent iter323: frontend 100% + backend no destructivo 100%.
+- **Formato:** MongoDB Extended JSON (`bson.json_util`) para round-trip sin pérdida.
+- **⚠️ La restauración es DESTRUCTIVA (reemplaza toda la BD del ambiente). Requiere REDEPLOY para que el botón Exportar aparezca en producción.**
+
+
+
 ## 2026-06 — Enrutamiento Taller (x-client-recipients) extendido a "Reparado" y "Pago Validado"
 
 - **Requerimiento:** replicar en las acciones **Reparado** (`repair-complete`) y **Pago Validado reparación** (custom action, ej. `pago_validado_rep`) el mismo ajuste ya aplicado a **Aprobación**: resolución de destinatario por perfilamiento "Taller" (reglas A/B/C) y reenvío vía header HTTP `x-client-recipients`.

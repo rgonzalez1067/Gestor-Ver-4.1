@@ -15,11 +15,13 @@ import json
 import logging
 import os
 import tempfile
+import uuid
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from bson.json_util import dumps as bson_dumps, loads as bson_loads
 from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from starlette.background import BackgroundTask
@@ -1699,3 +1701,256 @@ async def recover_attachments_to_storage(
         ),
     }
 
+
+
+
+# ==================== RESPALDO TOTAL DE BASE DE DATOS ====================
+# Respalda/restaura TODAS las colecciones (incluye bitácora, correos, config,
+# contadores, sesiones, mensajería, etc.) con fidelidad exacta usando Extended
+# JSON (preserva _id ObjectId, fechas y tipos BSON). La restauración hace
+# drop + insert por colección => réplica exacta del respaldo. La subida es por
+# chunks para evitar límites del proxy con archivos grandes.
+
+def _fb_upload_path(upload_id: str) -> str:
+    safe = "".join(ch for ch in (upload_id or "") if ch.isalnum() or ch in "-_")
+    if not safe:
+        raise HTTPException(status_code=400, detail="upload_id inválido")
+    return os.path.join(tempfile.gettempdir(), f"fb_upload_{safe}.zip")
+
+
+@router.get("/admin/full-backup/info")
+async def full_backup_info(authorization: Optional[str] = Header(None)):
+    """Lista todas las colecciones con su conteo (para la UI del Respaldo Total)."""
+    await _require_admin(authorization)
+    cols = sorted(await db.list_collection_names())
+    out = []
+    total_docs = 0
+    for name in cols:
+        cnt = await db[name].count_documents({})
+        total_docs += cnt
+        out.append({"name": name, "count": cnt})
+    return {
+        "db_name": db.name,
+        "total_collections": len(cols),
+        "total_documents": total_docs,
+        "collections": out,
+    }
+
+
+@router.get("/admin/full-backup/export")
+async def full_backup_export(authorization: Optional[str] = Header(None)):
+    """Exporta TODA la base de datos a un ZIP (un JSON Extended por colección)."""
+    user = await _require_admin(authorization)
+    cols = sorted(await db.list_collection_names())
+
+    tmp_fd, tmp_zip = tempfile.mkstemp(suffix=".zip", prefix="full_backup_")
+    os.close(tmp_fd)
+
+    manifest = {
+        "schema_version": 1,
+        "type": "full-database-backup",
+        "format": "mongodb-extended-json",
+        "db_name": db.name,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_by": user.get("email"),
+        "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+        "collections": [],
+    }
+
+    try:
+        with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            for cname in cols:
+                # Volcar la colección a un temp file por documento (streaming),
+                # evitando mantener toda la colección serializada en memoria.
+                col_fd, col_path = tempfile.mkstemp(suffix=".json", prefix="fb_col_")
+                os.close(col_fd)
+                count = 0
+                with open(col_path, "w", encoding="utf-8") as cf:
+                    cf.write("[")
+                    first = True
+                    async for doc in db[cname].find({}):
+                        cf.write(("" if first else ",") + "\n" + bson_dumps(doc, ensure_ascii=False))
+                        first = False
+                        count += 1
+                    cf.write(("\n]" if count else "]"))
+                zf.write(col_path, arcname=f"collections/{cname}.json")
+                try:
+                    os.unlink(col_path)
+                except Exception:
+                    pass
+                manifest["collections"].append({"name": cname, "count": count})
+
+            zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+
+        try:
+            await db.bitacora.insert_one({
+                "action": "full_backup_export",
+                "db_name": db.name,
+                "collections": len(cols),
+                "size_bytes": os.path.getsize(tmp_zip),
+                "executed_by": user.get("email"),
+                "executed_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"full_backup_{db.name}_{ts}.zip"
+
+        def _cleanup(p):
+            try:
+                os.unlink(p)
+            except Exception:
+                pass
+
+        return FileResponse(
+            tmp_zip,
+            media_type="application/zip",
+            filename=filename,
+            headers={"Cache-Control": "no-store", "X-Total-Collections": str(len(cols))},
+            background=BackgroundTask(_cleanup, tmp_zip),
+        )
+    except Exception:
+        try:
+            os.unlink(tmp_zip)
+        except Exception:
+            pass
+        raise
+
+
+@router.post("/admin/full-backup/upload-init")
+async def full_backup_upload_init(authorization: Optional[str] = Header(None)):
+    """Inicia una carga por chunks. Devuelve un upload_id."""
+    await _require_admin(authorization)
+    upload_id = uuid.uuid4().hex
+    open(_fb_upload_path(upload_id), "wb").close()
+    return {"upload_id": upload_id}
+
+
+@router.post("/admin/full-backup/upload-chunk")
+async def full_backup_upload_chunk(
+    upload_id: str = Form(...),
+    chunk_index: int = Form(0),
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Anexa un chunk del ZIP al archivo temporal (los chunks llegan en orden)."""
+    await _require_admin(authorization)
+    path = _fb_upload_path(upload_id)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="upload_id no encontrado (inicia la carga primero)")
+    data = await file.read()
+    with open(path, "ab") as f:
+        f.write(data)
+    return {"ok": True, "chunk_index": chunk_index, "received_bytes": len(data), "total_bytes": os.path.getsize(path)}
+
+
+@router.post("/admin/full-backup/restore")
+async def full_backup_restore(
+    upload_id: str = Form(...),
+    mode: str = Form("replace"),  # "replace": además borra colecciones que no estén en el respaldo; "merge": solo reemplaza las presentes
+    authorization: Optional[str] = Header(None),
+):
+    """Restaura la base de datos completa desde el ZIP subido por chunks.
+    Cada colección del respaldo se DROP + re-inserta => réplica exacta.
+    Preserva la sesión del admin que ejecuta para no perder el acceso."""
+    user = await _require_admin(authorization)
+    caller_token = authorization.replace("Bearer ", "").strip() if authorization else None
+
+    path = _fb_upload_path(upload_id)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Respaldo subido no encontrado (¿expiró?)")
+
+    try:
+        zf = zipfile.ZipFile(path)
+    except Exception:
+        try:
+            os.unlink(path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail="El archivo subido no es un ZIP válido")
+
+    names = zf.namelist()
+    if "_manifest.json" not in names:
+        raise HTTPException(status_code=400, detail="ZIP inválido: falta _manifest.json")
+    try:
+        manifest = json.loads(zf.read("_manifest.json"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer _manifest.json")
+    if manifest.get("type") != "full-database-backup":
+        raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total de Base de Datos")
+
+    col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
+    if not col_files:
+        raise HTTPException(status_code=400, detail="El respaldo no contiene colecciones")
+
+    backup_cols = set()
+    summary = []
+    BATCH = 500
+    for n in col_files:
+        cname = n[len("collections/"):-len(".json")]
+        backup_cols.add(cname)
+        raw = zf.read(n).decode("utf-8")
+        docs = bson_loads(raw) if raw.strip() else []
+        await db[cname].drop()
+        inserted = 0
+        for i in range(0, len(docs), BATCH):
+            batch = docs[i:i + BATCH]
+            if batch:
+                await db[cname].insert_many(batch, ordered=False)
+                inserted += len(batch)
+        summary.append({"name": cname, "restored": inserted})
+
+    dropped_extra = []
+    if mode == "replace":
+        for cname in await db.list_collection_names():
+            if cname not in backup_cols:
+                await db[cname].drop()
+                dropped_extra.append(cname)
+
+    # Preservar la sesión del admin que ejecuta (si su usuario existe en el
+    # respaldo restaurado) para no dejarlo fuera del sistema.
+    session_preserved = False
+    if caller_token and user.get("user_id"):
+        try:
+            user_exists = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "user_id": 1})
+            if user_exists and not await db.user_sessions.find_one({"session_token": caller_token}):
+                await db.user_sessions.insert_one({
+                    "user_id": user["user_id"],
+                    "session_token": caller_token,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "restored_after_full_backup": True,
+                })
+                session_preserved = True
+        except Exception:
+            pass
+
+    try:
+        await db.bitacora.insert_one({
+            "action": "full_backup_restore",
+            "mode": mode,
+            "source_db": manifest.get("db_name"),
+            "source_exported_at": manifest.get("exported_at"),
+            "restored_collections": len(summary),
+            "dropped_extra_collections": dropped_extra,
+            "executed_by": user.get("email"),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+    try:
+        os.unlink(path)
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "source_db": manifest.get("db_name"),
+        "source_exported_at": manifest.get("exported_at"),
+        "restored_collections": len(summary),
+        "restored_documents": sum(s["restored"] for s in summary),
+        "summary": summary,
+        "dropped_extra_collections": dropped_extra,
+        "session_preserved": session_preserved,
+    }

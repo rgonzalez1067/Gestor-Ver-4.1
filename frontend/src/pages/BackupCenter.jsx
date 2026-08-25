@@ -37,6 +37,77 @@ export default function BackupCenter() {
   const fileRef = useRef(null);
   const zipRef = useRef(null);
 
+  // --- Respaldo Total de Base de Datos (todas las colecciones) ---
+  const [dbInfo, setDbInfo] = useState(null); // { db_name, total_collections, total_documents }
+  const [dbBusy, setDbBusy] = useState(null); // null | 'export' | 'restore'
+  const [dbProgress, setDbProgress] = useState(0);
+  const [dbRestoreResult, setDbRestoreResult] = useState(null);
+  const [dbConfirmOpen, setDbConfirmOpen] = useState(false);
+  const [dbFile, setDbFile] = useState(null);
+  const [dbExactReplica, setDbExactReplica] = useState(true);
+  const [dbConfirmText, setDbConfirmText] = useState('');
+  const dbFileRef = useRef(null);
+
+  const loadDbInfo = useCallback(async () => {
+    try {
+      const { data } = await api.get('/admin/full-backup/info');
+      setDbInfo(data);
+    } catch (err) {
+      // silencioso: la tarjeta sigue usable aunque falle el conteo
+    }
+  }, []);
+
+  const exportFullDb = async () => {
+    setDbBusy('export');
+    try {
+      const res = await api.get('/admin/full-backup/export', { responseType: 'blob' });
+      downloadBlob(res.data, `full_backup_${dbInfo?.db_name || 'db'}_${tsNow()}.zip`, 'application/zip');
+      toast.success('Respaldo total descargado correctamente');
+    } catch (err) {
+      toast.error(`Error al exportar el respaldo total: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setDbBusy(null);
+    }
+  };
+
+  const doRestoreFullDb = async () => {
+    if (!dbFile) return;
+    setDbConfirmOpen(false);
+    setDbBusy('restore');
+    setDbProgress(0);
+    setDbRestoreResult(null);
+    const CHUNK = 4 * 1024 * 1024; // 4MB por chunk (evita límites del proxy)
+    try {
+      const { data: initData } = await api.post('/admin/full-backup/upload-init');
+      const uploadId = initData.upload_id;
+      const totalChunks = Math.max(1, Math.ceil(dbFile.size / CHUNK));
+      for (let i = 0; i < totalChunks; i++) {
+        const blob = dbFile.slice(i * CHUNK, (i + 1) * CHUNK);
+        const fd = new FormData();
+        fd.append('upload_id', uploadId);
+        fd.append('chunk_index', i);
+        fd.append('file', blob, 'chunk.part');
+        await api.post('/admin/full-backup/upload-chunk', fd);
+        setDbProgress(Math.round(((i + 1) / totalChunks) * 90));
+      }
+      const fd = new FormData();
+      fd.append('upload_id', uploadId);
+      fd.append('mode', dbExactReplica ? 'replace' : 'merge');
+      const { data } = await api.post('/admin/full-backup/restore', fd);
+      setDbProgress(100);
+      setDbRestoreResult(data);
+      toast.success(`Base de datos restaurada: ${data.restored_collections} colección(es), ${data.restored_documents} documento(s)`);
+      loadDbInfo();
+    } catch (err) {
+      toast.error(`Error al restaurar: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setDbBusy(null);
+      setDbFile(null);
+      setDbConfirmText('');
+      if (dbFileRef.current) dbFileRef.current.value = '';
+    }
+  };
+
   // --- Backfill de Anexos hacia Object Storage (paginado) ---
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [backfillMode, setBackfillMode] = useState(null); // 'audit' | 'upload'
@@ -137,7 +208,7 @@ export default function BackupCenter() {
     } catch (err) { console.warn('No se pudo cargar el historial de respaldos:', err?.message); }
   }, []);
 
-  useEffect(() => { loadEntities(); loadHistory(); }, [loadEntities, loadHistory]);
+  useEffect(() => { loadEntities(); loadHistory(); loadDbInfo(); }, [loadEntities, loadHistory, loadDbInfo]);
 
   const allSelected = entities.length > 0 && selected.size === entities.length;
   const someSelected = selected.size > 0 && !allSelected;
@@ -237,6 +308,112 @@ export default function BackupCenter() {
             Cotizaciones, Histórico y Proyectos se respaldan en sus propias vistas y no forman parte de
             este centro. Formato de respaldo: <strong>JSON</strong> (round-trip sin pérdida).
           </span>
+        </div>
+
+        {/* Respaldo Total de Base de Datos (todas las colecciones) */}
+        <div className="bg-white rounded-xl border border-indigo-200 shadow-sm mb-6 overflow-hidden" data-testid="full-backup-card">
+          <div className="bg-indigo-50/70 border-b border-indigo-100 px-4 py-3 flex items-start gap-3">
+            <div className="rounded-lg bg-indigo-600 text-white p-2 shadow-sm shrink-0">
+              <DatabaseBackup size={18} />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Respaldo Total de Base de Datos</h2>
+              <p className="text-xs text-slate-600 mt-0.5 max-w-2xl">
+                Respalda y restaura <strong>TODAS las colecciones</strong> (incluye bitácora, correos,
+                notificaciones, plantillas, configuración, contadores, sesiones, mensajería, etc.) con
+                <strong> fidelidad exacta</strong>. Úsalo para clonar un ambiente completo (ej. Producción → Preview).
+              </p>
+              {dbInfo && (
+                <p className="text-[11px] text-indigo-700/80 mt-1" data-testid="full-backup-info">
+                  Base actual: <strong>{dbInfo.db_name}</strong> · {dbInfo.total_collections} colecciones · {dbInfo.total_documents?.toLocaleString('es')} documentos
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="px-4 py-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={exportFullDb}
+                disabled={dbBusy !== null}
+                className="bg-indigo-600 hover:bg-indigo-700"
+                data-testid="full-backup-export-btn"
+              >
+                {dbBusy === 'export'
+                  ? <Loader2 size={16} className="mr-1.5 animate-spin" />
+                  : <Download size={16} className="mr-1.5" />}
+                Exportar Base Completa (.zip)
+              </Button>
+
+              <input
+                ref={dbFileRef}
+                type="file"
+                accept=".zip"
+                className="hidden"
+                data-testid="full-backup-file-input"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  if (f) { setDbFile(f); setDbConfirmText(''); setDbConfirmOpen(true); }
+                }}
+              />
+              <Button
+                variant="outline"
+                onClick={() => dbFileRef.current?.click()}
+                disabled={dbBusy !== null}
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                data-testid="full-backup-restore-btn"
+              >
+                <Upload size={16} className="mr-1.5" />
+                Restaurar Base Completa…
+              </Button>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 text-red-800 px-3 py-2 text-xs mt-3">
+              <ShieldAlert size={15} className="shrink-0 mt-0.5" />
+              <span>
+                La restauración <strong>reemplaza por completo</strong> la base de datos de este ambiente
+                (<strong>{dbInfo?.db_name || 'preview'}</strong>). Tu sesión de administrador se preserva
+                automáticamente. Esta acción no se puede deshacer.
+              </span>
+            </div>
+
+            {dbBusy === 'restore' && (
+              <div className="mt-4" data-testid="full-backup-progress">
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span>{dbProgress < 90 ? 'Subiendo respaldo…' : 'Restaurando colecciones…'}</span>
+                  <span>{dbProgress}%</span>
+                </div>
+                <Progress value={dbProgress} className="h-2" />
+              </div>
+            )}
+
+            {dbRestoreResult && (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3" data-testid="full-backup-result">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-800 mb-2">
+                  <CheckCircle2 size={15} className="text-emerald-600" />
+                  Restauración completada
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center mb-2">
+                  <div className="rounded-lg bg-white border border-slate-200 py-2">
+                    <p className="text-lg font-bold text-indigo-700">{dbRestoreResult.restored_collections}</p>
+                    <p className="text-[11px] text-slate-500">Colecciones</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 py-2">
+                    <p className="text-lg font-bold text-indigo-700">{dbRestoreResult.restored_documents?.toLocaleString('es')}</p>
+                    <p className="text-[11px] text-slate-500">Documentos</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-slate-200 py-2">
+                    <p className="text-lg font-bold text-slate-600">{dbRestoreResult.dropped_extra_collections?.length || 0}</p>
+                    <p className="text-[11px] text-slate-500">Colecciones eliminadas</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Origen: <strong>{dbRestoreResult.source_db}</strong>
+                  {dbRestoreResult.source_exported_at ? ` · exportado ${new Date(dbRestoreResult.source_exported_at).toLocaleString('es')}` : ''}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Respaldo de Anexos hacia Object Storage (Backfill) */}
@@ -531,6 +708,60 @@ export default function BackupCenter() {
         onDone={() => { loadEntities(); loadHistory(); }}
         zipRef={zipRef}
       />
+
+      {/* Confirmación de Restauración Total */}
+      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
+        <DialogContent data-testid="full-backup-confirm-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <ShieldAlert size={18} /> Restaurar Base de Datos Completa
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-slate-700">
+            <p>
+              Vas a restaurar <strong className="break-all">{dbFile?.name}</strong>
+              {dbFile ? ` (${(dbFile.size / 1024 / 1024).toFixed(1)} MB)` : ''} sobre el ambiente
+              <strong> {dbInfo?.db_name || 'actual'}</strong>.
+            </p>
+            <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 px-3 py-2 text-xs">
+              Esto <strong>elimina y reemplaza</strong> los datos actuales por los del respaldo. La acción
+              <strong> no se puede deshacer</strong>. Tu sesión de administrador se conservará.
+            </div>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <Checkbox checked={dbExactReplica} onCheckedChange={(v) => setDbExactReplica(!!v)} data-testid="full-backup-exact-checkbox" />
+              <span className="text-xs text-slate-600">
+                <strong>Réplica exacta</strong>: eliminar también las colecciones de este ambiente que no
+                estén en el respaldo (recomendado para clonar 1:1). Si lo desmarcas, solo se reemplazan las
+                colecciones presentes en el respaldo.
+              </span>
+            </label>
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Escribe <strong>RESTAURAR</strong> para confirmar:</p>
+              <input
+                type="text"
+                value={dbConfirmText}
+                onChange={(e) => setDbConfirmText(e.target.value)}
+                className="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                placeholder="RESTAURAR"
+                data-testid="full-backup-confirm-input"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDbConfirmOpen(false); setDbFile(null); if (dbFileRef.current) dbFileRef.current.value = ''; }} data-testid="full-backup-cancel-btn">
+              Cancelar
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              disabled={dbConfirmText.trim().toUpperCase() !== 'RESTAURAR'}
+              onClick={doRestoreFullDb}
+              data-testid="full-backup-confirm-btn"
+            >
+              <Upload size={15} className="mr-1.5" /> Restaurar Ahora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
