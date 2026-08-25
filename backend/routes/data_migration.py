@@ -1737,85 +1737,105 @@ async def full_backup_info(authorization: Optional[str] = Header(None)):
     }
 
 
+class _ZipStreamBuf:
+    """File-like NO buscable para escribir un ZIP en streaming (zipfile usa
+    data descriptors). Acumula bytes que se drenan y envían por la respuesta."""
+    def __init__(self):
+        self.buf = bytearray()
+        self._pos = 0
+    def write(self, b):
+        self.buf += b
+        self._pos += len(b)
+        return len(b)
+    def tell(self):
+        return self._pos
+    def flush(self):
+        pass
+    def seekable(self):
+        return False
+    def drain(self):
+        if self.buf:
+            out = bytes(self.buf)
+            self.buf.clear()
+            return out
+        return b""
+
+
 @router.get("/admin/full-backup/export")
 async def full_backup_export(authorization: Optional[str] = Header(None)):
-    """Exporta TODA la base de datos a un ZIP (un JSON Extended por colección)."""
+    """Exporta TODA la base de datos a un ZIP en STREAMING (un JSON Extended por
+    colección). Envía bytes desde el primer instante y de forma continua, con
+    memoria acotada (un documento a la vez), para evitar timeouts del proxy/CDN
+    en bases grandes."""
     user = await _require_admin(authorization)
     cols = sorted(await db.list_collection_names())
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"full_backup_{db.name}_{ts}.zip"
+    DRAIN_EVERY = 200  # drenar cada N documentos para acotar el buffer
 
-    tmp_fd, tmp_zip = tempfile.mkstemp(suffix=".zip", prefix="full_backup_")
-    os.close(tmp_fd)
-
-    manifest = {
-        "schema_version": 1,
-        "type": "full-database-backup",
-        "format": "mongodb-extended-json",
-        "db_name": db.name,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "exported_by": user.get("email"),
-        "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
-        "collections": [],
-    }
-
-    try:
-        with zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+    async def _gen():
+        stream = _ZipStreamBuf()
+        manifest = {
+            "schema_version": 1,
+            "type": "full-database-backup",
+            "format": "mongodb-extended-json",
+            "db_name": db.name,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "exported_by": user.get("email"),
+            "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+            "collections": [],
+        }
+        zf = zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED)
+        try:
             for cname in cols:
-                # Volcar la colección a un temp file por documento (streaming),
-                # evitando mantener toda la colección serializada en memoria.
-                col_fd, col_path = tempfile.mkstemp(suffix=".json", prefix="fb_col_")
-                os.close(col_fd)
                 count = 0
-                with open(col_path, "w", encoding="utf-8") as cf:
-                    cf.write("[")
+                with zf.open(f"collections/{cname}.json", "w") as entry:
+                    entry.write(b"[")
                     first = True
                     async for doc in db[cname].find({}):
-                        cf.write(("" if first else ",") + "\n" + bson_dumps(doc, ensure_ascii=False))
+                        piece = ("" if first else ",") + "\n" + bson_dumps(doc, ensure_ascii=False)
+                        entry.write(piece.encode("utf-8"))
                         first = False
                         count += 1
-                    cf.write(("\n]" if count else "]"))
-                zf.write(col_path, arcname=f"collections/{cname}.json")
-                try:
-                    os.unlink(col_path)
-                except Exception:
-                    pass
+                        if count % DRAIN_EVERY == 0:
+                            chunk = stream.drain()
+                            if chunk:
+                                yield chunk
+                    entry.write(b"\n]" if count else b"]")
+                chunk = stream.drain()
+                if chunk:
+                    yield chunk
                 manifest["collections"].append({"name": cname, "count": count})
 
             zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+            zf.close()  # escribe el central directory
+            chunk = stream.drain()
+            if chunk:
+                yield chunk
+        finally:
+            try:
+                if not zf.fp is None:
+                    zf.close()
+            except Exception:
+                pass
 
         try:
             await db.bitacora.insert_one({
                 "action": "full_backup_export",
                 "db_name": db.name,
                 "collections": len(cols),
-                "size_bytes": os.path.getsize(tmp_zip),
                 "executed_by": user.get("email"),
                 "executed_at": datetime.now(timezone.utc).isoformat(),
             })
         except Exception:
             pass
 
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        filename = f"full_backup_{db.name}_{ts}.zip"
-
-        def _cleanup(p):
-            try:
-                os.unlink(p)
-            except Exception:
-                pass
-
-        return FileResponse(
-            tmp_zip,
-            media_type="application/zip",
-            filename=filename,
-            headers={"Cache-Control": "no-store", "X-Total-Collections": str(len(cols))},
-            background=BackgroundTask(_cleanup, tmp_zip),
-        )
-    except Exception:
-        try:
-            os.unlink(tmp_zip)
-        except Exception:
-            pass
-        raise
+    headers = {
+        "Cache-Control": "no-store",
+        "X-Total-Collections": str(len(cols)),
+        "Content-Disposition": f'attachment; filename="{filename}"',
+    }
+    return StreamingResponse(_gen(), media_type="application/zip", headers=headers)
 
 
 @router.post("/admin/full-backup/upload-init")

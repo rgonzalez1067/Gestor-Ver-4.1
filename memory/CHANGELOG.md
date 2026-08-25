@@ -1,6 +1,14 @@
 # CHANGELOG — MegaNexus
 
-## 2026-06 — Respaldo Total: comparativa de conteos en el checklist
+## 2026-06 — Fix: 520/OOM al exportar Respaldo Total en bases grandes (producción)
+
+- **Síntoma:** en producción (72 colecciones, ~126.500 docs, `inbox_messages` pesada), `GET /api/admin/full-backup/export` fallaba con **520**.
+- **RCA (deployer):** **OOMKilled (exit 137)**, no timeout. El pod tiene 512Mi; la versión previa escribía archivos temporales en `/tmp` (RAM-backed) y armaba el ZIP completo antes de responder → pico de memoria antes del primer byte → 520 (origen caído).
+- **Fix (`data_migration.py` → `full_backup_export`):** reescrito con **streaming real del ZIP** (`StreamingResponse` + `zipfile` sobre buffer no-buscable con data descriptors), sin archivos temporales, drenando el buffer cada 200 documentos y emitiendo bytes desde el primer instante.
+- **Validación (preview):** ZIP válido y round-trip (ObjectId/tipos preservados); **memoria plana: RSS 130MB baseline → 130MB pico (delta 0MB)** generando un ZIP de 41MB. Primer byte inmediato.
+- **⚠️ Requiere REDEPLOY para corregir producción.**
+
+
 
 - **Mejora:** cada colección del checklist de restauración muestra ahora **conteo actual del ambiente → conteo del respaldo** (ej. `642 → 640`), resaltando en índigo cuando hay cambio y tachando el valor actual. Las colecciones que no existen en el ambiente se marcan con badge "nueva". Usa `dbInfo.collections` (de `/admin/full-backup/info`) ya cargado + el manifiesto leído con JSZip. Solo frontend (`BackupCenter.jsx`), no destructivo.
 
