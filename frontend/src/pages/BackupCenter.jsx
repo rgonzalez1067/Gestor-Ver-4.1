@@ -54,6 +54,7 @@ export default function BackupCenter() {
 
   const dbAllSelected = dbBackupCols.length > 0 && dbSelectedCols.size === dbBackupCols.length;
   const dbIsSelective = dbBackupCols.length > 0 && !dbAllSelected;
+  const dbCurrentCountMap = (dbInfo?.collections || []).reduce((acc, c) => { acc[c.name] = c.count; return acc; }, {});
 
   const openRestoreDialog = async (file) => {
     setDbParsing(true);
@@ -786,24 +787,42 @@ export default function BackupCenter() {
                   {dbAllSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
                 </button>
               </div>
+              <div className="flex items-center justify-end gap-1.5 px-3 py-1 text-[10px] text-slate-400 border-b border-slate-50">
+                <span>actual</span><span className="text-slate-300">→</span><span>respaldo</span>
+              </div>
               <div className="max-h-52 overflow-auto p-1" data-testid="full-backup-collections-list">
-                {dbBackupCols.map((c) => (
-                  <label
-                    key={c.name}
-                    className="flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer"
-                    data-testid={`full-backup-col-${c.name}`}
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <Checkbox
-                        checked={dbSelectedCols.has(c.name)}
-                        onCheckedChange={() => toggleCol(c.name)}
-                        data-testid={`full-backup-col-checkbox-${c.name}`}
-                      />
-                      <span className="text-xs text-slate-700 truncate font-mono">{c.name}</span>
-                    </span>
-                    <span className="text-[11px] text-slate-400 shrink-0">{c.count?.toLocaleString('es')}</span>
-                  </label>
-                ))}
+                {dbBackupCols.map((c) => {
+                  const cur = dbCurrentCountMap[c.name];
+                  const hasCur = cur !== undefined;
+                  const isNew = !hasCur; // no existe en el ambiente actual
+                  const changes = hasCur && cur !== c.count;
+                  return (
+                    <label
+                      key={c.name}
+                      className="flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer"
+                      data-testid={`full-backup-col-${c.name}`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <Checkbox
+                          checked={dbSelectedCols.has(c.name)}
+                          onCheckedChange={() => toggleCol(c.name)}
+                          data-testid={`full-backup-col-checkbox-${c.name}`}
+                        />
+                        <span className="text-xs text-slate-700 truncate font-mono">{c.name}</span>
+                        {isNew && <span className="text-[9px] uppercase tracking-wide bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded shrink-0">nueva</span>}
+                      </span>
+                      <span
+                        className="text-[11px] shrink-0 tabular-nums flex items-center gap-1"
+                        data-testid={`full-backup-col-counts-${c.name}`}
+                        title={`Ambiente actual: ${hasCur ? cur : 0} · Respaldo: ${c.count}`}
+                      >
+                        <span className={changes ? 'text-slate-400 line-through' : 'text-slate-400'}>{hasCur ? cur?.toLocaleString('es') : 0}</span>
+                        <span className="text-slate-300">→</span>
+                        <span className={changes ? 'text-indigo-600 font-semibold' : 'text-slate-500'}>{c.count?.toLocaleString('es')}</span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 

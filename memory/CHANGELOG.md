@@ -1,5 +1,9 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Respaldo Total: comparativa de conteos en el checklist
+
+- **Mejora:** cada colección del checklist de restauración muestra ahora **conteo actual del ambiente → conteo del respaldo** (ej. `642 → 640`), resaltando en índigo cuando hay cambio y tachando el valor actual. Las colecciones que no existen en el ambiente se marcan con badge "nueva". Usa `dbInfo.collections` (de `/admin/full-backup/info`) ya cargado + el manifiesto leído con JSZip. Solo frontend (`BackupCenter.jsx`), no destructivo.
+
 ## 2026-06 — Respaldo Total: Restauración SELECTIVA (elegir colecciones)
 
 - **Mejora:** restaurar solo las colecciones elegidas del respaldo en lugar de toda la base.
