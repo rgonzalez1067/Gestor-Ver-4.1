@@ -1,12 +1,18 @@
 # CHANGELOG — MegaNexus
 
-## 2026-06 — Fix: 520/OOM al exportar Respaldo Total en bases grandes (producción)
+## 2026-06 — Fix def.: OOM/520 y ZIP truncado al exportar Respaldo Total (producción)
 
-- **Síntoma:** en producción (72 colecciones, ~126.500 docs, `inbox_messages` pesada), `GET /api/admin/full-backup/export` fallaba con **520**.
-- **RCA (deployer):** **OOMKilled (exit 137)**, no timeout. El pod tiene 512Mi; la versión previa escribía archivos temporales en `/tmp` (RAM-backed) y armaba el ZIP completo antes de responder → pico de memoria antes del primer byte → 520 (origen caído).
-- **Fix (`data_migration.py` → `full_backup_export`):** reescrito con **streaming real del ZIP** (`StreamingResponse` + `zipfile` sobre buffer no-buscable con data descriptors), sin archivos temporales, drenando el buffer cada 200 documentos y emitiendo bytes desde el primer instante.
-- **Validación (preview):** ZIP válido y round-trip (ObjectId/tipos preservados); **memoria plana: RSS 130MB baseline → 130MB pico (delta 0MB)** generando un ZIP de 41MB. Primer byte inmediato.
-- **⚠️ Requiere REDEPLOY para corregir producción.**
+- **Síntomas:** primero 520 (pod OOMKilled antes del 1er byte); tras un primer intento de streaming, el .zip llegaba **truncado** ("Unexpected end of archive") porque el pod seguía muriendo por OOM a mitad del stream (sin escribir el central directory).
+- **RCA (deployer):** OOMKilled real (exit 137) en el pod de 512Mi DURANTE el export.
+- **Causa raíz (dos factores):**
+  1. Mi primer streaming drenaba el buffer **por conteo de documentos** (cada 200) → con docs grandes (inbox_messages ~240KB c/u) el pico de memoria escalaba ~2x el tamaño del ZIP. Medición corregida (árbol de procesos correcto): delta **95MB** para un ZIP de 41MB.
+  2. nginx (mismo contenedor, `proxy_buffering` ON) bufferizaba TODA la respuesta `chunked` (sin `Content-Length`) en RAM del contenedor → a escala de producción llenaba los 512Mi.
+- **Fix (`data_migration.py` → `full_backup_export`):**
+  - Drenado del buffer **por bytes** (~128KB) en vez de por conteo de docs → memoria O(1) real.
+  - Cursor Mongo con `batch_size(50)` → acota la precarga de motor.
+  - Header **`X-Accel-Buffering: no`** → nginx hace passthrough en streaming, no bufferiza la respuesta completa.
+- **Validación a escala (preview):** colección temporal de **266MB** → ZIP de **217MB**; delta de memoria del backend **82MB** (ya NO escala con el tamaño del ZIP; antes 95MB para 41MB). ZIP válido (`testzip`=OK). Memoria confirmada O(1).
+- **⚠️ Requiere REDEPLOY.** Si aún fallara por memoria (baseline de prod alto), plan B: subir tier_0→tier_1 (más RAM) o ensamblar el ZIP por colección en el navegador.
 
 
 

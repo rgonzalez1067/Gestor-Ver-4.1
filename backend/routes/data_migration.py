@@ -1771,7 +1771,7 @@ async def full_backup_export(authorization: Optional[str] = Header(None)):
     cols = sorted(await db.list_collection_names())
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"full_backup_{db.name}_{ts}.zip"
-    DRAIN_EVERY = 200  # drenar cada N documentos para acotar el buffer
+    FLUSH_BYTES = 131072  # drenar el buffer cada ~128KB (independiente del tamaño del doc)
 
     async def _gen():
         stream = _ZipStreamBuf()
@@ -1789,32 +1789,30 @@ async def full_backup_export(authorization: Optional[str] = Header(None)):
         try:
             for cname in cols:
                 count = 0
+                # batch_size chico → acota lo que motor precarga en memoria
+                cursor = db[cname].find({}).batch_size(50)
                 with zf.open(f"collections/{cname}.json", "w") as entry:
                     entry.write(b"[")
                     first = True
-                    async for doc in db[cname].find({}):
-                        piece = ("" if first else ",") + "\n" + bson_dumps(doc, ensure_ascii=False)
-                        entry.write(piece.encode("utf-8"))
+                    async for doc in cursor:
+                        piece = (b"" if first else b",") + b"\n" + bson_dumps(doc, ensure_ascii=False).encode("utf-8")
+                        entry.write(piece)
                         first = False
                         count += 1
-                        if count % DRAIN_EVERY == 0:
-                            chunk = stream.drain()
-                            if chunk:
-                                yield chunk
+                        if len(stream.buf) >= FLUSH_BYTES:
+                            yield stream.drain()
                     entry.write(b"\n]" if count else b"]")
-                chunk = stream.drain()
-                if chunk:
-                    yield chunk
+                if len(stream.buf):
+                    yield stream.drain()
                 manifest["collections"].append({"name": cname, "count": count})
 
             zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
             zf.close()  # escribe el central directory
-            chunk = stream.drain()
-            if chunk:
-                yield chunk
+            if len(stream.buf):
+                yield stream.drain()
         finally:
             try:
-                if not zf.fp is None:
+                if zf.fp is not None:
                     zf.close()
             except Exception:
                 pass
@@ -1834,6 +1832,7 @@ async def full_backup_export(authorization: Optional[str] = Header(None)):
         "Cache-Control": "no-store",
         "X-Total-Collections": str(len(cols)),
         "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Accel-Buffering": "no",  # evita que nginx bufferee toda la respuesta en RAM del contenedor
     }
     return StreamingResponse(_gen(), media_type="application/zip", headers=headers)
 
