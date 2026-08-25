@@ -15,10 +15,11 @@ import json
 import logging
 import gc
 import os
+import secrets
 import tempfile
 import uuid
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -1762,13 +1763,51 @@ class _ZipStreamBuf:
         return b""
 
 
+@router.post("/admin/full-backup/export-ticket")
+async def full_backup_export_ticket(authorization: Optional[str] = Header(None)):
+    """Genera un ticket de descarga de corta vida (5 min) para poder disparar
+    el export como descarga NATIVA del navegador (streaming a disco), ya que un
+    <a>/window.location no puede enviar el header Authorization."""
+    user = await _require_admin(authorization)
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    await db.download_tickets.insert_one({
+        "token": token,
+        "purpose": "full-backup-export",
+        "user_id": user.get("user_id"),
+        "user_email": user.get("email"),
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=5)).isoformat(),
+    })
+    return {"ticket": token}
+
+
 @router.get("/admin/full-backup/export")
-async def full_backup_export(authorization: Optional[str] = Header(None)):
+async def full_backup_export(authorization: Optional[str] = Header(None), ticket: Optional[str] = None):
     """Exporta TODA la base de datos a un ZIP en STREAMING (un JSON Extended por
     colección). Envía bytes desde el primer instante y de forma continua, con
     memoria acotada (un documento a la vez), para evitar timeouts del proxy/CDN
-    en bases grandes."""
-    user = await _require_admin(authorization)
+    en bases grandes. Acepta auth por header (Authorization) o por `ticket` de
+    descarga de corta vida (para descargas nativas del navegador)."""
+    if authorization:
+        user = await _require_admin(authorization)
+    elif ticket:
+        doc = await db.download_tickets.find_one({"token": ticket, "purpose": "full-backup-export"})
+        if not doc:
+            raise HTTPException(status_code=401, detail="Ticket de descarga inválido")
+        # un solo uso
+        await db.download_tickets.delete_one({"_id": doc["_id"]})
+        try:
+            expired = datetime.fromisoformat(doc["expires_at"]) < datetime.now(timezone.utc)
+        except Exception:
+            expired = True
+        if expired:
+            raise HTTPException(status_code=401, detail="Ticket de descarga expirado")
+        user = await db.users.find_one({"user_id": doc.get("user_id")})
+        if not user or user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Solo administradores")
+    else:
+        raise HTTPException(status_code=401, detail="No autorizado")
     cols = sorted(await db.list_collection_names())
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"full_backup_{db.name}_{ts}.zip"

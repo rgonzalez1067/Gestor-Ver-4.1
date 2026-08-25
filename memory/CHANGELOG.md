@@ -1,6 +1,14 @@
 # CHANGELOG — MegaNexus
 
-## 2026-06 — Fix def. OOM export: ensamblado del ZIP en el NAVEGADOR (Plan B/C)
+## 2026-06 — Fix def. export: descarga NATIVA en streaming a disco (evita freeze del navegador)
+
+- **RCA (deployer):** con el ensamblado en navegador (JSZip), el pod quedaba sano (0 OOM, todas las páginas 200) pero **el navegador se congelaba al ~50%** acumulando todo el ZIP en RAM (base grande: bitacora 66k, email_logs 10k, inbox_messages 7.5k con HTML pesado). Plan A (más RAM del pod) NO aplicaba: el cuello era el navegador.
+- **Solución:** volver al export en streaming del servidor (memoria O(1), ~56MB, con `X-Accel-Buffering: no`) pero disparándolo como **descarga NATIVA del navegador** (`<a>` a la URL) → el navegador escribe directo a disco sin acumular en RAM. Funciona en todos los navegadores.
+- **Auth para el link nativo:** nuevo `POST /admin/full-backup/export-ticket` → ticket de un solo uso, 5 min (colección `download_tickets`). `GET /admin/full-backup/export?ticket=...` acepta auth por header O por ticket.
+- **Validación (preview):** ticket→descarga sin header (como el navegador) = 200, ZIP 43MB válido (`testzip`=OK, 76 entradas); ticket reusado = 401; sin ticket/auth = 401. Frontend recompila OK.
+- **⚠️ Requiere REDEPLOY.** Tras redeploy, el export descarga como archivo nativo (aparece en el gestor de descargas del navegador, sin barra interna) y no congela la pestaña.
+
+
 
 - **Contexto:** aun con el export en streaming O(1), el pod (tier_0, 512Mi) seguía cayendo por OOM durante exports grandes (baseline alto + ~56-82MB de working set). El usuario eligió la opción sin costo extra.
 - **Solución:** el ZIP ya NO se arma en el pod. Nuevo flujo:
