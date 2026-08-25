@@ -1,0 +1,38 @@
+{
+  "summary": "Frontend-only verification of the new SELECTIVE RESTORE UI in Backup Center (Respaldo Total de Base de Datos). Built a minimal in-memory ZIP with a valid _manifest.json via JSZip, uploaded it through data-testid='full-backup-file-input', and verified all required checklist behaviors WITHOUT executing the destructive restore. All assertions passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Backup Center full-backup restore dialog", "issues": ["DialogContent missing aria-describedby / Description (a11y warning from Radix; non-blocking)"]},
+      {"screen": "Dashboard & BackupCenter tables", "issues": ["Hydration warnings: <span> injected as child of <tbody>/<tr> by x-ve-dynamic wrappers (pre-existing, unrelated to this feature but worth cleaning up)"]}
+    ]
+  },
+  "verified_behaviors": [
+    "full-backup-card renders",
+    "Uploading .zip with _manifest.json opens full-backup-confirm-dialog",
+    "full-backup-collections-list renders one item per collection (clients, banks, quotes) with full-backup-col-<name> and full-backup-col-checkbox-<name>",
+    "All collections checked by default -> full-backup-exact-checkbox visible AND confirm button label = 'Restaurar Todo'",
+    "Confirm button disabled until 'RESTAURAR' typed in full-backup-confirm-input",
+    "Deselecting one collection (selective mode) -> full-backup-exact-checkbox is HIDDEN and button changes to 'Restaurar 2 colección(es)'",
+    "Typing 'RESTAURAR' with >=1 collection enables confirm button",
+    "full-backup-toggle-all toggles between select-all and deselect-all",
+    "With 0 collections selected, confirm button stays DISABLED even with 'RESTAURAR' typed",
+    "full-backup-cancel-btn closes the dialog cleanly (no restore executed)"
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BackupCenter.jsx is ~1100 lines; consider splitting the restore-dialog logic into its own component/hook for maintainability (>700 line guideline).",
+    "Radix DialogContent inside full-backup-confirm-dialog is missing DialogDescription/aria-describedby (a11y)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Ephemeral in-memory ZIP with fake _manifest.json (clients=10, banks=5, quotes=3). Not persisted; restore was NEVER executed (cancelled before confirm).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "To exercise the dialog without touching real data, generate a ZIP in the browser via JSZip containing just a _manifest.json with {type:'full-database-backup', collections:[...]}, then set it on input[data-testid=full-backup-file-input]. Always CANCEL before confirming to avoid destructive restore.",
+  "rca of the issue": "N/A - feature works as specified."
+}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import JSZip from 'jszip';
 import { ArrowLeft, Download, Upload, DatabaseBackup, Package, ShieldAlert, Loader2, CloudUpload, CheckCircle2, AlertTriangle, Search } from 'lucide-react';
 import api from '../utils/api';
 import { Button } from '../components/ui/button';
@@ -46,7 +47,49 @@ export default function BackupCenter() {
   const [dbFile, setDbFile] = useState(null);
   const [dbExactReplica, setDbExactReplica] = useState(true);
   const [dbConfirmText, setDbConfirmText] = useState('');
+  const [dbBackupCols, setDbBackupCols] = useState([]); // [{name, count}] leídas del manifiesto
+  const [dbSelectedCols, setDbSelectedCols] = useState(new Set()); // nombres seleccionados
+  const [dbParsing, setDbParsing] = useState(false);
   const dbFileRef = useRef(null);
+
+  const dbAllSelected = dbBackupCols.length > 0 && dbSelectedCols.size === dbBackupCols.length;
+  const dbIsSelective = dbBackupCols.length > 0 && !dbAllSelected;
+
+  const openRestoreDialog = async (file) => {
+    setDbParsing(true);
+    setDbFile(file);
+    setDbConfirmText('');
+    setDbBackupCols([]);
+    setDbSelectedCols(new Set());
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const manifestFile = zip.file('_manifest.json');
+      if (!manifestFile) throw new Error('El archivo no es un Respaldo Total (falta _manifest.json)');
+      const manifest = JSON.parse(await manifestFile.async('string'));
+      if (manifest.type !== 'full-database-backup') throw new Error('El archivo no es un Respaldo Total de Base de Datos');
+      const cols = (manifest.collections || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      setDbBackupCols(cols);
+      setDbSelectedCols(new Set(cols.map((c) => c.name))); // todo seleccionado por defecto
+      setDbConfirmOpen(true);
+    } catch (err) {
+      toast.error(`No se pudo leer el respaldo: ${err.message}`);
+      setDbFile(null);
+      if (dbFileRef.current) dbFileRef.current.value = '';
+    } finally {
+      setDbParsing(false);
+    }
+  };
+
+  const toggleCol = (name) => {
+    setDbSelectedCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
+  const toggleAllCols = () => {
+    setDbSelectedCols(dbAllSelected ? new Set() : new Set(dbBackupCols.map((c) => c.name)));
+  };
 
   const loadDbInfo = useCallback(async () => {
     try {
@@ -71,7 +114,7 @@ export default function BackupCenter() {
   };
 
   const doRestoreFullDb = async () => {
-    if (!dbFile) return;
+    if (!dbFile || dbSelectedCols.size === 0) return;
     setDbConfirmOpen(false);
     setDbBusy('restore');
     setDbProgress(0);
@@ -93,10 +136,12 @@ export default function BackupCenter() {
       const fd = new FormData();
       fd.append('upload_id', uploadId);
       fd.append('mode', dbExactReplica ? 'replace' : 'merge');
+      // Restauración selectiva: enviar la lista solo si NO están todas seleccionadas.
+      if (dbIsSelective) fd.append('collections', JSON.stringify(Array.from(dbSelectedCols)));
       const { data } = await api.post('/admin/full-backup/restore', fd);
       setDbProgress(100);
       setDbRestoreResult(data);
-      toast.success(`Base de datos restaurada: ${data.restored_collections} colección(es), ${data.restored_documents} documento(s)`);
+      toast.success(`Restauración completada: ${data.restored_collections} colección(es), ${data.restored_documents} documento(s)`);
       loadDbInfo();
     } catch (err) {
       toast.error(`Error al restaurar: ${err.response?.data?.detail || err.message}`);
@@ -104,6 +149,8 @@ export default function BackupCenter() {
       setDbBusy(null);
       setDbFile(null);
       setDbConfirmText('');
+      setDbBackupCols([]);
+      setDbSelectedCols(new Set());
       if (dbFileRef.current) dbFileRef.current.value = '';
     }
   };
@@ -353,17 +400,17 @@ export default function BackupCenter() {
                 data-testid="full-backup-file-input"
                 onChange={(e) => {
                   const f = e.target.files?.[0] || null;
-                  if (f) { setDbFile(f); setDbConfirmText(''); setDbConfirmOpen(true); }
+                  if (f) openRestoreDialog(f);
                 }}
               />
               <Button
                 variant="outline"
                 onClick={() => dbFileRef.current?.click()}
-                disabled={dbBusy !== null}
+                disabled={dbBusy !== null || dbParsing}
                 className="border-red-300 text-red-700 hover:bg-red-50"
                 data-testid="full-backup-restore-btn"
               >
-                <Upload size={16} className="mr-1.5" />
+                {dbParsing ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Upload size={16} className="mr-1.5" />}
                 Restaurar Base Completa…
               </Button>
             </div>
@@ -709,32 +756,76 @@ export default function BackupCenter() {
         zipRef={zipRef}
       />
 
-      {/* Confirmación de Restauración Total */}
-      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
-        <DialogContent data-testid="full-backup-confirm-dialog">
+      {/* Confirmación de Restauración (Total o Selectiva) */}
+      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
+        <DialogContent className="max-w-lg" data-testid="full-backup-confirm-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700">
-              <ShieldAlert size={18} /> Restaurar Base de Datos Completa
+              <ShieldAlert size={18} /> Restaurar Base de Datos
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm text-slate-700">
             <p>
-              Vas a restaurar <strong className="break-all">{dbFile?.name}</strong>
+              Restaurando desde <strong className="break-all">{dbFile?.name}</strong>
               {dbFile ? ` (${(dbFile.size / 1024 / 1024).toFixed(1)} MB)` : ''} sobre el ambiente
               <strong> {dbInfo?.db_name || 'actual'}</strong>.
             </p>
-            <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 px-3 py-2 text-xs">
-              Esto <strong>elimina y reemplaza</strong> los datos actuales por los del respaldo. La acción
-              <strong> no se puede deshacer</strong>. Tu sesión de administrador se conservará.
+
+            {/* Selección de colecciones */}
+            <div className="rounded-lg border border-slate-200">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50">
+                <span className="text-xs font-semibold text-slate-600">
+                  Colecciones a restaurar ({dbSelectedCols.size}/{dbBackupCols.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleAllCols}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  data-testid="full-backup-toggle-all"
+                >
+                  {dbAllSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                </button>
+              </div>
+              <div className="max-h-52 overflow-auto p-1" data-testid="full-backup-collections-list">
+                {dbBackupCols.map((c) => (
+                  <label
+                    key={c.name}
+                    className="flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer"
+                    data-testid={`full-backup-col-${c.name}`}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <Checkbox
+                        checked={dbSelectedCols.has(c.name)}
+                        onCheckedChange={() => toggleCol(c.name)}
+                        data-testid={`full-backup-col-checkbox-${c.name}`}
+                      />
+                      <span className="text-xs text-slate-700 truncate font-mono">{c.name}</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 shrink-0">{c.count?.toLocaleString('es')}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <Checkbox checked={dbExactReplica} onCheckedChange={(v) => setDbExactReplica(!!v)} data-testid="full-backup-exact-checkbox" />
-              <span className="text-xs text-slate-600">
-                <strong>Réplica exacta</strong>: eliminar también las colecciones de este ambiente que no
-                estén en el respaldo (recomendado para clonar 1:1). Si lo desmarcas, solo se reemplazan las
-                colecciones presentes en el respaldo.
-              </span>
-            </label>
+
+            <div className="rounded-lg bg-red-50 border border-red-200 text-red-800 px-3 py-2 text-xs">
+              {dbIsSelective ? (
+                <>Se <strong>eliminarán y reemplazarán</strong> únicamente las <strong>{dbSelectedCols.size}</strong> colección(es) seleccionada(s). El resto del ambiente <strong>no se toca</strong>. La acción no se puede deshacer.</>
+              ) : (
+                <>Restauración <strong>completa</strong>: se reemplazará <strong>toda</strong> la base de datos. La acción <strong>no se puede deshacer</strong>. Tu sesión de administrador se conservará.</>
+              )}
+            </div>
+
+            {/* Réplica exacta solo aplica a restauración completa */}
+            {!dbIsSelective && (
+              <label className="flex items-start gap-2 cursor-pointer">
+                <Checkbox checked={dbExactReplica} onCheckedChange={(v) => setDbExactReplica(!!v)} data-testid="full-backup-exact-checkbox" />
+                <span className="text-xs text-slate-600">
+                  <strong>Réplica exacta</strong>: eliminar también las colecciones de este ambiente que no
+                  estén en el respaldo (recomendado para clonar 1:1).
+                </span>
+              </label>
+            )}
+
             <div>
               <p className="text-xs text-slate-500 mb-1">Escribe <strong>RESTAURAR</strong> para confirmar:</p>
               <input
@@ -748,16 +839,16 @@ export default function BackupCenter() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDbConfirmOpen(false); setDbFile(null); if (dbFileRef.current) dbFileRef.current.value = ''; }} data-testid="full-backup-cancel-btn">
+            <Button variant="outline" onClick={() => { setDbConfirmOpen(false); setDbFile(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; }} data-testid="full-backup-cancel-btn">
               Cancelar
             </Button>
             <Button
               className="bg-red-600 hover:bg-red-700"
-              disabled={dbConfirmText.trim().toUpperCase() !== 'RESTAURAR'}
+              disabled={dbConfirmText.trim().toUpperCase() !== 'RESTAURAR' || dbSelectedCols.size === 0}
               onClick={doRestoreFullDb}
               data-testid="full-backup-confirm-btn"
             >
-              <Upload size={15} className="mr-1.5" /> Restaurar Ahora
+              <Upload size={15} className="mr-1.5" /> Restaurar {dbIsSelective ? `${dbSelectedCols.size} colección(es)` : 'Todo'}
             </Button>
           </DialogFooter>
         </DialogContent>

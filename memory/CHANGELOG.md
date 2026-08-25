@@ -1,6 +1,13 @@
 # CHANGELOG — MegaNexus
 
-## 2026-06 — Respaldo Total de Base de Datos (todas las colecciones)
+## 2026-06 — Respaldo Total: Restauración SELECTIVA (elegir colecciones)
+
+- **Mejora:** restaurar solo las colecciones elegidas del respaldo en lugar de toda la base.
+- **Backend `full-backup/restore`:** nuevo Form `collections` (JSON array). Si viene, restaura SOLO esas (drop+insert) y NUNCA borra colecciones fuera de la selección; el borrado de "extras" (modo replace) solo aplica a restauración completa. Respuesta incluye `selective` y `skipped_collections`.
+- **Frontend `BackupCenter.jsx`:** al elegir el .zip, se lee el `_manifest.json` en el cliente con **JSZip** y se muestra un checklist de colecciones (todas marcadas por defecto) con "Seleccionar/Deseleccionar todo". En modo selectivo se oculta "Réplica exacta" y el botón cambia a "Restaurar N colección(es)". Mismo gating por texto "RESTAURAR".
+- **QA:** backend selectivo probado end-to-end (solo restaura lo seleccionado, no toca `users` ni otras); testing_agent iter324: frontend 100%.
+
+
 
 - **Requerimiento:** función para respaldar y restaurar TODAS las colecciones de MongoDB (no solo las ~17 del Centro de Respaldos). Incluye bitácora, correos, notificaciones, plantillas, config, contadores, sesiones, mensajería, etc. Objetivo: clonar un ambiente completo (Producción → Preview) con réplica exacta.
 - **Backend `routes/data_migration.py` (nuevos endpoints, admin-only):**

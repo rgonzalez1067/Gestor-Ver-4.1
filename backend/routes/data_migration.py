@@ -1849,13 +1849,26 @@ async def full_backup_upload_chunk(
 async def full_backup_restore(
     upload_id: str = Form(...),
     mode: str = Form("replace"),  # "replace": además borra colecciones que no estén en el respaldo; "merge": solo reemplaza las presentes
+    collections: Optional[str] = Form(None),  # JSON array de nombres → restauración SELECTIVA (solo esas)
     authorization: Optional[str] = Header(None),
 ):
-    """Restaura la base de datos completa desde el ZIP subido por chunks.
-    Cada colección del respaldo se DROP + re-inserta => réplica exacta.
-    Preserva la sesión del admin que ejecuta para no perder el acceso."""
+    """Restaura la base de datos desde el ZIP subido por chunks.
+    Cada colección se DROP + re-inserta => réplica exacta.
+    Si se envía `collections` (subconjunto), restaura SOLO esas y nunca borra
+    colecciones fuera de la selección. Preserva la sesión del admin."""
     user = await _require_admin(authorization)
     caller_token = authorization.replace("Bearer ", "").strip() if authorization else None
+
+    # Parsear selección de colecciones (restauración selectiva)
+    selected = None
+    if collections:
+        try:
+            parsed = json.loads(collections)
+            if isinstance(parsed, list):
+                selected = {str(x) for x in parsed if str(x).strip()}
+        except Exception:
+            selected = {c.strip() for c in collections.split(",") if c.strip()}
+    selective = bool(selected)
 
     path = _fb_upload_path(upload_id)
     if not os.path.exists(path):
@@ -1886,10 +1899,13 @@ async def full_backup_restore(
 
     backup_cols = set()
     summary = []
+    skipped = []
     BATCH = 500
     for n in col_files:
         cname = n[len("collections/"):-len(".json")]
         backup_cols.add(cname)
+        if selective and cname not in selected:
+            continue  # restauración selectiva: no tocar colecciones fuera de la selección
         raw = zf.read(n).decode("utf-8")
         docs = bson_loads(raw) if raw.strip() else []
         await db[cname].drop()
@@ -1901,8 +1917,16 @@ async def full_backup_restore(
                 inserted += len(batch)
         summary.append({"name": cname, "restored": inserted})
 
+    if selective:
+        # Reportar colecciones pedidas que no existen en el respaldo
+        skipped = sorted(selected - backup_cols)
+        if not summary:
+            raise HTTPException(status_code=400, detail="Ninguna de las colecciones seleccionadas existe en el respaldo")
+
+    # El borrado de colecciones "extra" SOLO aplica en restauración COMPLETA
+    # (no selectiva) y en modo "replace".
     dropped_extra = []
-    if mode == "replace":
+    if mode == "replace" and not selective:
         for cname in await db.list_collection_names():
             if cname not in backup_cols:
                 await db[cname].drop()
@@ -1929,6 +1953,8 @@ async def full_backup_restore(
         await db.bitacora.insert_one({
             "action": "full_backup_restore",
             "mode": mode,
+            "selective": selective,
+            "selected_collections": sorted(selected) if selective else None,
             "source_db": manifest.get("db_name"),
             "source_exported_at": manifest.get("exported_at"),
             "restored_collections": len(summary),
@@ -1946,11 +1972,13 @@ async def full_backup_restore(
 
     return {
         "status": "ok",
+        "selective": selective,
         "source_db": manifest.get("db_name"),
         "source_exported_at": manifest.get("exported_at"),
         "restored_collections": len(summary),
         "restored_documents": sum(s["restored"] for s in summary),
         "summary": summary,
+        "skipped_collections": skipped,
         "dropped_extra_collections": dropped_extra,
         "session_preserved": session_preserved,
     }
