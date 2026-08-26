@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Full Backup: modelo ASÍNCRONO (fix Cloudflare 524)
+- **Síntoma (prod):** tras pasar el export a "armar todo el ZIP y luego FileResponse", Cloudflare cortaba con **Error 524** unos minutos después de iniciar: el origen no enviaba ningún byte mientras armaba el ZIP (varios minutos) y el CDN corta por inactividad (~100s).
+- **Fix (desacople build/descarga):**
+  - `POST /api/admin/full-backup/build` → crea job en `backup_jobs` y arma el ZIP en 2º plano (`asyncio.create_task`, escritura a disco en `/tmp/full_backups/<job_id>.zip`, un doc a la vez → memoria O(1)).
+  - `GET /api/admin/full-backup/build-status?job_id=` → `building|ready|error` + progreso por colección.
+  - `POST /api/admin/full-backup/export-ticket` body `{job_id}` → ticket de 1 solo uso (5 min) atado al job.
+  - `GET /api/admin/full-backup/export?ticket=` (o `?job_id=` con header) → sirve el archivo YA LISTO con `FileResponse` (Content-Length real, primer byte inmediato → sin 524 ni truncado). Limpia archivo+job+ticket tras servir.
+  - Limpieza de jobs/archivos huérfanos > 2h al iniciar un nuevo build.
+- **Frontend (`BackupCenter.jsx`):** `exportFullDb` ahora hace build → sondeo cada 2.5s (barra de progreso "Preparando el respaldo total…") → al estar listo pide ticket y dispara la descarga nativa. Verificado E2E en preview: ZIP válido (`testzip()` OK), Content-Length presente, auto-limpieza del job.
+
+
 ## 2026-06 — Fix def. Full Backup: ZIP corrupto en PRODUCCIÓN ("Unexpected end of archive")
 - **Síntoma (prod):** el `.zip` del Respaldo Total descargaba 220 MB pero WinRAR lo veía dañado/vacío ("unpacked size 0 bytes"), solo con la carpeta `collections`. En PREVIEW el mismo ZIP era 100% válido (`testzip()` OK, 76 entradas).
 - **RCA:** `GET /admin/full-backup/export` respondía con `StreamingResponse` (chunked, SIN `Content-Length`, `X-Accel-Buffering: no`). El CDN/ingress de producción truncaba el último tramo del stream —el *central directory* del ZIP— dejando el archivo sin índice. Preview no tiene CDN al frente → no se reproducía.

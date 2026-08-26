@@ -103,13 +103,42 @@ export default function BackupCenter() {
 
   const exportFullDb = async () => {
     setDbBusy('export');
+    setDbProgress(0);
     try {
-      // Descarga NATIVA en streaming: el servidor arma el ZIP con memoria O(1)
-      // y el navegador lo escribe directo a disco (no acumula en RAM).
-      const { data } = await api.post('/admin/full-backup/export-ticket');
+      // 1) El servidor arma el ZIP en 2º plano (a disco, memoria O(1)).
+      const { data: build } = await api.post('/admin/full-backup/build');
+      const jobId = build.job_id;
+      toast.info('Preparando el respaldo total… esto puede tardar unos minutos.');
+
+      // 2) Sondear el estado hasta que esté listo (sin timeouts del CDN,
+      //    cada request es corta).
+      const poll = async () => {
+        const { data: st } = await api.get('/admin/full-backup/build-status', { params: { job_id: jobId } });
+        return st;
+      };
+      let status = await poll();
+      const started = Date.now();
+      while (status.status === 'building') {
+        const total = status.total_collections || 0;
+        const done = status.progress_collections || 0;
+        setDbProgress(total ? Math.min(99, Math.round((done / total) * 100)) : 0);
+        // Límite de seguridad: 30 min
+        if (Date.now() - started > 30 * 60 * 1000) {
+          throw new Error('El armado del respaldo tardó demasiado. Intenta de nuevo.');
+        }
+        await new Promise((r) => setTimeout(r, 2500));
+        status = await poll();
+      }
+      if (status.status !== 'ready') {
+        throw new Error(status.error || 'No se pudo armar el respaldo');
+      }
+      setDbProgress(100);
+
+      // 3) Descarga NATIVA del archivo YA LISTO (primer byte inmediato +
+      //    Content-Length real → sin 524 ni ZIP truncado).
+      const { data: tk } = await api.post('/admin/full-backup/export-ticket', { job_id: jobId });
       const base = process.env.REACT_APP_BACKEND_URL;
-      const url = `${base}/api/admin/full-backup/export?ticket=${encodeURIComponent(data.ticket)}`;
-      // Disparar la descarga nativa del navegador
+      const url = `${base}/api/admin/full-backup/export?ticket=${encodeURIComponent(tk.ticket)}`;
       const a = document.createElement('a');
       a.href = url;
       a.rel = 'noopener';
@@ -118,9 +147,10 @@ export default function BackupCenter() {
       a.remove();
       toast.success('La descarga del respaldo total comenzó (revisa tu carpeta de descargas)');
     } catch (err) {
-      toast.error(`Error al iniciar el export: ${err.response?.data?.detail || err.message}`);
+      toast.error(`Error al generar el respaldo: ${err.response?.data?.detail || err.message}`);
     } finally {
       setDbBusy(null);
+      setDbProgress(0);
     }
   };
 
@@ -434,6 +464,19 @@ export default function BackupCenter() {
                 automáticamente. Esta acción no se puede deshacer.
               </span>
             </div>
+
+            {dbBusy === 'export' && (
+              <div className="mt-4" data-testid="full-backup-export-progress">
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span>{dbProgress < 100 ? 'Preparando el respaldo total…' : 'Iniciando descarga…'}</span>
+                  <span>{dbProgress}%</span>
+                </div>
+                <Progress value={dbProgress} className="h-2" />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  El respaldo se arma en el servidor; puedes esperar en esta pantalla. La descarga inicia automáticamente al terminar.
+                </p>
+              </div>
+            )}
 
             {dbBusy === 'restore' && (
               <div className="mt-4" data-testid="full-backup-progress">

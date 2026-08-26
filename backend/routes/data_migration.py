@@ -10,6 +10,7 @@ Módulos soportados:
   - quotes-bundle         → multi-collection: 'quotes' + 'quote_history' + 'projects'
                             con anexos en ZIP separado.
 """
+import asyncio
 import io
 import json
 import logging
@@ -24,7 +25,7 @@ from pathlib import Path
 from typing import Optional
 
 from bson.json_util import dumps as bson_dumps, loads as bson_loads
-from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form, Body
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse, Response
 from starlette.background import BackgroundTask
 
@@ -1740,8 +1741,7 @@ async def full_backup_info(authorization: Optional[str] = Header(None)):
 
 
 class _ZipStreamBuf:
-    """File-like NO buscable para escribir un ZIP en streaming (zipfile usa
-    data descriptors). Acumula bytes que se drenan y envían por la respuesta."""
+    """File-like NO buscable para escribir un ZIP en streaming (data descriptors)."""
     def __init__(self):
         self.buf = bytearray()
         self._pos = 0
@@ -1763,64 +1763,58 @@ class _ZipStreamBuf:
         return b""
 
 
-@router.post("/admin/full-backup/export-ticket")
-async def full_backup_export_ticket(authorization: Optional[str] = Header(None)):
-    """Genera un ticket de descarga de corta vida (5 min) para poder disparar
-    el export como descarga NATIVA del navegador (streaming a disco), ya que un
-    <a>/window.location no puede enviar el header Authorization."""
-    user = await _require_admin(authorization)
-    token = secrets.token_urlsafe(32)
-    now = datetime.now(timezone.utc)
-    await db.download_tickets.insert_one({
-        "token": token,
-        "purpose": "full-backup-export",
-        "user_id": user.get("user_id"),
-        "user_email": user.get("email"),
-        "created_at": now.isoformat(),
-        "expires_at": (now + timedelta(minutes=5)).isoformat(),
-    })
-    return {"ticket": token}
+# =====================================================================
+# RESPALDO TOTAL — Modelo ASÍNCRONO (build en 2º plano → descarga de archivo listo)
+# =====================================================================
+# Problema resuelto:
+#   - Streaming chunked SIN Content-Length → el CDN truncaba el final del ZIP.
+#   - Build sincrónico + FileResponse → el origen no enviaba bytes por minutos
+#     mientras armaba el ZIP y Cloudflare cortaba con 524 (timeout ~100s).
+# Solución:
+#   1) POST /admin/full-backup/build        → arma el ZIP en disco en 2º plano.
+#   2) GET  /admin/full-backup/build-status → el cliente sondea hasta "ready".
+#   3) GET  /admin/full-backup/export       → sirve el archivo YA LISTO con
+#      FileResponse (Content-Length real, primer byte inmediato → sin 524 ni
+#      truncado). Auth por header o por `ticket` (descarga nativa del navegador).
+# La memoria del pod se mantiene O(1): se lee un documento a la vez.
+# =====================================================================
+_BACKUP_DIR = os.path.join(tempfile.gettempdir(), "full_backups")
 
 
-@router.get("/admin/full-backup/export")
-async def full_backup_export(authorization: Optional[str] = Header(None), ticket: Optional[str] = None):
-    """Exporta TODA la base de datos a un ZIP en STREAMING (un JSON Extended por
-    colección). Envía bytes desde el primer instante y de forma continua, con
-    memoria acotada (un documento a la vez), para evitar timeouts del proxy/CDN
-    en bases grandes. Acepta auth por header (Authorization) o por `ticket` de
-    descarga de corta vida (para descargas nativas del navegador)."""
-    if authorization:
-        user = await _require_admin(authorization)
-    elif ticket:
-        doc = await db.download_tickets.find_one({"token": ticket, "purpose": "full-backup-export"})
-        if not doc:
-            raise HTTPException(status_code=401, detail="Ticket de descarga inválido")
-        # un solo uso
-        await db.download_tickets.delete_one({"_id": doc["_id"]})
-        try:
-            expired = datetime.fromisoformat(doc["expires_at"]) < datetime.now(timezone.utc)
-        except Exception:
-            expired = True
-        if expired:
-            raise HTTPException(status_code=401, detail="Ticket de descarga expirado")
-        user = await db.users.find_one({"user_id": doc.get("user_id")})
-        if not user or user.get("role") != "admin":
-            raise HTTPException(status_code=403, detail="Solo administradores")
-    else:
-        raise HTTPException(status_code=401, detail="No autorizado")
-    cols = sorted(await db.list_collection_names())
+def _ensure_backup_dir():
+    os.makedirs(_BACKUP_DIR, exist_ok=True)
+    return _BACKUP_DIR
+
+
+async def _cleanup_stale_backups(max_age_hours: int = 2):
+    """Borra jobs y archivos de respaldo más viejos que max_age_hours."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    try:
+        async for j in db.backup_jobs.find({}):
+            try:
+                created = datetime.fromisoformat(j.get("created_at"))
+            except Exception:
+                created = None
+            if created is None or created < cutoff:
+                p = j.get("file_path")
+                if p and os.path.exists(p):
+                    try:
+                        os.unlink(p)
+                    except Exception:
+                        pass
+                await db.backup_jobs.delete_one({"_id": j["_id"]})
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[full-backup] cleanup stale fallo: {e}")
+
+
+async def _build_full_backup(job_id: str, user: dict):
+    """Tarea en 2º plano: arma el ZIP de TODA la BD en disco (memoria O(1))
+    y actualiza el estado del job en `backup_jobs`."""
+    _ensure_backup_dir()
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"full_backup_{db.name}_{ts}.zip"
-
-    # El ZIP se ESCRIBE A DISCO (archivo temporal) documento por documento y
-    # luego se sirve con FileResponse (Content-Length real). Antes se enviaba
-    # en streaming por trozos SIN Content-Length (chunked), y el CDN/ingress de
-    # producción truncaba el último tramo (el "central directory" del ZIP),
-    # dejando el archivo dañado ("Unexpected end of archive") aunque pesara
-    # cientos de MB. Con un archivo en disco + tamaño declarado, el proxy no
-    # puede truncarlo y la memoria del pod se mantiene baja (un doc a la vez).
-    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".zip", prefix="full_backup_")
-    os.close(tmp_fd)
+    file_path = os.path.join(_BACKUP_DIR, f"{job_id}.zip")
+    cols = sorted(await db.list_collection_names())
 
     manifest = {
         "schema_version": 1,
@@ -1833,11 +1827,11 @@ async def full_backup_export(authorization: Optional[str] = Header(None), ticket
         "collections": [],
     }
     try:
-        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as zf:
             _since_gc = 0
+            done_cols = 0
             for cname in cols:
                 count = 0
-                # batch_size chico → acota lo que el motor precarga en memoria
                 cursor = db[cname].find({}).batch_size(50)
                 with zf.open(f"collections/{cname}.json", "w") as entry:
                     entry.write(b"[")
@@ -1849,16 +1843,30 @@ async def full_backup_export(authorization: Optional[str] = Header(None), ticket
                         first = False
                         count += 1
                         _since_gc += 1
-                        if _since_gc >= 2000:  # liberar memoria del intérprete periódicamente
+                        if _since_gc >= 2000:
                             gc.collect()
                             _since_gc = 0
                     entry.write(b"\n]" if count else b"]")
                 manifest["collections"].append({"name": cname, "count": count})
-
+                done_cols += 1
+                await db.backup_jobs.update_one(
+                    {"job_id": job_id},
+                    {"$set": {"progress_collections": done_cols, "total_collections": len(cols)}},
+                )
             zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
-        size_bytes = os.path.getsize(tmp_path)
-
+        size_bytes = os.path.getsize(file_path)
+        await db.backup_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "status": "ready",
+                "file_path": file_path,
+                "filename": filename,
+                "size_bytes": size_bytes,
+                "collections": len(cols),
+                "ready_at": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
         try:
             await db.bitacora.insert_one({
                 "action": "full_backup_export",
@@ -1870,30 +1878,176 @@ async def full_backup_export(authorization: Optional[str] = Header(None), ticket
             })
         except Exception:
             pass
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[full-backup] build job {job_id} fallo: {e}")
         try:
-            os.unlink(tmp_path)
+            if os.path.exists(file_path):
+                os.unlink(file_path)
         except Exception:
             pass
-        raise
+        await db.backup_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"status": "error", "error": str(e)}},
+        )
 
-    def _cleanup(p):
+
+@router.post("/admin/full-backup/build")
+async def full_backup_build(authorization: Optional[str] = Header(None)):
+    """Inicia el armado del Respaldo Total en 2º plano. Devuelve un job_id para
+    sondear el estado. El ZIP se escribe a disco (no se envía por HTTP mientras
+    se arma → evita el 524 de Cloudflare)."""
+    user = await _require_admin(authorization)
+    await _cleanup_stale_backups()
+    job_id = uuid.uuid4().hex
+    total_cols = len(await db.list_collection_names())
+    await db.backup_jobs.insert_one({
+        "job_id": job_id,
+        "status": "building",
+        "user_id": user.get("user_id"),
+        "user_email": user.get("email"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "progress_collections": 0,
+        "total_collections": total_cols,
+        "file_path": None,
+        "filename": None,
+        "size_bytes": None,
+        "error": None,
+    })
+    # Copia mínima del usuario para la tarea (no arrastrar el doc completo)
+    user_min = {
+        "email": user.get("email"),
+        "first_name": user.get("first_name", ""),
+        "last_name": user.get("last_name", ""),
+    }
+    asyncio.create_task(_build_full_backup(job_id, user_min))
+    return {"job_id": job_id, "status": "building", "total_collections": total_cols}
+
+
+@router.get("/admin/full-backup/build-status")
+async def full_backup_build_status(job_id: str, authorization: Optional[str] = Header(None)):
+    """Estado del armado del Respaldo Total (building | ready | error)."""
+    await _require_admin(authorization)
+    job = await db.backup_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job de respaldo no encontrado o expirado")
+    return {
+        "job_id": job_id,
+        "status": job.get("status"),
+        "ready": job.get("status") == "ready",
+        "size_bytes": job.get("size_bytes"),
+        "filename": job.get("filename"),
+        "collections": job.get("collections"),
+        "progress_collections": job.get("progress_collections", 0),
+        "total_collections": job.get("total_collections", 0),
+        "error": job.get("error"),
+    }
+
+
+@router.post("/admin/full-backup/export-ticket")
+async def full_backup_export_ticket(
+    payload: dict = Body(default=None),
+    authorization: Optional[str] = Header(None),
+):
+    """Genera un ticket de descarga de un solo uso (5 min) para disparar la
+    descarga NATIVA del navegador (un <a> no puede enviar Authorization).
+    Debe indicarse el job_id de un respaldo ya listo (status=ready)."""
+    user = await _require_admin(authorization)
+    job_id = (payload or {}).get("job_id")
+    if not job_id:
+        raise HTTPException(status_code=400, detail="Falta job_id del respaldo")
+    job = await db.backup_jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job de respaldo no encontrado o expirado")
+    if job.get("status") != "ready":
+        raise HTTPException(status_code=409, detail="El respaldo aún no está listo")
+
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    await db.download_tickets.insert_one({
+        "token": token,
+        "purpose": "full-backup-export",
+        "job_id": job_id,
+        "user_id": user.get("user_id"),
+        "user_email": user.get("email"),
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=5)).isoformat(),
+    })
+    return {"ticket": token}
+
+
+@router.get("/admin/full-backup/export")
+async def full_backup_export(
+    authorization: Optional[str] = Header(None),
+    ticket: Optional[str] = None,
+    job_id: Optional[str] = None,
+):
+    """Sirve el ZIP del Respaldo Total YA ARMADO (por /build) con FileResponse:
+    Content-Length real y primer byte inmediato → ni 524 ni truncado por el CDN.
+    Auth por header (Authorization + job_id) o por `ticket` (descarga nativa)."""
+    resolved_job_id = None
+    ticket_doc = None
+    if ticket:
+        ticket_doc = await db.download_tickets.find_one({"token": ticket, "purpose": "full-backup-export"})
+        if not ticket_doc:
+            raise HTTPException(status_code=401, detail="Ticket de descarga inválido")
         try:
-            os.unlink(p)
-        except Exception:  # pragma: no cover
+            expired = datetime.fromisoformat(ticket_doc["expires_at"]) < datetime.now(timezone.utc)
+        except Exception:
+            expired = True
+        if expired:
+            await db.download_tickets.delete_one({"_id": ticket_doc["_id"]})
+            raise HTTPException(status_code=401, detail="Ticket de descarga expirado")
+        u = await db.users.find_one({"user_id": ticket_doc.get("user_id")})
+        if not u or u.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Solo administradores")
+        resolved_job_id = ticket_doc.get("job_id")
+    elif authorization:
+        await _require_admin(authorization)
+        resolved_job_id = job_id
+    else:
+        raise HTTPException(status_code=401, detail="No autorizado")
+
+    if not resolved_job_id:
+        raise HTTPException(status_code=400, detail="Falta job_id del respaldo")
+    job = await db.backup_jobs.find_one({"job_id": resolved_job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Respaldo no encontrado o expirado")
+    if job.get("status") != "ready":
+        raise HTTPException(status_code=409, detail="El respaldo aún no está listo")
+    file_path = job.get("file_path")
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=410, detail="El archivo de respaldo ya no está disponible; genera uno nuevo")
+
+    filename = job.get("filename") or f"full_backup_{db.name}.zip"
+
+    async def _post_download():
+        # limpieza: archivo + job + ticket (un solo uso)
+        try:
+            if os.path.exists(file_path):
+                os.unlink(file_path)
+        except Exception:
             pass
+        try:
+            await db.backup_jobs.delete_one({"job_id": resolved_job_id})
+        except Exception:
+            pass
+        if ticket_doc:
+            try:
+                await db.download_tickets.delete_one({"_id": ticket_doc["_id"]})
+            except Exception:
+                pass
 
     return FileResponse(
-        tmp_path,
+        file_path,
         media_type="application/zip",
         filename=filename,
         headers={
             "Cache-Control": "no-store",
-            "X-Total-Collections": str(len(cols)),
             "X-Content-Type-Options": "nosniff",
         },
-        background=BackgroundTask(_cleanup, tmp_path),
+        background=BackgroundTask(_post_download),
     )
+
 
 
 @router.get("/admin/full-backup/collection")
