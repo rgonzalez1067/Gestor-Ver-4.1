@@ -576,6 +576,16 @@ async def update_project_status(
         "attachments": [attachment] if attachment else [],
     }
 
+    # Persistir el MOTIVO/justificación del último cambio de estado como campos
+    # del proyecto → quedan disponibles como variables de plantilla ({Motivo_Cambio_Estatus})
+    # en TODAS las grillas de variables (proyectos, otras acciones, SLA).
+    update_data["last_status_note"] = (note or "").strip()
+    update_data["last_status_new"] = new_status
+    update_data["last_status_from"] = current_status
+    update_data["last_status_at"] = now
+    update_data["last_status_actor"] = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
+    update_data["last_status_change_date"] = change_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
     await db.projects.update_one(
         {"project_id": project_id},
         {"$set": update_data, "$push": {"notes": pnote, "bitacora": bitacora_entry}},
@@ -1991,6 +2001,10 @@ async def get_project_template_variables(project_id: str, bank: Optional[str] = 
             {"key": "pinpad_model", "label": "Modelo Pinpad", "source": "Proyecto.pinpad_model"},
             {"key": "assigned_to", "label": "Asignado a", "source": "Proyecto.assigned_to_name"},
             {"key": "Estado_Proyecto", "label": "Estado actual del proyecto", "source": "Proyecto.status"},
+            {"key": "Motivo_Cambio_Estatus", "label": "Motivo / Justificación del último cambio de estado", "source": "Proyecto.last_status_note"},
+            {"key": "Estatus_Anterior", "label": "Estado anterior (antes del último cambio)", "source": "Proyecto.last_status_from"},
+            {"key": "Fecha_Cambio_Estatus", "label": "Fecha del último cambio de estado", "source": "Proyecto.last_status_change_date"},
+            {"key": "Usuario_Cambio_Estatus", "label": "Usuario que hizo el último cambio de estado", "source": "Proyecto.last_status_actor"},
             {"key": "Aplicativo_Integracion", "label": "Aplicativo de Integración", "source": "Proyecto.integrator_app_name"},
             {"key": "Nombre_Implementador", "label": "Nombre del Implementador", "source": "Usuarios.nombre (asignado)"},
             {"key": "Correo_Implementador", "label": "Correo del Implementador", "source": "Usuarios.email (asignado)"},
@@ -3107,6 +3121,7 @@ async def _dispatch_project_status_action(project_id: str, new_status: str, note
         comentario = (note or "").strip()
         tvars["Comentario_Estado"] = comentario
         tvars["Comentario_Cierre"] = comentario
+        tvars["Motivo_Cambio_Estatus"] = comentario
         tvars["Estado_Proyecto"] = new_status
         # Congelamiento: variables propias (motivo y días acumulados congelado).
         if new_status == "Congelado":

@@ -34,6 +34,7 @@ logger = logging.getLogger("other-actions")
 # (resueltas por services.project_template_vars.resolve_project_template_vars).
 _PROJECT_STATUS_VARS = [
     "Comentario_Estado", "Comentario_Cierre", "Estado_Proyecto",
+    "Motivo_Cambio_Estatus", "Estatus_Anterior", "Fecha_Cambio_Estatus", "Usuario_Cambio_Estatus",
     "Motivo_Congelamiento", "Dias_Congelado",
     "Nombre_Cliente", "Nombre_Fantasia", "Rif_Cliente", "Contacto_Principal",
     "Nro_Proyecto", "Nro_Ticket", "Tipo_Proyecto", "Patrocinador",

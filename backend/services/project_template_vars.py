@@ -893,6 +893,13 @@ async def resolve_project_template_vars(project: dict, actor_user: dict = None) 
         # === Estado del proyecto (texto plano del estado actual) ===
         "Estado_Proyecto": project.get("status", "") or "",
 
+        # === Motivo/justificación del último cambio de estado (para plantillas) ===
+        "Motivo_Cambio_Estatus": project.get("last_status_note", "") or "",
+        "Comentario_Estado": project.get("last_status_note", "") or "",
+        "Fecha_Cambio_Estatus": (project.get("last_status_change_date") or ""),
+        "Usuario_Cambio_Estatus": (project.get("last_status_actor") or ""),
+        "Estatus_Anterior": (project.get("last_status_from") or ""),
+
         # === Alias en PascalCase español (lo que muestra el panel lateral del editor) ===
         "Nro_Proyecto": project_number or "",
         "Ticket_Nro": ticket or "",

@@ -1,5 +1,12 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Variable {Motivo_Cambio_Estatus} publicada en todas las grillas
+- Al cambiar el estatus de un proyecto, el MOTIVO/justificación del modal ahora se PERSISTE en el proyecto (`last_status_note`, `last_status_from`, `last_status_change_date`, `last_status_actor`).
+- Nuevas variables de plantilla, resueltas en `resolve_project_template_vars` (aparecen en TODAS las grillas): `Motivo_Cambio_Estatus`, `Estatus_Anterior`, `Fecha_Cambio_Estatus`, `Usuario_Cambio_Estatus`. `Comentario_Estado` ahora también se resuelve globalmente desde el último motivo.
+- Publicadas en los catálogos: `/projects/{id}/template-variables` (available_tags + variables), Otras Acciones (`_PROJECT_STATUS_VARS`, todas las acciones project_status_*), y SLA (`SLA_TEMPLATE_VARIABLES`).
+- Verificado por curl: tras cambiar estado con nota, `Motivo_Cambio_Estatus` devuelve el texto y aparece en los 3 catálogos.
+
+
 ## 2026-06 — Modal Cambio de Estatus de Proyectos: fix lag de escritura + scroll
 - **Lag al escribir la justificación:** cada tecla llamaba `setStatusForm` en el componente padre `Projects`, re-renderizando toda la grilla (~128 filas) → escritura con retraso carácter por carácter. Fix: se extrajo el cuerpo del modal a un componente aislado `StatusDialogBody` con ESTADO LOCAL (new_status/note/change_date/file); el estado del formulario ya no vive en el padre → escribir no re-renderiza la tabla. `handleStatusChange(form, file)` recibe los datos por parámetro.
 - **Desbordamiento:** `DialogContent` ahora usa `max-h-[90vh] overflow-y-auto` → barra de desplazamiento vertical cuando el contenido excede la pantalla.

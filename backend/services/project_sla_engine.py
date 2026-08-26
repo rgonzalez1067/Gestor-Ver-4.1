@@ -75,6 +75,8 @@ SLA_TEMPLATE_VARIABLES = [
     "Nro_Proyecto", "project_number", "Nombre_Cliente", "client_name",
     "Email_Contacto", "Contacto_Principal", "Nombre_Implementador",
     "estado_proyecto", "etapa_sla", "dias_en_estado", "color_semaforo",
+    "Estado_Proyecto", "Motivo_Cambio_Estatus", "Estatus_Anterior",
+    "Fecha_Cambio_Estatus", "Usuario_Cambio_Estatus",
     "fecha_sistema",
 ]
 
