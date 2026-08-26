@@ -102,6 +102,27 @@ def add_business_days(start: date, n: int, specific: set, recurring: set) -> dat
         cur += timedelta(days=1)
 
 
+def business_days_ago(end: date, n: int, specific: set, recurring: set) -> date:
+    """Fecha `start` tal que business_days_between(start, end) == n.
+
+    Sirve para REANUDAR el contador de retardo tras un congelamiento: dado el
+    número de días hábiles acumulados antes de congelar (n) y el día de hoy
+    (end), devuelve la fecha de referencia que hace que el semáforo retome
+    exactamente en `n` días hábiles.
+    """
+    if n <= 0:
+        return end
+    count = 0
+    cur = end
+    while True:
+        if is_business_day(cur, specific, recurring):
+            count += 1
+            if count >= n:
+                break
+        cur -= timedelta(days=1)
+    return cur - timedelta(days=1)
+
+
 def add_business_days_after(start: date, n: int, specific: set, recurring: set) -> date:
     """Fecha del n-ésimo día hábil DESPUÉS de `start` (start NO cuenta, exclusivo).
 

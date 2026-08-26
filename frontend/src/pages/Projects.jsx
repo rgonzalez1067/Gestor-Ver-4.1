@@ -23,7 +23,7 @@ import { OperationalBoard } from '../components/projects/OperationalBoard';
 import { ImplementerWorkloadHover } from '../components/projects/ImplementerWorkloadHover';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar, CalendarClock, FileSpreadsheet, DollarSign
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList, Pencil, Gauge, Calendar, CalendarClock, FileSpreadsheet, DollarSign, Snowflake
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -31,6 +31,7 @@ const STATUS_CONFIG = {
   'Asignado': { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: UserCheck },
   'En Gestión': { color: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: UserCog },
   'Configurado en espera del Cliente': { color: 'bg-cyan-100 text-cyan-800 border-cyan-200', icon: Pause },
+  'Congelado': { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: Snowflake },
   'Suspendido': { color: 'bg-red-100 text-red-800 border-red-200', icon: Pause },
   'Implementado parcial': { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: CheckCircle2 },
   'Culminado': { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
@@ -81,6 +82,7 @@ const showTicketReminderToast = (status) => {
 // Los estados automáticos (Por asignar, Asignado, En Gestión) responden a triggers.
 const STATUS_TRANSITIONS = [
   { id: 'En Gestión', label: 'En Gestión (Reactivar)', icon: UserCog, iconColor: 'text-indigo-600', reactivation: true },
+  { id: 'Congelado', label: 'Congelar Proyecto', icon: Snowflake, iconColor: 'text-blue-600', freezeOnly: true },
   { id: 'Configurado en espera del Cliente', label: 'Configurado en espera del Cliente', icon: Pause, iconColor: 'text-cyan-600' },
   { id: 'Suspendido', label: 'Suspendido', icon: Pause, iconColor: 'text-red-600' },
   { id: 'Implementado parcial', label: 'Implementado parcial', icon: CheckCircle2, iconColor: 'text-orange-600' },
@@ -466,7 +468,9 @@ const Projects = () => {
       : cobroFilter === 'cobrado'
         ? !!p.cobro_recurrente_status
         : !p.cobro_recurrente_status;
-    const matchAvance = avanceFilter === 'all' ? true : _avanceLevel(p) === avanceFilter;
+    const matchAvance = avanceFilter === 'all' ? true
+      : avanceFilter === 'congelado' ? p.status === 'Congelado'
+      : _avanceLevel(p) === avanceFilter;
     return matchSearch && matchSponsor && matchType && matchIntegrator && matchDate && matchCobro && matchAvance;
   };
 
@@ -528,6 +532,7 @@ const Projects = () => {
     por_asignar: countStatus('Por asignar'),
     asignado: countStatus('Asignado'),
     en_gestion: countStatus('En Gestión'),
+    congelado: countStatus('Congelado'),
     suspendido: countStatus('Suspendido'),
     parcial: countStatus('Implementado parcial'),
     culminado: countStatus('Culminado'),
@@ -683,12 +688,13 @@ const Projects = () => {
           <OperationalBoard metrics={boardMetrics} count={boardSource.length} />
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
+          <div className="grid grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
             {[
               { label: 'Total', value: kpi.total, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all', subset: filtered },
               { label: 'Por Asignar', value: kpi.por_asignar, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar', subset: baseFiltered.filter(p => p.status === 'Por asignar') },
               { label: 'Asignado', value: kpi.asignado, cls: 'bg-sky-50 border-sky-200 text-sky-700', filter: 'Asignado', subset: baseFiltered.filter(p => p.status === 'Asignado') },
               { label: 'En Gestión', value: kpi.en_gestion, cls: 'bg-indigo-50 border-indigo-200 text-indigo-700', filter: 'En Gestión', subset: baseFiltered.filter(p => p.status === 'En Gestión') },
+              { label: 'Congelados', value: kpi.congelado, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'Congelado', subset: baseFiltered.filter(p => p.status === 'Congelado'), icon: Snowflake },
               { label: 'Suspendido', value: kpi.suspendido, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'Suspendido', subset: baseFiltered.filter(p => p.status === 'Suspendido') },
               { label: 'Implementado Parcial', value: kpi.parcial, cls: 'bg-violet-50 border-violet-200 text-violet-700', filter: 'Implementado parcial', subset: baseFiltered.filter(p => p.status === 'Implementado parcial') },
               { label: 'Culminado', value: kpi.culminado, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado', subset: baseFiltered.filter(p => p.status === 'Culminado') },
@@ -857,6 +863,9 @@ const Projects = () => {
                   </SelectItem>
                   <SelectItem value="critico" data-testid="project-avance-option-critico">
                     <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />Retraso Crítico</span>
+                  </SelectItem>
+                  <SelectItem value="congelado" data-testid="project-avance-option-congelado">
+                    <span className="flex items-center gap-2"><Snowflake size={12} className="text-blue-500 shrink-0" />Congelado</span>
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -1059,6 +1068,7 @@ const Projects = () => {
                     // === SLA SEMÁFORO ===
                     const now = new Date();
                     const isSuspended = project.status?.includes('Detenido') || project.status?.includes('Suspendido');
+                    const isFrozen = project.status === 'Congelado';
                     const isFinished = project.status === 'Finalizado' || project.status === 'Cancelado';
                     const pct = project.rollup_progress?.global_progress || 0;
                     
@@ -1079,7 +1089,10 @@ const Projects = () => {
                     // (excluye fines de semana y festivos del Calendario Laboral).
                     const _bizDays = Number(project.business_days_in_state ?? 0);
 
-                    if (isSuspended) {
+                    if (isFrozen) {
+                      slaColor = 'bg-blue-400';
+                      slaLabel = 'Congelado · SLA en pausa';
+                    } else if (isSuspended) {
                       slaColor = 'bg-slate-400';
                       slaLabel = 'Detenido';
                     } else if (isFinished) {
@@ -1387,12 +1400,28 @@ const Projects = () => {
                               </div>
                             );
                           })()}
+                          {project.status === 'Congelado' && (() => {
+                            const fa = project.frozen_at ? new Date(project.frozen_at) : null;
+                            const dias = fa ? Math.max(0, Math.floor((Date.now() - fa.getTime()) / 86400000)) : 0;
+                            return (
+                              <div
+                                className="mb-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 border border-blue-200"
+                                data-testid={`frozen-indicator-${project.project_id}`}
+                                data-frozen-days={dias}
+                                title={project.freeze_reason ? `Motivo: ${project.freeze_reason}` : 'Proyecto congelado'}
+                              >
+                                <Snowflake size={15} className="text-blue-600 shrink-0" />
+                                <span className="text-xs font-bold text-blue-700">Congelado · {dias} día{dias === 1 ? '' : 's'}</span>
+                              </div>
+                            );
+                          })()}
                           <div className="flex items-center gap-3" title={`${slaLabel} — Avance: ${pct}%`}>
                             <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
-                              <div className={`h-full rounded-full transition-all duration-500 ${isSuspended ? 'bg-slate-400 bg-[length:20px_20px] bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)]' : slaColor}`} style={{ width: `${Math.max(Math.min(pct, 100), 5)}%` }} />
+                              <div className={`h-full rounded-full transition-all duration-500 ${(isSuspended || isFrozen) ? 'bg-slate-400 bg-[length:20px_20px] bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)]' : slaColor}`} style={{ width: `${Math.max(Math.min(pct, 100), 5)}%` }} />
                             </div>
                             <span className={`text-xs font-bold min-w-[36px] text-right ${pct >= 100 ? 'text-emerald-600' : 'text-slate-600'}`}>{pct}%</span>
                             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
+                              isFrozen ? 'bg-blue-50 text-blue-700' :
                               isSuspended ? 'bg-slate-100 text-slate-500' :
                               isFinished ? 'bg-blue-50 text-blue-600' :
                               slaColor === 'bg-emerald-500' ? 'bg-emerald-50 text-emerald-700' :
@@ -1441,18 +1470,24 @@ const Projects = () => {
                   <div className="space-y-1.5 mt-1.5">
                     {STATUS_TRANSITIONS.filter(t => {
                       if (t.id === statusProject.status) return false;
-                      // La opción de reactivar solo aplica a proyectos cerrados/pausados.
-                      if (t.reactivation) return HIDDEN_DEFAULT_STATES.includes(statusProject.status);
+                      // Congelar: solo desde "En Gestión".
+                      if (t.freezeOnly) return statusProject.status === 'En Gestión';
+                      // Reactivar / Descongelar: aplica a estados cerrados/pausados y a Congelado.
+                      if (t.reactivation) return HIDDEN_DEFAULT_STATES.includes(statusProject.status) || statusProject.status === 'Congelado';
+                      // Un proyecto Congelado solo puede Descongelar (volver a En Gestión).
+                      if (statusProject.status === 'Congelado') return false;
                       return true;
                     }).map(t => {
                       const TIcon = t.icon;
                       const selected = statusForm.new_status === t.id;
+                      const dynLabel = (t.reactivation && statusProject.status === 'Congelado')
+                        ? 'Descongelar (volver a En Gestión)' : t.label;
                       return (
                         <button key={t.id} onClick={() => setStatusForm(p => ({ ...p, new_status: t.id }))}
                           className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${selected ? 'border-slate-800 bg-slate-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}
                           data-testid={`status-option-${t.id.replace(/[\s\/]/g, '-').toLowerCase()}`}>
                           <TIcon size={18} className={t.iconColor} />
-                          <span className="text-sm font-medium text-slate-800">{t.label}</span>
+                          <span className="text-sm font-medium text-slate-800">{dynLabel}</span>
                           {selected && <CheckCircle2 size={16} className="ml-auto text-slate-800" />}
                         </button>
                       );

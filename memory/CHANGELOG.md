@@ -1,5 +1,13 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — V2 Estatus "Congelado" en Proyectos (SLA en pausa + KPI + filtro + notificaciones)
+- **Estatus nuevo:** `Congelado` agregado a `PROJECT_STATUSES`/`PROJECT_MANUAL_STATUSES`. Solo se congela DESDE "En Gestión" (justificación obligatoria); solo se descongela HACIA "En Gestión".
+- **Pausa real de retardo/SLA:** al congelar se guarda `is_frozen`, `frozen_at`, `freeze_reason`, `sla_days_at_freeze`. El motor SLA (`run_sla_evaluation`) solo evalúa estados activos → un proyecto Congelado NO incrementa `sla_days`/`sla_color` ni recibe alertas SLA. Al descongelar, `business_days_ago()` corre la fecha de referencia para que el retardo RETOME EXACTO donde quedó (verificado: 3/4 días → se mantiene y retoma).
+- **KPI + filtro:** `GET /projects/stats` incluye `frozen`. Grilla de Proyectos: tarjeta KPI azul "Congelados" (clic → filtra por Congelado), opción "Congelado" en el Filtro de Avance, badge azul + indicador "Congelado · N días", barra SLA en pausa (rayada).
+- **Notificaciones:** acción Otras Acciones `project_status_congelado` (entrada al confirmar el modal + recurrente). Cron `job_project_frozen_recurring` (08:30) avisa los días acumulados según `frozen_notify_frequency_days` (config en Tiempos/SLA, default 7, configurable, valida ≥1). Vars: `Motivo_Congelamiento`, `Dias_Congelado`. QA on-demand: `POST /project-sla/run-frozen-alerts`.
+- **Testing (iter 326):** backend 9/9 (tras fix de validación freq=0→400), frontend OK (KPI, filtro, modal Congelar/Descongelar, indicador, campo frecuencia). Pendiente: desplegar a producción.
+
+
 ## 2026-06 — Full Backup: artefacto en GridFS compartido (fix DEFINITIVO 410 multi-réplica)
 - **RCA (deployer):** producción corre **2 réplicas sin afinidad de sesión** (round-robin). El build escribía el ZIP en el `/tmp` LOCAL de un pod; la descarga se balanceaba al OTRO pod (cuyo `/tmp` no tenía el archivo) → `os.path.exists` False → **HTTP 410**. No hubo OOM/reinicio. Disco efímero 1Gi/pod (artefacto ~728 MiB → riesgo secundario).
 - **Fix:** el artefacto del respaldo ya NO se guarda en disco local, sino en **GridFS de MongoDB** (almacenamiento COMPARTIDO por ambas réplicas vía `MONGO_URL`):

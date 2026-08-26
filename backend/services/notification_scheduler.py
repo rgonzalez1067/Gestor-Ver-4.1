@@ -397,6 +397,77 @@ async def job_test_environment_expired() -> None:
         logger.info(f"[scheduler] test_environment_expired → {count} aviso(s) enviado(s)")
 
 
+async def job_project_frozen_recurring() -> None:
+    """Notifica periódicamente los días acumulados de los proyectos 'Congelado'.
+
+    La frecuencia (en días) se toma de la Config de Tiempos/SLA
+    (`frozen_notify_frequency_days`, default 7). Usa los destinatarios de la
+    acción 'project_status_congelado' de Otras Acciones (correo / Centro de
+    Mensajes). Evita spam con un cool-down igual a la frecuencia."""
+    from services.project_sla_engine import get_sla_config
+    from services.other_actions_engine import dispatch_other_action
+    from services.project_template_vars import resolve_project_template_vars
+
+    now = datetime.now(timezone.utc)
+    cfg = await get_sla_config()
+    freq = int(cfg.get("frozen_notify_frequency_days") or 7)
+    count = 0
+    cursor = db.projects.find({"status": "Congelado"}, {"_id": 0})
+    async for p in cursor:
+        frozen_at = p.get("frozen_at")
+        if not frozen_at:
+            continue
+        try:
+            fa = datetime.fromisoformat(str(frozen_at).replace("Z", "+00:00"))
+            if fa.tzinfo is None:
+                fa = fa.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+        dias_congelado = max(0, (now - fa).days)
+
+        # Cool-down: no re-notificar antes de `freq` días desde el último aviso
+        # (o desde el congelamiento si aún no se ha avisado).
+        ref = p.get("last_frozen_alert_at") or frozen_at
+        try:
+            rf = datetime.fromisoformat(str(ref).replace("Z", "+00:00"))
+            if rf.tzinfo is None:
+                rf = rf.replace(tzinfo=timezone.utc)
+        except Exception:
+            rf = fa
+        if (now - rf).days < freq:
+            continue
+
+        try:
+            tvars = await resolve_project_template_vars(p)
+            comentario = (p.get("freeze_reason") or "").strip()
+            tvars["Estado_Proyecto"] = "Congelado"
+            tvars["Comentario_Estado"] = comentario
+            tvars["Comentario_Cierre"] = comentario
+            tvars["Motivo_Congelamiento"] = comentario
+            tvars["Dias_Congelado"] = str(dias_congelado)
+            tvars["usuario_ejecutor"] = "Sistema"
+            tvars["fecha_sistema"] = now.strftime("%d/%m/%Y")
+            await dispatch_other_action(
+                action_id="project_status_congelado",
+                template_vars=tvars,
+                current_user=None,
+                fallback_subject=f"Proyecto {p.get('project_number', '')} — Congelado {dias_congelado} día(s)",
+                executive_user_id=p.get("created_by_user_id"),
+                project=p,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[scheduler] project_frozen_recurring dispatch falló ({p.get('project_number')}): {e}")
+            continue
+
+        await db.projects.update_one(
+            {"project_id": p["project_id"]},
+            {"$set": {"last_frozen_alert_at": now.isoformat()}},
+        )
+        count += 1
+    if count:
+        logger.info(f"[scheduler] project_frozen_recurring → {count} proyecto(s) congelado(s) notificado(s)")
+
+
 def start_scheduler() -> None:
     """Arranca APScheduler con los 4 jobs. Llamado desde server.py startup."""
     global scheduler
@@ -416,8 +487,10 @@ def start_scheduler() -> None:
     scheduler.add_job(job_inbox_reminders_due, IntervalTrigger(minutes=1), id="inbox_reminders", replace_existing=True)
     # Vencimiento de Ambiente de Pruebas: revisa diariamente los ambientes vencidos (0 días hábiles).
     scheduler.add_job(job_test_environment_expired, CronTrigger(hour=8, minute=25), id="test_env_expired", replace_existing=True)
+    # Congelamiento de Proyectos: aviso recurrente de días acumulados (frecuencia configurable en Tiempos/SLA).
+    scheduler.add_job(job_project_frozen_recurring, CronTrigger(hour=8, minute=30), id="project_frozen_recurring", replace_existing=True)
     scheduler.start()
-    logger.info("[scheduler] started with 6 jobs (5 daily + inbox_reminders cada 1 min)")
+    logger.info("[scheduler] started with 7 jobs (6 daily + inbox_reminders cada 1 min)")
 
 def stop_scheduler() -> None:
     global scheduler

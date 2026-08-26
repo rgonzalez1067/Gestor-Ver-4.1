@@ -34,6 +34,7 @@ class StageThreshold(BaseModel):
 
 class SlaConfigPayload(BaseModel):
     stages: dict[str, StageThreshold]
+    frozen_notify_frequency_days: int = 7
 
 
 class SlaRecipientRow(BaseModel):
@@ -82,8 +83,12 @@ async def save_config(payload: SlaConfigPayload, authorization: Optional[str] = 
         stages[k] = {"warning_days": w, "delay_days": d}
 
     now = datetime.now(timezone.utc).isoformat()
+    freq = int(payload.frozen_notify_frequency_days) if payload.frozen_notify_frequency_days is not None else 7
+    if freq < 1:
+        raise HTTPException(status_code=400, detail="La frecuencia de notificación de congelados debe ser ≥ 1 día")
     doc = {
         "config_id": SLA_CONFIG_ID, "stages": stages, "updated_at": now,
+        "frozen_notify_frequency_days": freq,
         "updated_by": user.get("email"),
         "updated_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("email", ""),
     }
@@ -176,3 +181,12 @@ async def evaluate_now(authorization: Optional[str] = Header(None)):
     await _require_auth(authorization)
     result = await run_sla_evaluation()
     return {"message": "Evaluación SLA ejecutada", **result}
+
+
+@router.post("/project-sla/run-frozen-alerts")
+async def run_frozen_alerts_now(authorization: Optional[str] = Header(None)):
+    """Dispara on-demand el aviso recurrente de proyectos Congelados (QA)."""
+    await _require_auth(authorization)
+    from services.notification_scheduler import job_project_frozen_recurring
+    await job_project_frozen_recurring()
+    return {"message": "Aviso de congelados ejecutado"}

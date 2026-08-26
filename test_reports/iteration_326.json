@@ -1,0 +1,47 @@
+{
+  "summary": "V2 Congelado (Frozen Projects) tested end-to-end. Backend: 8/9 pytest cases pass. Frontend: KPI 'Congelados' (blue), avance filter option, status modal (Congelar/Descongelar), frozen-indicator, and ProjectSlaConfig frozen-freq-input all present and working. One backend validation bug found on PUT /api/project-sla/config with frozen_notify_frequency_days=0 (silently normalized to 7 instead of returning 400).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PUT /api/project-sla/config",
+        "issue": "Sending frozen_notify_frequency_days=0 should return 400 ('debe ser >= 1'), but the endpoint accepts it and persists 7. Root cause: `freq = int(payload.frozen_notify_frequency_days or 7)` — value 0 is falsy in Python so `or 7` short-circuits and the `if freq < 1` guard is never reached. Fix: `freq = int(payload.frozen_notify_frequency_days) if payload.frozen_notify_frequency_days is not None else 7` (Pydantic already coerces to int, so simply drop the `or 7` and rely on the model default; then keep the `if freq < 1` check). Values < 0 also currently pass silently for the same reason (e.g. -3 would be truthy and get through, but then `if freq < 1` catches negatives — however 0 slips through). File: /app/backend/routes/project_sla.py line 86-88."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/projects KPI mini-tablero",
+        "issues": [
+          "Requirements referenced testids as 'kpi-card-*' but actual implementation uses 'stat-congelados' / 'stat-value-congelados'. Functionality (blue color, count, click-to-filter) works correctly; only the testid naming diverges from spec. Consider aligning if external tests depend on the kpi-card-* prefix."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter326_frozen_projects_v2.py",
+    "/app/test_reports/pytest/iter326.xml"
+  ],
+  "action_items": [
+    "Fix validation of frozen_notify_frequency_days=0 on PUT /api/project-sla/config (drop `or 7` short-circuit so <1 is properly rejected).",
+    "Optional: align KPI testids on Projects page to 'kpi-card-*' as originally specified in the requirement (currently 'stat-congelados')."
+  ],
+  "critical_code_review_comments": [
+    "routes/projects.py is very large (~4667 lines); consider splitting freeze/unfreeze logic and the _dispatch_project_status_action helper into a dedicated module.",
+    "The freeze/unfreeze snapshot uses `int(project.get('sla_days') or 0)` which is fine, but `frozen_at` uses ISO string not datetime — consistent with the rest of the codebase but be aware timezone parsing is done via `.replace('Z','+00:00')` elsewhere.",
+    "In project_sla.py PUT config, use Pydantic validator (`Field(ge=1)`) for `frozen_notify_frequency_days` to enforce >=1 at parse time instead of manual `if freq < 1`."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter326_frozen_projects_v2.py (new)"
+  ],
+  "success_rate": {"backend": "89% (8/9)", "frontend": "100% (5/5 UI checks)"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (session_token, not 'token')",
+  "seed_data_creation": "None. Test cycle picks an existing 'En Gestión' project (highest sla_days), freezes+evaluates+unfreezes it, and restores it to 'En Gestión'. prj_644200469bf5 remains Congelado in env as expected.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend base URL from /app/frontend/.env; auth returns JSON key 'session_token' (not 'token'). Frozen project seeded in env: prj_644200469bf5 (status Congelado, sla_days_at_freeze=4, freeze_reason='QA: proyecto congelado para validar KPI y filtro'). KPI testids on Projects use pattern 'stat-<slug>' e.g. 'stat-congelados'. SLA config page path: /settings/project-sla. The full freeze/evaluate/unfreeze cycle was executed against a real En Gestión project and it now shows the resumed sla_days after unfreeze — no reset (validated).",
+  "rca of the issue": "PUT /api/project-sla/config validation for frozen_notify_frequency_days<1: `freq = int(payload.frozen_notify_frequency_days or 7)` — Python treats 0 as falsy, so `0 or 7` returns 7, bypassing the `if freq < 1: raise 400` guard. Reproduction: authenticated PUT with body {stages: <current>, frozen_notify_frequency_days: 0} returns 200 and persists 7 silently. Fix outlined in backend_issues.minor above."
+}

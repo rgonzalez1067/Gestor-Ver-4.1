@@ -313,9 +313,10 @@ async def get_project_stats(authorization: Optional[str] = Header(None)):
     pending = await db.projects.count_documents(_q({"status": "Por asignar"}))
     in_progress = await db.projects.count_documents(_q({"status": {"$in": ["Asignado", "En Gestión", "Implementado parcial"]}}))
     blocked = await db.projects.count_documents(_q({"status": "Suspendido"}))
+    frozen = await db.projects.count_documents(_q({"status": "Congelado"}))
     completed = await db.projects.count_documents(_q({"status": "Culminado"}))
     irregular = await db.projects.count_documents(_q({"is_irregular": True}))
-    return {"total": total, "pending": pending, "in_progress": in_progress, "blocked": blocked, "completed": completed, "irregular": irregular}
+    return {"total": total, "pending": pending, "in_progress": in_progress, "blocked": blocked, "frozen": frozen, "completed": completed, "irregular": irregular}
 
 
 @router.get("/projects/implementers/list")
@@ -490,10 +491,48 @@ async def update_project_status(
     if new_status == "Configurado en espera del Cliente" and project.get("status") != "En Gestión":
         raise HTTPException(status_code=400, detail="El estado 'Configurado en espera del Cliente' solo puede asignarse desde 'En Gestión'.")
 
+    current_status = project.get("status")
+    is_freeze = new_status == "Congelado"
+    is_unfreeze = current_status == "Congelado" and new_status != "Congelado"
+
+    # Regla de negocio (Congelado): solo se congela DESDE "En Gestión" y solo se
+    # descongela HACIA "En Gestión".
+    if is_freeze and current_status != "En Gestión":
+        raise HTTPException(status_code=400, detail="Solo se puede Congelar un proyecto que esté 'En Gestión'.")
+    if is_freeze and not (note or "").strip():
+        raise HTTPException(status_code=400, detail="La justificación es obligatoria para Congelar el proyecto.")
+    if is_unfreeze and new_status != "En Gestión":
+        raise HTTPException(status_code=400, detail="Un proyecto Congelado solo puede volver a 'En Gestión' (Descongelar).")
+
     now = datetime.now(timezone.utc).isoformat()
     update_data = {"status": new_status, "status_changed_at": now, "updated_at": now}
     if new_status == "Culminado":
         update_data["completed_at"] = now
+
+    if is_freeze:
+        # Congelar: pausa el semáforo/retardo. Guardamos los días de retardo
+        # acumulados para reanudarlos EXACTOS al descongelar. El motor SLA ignora
+        # el estado "Congelado" (no suma retardo ni dispara alertas).
+        update_data["is_frozen"] = True
+        update_data["frozen_at"] = now
+        update_data["freeze_reason"] = (note or "").strip()
+        update_data["sla_days_at_freeze"] = int(project.get("sla_days") or 0)
+        update_data["last_frozen_alert_at"] = None
+    elif is_unfreeze:
+        # Descongelar: reanuda el retardo desde donde quedó (pausa real). Se
+        # corre la fecha de referencia del semáforo hacia atrás lo justo para que
+        # el conteo de días hábiles retome en `sla_days_at_freeze`.
+        n_days = int(project.get("sla_days_at_freeze") or project.get("sla_days") or 0)
+        from services.business_calendar import get_holiday_sets, business_days_ago
+        specific, recurring = await get_holiday_sets()
+        ref_date = business_days_ago(datetime.now(timezone.utc).date(), n_days, specific, recurring)
+        ref_iso = datetime(ref_date.year, ref_date.month, ref_date.day, tzinfo=timezone.utc).isoformat()
+        update_data["status_changed_at"] = ref_iso
+        update_data["last_qualified_activity_at"] = ref_iso
+        update_data["is_frozen"] = False
+        update_data["frozen_at"] = None
+        update_data["unfrozen_at"] = now
+
 
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
 
@@ -3043,6 +3082,7 @@ async def _dispatch_implementer_response(project_id: str, ticket: str, current_u
 
 # Estado del proyecto → action_id de "Otras Acciones" (notificaciones de estado).
 _PROJECT_STATUS_ACTION_MAP = {
+    "Congelado": "project_status_congelado",
     "Suspendido": "project_status_suspendido",
     "Implementado parcial": "project_status_implementado_parcial",
     "Culminado": "project_status_culminado",
@@ -3068,6 +3108,20 @@ async def _dispatch_project_status_action(project_id: str, new_status: str, note
         tvars["Comentario_Estado"] = comentario
         tvars["Comentario_Cierre"] = comentario
         tvars["Estado_Proyecto"] = new_status
+        # Congelamiento: variables propias (motivo y días acumulados congelado).
+        if new_status == "Congelado":
+            tvars["Motivo_Congelamiento"] = comentario
+            frozen_at = project.get("frozen_at")
+            dias = 0
+            if frozen_at:
+                try:
+                    fa = datetime.fromisoformat(str(frozen_at).replace("Z", "+00:00"))
+                    if fa.tzinfo is None:
+                        fa = fa.replace(tzinfo=timezone.utc)
+                    dias = max(0, (datetime.now(timezone.utc) - fa).days)
+                except Exception:
+                    dias = 0
+            tvars["Dias_Congelado"] = str(dias)
         tvars["usuario_ejecutor"] = (
             f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
             or current_user.get("email", "")

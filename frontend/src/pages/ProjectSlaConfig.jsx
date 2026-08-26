@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, ChevronDown, Plus, Trash2, Save, Timer, Loader2, AlertCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ChevronDown, Plus, Trash2, Save, Timer, Loader2, AlertCircle, AlertTriangle, ShieldAlert, Snowflake } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -205,6 +205,7 @@ export default function ProjectSlaConfig() {
   const [matrix, setMatrix] = useState({});
   const [configs, setConfigs] = useState({});
   const [savingMatrix, setSavingMatrix] = useState(false);
+  const [frozenFreq, setFrozenFreq] = useState(7);
   const [evaluating, setEvaluating] = useState(false);
 
   const loadAll = async () => {
@@ -217,6 +218,7 @@ export default function ProjectSlaConfig() {
       ]);
       setStages(cfgRes.data.stages || []);
       setMatrix(cfgRes.data.config?.stages || {});
+      setFrozenFreq(cfgRes.data.config?.frozen_notify_frequency_days ?? 7);
       setCatalog(catRes.data);
       const map = {};
       (actRes.data.items || []).forEach((c) => { map[c.action_id] = c; });
@@ -243,7 +245,7 @@ export default function ProjectSlaConfig() {
     }
     setSavingMatrix(true);
     try {
-      await api.put('/project-sla/config', { stages: matrix });
+      await api.put('/project-sla/config', { stages: matrix, frozen_notify_frequency_days: Number(frozenFreq) || 7 });
       toast.success('Matriz de tiempos (SLA) guardada');
       loadAll();
     } catch (e) {
@@ -332,6 +334,20 @@ export default function ProjectSlaConfig() {
               ))}
             </tbody>
           </table>
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3" data-testid="frozen-freq-config">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-blue-800">
+              <Snowflake size={15} className="text-blue-600" />
+              Frecuencia de Notificación de Congelados (Días)
+            </span>
+            <Input
+              type="number" min="1"
+              value={frozenFreq}
+              onChange={(e) => setFrozenFreq(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10) || 1))}
+              className="h-9 w-24"
+              data-testid="frozen-freq-input"
+            />
+            <span className="text-xs text-slate-500">Cada cuántos días se avisa de los proyectos que siguen Congelados (se guarda con "Guardar Matriz").</span>
+          </div>
           <div className="flex justify-between items-center mt-4 gap-2">
             <Button variant="outline" size="sm" onClick={handleEvaluateNow} disabled={evaluating} data-testid="sla-evaluate-btn">
               {evaluating ? <Loader2 size={14} className="animate-spin mr-1" /> : <Timer size={14} className="mr-1" />}Evaluar Ahora

@@ -83,13 +83,19 @@ SLA_TEMPLATE_VARIABLES = [
 async def get_sla_config() -> dict:
     cfg = await db.project_sla_config.find_one({"config_id": SLA_CONFIG_ID}, {"_id": 0})
     if not cfg:
-        return {"config_id": SLA_CONFIG_ID, "stages": {k: dict(v) for k, v in DEFAULT_THRESHOLDS.items()}}
+        return {
+            "config_id": SLA_CONFIG_ID,
+            "stages": {k: dict(v) for k, v in DEFAULT_THRESHOLDS.items()},
+            "frozen_notify_frequency_days": 7,
+        }
     # Completar etapas faltantes con default
     stages = cfg.get("stages") or {}
     for k in STAGE_KEYS:
         if k not in stages:
             stages[k] = dict(DEFAULT_THRESHOLDS[k])
     cfg["stages"] = stages
+    if not cfg.get("frozen_notify_frequency_days"):
+        cfg["frozen_notify_frequency_days"] = 7
     return cfg
 
 

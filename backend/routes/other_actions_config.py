@@ -34,6 +34,7 @@ logger = logging.getLogger("other-actions")
 # (resueltas por services.project_template_vars.resolve_project_template_vars).
 _PROJECT_STATUS_VARS = [
     "Comentario_Estado", "Comentario_Cierre", "Estado_Proyecto",
+    "Motivo_Congelamiento", "Dias_Congelado",
     "Nombre_Cliente", "Nombre_Fantasia", "Rif_Cliente", "Contacto_Principal",
     "Nro_Proyecto", "Nro_Ticket", "Tipo_Proyecto", "Patrocinador",
     "Nombre_Implementador", "Correo_Implementador",
@@ -109,6 +110,12 @@ OTHER_ACTIONS = [
             "client_name", "Nombre_Cliente", "Nombre_Implementador", "Correo_Implementador",
             "assigned_to", "quote_number", "usuario_ejecutor", "fecha_sistema",
         ],
+    },
+    {
+        "id": "project_status_congelado",
+        "label": "Notificación de Proyecto Congelado (Entrada y Recurrente)",
+        "description": "Se dispara (en background) cuando un Proyecto pasa a estatus 'Congelado' tras confirmar el modal de justificación (Entrada), y también de forma RECURRENTE según la 'Frecuencia de Notificación de Congelados (Días)' configurada en Tiempos/SLA, informando los días acumulados en congelamiento. El motivo viaja en {Motivo_Congelamiento}/{Comentario_Estado} y los días en {Dias_Congelado}.",
+        "variables": _PROJECT_STATUS_VARS,
     },
     {
         "id": "project_status_suspendido",
