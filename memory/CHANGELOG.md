@@ -1,5 +1,11 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Fix def. Full Backup: ZIP corrupto en PRODUCCIÓN ("Unexpected end of archive")
+- **Síntoma (prod):** el `.zip` del Respaldo Total descargaba 220 MB pero WinRAR lo veía dañado/vacío ("unpacked size 0 bytes"), solo con la carpeta `collections`. En PREVIEW el mismo ZIP era 100% válido (`testzip()` OK, 76 entradas).
+- **RCA:** `GET /admin/full-backup/export` respondía con `StreamingResponse` (chunked, SIN `Content-Length`, `X-Accel-Buffering: no`). El CDN/ingress de producción truncaba el último tramo del stream —el *central directory* del ZIP— dejando el archivo sin índice. Preview no tiene CDN al frente → no se reproducía.
+- **Fix:** el export ahora **escribe el ZIP a un archivo temporal en disco del pod** (documento por documento con `bson_dumps` + `batch_size(50)` → memoria O(1)) y lo sirve con **`FileResponse` (Content-Length real)** + `BackgroundTask` de limpieza. Con el tamaño declarado el proxy no puede truncar el final. Mismo patrón que `export-attachments-streamed`. Se mantiene el flujo de ticket (`?ticket=`) para la descarga nativa. Verificado en preview: header-auth y ticket devuelven `Content-Length` y ZIP válido.
+
+
 ## 2026-06 — Fix def. export: descarga NATIVA en streaming a disco (evita freeze del navegador)
 
 - **RCA (deployer):** con el ensamblado en navegador (JSZip), el pod quedaba sano (0 OOM, todas las páginas 200) pero **el navegador se congelaba al ~50%** acumulando todo el ZIP en RAM (base grande: bitacora 66k, email_logs 10k, inbox_messages 7.5k con HTML pesado). Plan A (más RAM del pod) NO aplicaba: el cuello era el navegador.

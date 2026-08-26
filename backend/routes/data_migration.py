@@ -1811,27 +1811,34 @@ async def full_backup_export(authorization: Optional[str] = Header(None), ticket
     cols = sorted(await db.list_collection_names())
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"full_backup_{db.name}_{ts}.zip"
-    FLUSH_BYTES = 131072  # drenar el buffer cada ~128KB (independiente del tamaño del doc)
 
-    async def _gen():
-        stream = _ZipStreamBuf()
-        _since_gc = 0
-        manifest = {
-            "schema_version": 1,
-            "type": "full-database-backup",
-            "format": "mongodb-extended-json",
-            "db_name": db.name,
-            "exported_at": datetime.now(timezone.utc).isoformat(),
-            "exported_by": user.get("email"),
-            "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
-            "collections": [],
-        }
-        zf = zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED)
-        try:
+    # El ZIP se ESCRIBE A DISCO (archivo temporal) documento por documento y
+    # luego se sirve con FileResponse (Content-Length real). Antes se enviaba
+    # en streaming por trozos SIN Content-Length (chunked), y el CDN/ingress de
+    # producción truncaba el último tramo (el "central directory" del ZIP),
+    # dejando el archivo dañado ("Unexpected end of archive") aunque pesara
+    # cientos de MB. Con un archivo en disco + tamaño declarado, el proxy no
+    # puede truncarlo y la memoria del pod se mantiene baja (un doc a la vez).
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".zip", prefix="full_backup_")
+    os.close(tmp_fd)
+
+    manifest = {
+        "schema_version": 1,
+        "type": "full-database-backup",
+        "format": "mongodb-extended-json",
+        "db_name": db.name,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_by": user.get("email"),
+        "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+        "collections": [],
+    }
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            _since_gc = 0
             for cname in cols:
                 count = 0
-                # batch_size chico → acota lo que motor precarga en memoria
-                cursor = db[cname].find({}).batch_size(10)
+                # batch_size chico → acota lo que el motor precarga en memoria
+                cursor = db[cname].find({}).batch_size(50)
                 with zf.open(f"collections/{cname}.json", "w") as entry:
                     entry.write(b"[")
                     first = True
@@ -1842,45 +1849,51 @@ async def full_backup_export(authorization: Optional[str] = Header(None), ticket
                         first = False
                         count += 1
                         _since_gc += 1
-                        if len(stream.buf) >= FLUSH_BYTES:
-                            yield stream.drain()
                         if _since_gc >= 2000:  # liberar memoria del intérprete periódicamente
                             gc.collect()
                             _since_gc = 0
                     entry.write(b"\n]" if count else b"]")
-                if len(stream.buf):
-                    yield stream.drain()
                 manifest["collections"].append({"name": cname, "count": count})
 
             zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-            zf.close()  # escribe el central directory
-            if len(stream.buf):
-                yield stream.drain()
-        finally:
-            try:
-                if zf.fp is not None:
-                    zf.close()
-            except Exception:
-                pass
+
+        size_bytes = os.path.getsize(tmp_path)
 
         try:
             await db.bitacora.insert_one({
                 "action": "full_backup_export",
                 "db_name": db.name,
                 "collections": len(cols),
+                "size_bytes": size_bytes,
                 "executed_by": user.get("email"),
                 "executed_at": datetime.now(timezone.utc).isoformat(),
             })
         except Exception:
             pass
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
 
-    headers = {
-        "Cache-Control": "no-store",
-        "X-Total-Collections": str(len(cols)),
-        "Content-Disposition": f'attachment; filename="{filename}"',
-        "X-Accel-Buffering": "no",  # evita que nginx bufferee toda la respuesta en RAM del contenedor
-    }
-    return StreamingResponse(_gen(), media_type="application/zip", headers=headers)
+    def _cleanup(p):
+        try:
+            os.unlink(p)
+        except Exception:  # pragma: no cover
+            pass
+
+    return FileResponse(
+        tmp_path,
+        media_type="application/zip",
+        filename=filename,
+        headers={
+            "Cache-Control": "no-store",
+            "X-Total-Collections": str(len(cols)),
+            "X-Content-Type-Options": "nosniff",
+        },
+        background=BackgroundTask(_cleanup, tmp_path),
+    )
 
 
 @router.get("/admin/full-backup/collection")
