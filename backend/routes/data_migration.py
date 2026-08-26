@@ -1929,6 +1929,18 @@ async def full_backup_build(authorization: Optional[str] = Header(None)):
     se arma → evita el 524 de Cloudflare)."""
     user = await _require_admin(authorization)
     await _cleanup_stale_backups()
+    # Borrar respaldos previos de ESTE usuario (mantener solo el último → acota disco)
+    try:
+        async for prev in db.backup_jobs.find({"user_id": user.get("user_id")}):
+            p = prev.get("file_path")
+            if p and os.path.exists(p):
+                try:
+                    os.unlink(p)
+                except Exception:
+                    pass
+            await db.backup_jobs.delete_one({"_id": prev["_id"]})
+    except Exception:
+        pass
     job_id = uuid.uuid4().hex
     total_cols = len(await db.list_collection_names())
     await db.backup_jobs.insert_one({
@@ -2052,21 +2064,18 @@ async def full_backup_export(
     filename = job.get("filename") or f"full_backup_{db.name}.zip"
 
     async def _post_download():
-        # limpieza: archivo + job + ticket (un solo uso)
+        # NO borramos el archivo aquí: así el usuario puede reintentar la
+        # descarga (p.ej. si el navegador la bloqueó o falló a mitad) pidiendo
+        # un ticket nuevo. La limpieza de disco la hace _cleanup_stale_backups
+        # (>2h) y el inicio de un nuevo build (borra los respaldos previos del
+        # mismo usuario). Solo marcamos la marca de tiempo de descarga.
         try:
-            if os.path.exists(file_path):
-                os.unlink(file_path)
+            await db.backup_jobs.update_one(
+                {"job_id": resolved_job_id},
+                {"$set": {"downloaded_at": datetime.now(timezone.utc).isoformat()}},
+            )
         except Exception:
             pass
-        try:
-            await db.backup_jobs.delete_one({"job_id": resolved_job_id})
-        except Exception:
-            pass
-        if ticket_doc:
-            try:
-                await db.download_tickets.delete_one({"_id": ticket_doc["_id"]})
-            except Exception:
-                pass
 
     return FileResponse(
         file_path,

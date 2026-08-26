@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Full Backup: descarga por botón (fix "100% pero no baja el archivo")
+- **Síntoma (prod):** el respaldo llegaba al 100% (armado OK) pero NO se descargaba ningún archivo.
+- **RCA:** tras varios minutos de armado, el `a.click()` automático ya NO cuenta como acción del usuario (la "activación de usuario" del navegador expira) → el navegador **bloquea silenciosamente** la descarga programática. Por eso no aparecía el .zip.
+- **Fix:**
+  - Frontend: al quedar `ready`, ya NO se auto-dispara la descarga. Se muestra un panel "Respaldo listo (XX MB)" con botón **"Descargar respaldo (.zip)"** (`data-testid="full-backup-download-btn"`); el clic del usuario es un gesto válido → descarga garantizada. Botón reintetable.
+  - Backend: `GET /export` ya NO borra el archivo tras servir (solo marca `downloaded_at`), así el usuario puede **reintentar** la descarga si falla. La limpieza de disco la hacen `_cleanup_stale_backups` (>2h) y el inicio de un nuevo build (borra los respaldos previos del MISMO usuario → 1 archivo por usuario).
+- **Verificado en preview:** build → panel "Respaldo listo" con botón → descarga válida; reintento con nuevo ticket también sirve el archivo (no se borró). ZIP `testzip()` OK, Content-Length presente.
+
+
 ## 2026-06 — Full Backup: build en HILO aparte (fix Cloudflare 520)
 - **Síntoma (prod):** tras el modelo asíncrono, `POST /admin/full-backup/build` disparaba el armado como `asyncio.create_task` en el MISMO event loop. Con 126.500 docs / ~220 MB, la compresión (zlib) es CPU-intensiva y bloqueaba el único worker → el pod dejaba de responder a las sondas de salud de K8s → reinicio → **Error 520** temprano (sin barra de progreso).
 - **Fix definitivo:** el armado ahora corre en un **HILO del executor** (`asyncio.to_thread`) con un **cliente síncrono pymongo** (`_build_full_backup_sync`). El event loop queda libre: el servidor responde a los sondeos de estado y a las sondas de salud durante todo el build. Memoria O(1) (un doc a la vez, `batch_size(200)`). Estado/progreso se escriben en `backup_jobs` desde el hilo (conexión pymongo independiente).

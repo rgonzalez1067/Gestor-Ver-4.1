@@ -50,6 +50,7 @@ export default function BackupCenter() {
   const [dbBackupCols, setDbBackupCols] = useState([]); // [{name, count}] leídas del manifiesto
   const [dbSelectedCols, setDbSelectedCols] = useState(new Set()); // nombres seleccionados
   const [dbParsing, setDbParsing] = useState(false);
+  const [readyBackup, setReadyBackup] = useState(null); // { jobId, sizeBytes, filename }
   const dbFileRef = useRef(null);
 
   const dbAllSelected = dbBackupCols.length > 0 && dbSelectedCols.size === dbBackupCols.length;
@@ -104,6 +105,7 @@ export default function BackupCenter() {
   const exportFullDb = async () => {
     setDbBusy('export');
     setDbProgress(0);
+    setReadyBackup(null);
     try {
       // 1) El servidor arma el ZIP en 2º plano (a disco, memoria O(1)).
       const { data: build } = await api.post('/admin/full-backup/build');
@@ -134,9 +136,29 @@ export default function BackupCenter() {
       }
       setDbProgress(100);
 
-      // 3) Descarga NATIVA del archivo YA LISTO (primer byte inmediato +
-      //    Content-Length real → sin 524 ni ZIP truncado).
-      const { data: tk } = await api.post('/admin/full-backup/export-ticket', { job_id: jobId });
+      // 3) NO disparamos la descarga automáticamente: tras varios minutos de
+      //    armado, el navegador bloquea las descargas que no nacen de un clic
+      //    del usuario (el "gesto" ya expiró). Mostramos un botón para que el
+      //    usuario la inicie con un clic fresco → descarga garantizada.
+      setReadyBackup({
+        jobId,
+        sizeBytes: status.size_bytes,
+        filename: status.filename,
+      });
+      toast.success('¡Respaldo listo! Pulsa "Descargar respaldo (.zip)" para guardarlo.');
+    } catch (err) {
+      toast.error(`Error al generar el respaldo: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setDbBusy(null);
+      setDbProgress(0);
+    }
+  };
+
+  // Descarga iniciada por el usuario (clic) → gesto válido que el navegador no bloquea.
+  const downloadReadyBackup = async () => {
+    if (!readyBackup) return;
+    try {
+      const { data: tk } = await api.post('/admin/full-backup/export-ticket', { job_id: readyBackup.jobId });
       const base = process.env.REACT_APP_BACKEND_URL;
       const url = `${base}/api/admin/full-backup/export?ticket=${encodeURIComponent(tk.ticket)}`;
       const a = document.createElement('a');
@@ -145,12 +167,9 @@ export default function BackupCenter() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      toast.success('La descarga del respaldo total comenzó (revisa tu carpeta de descargas)');
+      toast.success('Descarga iniciada. Revisa tu carpeta de descargas.');
     } catch (err) {
-      toast.error(`Error al generar el respaldo: ${err.response?.data?.detail || err.message}`);
-    } finally {
-      setDbBusy(null);
-      setDbProgress(0);
+      toast.error(`Error al descargar: ${err.response?.data?.detail || err.message}`);
     }
   };
 
@@ -468,12 +487,44 @@ export default function BackupCenter() {
             {dbBusy === 'export' && (
               <div className="mt-4" data-testid="full-backup-export-progress">
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                  <span>{dbProgress < 100 ? 'Preparando el respaldo total…' : 'Iniciando descarga…'}</span>
+                  <span>Preparando el respaldo total…</span>
                   <span>{dbProgress}%</span>
                 </div>
                 <Progress value={dbProgress} className="h-2" />
                 <p className="text-[11px] text-slate-400 mt-1">
-                  El respaldo se arma en el servidor; puedes esperar en esta pantalla. La descarga inicia automáticamente al terminar.
+                  El respaldo se arma en el servidor; puedes esperar en esta pantalla. Al terminar aparecerá el botón para descargarlo.
+                </p>
+              </div>
+            )}
+
+            {readyBackup && dbBusy !== 'export' && (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3" data-testid="full-backup-ready">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-800 mb-2">
+                  <CheckCircle2 size={15} className="text-emerald-600" />
+                  Respaldo listo{typeof readyBackup.sizeBytes === 'number' ? ` (${(readyBackup.sizeBytes / (1024 * 1024)).toFixed(1)} MB)` : ''}
+                </div>
+                <p className="text-xs text-slate-600 mb-3">
+                  El respaldo se armó correctamente en el servidor. Pulsa el botón para descargarlo a tu equipo.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    onClick={downloadReadyBackup}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    data-testid="full-backup-download-btn"
+                  >
+                    <Download size={15} className="mr-1.5" />
+                    Descargar respaldo (.zip)
+                  </Button>
+                  <button
+                    onClick={() => setReadyBackup(null)}
+                    className="text-xs text-slate-500 hover:text-slate-700 underline"
+                    data-testid="full-backup-dismiss-btn"
+                  >
+                    Descartar
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Si la descarga falla, puedes volver a pulsar el botón (el archivo queda disponible por un rato).
                 </p>
               </div>
             )}
