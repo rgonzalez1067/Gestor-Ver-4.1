@@ -1778,16 +1778,71 @@ class _ZipStreamBuf:
 #      truncado). Auth por header o por `ticket` (descarga nativa del navegador).
 # La memoria del pod se mantiene O(1): se lee un documento a la vez.
 # =====================================================================
-_BACKUP_DIR = os.path.join(tempfile.gettempdir(), "full_backups")
+# El artefacto del respaldo se guarda en GridFS de MongoDB (almacenamiento
+# COMPARTIDO entre réplicas), NO en el disco local del pod. Producción corre
+# 2 réplicas sin afinidad de sesión: el build ocurría en el /tmp de un pod y la
+# descarga caía en el otro → HTTP 410. Con GridFS cualquier réplica sirve el
+# archivo, y el streaming (subida/bajada) mantiene la memoria O(1) sin tocar el
+# disco efímero de 1Gi.
+_BACKUP_BUCKET = "backups"
+
+# Colecciones que NUNCA se incluyen en el dump:
+#  - backups.files / backups.chunks: el propio transporte GridFS del respaldo
+#    (incluirlas causaría recursión y tamaño explosivo).
+#  - backup_jobs / download_tickets: estado operativo transitorio.
+_BACKUP_EXCLUDE = {
+    f"{_BACKUP_BUCKET}.files",
+    f"{_BACKUP_BUCKET}.chunks",
+    "backup_jobs",
+    "download_tickets",
+}
 
 
-def _ensure_backup_dir():
-    os.makedirs(_BACKUP_DIR, exist_ok=True)
-    return _BACKUP_DIR
+def _sync_gridfs_bucket(sdb):
+    from gridfs import GridFSBucket
+    return GridFSBucket(sdb, bucket_name=_BACKUP_BUCKET)
+
+
+def _async_gridfs_bucket():
+    from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+    return AsyncIOMotorGridFSBucket(db, bucket_name=_BACKUP_BUCKET)
+
+
+async def _delete_backup_gridfs(gridfs_id):
+    if not gridfs_id:
+        return
+    try:
+        await _async_gridfs_bucket().delete(gridfs_id)
+    except Exception:
+        pass
+
+
+class _GridZipWriter:
+    """Adaptador de escritura para pasar un stream de GridFS a zipfile.
+    GridIn.write() devuelve None; zipfile necesita que write() devuelva el nº de
+    bytes y expone tell(). Marcamos el stream como NO buscable → zipfile usa
+    data descriptors (válido para streaming). No cierra el GridIn (se cierra
+    aparte para finalizar el archivo)."""
+    def __init__(self, grid_in):
+        self._g = grid_in
+        self._pos = 0
+    def write(self, data):
+        self._g.write(data)
+        n = len(data)
+        self._pos += n
+        return n
+    def tell(self):
+        return self._pos
+    def flush(self):
+        pass
+    def seekable(self):
+        return False
+    def close(self):
+        pass
 
 
 async def _cleanup_stale_backups(max_age_hours: int = 2):
-    """Borra jobs y archivos de respaldo más viejos que max_age_hours."""
+    """Borra jobs y sus archivos GridFS más viejos que max_age_hours."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
     try:
         async for j in db.backup_jobs.find({}):
@@ -1796,35 +1851,31 @@ async def _cleanup_stale_backups(max_age_hours: int = 2):
             except Exception:
                 created = None
             if created is None or created < cutoff:
-                p = j.get("file_path")
-                if p and os.path.exists(p):
-                    try:
-                        os.unlink(p)
-                    except Exception:
-                        pass
+                await _delete_backup_gridfs(j.get("gridfs_id"))
                 await db.backup_jobs.delete_one({"_id": j["_id"]})
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[full-backup] cleanup stale fallo: {e}")
 
 
 def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
-    """Arma el ZIP de TODA la BD en disco usando un cliente SÍNCRONO (pymongo)
-    ejecutado en un HILO aparte (vía asyncio.to_thread). Así el trabajo CPU-
-    intensivo de compresión NO bloquea el event loop del servidor (1 worker):
-    el pod sigue respondiendo a las sondas de salud y a los sondeos de estado,
-    evitando el 520/524 y reinicios. La memoria se mantiene O(1) (un doc a la
-    vez). El progreso y el estado final se escriben en `backup_jobs`."""
+    """Arma el ZIP de TODA la BD y lo escribe DIRECTO a GridFS (Mongo) usando un
+    cliente SÍNCRONO (pymongo) en un HILO aparte (vía asyncio.to_thread). Así:
+      - el trabajo CPU-intensivo de compresión NO bloquea el event loop (1 worker);
+      - el artefacto queda en almacenamiento COMPARTIDO → cualquier réplica lo sirve;
+      - memoria O(1) (un doc a la vez) y sin usar el disco efímero del pod.
+    El progreso y el estado final se escriben en `backup_jobs`."""
     from pymongo import MongoClient
 
-    _ensure_backup_dir()
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"full_backup_{db_name}_{ts}.zip"
-    file_path = os.path.join(_BACKUP_DIR, f"{job_id}.zip")
 
     sclient = MongoClient(os.environ["MONGO_URL"])
     sdb = sclient[db_name]
+    bucket = _sync_gridfs_bucket(sdb)
+    grid_in = bucket.open_upload_stream(f"{job_id}.zip", metadata={"job_id": job_id, "filename": filename})
+    closed = False
     try:
-        cols = sorted(sdb.list_collection_names())
+        cols = [c for c in sorted(sdb.list_collection_names()) if c not in _BACKUP_EXCLUDE]
         manifest = {
             "schema_version": 1,
             "type": "full-database-backup",
@@ -1835,7 +1886,7 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
             "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
             "collections": [],
         }
-        with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(_GridZipWriter(grid_in), "w", zipfile.ZIP_DEFLATED) as zf:
             _since_gc = 0
             done_cols = 0
             for cname in cols:
@@ -1863,12 +1914,16 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
                 )
             zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
-        size_bytes = os.path.getsize(file_path)
+        grid_in.close()  # finaliza el archivo GridFS
+        closed = True
+        gridfs_id = grid_in._id
+        fdoc = sdb[f"{_BACKUP_BUCKET}.files"].find_one({"_id": gridfs_id}) or {}
+        size_bytes = int(fdoc.get("length", 0))
         sdb.backup_jobs.update_one(
             {"job_id": job_id},
             {"$set": {
                 "status": "ready",
-                "file_path": file_path,
+                "gridfs_id": gridfs_id,
                 "filename": filename,
                 "size_bytes": size_bytes,
                 "collections": len(cols),
@@ -1888,9 +1943,12 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
             pass
     except Exception as e:  # noqa: BLE001
         logger.error(f"[full-backup] build job {job_id} fallo: {e}")
+        # descartar el artefacto parcial
         try:
-            if os.path.exists(file_path):
-                os.unlink(file_path)
+            if not closed:
+                grid_in.abort()
+            elif getattr(grid_in, "_id", None) is not None:
+                bucket.delete(grid_in._id)
         except Exception:
             pass
         try:
@@ -1929,15 +1987,10 @@ async def full_backup_build(authorization: Optional[str] = Header(None)):
     se arma → evita el 524 de Cloudflare)."""
     user = await _require_admin(authorization)
     await _cleanup_stale_backups()
-    # Borrar respaldos previos de ESTE usuario (mantener solo el último → acota disco)
+    # Borrar respaldos previos de ESTE usuario (mantener solo el último → acota GridFS)
     try:
         async for prev in db.backup_jobs.find({"user_id": user.get("user_id")}):
-            p = prev.get("file_path")
-            if p and os.path.exists(p):
-                try:
-                    os.unlink(p)
-                except Exception:
-                    pass
+            await _delete_backup_gridfs(prev.get("gridfs_id"))
             await db.backup_jobs.delete_one({"_id": prev["_id"]})
     except Exception:
         pass
@@ -1951,7 +2004,7 @@ async def full_backup_build(authorization: Optional[str] = Header(None)):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "progress_collections": 0,
         "total_collections": total_cols,
-        "file_path": None,
+        "gridfs_id": None,
         "filename": None,
         "size_bytes": None,
         "error": None,
@@ -2024,11 +2077,12 @@ async def full_backup_export(
     ticket: Optional[str] = None,
     job_id: Optional[str] = None,
 ):
-    """Sirve el ZIP del Respaldo Total YA ARMADO (por /build) con FileResponse:
-    Content-Length real y primer byte inmediato → ni 524 ni truncado por el CDN.
-    Auth por header (Authorization + job_id) o por `ticket` (descarga nativa)."""
+    """Sirve el ZIP del Respaldo Total YA ARMADO (por /build) haciendo STREAMING
+    desde GridFS (almacenamiento COMPARTIDO entre réplicas) con Content-Length
+    real → cualquier réplica lo sirve, sin 524 ni truncado por el CDN, y memoria
+    O(1). Auth por header (Authorization + job_id) o por `ticket` (descarga
+    nativa del navegador)."""
     resolved_job_id = None
-    ticket_doc = None
     if ticket:
         ticket_doc = await db.download_tickets.find_one({"token": ticket, "purpose": "full-backup-export"})
         if not ticket_doc:
@@ -2057,36 +2111,41 @@ async def full_backup_export(
         raise HTTPException(status_code=404, detail="Respaldo no encontrado o expirado")
     if job.get("status") != "ready":
         raise HTTPException(status_code=409, detail="El respaldo aún no está listo")
-    file_path = job.get("file_path")
-    if not file_path or not os.path.exists(file_path):
+
+    gridfs_id = job.get("gridfs_id")
+    if not gridfs_id:
+        raise HTTPException(status_code=410, detail="El archivo de respaldo ya no está disponible; genera uno nuevo")
+    try:
+        grid_out = await _async_gridfs_bucket().open_download_stream(gridfs_id)
+    except Exception:
         raise HTTPException(status_code=410, detail="El archivo de respaldo ya no está disponible; genera uno nuevo")
 
+    length = grid_out.length
     filename = job.get("filename") or f"full_backup_{db.name}.zip"
 
-    async def _post_download():
-        # NO borramos el archivo aquí: así el usuario puede reintentar la
-        # descarga (p.ej. si el navegador la bloqueó o falló a mitad) pidiendo
-        # un ticket nuevo. La limpieza de disco la hace _cleanup_stale_backups
-        # (>2h) y el inicio de un nuevo build (borra los respaldos previos del
-        # mismo usuario). Solo marcamos la marca de tiempo de descarga.
+    async def _iter():
         try:
-            await db.backup_jobs.update_one(
-                {"job_id": resolved_job_id},
-                {"$set": {"downloaded_at": datetime.now(timezone.utc).isoformat()}},
-            )
-        except Exception:
-            pass
+            while True:
+                chunk = await grid_out.readchunk()
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            try:
+                await db.backup_jobs.update_one(
+                    {"job_id": resolved_job_id},
+                    {"$set": {"downloaded_at": datetime.now(timezone.utc).isoformat()}},
+                )
+            except Exception:
+                pass
 
-    return FileResponse(
-        file_path,
-        media_type="application/zip",
-        filename=filename,
-        headers={
-            "Cache-Control": "no-store",
-            "X-Content-Type-Options": "nosniff",
-        },
-        background=BackgroundTask(_post_download),
-    )
+    headers = {
+        "Content-Length": str(length),
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+    }
+    return StreamingResponse(_iter(), media_type="application/zip", headers=headers)
 
 
 

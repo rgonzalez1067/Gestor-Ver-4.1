@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Full Backup: artefacto en GridFS compartido (fix DEFINITIVO 410 multi-réplica)
+- **RCA (deployer):** producción corre **2 réplicas sin afinidad de sesión** (round-robin). El build escribía el ZIP en el `/tmp` LOCAL de un pod; la descarga se balanceaba al OTRO pod (cuyo `/tmp` no tenía el archivo) → `os.path.exists` False → **HTTP 410**. No hubo OOM/reinicio. Disco efímero 1Gi/pod (artefacto ~728 MiB → riesgo secundario).
+- **Fix:** el artefacto del respaldo ya NO se guarda en disco local, sino en **GridFS de MongoDB** (almacenamiento COMPARTIDO por ambas réplicas vía `MONGO_URL`):
+  - Build (hilo síncrono pymongo): escribe el ZIP DIRECTO a GridFS vía `open_upload_stream` + adaptador `_GridZipWriter` (GridIn.write devuelve None; el adaptador devuelve nº de bytes y marca el stream no-buscable → zipfile usa data descriptors). Memoria O(1), sin tocar el disco efímero.
+  - Se EXCLUYEN del dump `backups.files`, `backups.chunks` (transporte GridFS → evita recursión/explosión), `backup_jobs` y `download_tickets`.
+  - `GET /export`: **streaming desde GridFS** (`AsyncIOMotorGridFSBucket.open_download_stream` + `readchunk`) con **Content-Length real** → cualquier réplica lo sirve, sin 524 ni truncado, memoria O(1). Marca `downloaded_at` al terminar (no borra → reintentable).
+  - Limpieza: al iniciar un build se borran los GridFS/jobs previos del MISMO usuario (1 archivo por usuario) + barrido de >2h.
+- **Verificado en preview:** build `ready` en GridFS; descarga con Content-Length exacto; ZIP `testzip()` OK y SIN `backups.chunks` (no recursión); reintento sirve el archivo; servidor responde ~0.4s durante el build; tras varios builds queda 1 solo archivo en GridFS.
+
+
 ## 2026-06 — Full Backup: descarga por botón (fix "100% pero no baja el archivo")
 - **Síntoma (prod):** el respaldo llegaba al 100% (armado OK) pero NO se descargaba ningún archivo.
 - **RCA:** tras varios minutos de armado, el `a.click()` automático ya NO cuenta como acción del usuario (la "activación de usuario" del navegador expira) → el navegador **bloquea silenciosamente** la descarga programática. Por eso no aparecía el .zip.
