@@ -1,5 +1,18 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Restauración del Respaldo Total: optimización DRAMÁTICA de velocidad
+- **Síntoma:** el restore era extremadamente lento.
+- **Causa:** corría en el event loop con Motor, parseaba TODO el JSON de cada colección de golpe (`bson_loads`) y awaitaba lotes de 500 uno por uno → CPU-bound bloqueando el servidor + inserción lenta.
+- **Fix (`_restore_full_backup_sync` vía `asyncio.to_thread`):**
+  - Corre en un HILO con **pymongo síncrono** → no bloquea el event loop (verificado: `/info` responde 200 en 0.36s durante el restore).
+  - **Parse en STREAMING** línea-por-línea (`zf.open` + `TextIOWrapper`), una línea = un documento → memoria acotada y parseo solapado con inserción.
+  - **Inserciones masivas**: `insert_many(ordered=False, bypass_document_validation=True)` en lotes de 5000.
+  - **Fallback** al parse de array completo si un archivo no viene línea-por-línea (compatibilidad con respaldos previos).
+  - API sin cambios (mismo POST /admin/full-backup/restore, mismo response) → sin cambios de frontend.
+- **Testing (iter 327): 4/4 backend OK** — restore selectivo correcto (conteos coinciden), servidor no se bloquea, colección inexistente → 400.
+- Backlog (no bloqueante, sugerido por QA): usar colección temporal + rename atómico para que un fallo a mitad no deje la colección vacía.
+
+
 ## 2026-06 — Variable {Motivo_Cambio_Estatus} publicada en todas las grillas
 - Al cambiar el estatus de un proyecto, el MOTIVO/justificación del modal ahora se PERSISTE en el proyecto (`last_status_note`, `last_status_from`, `last_status_change_date`, `last_status_actor`).
 - Nuevas variables de plantilla, resueltas en `resolve_project_template_vars` (aparecen en TODAS las grillas): `Motivo_Cambio_Estatus`, `Estatus_Anterior`, `Fecha_Cambio_Estatus`, `Usuario_Cambio_Estatus`. `Comentario_Estado` ahora también se resuelve globalmente desde el último motivo.

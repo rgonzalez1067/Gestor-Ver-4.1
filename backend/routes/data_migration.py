@@ -2233,6 +2233,110 @@ async def full_backup_upload_chunk(
     return {"ok": True, "chunk_index": chunk_index, "received_bytes": len(data), "total_bytes": os.path.getsize(path)}
 
 
+def _restore_full_backup_sync(path: str, mode: str, selected, selective: bool, caller_token, user: dict, db_name: str) -> dict:
+    """Restaura la BD desde el ZIP usando pymongo SÍNCRONO en un HILO aparte
+    (asyncio.to_thread): no bloquea el event loop y usa inserciones masivas
+    (insert_many ordered=False, batches grandes) mucho más rápidas que awaitar
+    lote por lote con Motor. Además hace parse en STREAMING (una línea = un doc)
+    con `zf.open`, acotando memoria y solapando parseo con inserción → mejora
+    dramática de velocidad. Si un archivo no viene línea-por-línea, cae al parse
+    del array completo (compatibilidad)."""
+    from pymongo import MongoClient
+    from bson.json_util import loads as _loads
+
+    BATCH = 5000
+    sclient = MongoClient(os.environ["MONGO_URL"])
+    sdb = sclient[db_name]
+    summary = []
+    backup_cols = set()
+    try:
+        zf = zipfile.ZipFile(path)
+        names = zf.namelist()
+        col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
+        for n in col_files:
+            cname = n[len("collections/"):-len(".json")]
+            backup_cols.add(cname)
+            if selective and cname not in selected:
+                continue
+            coll = sdb[cname]
+            coll.drop()
+            inserted = 0
+            batch = []
+            used_fallback = False
+            try:
+                with zf.open(n) as fh:
+                    for rawline in io.TextIOWrapper(fh, encoding="utf-8"):
+                        line = rawline.strip()
+                        if not line or line == "[" or line == "]":
+                            continue
+                        if line.endswith(","):
+                            line = line[:-1].rstrip()
+                        if not line:
+                            continue
+                        try:
+                            doc = _loads(line)
+                        except Exception:
+                            used_fallback = True
+                            break
+                        batch.append(doc)
+                        if len(batch) >= BATCH:
+                            coll.insert_many(batch, ordered=False, bypass_document_validation=True)
+                            inserted += len(batch)
+                            batch = []
+                    if not used_fallback and batch:
+                        coll.insert_many(batch, ordered=False, bypass_document_validation=True)
+                        inserted += len(batch)
+                        batch = []
+            except Exception:
+                used_fallback = True
+            if used_fallback:
+                # Compatibilidad: archivo no delimitado por línea → parse del array completo
+                coll.drop()
+                inserted = 0
+                raw = zf.read(n).decode("utf-8")
+                docs = _loads(raw) if raw.strip() else []
+                for i in range(0, len(docs), BATCH):
+                    b = docs[i:i + BATCH]
+                    if b:
+                        coll.insert_many(b, ordered=False, bypass_document_validation=True)
+                        inserted += len(b)
+            summary.append({"name": cname, "restored": inserted})
+
+        dropped_extra = []
+        if mode == "replace" and not selective:
+            for cname in sdb.list_collection_names():
+                if cname not in backup_cols:
+                    sdb[cname].drop()
+                    dropped_extra.append(cname)
+
+        session_preserved = False
+        if caller_token and user.get("user_id"):
+            try:
+                if sdb.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "user_id": 1}) and \
+                        not sdb.user_sessions.find_one({"session_token": caller_token}):
+                    sdb.user_sessions.insert_one({
+                        "user_id": user["user_id"],
+                        "session_token": caller_token,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "restored_after_full_backup": True,
+                    })
+                    session_preserved = True
+            except Exception:
+                pass
+
+        return {
+            "summary": summary,
+            "backup_cols": sorted(backup_cols),
+            "dropped_extra": dropped_extra,
+            "session_preserved": session_preserved,
+        }
+    finally:
+        try:
+            sclient.close()
+        except Exception:
+            pass
+
+
 @router.post("/admin/full-backup/restore")
 async def full_backup_restore(
     upload_id: str = Form(...),
@@ -2288,54 +2392,26 @@ async def full_backup_restore(
     backup_cols = set()
     summary = []
     skipped = []
-    BATCH = 500
-    for n in col_files:
-        cname = n[len("collections/"):-len(".json")]
-        backup_cols.add(cname)
-        if selective and cname not in selected:
-            continue  # restauración selectiva: no tocar colecciones fuera de la selección
-        raw = zf.read(n).decode("utf-8")
-        docs = bson_loads(raw) if raw.strip() else []
-        await db[cname].drop()
-        inserted = 0
-        for i in range(0, len(docs), BATCH):
-            batch = docs[i:i + BATCH]
-            if batch:
-                await db[cname].insert_many(batch, ordered=False)
-                inserted += len(batch)
-        summary.append({"name": cname, "restored": inserted})
+
+    user_min = {
+        "user_id": user.get("user_id"),
+        "email": user.get("email"),
+    }
+    # Trabajo pesado (drop + inserciones masivas) en un HILO con pymongo → rápido
+    # y sin bloquear el event loop del servidor.
+    result = await asyncio.to_thread(
+        _restore_full_backup_sync, path, mode, selected, selective, caller_token, user_min, db.name
+    )
+    summary = result["summary"]
+    backup_cols = set(result["backup_cols"])
+    dropped_extra = result["dropped_extra"]
+    session_preserved = result["session_preserved"]
 
     if selective:
         # Reportar colecciones pedidas que no existen en el respaldo
         skipped = sorted(selected - backup_cols)
         if not summary:
             raise HTTPException(status_code=400, detail="Ninguna de las colecciones seleccionadas existe en el respaldo")
-
-    # El borrado de colecciones "extra" SOLO aplica en restauración COMPLETA
-    # (no selectiva) y en modo "replace".
-    dropped_extra = []
-    if mode == "replace" and not selective:
-        for cname in await db.list_collection_names():
-            if cname not in backup_cols:
-                await db[cname].drop()
-                dropped_extra.append(cname)
-
-    # Preservar la sesión del admin que ejecuta (si su usuario existe en el
-    # respaldo restaurado) para no dejarlo fuera del sistema.
-    session_preserved = False
-    if caller_token and user.get("user_id"):
-        try:
-            user_exists = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "user_id": 1})
-            if user_exists and not await db.user_sessions.find_one({"session_token": caller_token}):
-                await db.user_sessions.insert_one({
-                    "user_id": user["user_id"],
-                    "session_token": caller_token,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "restored_after_full_backup": True,
-                })
-                session_preserved = True
-        except Exception:
-            pass
 
     try:
         await db.bitacora.insert_one({

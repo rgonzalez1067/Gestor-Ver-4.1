@@ -1,0 +1,23 @@
+{
+  "summary": "Iter 327 - Restauración SELECTIVA optimizada (hilo pymongo + streaming + insert_many masivo). Se ejecutó E2E: build → poll build-status → export-ticket → export (descarga zip 43MB) → upload-init → upload-chunk (1 solo chunk) → restore selectivo. Los 4 tests pasaron.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_full_backup_restore_thread.py",
+    "/app/test_reports/pytest/iter327_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "data_migration.py tiene 2449 líneas — considerar dividir por dominio (backup-center, full-backup, quotes-bundle) para mantenibilidad.",
+    "En _restore_full_backup_sync: al hacer coll.drop() antes de insertar, un fallo intermedio deja la colección vacía. Podría usarse colección temporal + rename atómico para restauraciones más seguras (mejora, no bloqueante).",
+    "El fallback de compatibilidad (parse array completo) descarta lo ya insertado con drop() dentro del branch — funciona pero duplica lecturas del entry del zip."
+  ],
+  "updated_files": ["/app/backend/tests/test_full_backup_restore_thread.py"],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "n/a"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna. Los tests solo restauran colecciones pequeñas (project_sla_config, banks) al mismo estado del respaldo tomado en la misma corrida.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Ejecutar `pytest /app/backend/tests/test_full_backup_restore_thread.py -v -s` (~17s). Fixture backup_zip module-scoped => zip descargado una sola vez. test_selective_restore_single_collection dispara GET /api/admin/full-backup/info en hilo paralelo durante restore para validar event loop libre (elapsed<8s). Observado en preview: /info respondió 200 en 0.36s durante el restore. Zip pesó 43MB, 74 colecciones. Solo se restauran colecciones seleccionadas — sin riesgo de wipe.",
+  "rca of the issue": "Optimización validada: restauración selectiva de project_sla_config (1 doc) fracción de segundo, sin bloqueo del event loop (GET /info concurrente 200 en 0.36s). Restauración de {banks:35, project_sla_config:1} OK. Conteos coinciden con el zip. Colección inexistente devuelve HTTP 400 con detalle esperado."
+}
