@@ -90,6 +90,106 @@ const STATUS_TRANSITIONS = [
   { id: 'Anulado', label: 'Anulado', icon: X, iconColor: 'text-slate-600' },
 ];
 
+// Cuerpo del modal de cambio de estado con ESTADO LOCAL propio: al escribir la
+// justificación NO se re-renderiza la grilla completa (evita el lag por carácter).
+function StatusDialogBody({ project, loading, onCancel, onConfirm }) {
+  const [form, setForm] = useState({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
+  const [file, setFile] = useState(null);
+
+  useEffect(() => {
+    setForm({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
+    setFile(null);
+  }, [project?.project_id]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-50 border rounded-lg p-3">
+        <p className="font-semibold text-sm">{project.project_number}</p>
+        <p className="text-xs text-slate-500">{project.client_name}</p>
+        <div className="mt-2">
+          <span className="text-[10px] text-slate-500 uppercase">Estado actual:</span>
+          <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border ${STATUS_CONFIG[project.status]?.color || ''}`}>
+            {project.status}
+          </span>
+        </div>
+      </div>
+
+      {/* Status options */}
+      <div>
+        <Label className="text-sm">Nuevo Estado</Label>
+        <div className="space-y-1.5 mt-1.5">
+          {STATUS_TRANSITIONS.filter(t => {
+            if (t.id === project.status) return false;
+            if (t.freezeOnly) return project.status === 'En Gestión';
+            if (t.reactivation) return HIDDEN_DEFAULT_STATES.includes(project.status) || project.status === 'Congelado';
+            if (project.status === 'Congelado') return false;
+            return true;
+          }).map(t => {
+            const TIcon = t.icon;
+            const selected = form.new_status === t.id;
+            const dynLabel = (t.reactivation && project.status === 'Congelado')
+              ? 'Descongelar (volver a En Gestión)' : t.label;
+            return (
+              <button key={t.id} onClick={() => setForm(p => ({ ...p, new_status: t.id }))}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${selected ? 'border-slate-800 bg-slate-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}
+                data-testid={`status-option-${t.id.replace(/[\s\/]/g, '-').toLowerCase()}`}>
+                <TIcon size={18} className={t.iconColor} />
+                <span className="text-sm font-medium text-slate-800">{dynLabel}</span>
+                {selected && <CheckCircle2 size={16} className="ml-auto text-slate-800" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Date + Comment (justificación obligatoria) */}
+      {form.new_status && (
+        <div className="space-y-3 pt-2 border-t border-slate-200 animate-in fade-in-0 slide-in-from-top-1">
+          {TICKET_REMINDER_STATES.includes(form.new_status) && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-amber-800" data-testid="status-ticket-reminder">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <span className="text-xs">Recuerde <strong>cerrar el Ticket</strong> en el portal al confirmar este estado.</span>
+            </div>
+          )}
+          <div>
+            <Label className="text-sm">Fecha del Cambio</Label>
+            <Input type="date" value={form.change_date}
+              onChange={e => setForm(p => ({ ...p, change_date: e.target.value }))}
+              className="mt-1" data-testid="status-change-date" />
+          </div>
+          <div>
+            <Label className="text-sm">Comentario de Justificación <span className="text-red-500">*</span></Label>
+            <Textarea value={form.note}
+              onChange={e => setForm(p => ({ ...p, note: e.target.value }))}
+              placeholder="Motivo o detalle del cambio de estado (obligatorio)..."
+              className="mt-1 min-h-[60px] text-sm" data-testid="status-change-comment" />
+          </div>
+          <div>
+            <Label className="text-sm">Anexo (opcional)</Label>
+            <Input type="file" onChange={e => setFile(e.target.files?.[0] || null)}
+              className="mt-1 text-sm" data-testid="status-change-file" />
+            {file && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                <Paperclip size={11} />{file.name}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end gap-3 pt-2 border-t">
+        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+        <Button onClick={() => onConfirm(form, file)}
+          disabled={loading || !form.new_status || !form.note.trim()}
+          className="bg-orange-600 hover:bg-orange-700 text-white"
+          data-testid="status-change-confirm-btn">
+          {loading ? 'Actualizando...' : 'Confirmar Cambio'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Patrocinador del proyecto (Implementación Patrocinada).
  *  - Escenario A (Directo): "Banco X".
@@ -180,8 +280,6 @@ const Projects = () => {
   // Status change dialog
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusProject, setStatusProject] = useState(null);
-  const [statusForm, setStatusForm] = useState({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
-  const [statusFile, setStatusFile] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
 
   // Edición Maestra (Super-Admin Override)
@@ -348,25 +446,23 @@ const Projects = () => {
   // ==================== STATUS CHANGE ====================
   const openStatusDialog = (project) => {
     setStatusProject(project);
-    setStatusForm({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
-    setStatusFile(null);
     setStatusDialogOpen(true);
   };
 
-  const handleStatusChange = async () => {
-    if (!statusForm.new_status) { toast.error('Seleccione un estado'); return; }
-    if (!statusForm.note.trim()) { toast.error('El comentario de justificación es obligatorio'); return; }
+  const handleStatusChange = async (form, file) => {
+    if (!form.new_status) { toast.error('Seleccione un estado'); return; }
+    if (!form.note.trim()) { toast.error('El comentario de justificación es obligatorio'); return; }
     setStatusLoading(true);
     try {
       const fd = new FormData();
-      fd.append('new_status', statusForm.new_status);
-      fd.append('note', statusForm.note);
-      fd.append('change_date', statusForm.change_date || '');
-      if (statusFile) fd.append('file', statusFile);
+      fd.append('new_status', form.new_status);
+      fd.append('note', form.note);
+      fd.append('change_date', form.change_date || '');
+      if (file) fd.append('file', file);
       await api.put(`/projects/${statusProject.project_id}/status`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      toast.success(`Estado: ${statusForm.new_status}`);
-      if (TICKET_REMINDER_STATES.includes(statusForm.new_status)) {
-        showTicketReminderToast(statusForm.new_status);
+      toast.success(`Estado: ${form.new_status}`);
+      if (TICKET_REMINDER_STATES.includes(form.new_status)) {
+        showTicketReminderToast(form.new_status);
       }
       setStatusDialogOpen(false);
       fetchProjects();
@@ -1444,7 +1540,7 @@ const Projects = () => {
 
         {/* ==================== STATUS CHANGE DIALOG ==================== */}
         <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-          <DialogContent className="max-w-md" data-testid="status-change-dialog">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" data-testid="status-change-dialog">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <RefreshCw size={20} className="text-orange-500" />
@@ -1452,94 +1548,12 @@ const Projects = () => {
               </DialogTitle>
             </DialogHeader>
             {statusProject && (
-              <div className="space-y-4">
-                <div className="bg-slate-50 border rounded-lg p-3">
-                  <p className="font-semibold text-sm">{statusProject.project_number}</p>
-                  <p className="text-xs text-slate-500">{statusProject.client_name}</p>
-                  <div className="mt-2">
-                    <span className="text-[10px] text-slate-500 uppercase">Estado actual:</span>
-                    <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border ${STATUS_CONFIG[statusProject.status]?.color || ''}`}>
-                      {statusProject.status}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Status options */}
-                <div>
-                  <Label className="text-sm">Nuevo Estado</Label>
-                  <div className="space-y-1.5 mt-1.5">
-                    {STATUS_TRANSITIONS.filter(t => {
-                      if (t.id === statusProject.status) return false;
-                      // Congelar: solo desde "En Gestión".
-                      if (t.freezeOnly) return statusProject.status === 'En Gestión';
-                      // Reactivar / Descongelar: aplica a estados cerrados/pausados y a Congelado.
-                      if (t.reactivation) return HIDDEN_DEFAULT_STATES.includes(statusProject.status) || statusProject.status === 'Congelado';
-                      // Un proyecto Congelado solo puede Descongelar (volver a En Gestión).
-                      if (statusProject.status === 'Congelado') return false;
-                      return true;
-                    }).map(t => {
-                      const TIcon = t.icon;
-                      const selected = statusForm.new_status === t.id;
-                      const dynLabel = (t.reactivation && statusProject.status === 'Congelado')
-                        ? 'Descongelar (volver a En Gestión)' : t.label;
-                      return (
-                        <button key={t.id} onClick={() => setStatusForm(p => ({ ...p, new_status: t.id }))}
-                          className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${selected ? 'border-slate-800 bg-slate-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}
-                          data-testid={`status-option-${t.id.replace(/[\s\/]/g, '-').toLowerCase()}`}>
-                          <TIcon size={18} className={t.iconColor} />
-                          <span className="text-sm font-medium text-slate-800">{dynLabel}</span>
-                          {selected && <CheckCircle2 size={16} className="ml-auto text-slate-800" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Date + Comment (justificación obligatoria) */}
-                {statusForm.new_status && (
-                  <div className="space-y-3 pt-2 border-t border-slate-200 animate-in fade-in-0 slide-in-from-top-1">
-                    {TICKET_REMINDER_STATES.includes(statusForm.new_status) && (
-                      <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-amber-800" data-testid="status-ticket-reminder">
-                        <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                        <span className="text-xs">Recuerde <strong>cerrar el Ticket</strong> en el portal al confirmar este estado.</span>
-                      </div>
-                    )}
-                    <div>
-                      <Label className="text-sm">Fecha del Cambio</Label>
-                      <Input type="date" value={statusForm.change_date}
-                        onChange={e => setStatusForm(p => ({ ...p, change_date: e.target.value }))}
-                        className="mt-1" data-testid="status-change-date" />
-                    </div>
-                    <div>
-                      <Label className="text-sm">Comentario de Justificación <span className="text-red-500">*</span></Label>
-                      <Textarea value={statusForm.note}
-                        onChange={e => setStatusForm(p => ({ ...p, note: e.target.value }))}
-                        placeholder="Motivo o detalle del cambio de estado (obligatorio)..."
-                        className="mt-1 min-h-[60px] text-sm" data-testid="status-change-comment" />
-                    </div>
-                    <div>
-                      <Label className="text-sm">Anexo (opcional)</Label>
-                      <Input type="file" onChange={e => setStatusFile(e.target.files?.[0] || null)}
-                        className="mt-1 text-sm" data-testid="status-change-file" />
-                      {statusFile && (
-                        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                          <Paperclip size={11} />{statusFile.name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-3 pt-2 border-t">
-                  <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Cancelar</Button>
-                  <Button onClick={handleStatusChange}
-                    disabled={statusLoading || !statusForm.new_status || !statusForm.note.trim()}
-                    className="bg-orange-600 hover:bg-orange-700 text-white"
-                    data-testid="status-change-confirm-btn">
-                    {statusLoading ? 'Actualizando...' : 'Confirmar Cambio'}
-                  </Button>
-                </div>
-              </div>
+              <StatusDialogBody
+                project={statusProject}
+                loading={statusLoading}
+                onCancel={() => setStatusDialogOpen(false)}
+                onConfirm={handleStatusChange}
+              />
             )}
           </DialogContent>
         </Dialog>

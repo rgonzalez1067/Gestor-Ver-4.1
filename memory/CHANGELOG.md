@@ -1,5 +1,11 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Modal Cambio de Estatus de Proyectos: fix lag de escritura + scroll
+- **Lag al escribir la justificación:** cada tecla llamaba `setStatusForm` en el componente padre `Projects`, re-renderizando toda la grilla (~128 filas) → escritura con retraso carácter por carácter. Fix: se extrajo el cuerpo del modal a un componente aislado `StatusDialogBody` con ESTADO LOCAL (new_status/note/change_date/file); el estado del formulario ya no vive en el padre → escribir no re-renderiza la tabla. `handleStatusChange(form, file)` recibe los datos por parámetro.
+- **Desbordamiento:** `DialogContent` ahora usa `max-h-[90vh] overflow-y-auto` → barra de desplazamiento vertical cuando el contenido excede la pantalla.
+- Verificado en preview (escritura fluida + scroll).
+
+
 ## 2026-06 — V2 Estatus "Congelado" en Proyectos (SLA en pausa + KPI + filtro + notificaciones)
 - **Estatus nuevo:** `Congelado` agregado a `PROJECT_STATUSES`/`PROJECT_MANUAL_STATUSES`. Solo se congela DESDE "En Gestión" (justificación obligatoria); solo se descongela HACIA "En Gestión".
 - **Pausa real de retardo/SLA:** al congelar se guarda `is_frozen`, `frozen_at`, `freeze_reason`, `sla_days_at_freeze`. El motor SLA (`run_sla_evaluation`) solo evalúa estados activos → un proyecto Congelado NO incrementa `sla_days`/`sla_color` ni recibe alertas SLA. Al descongelar, `business_days_ago()` corre la fecha de referencia para que el retardo RETOME EXACTO donde quedó (verificado: 3/4 días → se mantiene y retoma).
