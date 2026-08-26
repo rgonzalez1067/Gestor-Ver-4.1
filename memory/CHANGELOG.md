@@ -1,5 +1,12 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Full Backup: build en HILO aparte (fix Cloudflare 520)
+- **Síntoma (prod):** tras el modelo asíncrono, `POST /admin/full-backup/build` disparaba el armado como `asyncio.create_task` en el MISMO event loop. Con 126.500 docs / ~220 MB, la compresión (zlib) es CPU-intensiva y bloqueaba el único worker → el pod dejaba de responder a las sondas de salud de K8s → reinicio → **Error 520** temprano (sin barra de progreso).
+- **Fix definitivo:** el armado ahora corre en un **HILO del executor** (`asyncio.to_thread`) con un **cliente síncrono pymongo** (`_build_full_backup_sync`). El event loop queda libre: el servidor responde a los sondeos de estado y a las sondas de salud durante todo el build. Memoria O(1) (un doc a la vez, `batch_size(200)`). Estado/progreso se escriben en `backup_jobs` desde el hilo (conexión pymongo independiente).
+- **Verificado en preview:** durante un build activo, `GET /admin/full-backup/info` responde en ~0.2–0.4s (event loop NO bloqueado); ZIP resultante válido (`testzip()` OK, Content-Length presente). El resto del flujo (build→poll→ticket→descarga→auto-limpieza) intacto.
+- **Nota tier:** subir el tier (más CPU/RAM) acelera el armado y la descarga pero ya NO es necesario para evitar el 520/524 — la causa era de arquitectura (event loop), no de recursos.
+
+
 ## 2026-06 — Full Backup: modelo ASÍNCRONO (fix Cloudflare 524)
 - **Síntoma (prod):** tras pasar el export a "armar todo el ZIP y luego FileResponse", Cloudflare cortaba con **Error 524** unos minutos después de iniciar: el origen no enviaba ningún byte mientras armaba el ZIP (varios minutos) y el CDN corta por inactividad (~100s).
 - **Fix (desacople build/descarga):**

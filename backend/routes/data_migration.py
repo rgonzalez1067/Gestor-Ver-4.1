@@ -1807,56 +1807,64 @@ async def _cleanup_stale_backups(max_age_hours: int = 2):
         logger.warning(f"[full-backup] cleanup stale fallo: {e}")
 
 
-async def _build_full_backup(job_id: str, user: dict):
-    """Tarea en 2º plano: arma el ZIP de TODA la BD en disco (memoria O(1))
-    y actualiza el estado del job en `backup_jobs`."""
+def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
+    """Arma el ZIP de TODA la BD en disco usando un cliente SÍNCRONO (pymongo)
+    ejecutado en un HILO aparte (vía asyncio.to_thread). Así el trabajo CPU-
+    intensivo de compresión NO bloquea el event loop del servidor (1 worker):
+    el pod sigue respondiendo a las sondas de salud y a los sondeos de estado,
+    evitando el 520/524 y reinicios. La memoria se mantiene O(1) (un doc a la
+    vez). El progreso y el estado final se escriben en `backup_jobs`."""
+    from pymongo import MongoClient
+
     _ensure_backup_dir()
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"full_backup_{db.name}_{ts}.zip"
+    filename = f"full_backup_{db_name}_{ts}.zip"
     file_path = os.path.join(_BACKUP_DIR, f"{job_id}.zip")
-    cols = sorted(await db.list_collection_names())
 
-    manifest = {
-        "schema_version": 1,
-        "type": "full-database-backup",
-        "format": "mongodb-extended-json",
-        "db_name": db.name,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "exported_by": user.get("email"),
-        "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
-        "collections": [],
-    }
+    sclient = MongoClient(os.environ["MONGO_URL"])
+    sdb = sclient[db_name]
     try:
+        cols = sorted(sdb.list_collection_names())
+        manifest = {
+            "schema_version": 1,
+            "type": "full-database-backup",
+            "format": "mongodb-extended-json",
+            "db_name": db_name,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "exported_by": user.get("email"),
+            "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+            "collections": [],
+        }
         with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as zf:
             _since_gc = 0
             done_cols = 0
             for cname in cols:
                 count = 0
-                cursor = db[cname].find({}).batch_size(50)
+                cursor = sdb[cname].find({}).batch_size(200)
                 with zf.open(f"collections/{cname}.json", "w") as entry:
                     entry.write(b"[")
                     first = True
-                    async for doc in cursor:
+                    for doc in cursor:
                         piece = (b"" if first else b",") + b"\n" + bson_dumps(doc, ensure_ascii=False).encode("utf-8")
                         entry.write(piece)
                         del piece, doc
                         first = False
                         count += 1
                         _since_gc += 1
-                        if _since_gc >= 2000:
+                        if _since_gc >= 5000:
                             gc.collect()
                             _since_gc = 0
                     entry.write(b"\n]" if count else b"]")
                 manifest["collections"].append({"name": cname, "count": count})
                 done_cols += 1
-                await db.backup_jobs.update_one(
+                sdb.backup_jobs.update_one(
                     {"job_id": job_id},
                     {"$set": {"progress_collections": done_cols, "total_collections": len(cols)}},
                 )
             zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
         size_bytes = os.path.getsize(file_path)
-        await db.backup_jobs.update_one(
+        sdb.backup_jobs.update_one(
             {"job_id": job_id},
             {"$set": {
                 "status": "ready",
@@ -1868,9 +1876,9 @@ async def _build_full_backup(job_id: str, user: dict):
             }},
         )
         try:
-            await db.bitacora.insert_one({
+            sdb.bitacora.insert_one({
                 "action": "full_backup_export",
-                "db_name": db.name,
+                "db_name": db_name,
                 "collections": len(cols),
                 "size_bytes": size_bytes,
                 "executed_by": user.get("email"),
@@ -1885,10 +1893,33 @@ async def _build_full_backup(job_id: str, user: dict):
                 os.unlink(file_path)
         except Exception:
             pass
-        await db.backup_jobs.update_one(
-            {"job_id": job_id},
-            {"$set": {"status": "error", "error": str(e)}},
-        )
+        try:
+            sdb.backup_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"status": "error", "error": str(e)}},
+            )
+        except Exception:
+            pass
+    finally:
+        try:
+            sclient.close()
+        except Exception:
+            pass
+
+
+async def _run_build_in_thread(job_id: str, user: dict, db_name: str):
+    """Lanza el build síncrono en un hilo del executor (no bloquea el loop)."""
+    try:
+        await asyncio.to_thread(_build_full_backup_sync, job_id, user, db_name)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[full-backup] thread wrapper job {job_id} fallo: {e}")
+        try:
+            await db.backup_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"status": "error", "error": str(e)}},
+            )
+        except Exception:
+            pass
 
 
 @router.post("/admin/full-backup/build")
@@ -1919,7 +1950,7 @@ async def full_backup_build(authorization: Optional[str] = Header(None)):
         "first_name": user.get("first_name", ""),
         "last_name": user.get("last_name", ""),
     }
-    asyncio.create_task(_build_full_backup(job_id, user_min))
+    asyncio.create_task(_run_build_in_thread(job_id, user_min, db.name))
     return {"job_id": job_id, "status": "building", "total_collections": total_cols}
 
 
