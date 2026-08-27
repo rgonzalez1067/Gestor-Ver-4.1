@@ -26,6 +26,21 @@ const downloadBlob = (data, filename, type) => {
 
 const tsNow = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, '').slice(0, 15);
 
+// Antigüedad relativa en español: "hace 5 minutos", "hace 2 horas", "hace 3 días".
+const relativeAge = (iso) => {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (secs < 60) return 'hace unos segundos';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `hace ${mins} ${mins === 1 ? 'minuto' : 'minutos'}`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `hace ${hrs} ${hrs === 1 ? 'hora' : 'horas'}`;
+  const days = Math.round(hrs / 24);
+  return `hace ${days} ${days === 1 ? 'día' : 'días'}`;
+};
+
 export default function BackupCenter() {
   const navigate = useNavigate();
   const [entities, setEntities] = useState([]);
@@ -971,6 +986,9 @@ export default function BackupCenter() {
                   </div>
                   <div data-testid="server-meta-date">
                     Generado: <strong>{dbServerMeta.exported_at ? new Date(dbServerMeta.exported_at).toLocaleString('es') : '—'}</strong>
+                    {dbServerMeta.exported_at && (
+                      <span className="ml-1 text-indigo-600">({relativeAge(dbServerMeta.exported_at)})</span>
+                    )}
                   </div>
                   <div data-testid="server-meta-size">
                     Tamaño: <strong>{dbServerMeta.size_bytes != null ? `${(dbServerMeta.size_bytes / 1024 / 1024).toFixed(1)} MB` : '—'}</strong>
