@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06 — Restaurar desde el respaldo del SERVIDOR (elimina el cuello de botella del navegador)
+- **Queja:** el restore "tardaba demasiado en arrancar aun con colecciones pequeñas y al final se caía".
+- **Causa real (cliente):** el frontend cargaba TODO el ZIP (cientos de MB) con **JSZip** solo para leer el índice → el tab se quedaba sin memoria (crash); además subía el ZIP completo aunque se restauraran pocas colecciones.
+- **Solución:** nueva vía **"Restaurar desde el respaldo del servidor"** (GridFS), sin descargar/subir/JSZip:
+  - `GET /admin/full-backup/latest` → último respaldo listo del usuario + lista de colecciones (guardada en `backup_jobs.manifest_collections` al construir) → instantáneo.
+  - `POST /admin/full-backup/restore-from-server` (job_id, mode, collections) → `_restore_full_backup_sync` abre el ZIP DIRECTO desde GridFS (stream buscable, sin disco), en un hilo con pymongo + inserción masiva. Restauración selectiva en <1s.
+  - Frontend: botón `full-backup-restore-server-btn` → diálogo con checklist (sin pedir archivo) → confirma. La vía por archivo (`Restaurar desde archivo…`) se mantiene para DR.
+- **Testing (iter 328): backend 5/5 y frontend 100%.** Selectivo correcto, servidor no se bloquea, 400/404 en entradas inválidas.
+
+
 ## 2026-06 — Restauración del Respaldo Total: optimización DRAMÁTICA de velocidad
 - **Síntoma:** el restore era extremadamente lento.
 - **Causa:** corría en el event loop con Motor, parseaba TODO el JSON de cada colección de golpe (`bson_loads`) y awaitaba lotes de 500 uno por uno → CPU-bound bloqueando el servidor + inserción lenta.

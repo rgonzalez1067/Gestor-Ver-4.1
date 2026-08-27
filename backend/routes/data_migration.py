@@ -1927,6 +1927,8 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
                 "filename": filename,
                 "size_bytes": size_bytes,
                 "collections": len(cols),
+                "manifest_collections": manifest["collections"],
+                "exported_at": manifest["exported_at"],
                 "ready_at": datetime.now(timezone.utc).isoformat(),
             }},
         )
@@ -2233,14 +2235,18 @@ async def full_backup_upload_chunk(
     return {"ok": True, "chunk_index": chunk_index, "received_bytes": len(data), "total_bytes": os.path.getsize(path)}
 
 
-def _restore_full_backup_sync(path: str, mode: str, selected, selective: bool, caller_token, user: dict, db_name: str) -> dict:
+def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller_token, user: dict, db_name: str, gridfs_id=None) -> dict:
     """Restaura la BD desde el ZIP usando pymongo SÍNCRONO en un HILO aparte
     (asyncio.to_thread): no bloquea el event loop y usa inserciones masivas
     (insert_many ordered=False, batches grandes) mucho más rápidas que awaitar
     lote por lote con Motor. Además hace parse en STREAMING (una línea = un doc)
     con `zf.open`, acotando memoria y solapando parseo con inserción → mejora
     dramática de velocidad. Si un archivo no viene línea-por-línea, cae al parse
-    del array completo (compatibilidad)."""
+    del array completo (compatibilidad).
+
+    Fuente del ZIP: si `gridfs_id` viene, se abre DIRECTO desde GridFS (stream
+    buscable, sin subir ni escribir a disco → restore inmediato desde el respaldo
+    ya guardado en el servidor). Si no, se usa el archivo `path` (subida)."""
     from pymongo import MongoClient
     from bson.json_util import loads as _loads
 
@@ -2249,8 +2255,13 @@ def _restore_full_backup_sync(path: str, mode: str, selected, selective: bool, c
     sdb = sclient[db_name]
     summary = []
     backup_cols = set()
+    zip_source = None
     try:
-        zf = zipfile.ZipFile(path)
+        if gridfs_id is not None:
+            zip_source = _sync_gridfs_bucket(sdb).open_download_stream(gridfs_id)
+            zf = zipfile.ZipFile(zip_source)
+        else:
+            zf = zipfile.ZipFile(path)
         names = zf.namelist()
         col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
         for n in col_files:
@@ -2331,6 +2342,11 @@ def _restore_full_backup_sync(path: str, mode: str, selected, selective: bool, c
             "session_preserved": session_preserved,
         }
     finally:
+        try:
+            if zip_source is not None:
+                zip_source.close()
+        except Exception:
+            pass
         try:
             sclient.close()
         except Exception:
@@ -2439,6 +2455,104 @@ async def full_backup_restore(
         "selective": selective,
         "source_db": manifest.get("db_name"),
         "source_exported_at": manifest.get("exported_at"),
+        "restored_collections": len(summary),
+        "restored_documents": sum(s["restored"] for s in summary),
+        "summary": summary,
+        "skipped_collections": skipped,
+        "dropped_extra_collections": dropped_extra,
+        "session_preserved": session_preserved,
+    }
+
+
+
+@router.get("/admin/full-backup/latest")
+async def full_backup_latest(authorization: Optional[str] = Header(None)):
+    """Devuelve el último respaldo LISTO del usuario que sigue disponible en el
+    servidor (GridFS), con su lista de colecciones — para restaurar SIN subir el
+    archivo ni leerlo con JSZip en el navegador."""
+    user = await _require_admin(authorization)
+    job = await db.backup_jobs.find_one(
+        {"user_id": user.get("user_id"), "status": "ready", "gridfs_id": {"$ne": None}},
+        {"_id": 0},
+        sort=[("ready_at", -1)],
+    )
+    if not job:
+        return {"available": False}
+    return {
+        "available": True,
+        "job_id": job.get("job_id"),
+        "filename": job.get("filename"),
+        "size_bytes": job.get("size_bytes"),
+        "exported_at": job.get("exported_at") or job.get("ready_at"),
+        "collections": job.get("manifest_collections") or [],
+        "db_name": db.name,
+    }
+
+
+@router.post("/admin/full-backup/restore-from-server")
+async def full_backup_restore_from_server(
+    job_id: str = Form(...),
+    mode: str = Form("merge"),
+    collections: Optional[str] = Form(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Restaura DIRECTO desde un respaldo ya guardado en el servidor (GridFS),
+    sin descarga ni subida ni JSZip. El ZIP se lee en streaming buscable desde
+    GridFS y el trabajo pesado corre en un hilo con pymongo (rápido)."""
+    user = await _require_admin(authorization)
+    caller_token = authorization.replace("Bearer ", "").strip() if authorization else None
+
+    job = await db.backup_jobs.find_one({"job_id": job_id})
+    if not job or job.get("status") != "ready" or not job.get("gridfs_id"):
+        raise HTTPException(status_code=404, detail="Respaldo del servidor no encontrado o expirado; genera uno nuevo")
+
+    selected = None
+    if collections:
+        try:
+            parsed = json.loads(collections)
+            if isinstance(parsed, list):
+                selected = {str(x) for x in parsed if str(x).strip()}
+        except Exception:
+            selected = {c.strip() for c in collections.split(",") if c.strip()}
+    selective = bool(selected)
+
+    user_min = {"user_id": user.get("user_id"), "email": user.get("email")}
+    result = await asyncio.to_thread(
+        _restore_full_backup_sync, None, mode, selected, selective, caller_token, user_min, db.name, job.get("gridfs_id")
+    )
+    summary = result["summary"]
+    backup_cols = set(result["backup_cols"])
+    dropped_extra = result["dropped_extra"]
+    session_preserved = result["session_preserved"]
+
+    skipped = []
+    if selective:
+        skipped = sorted(selected - backup_cols)
+        if not summary:
+            raise HTTPException(status_code=400, detail="Ninguna de las colecciones seleccionadas existe en el respaldo")
+
+    try:
+        await db.bitacora.insert_one({
+            "action": "full_backup_restore",
+            "source": "server-gridfs",
+            "mode": mode,
+            "selective": selective,
+            "selected_collections": sorted(selected) if selective else None,
+            "source_db": job.get("filename"),
+            "source_exported_at": job.get("exported_at"),
+            "restored_collections": len(summary),
+            "dropped_extra_collections": dropped_extra,
+            "executed_by": user.get("email"),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "selective": selective,
+        "source_db": job.get("db_name") or db.name,
+        "source_exported_at": job.get("exported_at"),
         "restored_collections": len(summary),
         "restored_documents": sum(s["restored"] for s in summary),
         "summary": summary,

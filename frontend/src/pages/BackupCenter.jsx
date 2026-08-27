@@ -51,6 +51,7 @@ export default function BackupCenter() {
   const [dbSelectedCols, setDbSelectedCols] = useState(new Set()); // nombres seleccionados
   const [dbParsing, setDbParsing] = useState(false);
   const [readyBackup, setReadyBackup] = useState(null); // { jobId, sizeBytes, filename }
+  const [dbServerJobId, setDbServerJobId] = useState(null); // job_id del respaldo en servidor (restore-from-server)
   const dbFileRef = useRef(null);
 
   const dbAllSelected = dbBackupCols.length > 0 && dbSelectedCols.size === dbBackupCols.length;
@@ -77,6 +78,37 @@ export default function BackupCenter() {
       toast.error(`No se pudo leer el respaldo: ${err.message}`);
       setDbFile(null);
       if (dbFileRef.current) dbFileRef.current.value = '';
+    } finally {
+      setDbParsing(false);
+    }
+  };
+
+  // Restaurar desde el respaldo YA guardado en el servidor (GridFS): sin subir
+  // el archivo ni cargarlo con JSZip → arranca al instante, ideal para bases grandes.
+  const openServerRestore = async () => {
+    setDbParsing(true);
+    setDbFile(null);
+    setDbServerJobId(null);
+    setDbConfirmText('');
+    setDbBackupCols([]);
+    setDbSelectedCols(new Set());
+    try {
+      const { data } = await api.get('/admin/full-backup/latest');
+      if (!data.available) {
+        toast.error('No hay un respaldo disponible en el servidor. Genera primero "Exportar Base Completa".');
+        return;
+      }
+      const cols = (data.collections || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      if (cols.length === 0) {
+        toast.error('El respaldo del servidor no tiene colecciones legibles.');
+        return;
+      }
+      setDbServerJobId(data.job_id);
+      setDbBackupCols(cols);
+      setDbSelectedCols(new Set(cols.map((c) => c.name)));
+      setDbConfirmOpen(true);
+    } catch (err) {
+      toast.error(`No se pudo leer el respaldo del servidor: ${err.response?.data?.detail || err.message}`);
     } finally {
       setDbParsing(false);
     }
@@ -174,6 +206,35 @@ export default function BackupCenter() {
   };
 
   const doRestoreFullDb = async () => {
+    // Restaurar desde el respaldo del servidor (sin subir archivo)
+    if (dbServerJobId) {
+      if (dbSelectedCols.size === 0) return;
+      setDbConfirmOpen(false);
+      setDbBusy('restore');
+      setDbProgress(0);
+      setDbRestoreResult(null);
+      try {
+        const fd = new FormData();
+        fd.append('job_id', dbServerJobId);
+        fd.append('mode', dbExactReplica ? 'replace' : 'merge');
+        if (dbIsSelective) fd.append('collections', JSON.stringify(Array.from(dbSelectedCols)));
+        setDbProgress(40);
+        const { data } = await api.post('/admin/full-backup/restore-from-server', fd);
+        setDbProgress(100);
+        setDbRestoreResult(data);
+        toast.success(`Restauración completada: ${data.restored_collections} colección(es), ${data.restored_documents} documento(s)`);
+        loadDbInfo();
+      } catch (err) {
+        toast.error(`Error al restaurar: ${err.response?.data?.detail || err.message}`);
+      } finally {
+        setDbBusy(null);
+        setDbServerJobId(null);
+        setDbConfirmText('');
+        setDbBackupCols([]);
+        setDbSelectedCols(new Set());
+      }
+      return;
+    }
     if (!dbFile || dbSelectedCols.size === 0) return;
     setDbConfirmOpen(false);
     setDbBusy('restore');
@@ -471,9 +532,22 @@ export default function BackupCenter() {
                 data-testid="full-backup-restore-btn"
               >
                 {dbParsing ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Upload size={16} className="mr-1.5" />}
-                Restaurar Base Completa…
+                Restaurar desde archivo…
+              </Button>
+              <Button
+                variant="outline"
+                onClick={openServerRestore}
+                disabled={dbBusy !== null || dbParsing}
+                className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                data-testid="full-backup-restore-server-btn"
+              >
+                {dbParsing ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <DatabaseBackup size={16} className="mr-1.5" />}
+                Restaurar desde el respaldo del servidor
               </Button>
             </div>
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              <strong>Recomendado:</strong> "Restaurar desde el respaldo del servidor" usa el último respaldo generado (sin subir el archivo ni cargarlo en el navegador) → arranca al instante, incluso con bases grandes.
+            </p>
 
             <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 text-red-800 px-3 py-2 text-xs mt-3">
               <ShieldAlert size={15} className="shrink-0 mt-0.5" />
@@ -862,7 +936,7 @@ export default function BackupCenter() {
       />
 
       {/* Confirmación de Restauración (Total o Selectiva) */}
-      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
+      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); setDbServerJobId(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
         <DialogContent className="max-w-lg" data-testid="full-backup-confirm-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700">
@@ -871,8 +945,10 @@ export default function BackupCenter() {
           </DialogHeader>
           <div className="space-y-3 text-sm text-slate-700">
             <p>
-              Restaurando desde <strong className="break-all">{dbFile?.name}</strong>
-              {dbFile ? ` (${(dbFile.size / 1024 / 1024).toFixed(1)} MB)` : ''} sobre el ambiente
+              {dbServerJobId
+                ? <>Restaurando desde el <strong>respaldo del servidor</strong></>
+                : <>Restaurando desde <strong className="break-all">{dbFile?.name}</strong>{dbFile ? ` (${(dbFile.size / 1024 / 1024).toFixed(1)} MB)` : ''}</>}
+              {' '}sobre el ambiente
               <strong> {dbInfo?.db_name || 'actual'}</strong>.
             </p>
 
