@@ -52,6 +52,7 @@ export default function BackupCenter() {
   const [dbParsing, setDbParsing] = useState(false);
   const [readyBackup, setReadyBackup] = useState(null); // { jobId, sizeBytes, filename }
   const [dbServerJobId, setDbServerJobId] = useState(null); // job_id del respaldo en servidor (restore-from-server)
+  const [dbServerMeta, setDbServerMeta] = useState(null); // { filename, exported_at, size_bytes } del respaldo del servidor
   const dbFileRef = useRef(null);
 
   const dbAllSelected = dbBackupCols.length > 0 && dbSelectedCols.size === dbBackupCols.length;
@@ -89,6 +90,7 @@ export default function BackupCenter() {
     setDbParsing(true);
     setDbFile(null);
     setDbServerJobId(null);
+    setDbServerMeta(null);
     setDbConfirmText('');
     setDbBackupCols([]);
     setDbSelectedCols(new Set());
@@ -104,6 +106,11 @@ export default function BackupCenter() {
         return;
       }
       setDbServerJobId(data.job_id);
+      setDbServerMeta({
+        filename: data.filename,
+        exported_at: data.exported_at,
+        size_bytes: data.size_bytes,
+      });
       setDbBackupCols(cols);
       setDbSelectedCols(new Set(cols.map((c) => c.name)));
       setDbConfirmOpen(true);
@@ -229,6 +236,7 @@ export default function BackupCenter() {
       } finally {
         setDbBusy(null);
         setDbServerJobId(null);
+        setDbServerMeta(null);
         setDbConfirmText('');
         setDbBackupCols([]);
         setDbSelectedCols(new Set());
@@ -936,7 +944,7 @@ export default function BackupCenter() {
       />
 
       {/* Confirmación de Restauración (Total o Selectiva) */}
-      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); setDbServerJobId(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
+      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); setDbServerJobId(null); setDbServerMeta(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
         <DialogContent className="max-w-lg" data-testid="full-backup-confirm-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700">
@@ -951,6 +959,25 @@ export default function BackupCenter() {
               {' '}sobre el ambiente
               <strong> {dbInfo?.db_name || 'actual'}</strong>.
             </p>
+
+            {dbServerJobId && dbServerMeta && (
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900" data-testid="full-backup-server-meta">
+                <div className="flex items-center gap-1.5 font-semibold text-indigo-700 mb-1">
+                  <DatabaseBackup size={13} /> Respaldo seleccionado
+                </div>
+                <div className="space-y-0.5">
+                  <div data-testid="server-meta-filename">
+                    Archivo: <strong className="break-all font-mono">{dbServerMeta.filename || '—'}</strong>
+                  </div>
+                  <div data-testid="server-meta-date">
+                    Generado: <strong>{dbServerMeta.exported_at ? new Date(dbServerMeta.exported_at).toLocaleString('es') : '—'}</strong>
+                  </div>
+                  <div data-testid="server-meta-size">
+                    Tamaño: <strong>{dbServerMeta.size_bytes != null ? `${(dbServerMeta.size_bytes / 1024 / 1024).toFixed(1)} MB` : '—'}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Selección de colecciones */}
             <div className="rounded-lg border border-slate-200">
