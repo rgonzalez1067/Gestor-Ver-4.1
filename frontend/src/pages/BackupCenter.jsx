@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import JSZip from 'jszip';
 import { ArrowLeft, Download, Upload, DatabaseBackup, Package, ShieldAlert, Loader2, CloudUpload, CheckCircle2, AlertTriangle, Search } from 'lucide-react';
 import api from '../utils/api';
 import { Button } from '../components/ui/button';
@@ -68,34 +67,68 @@ export default function BackupCenter() {
   const [readyBackup, setReadyBackup] = useState(null); // { jobId, sizeBytes, filename }
   const [dbServerJobId, setDbServerJobId] = useState(null); // job_id del respaldo en servidor (restore-from-server)
   const [dbServerMeta, setDbServerMeta] = useState(null); // { filename, exported_at, size_bytes } del respaldo del servidor
+  const [dbUploadId, setDbUploadId] = useState(null); // upload_id del ZIP ya subido al servidor (restaurar desde archivo)
+  const [dbFileMeta, setDbFileMeta] = useState(null); // { filename, exported_at, size_bytes } del archivo subido
+  const [dbUploadPct, setDbUploadPct] = useState(0); // % de subida del ZIP al servidor
   const dbFileRef = useRef(null);
 
   const dbAllSelected = dbBackupCols.length > 0 && dbSelectedCols.size === dbBackupCols.length;
   const dbIsSelective = dbBackupCols.length > 0 && !dbAllSelected;
   const dbCurrentCountMap = (dbInfo?.collections || []).reduce((acc, c) => { acc[c.name] = c.count; return acc; }, {});
 
+  // Restaurar DESDE ARCHIVO (ZIP en tu equipo): sube el ZIP por chunks al
+  // servidor y el SERVIDOR lee el manifiesto → sin JSZip en el navegador, soporta
+  // respaldos de 700MB+ sin agotar la memoria del navegador. Es el mismo camino
+  // que usarás al restaurar en un Docker/instancia nueva.
   const openRestoreDialog = async (file) => {
     setDbParsing(true);
+    setDbUploadPct(0);
     setDbFile(file);
+    setDbServerJobId(null);
+    setDbServerMeta(null);
+    setDbUploadId(null);
+    setDbFileMeta(null);
     setDbConfirmText('');
     setDbBackupCols([]);
     setDbSelectedCols(new Set());
     try {
-      const zip = await JSZip.loadAsync(file);
-      const manifestFile = zip.file('_manifest.json');
-      if (!manifestFile) throw new Error('El archivo no es un Respaldo Total (falta _manifest.json)');
-      const manifest = JSON.parse(await manifestFile.async('string'));
-      if (manifest.type !== 'full-database-backup') throw new Error('El archivo no es un Respaldo Total de Base de Datos');
-      const cols = (manifest.collections || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      // 1) Subir el ZIP por chunks (el navegador nunca lo descomprime).
+      const { data: initData } = await api.post('/admin/full-backup/upload-init');
+      const uploadId = initData.upload_id;
+      const CHUNK = 4 * 1024 * 1024; // 4MB
+      const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK));
+      for (let i = 0; i < totalChunks; i++) {
+        const blob = file.slice(i * CHUNK, (i + 1) * CHUNK);
+        const fd = new FormData();
+        fd.append('upload_id', uploadId);
+        fd.append('chunk_index', i);
+        fd.append('file', blob, 'chunk.part');
+        await api.post('/admin/full-backup/upload-chunk', fd);
+        setDbUploadPct(Math.round(((i + 1) / totalChunks) * 100));
+      }
+      // 2) El servidor lee el manifiesto del ZIP subido (memoria O(1)).
+      const fd = new FormData();
+      fd.append('upload_id', uploadId);
+      const { data } = await api.post('/admin/full-backup/upload-manifest', fd);
+      const cols = (data.collections || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      if (cols.length === 0) throw new Error('El respaldo no contiene colecciones legibles');
+      setDbUploadId(uploadId);
+      setDbFileMeta({
+        filename: file.name,
+        exported_at: data.exported_at,
+        size_bytes: data.size_bytes ?? file.size,
+      });
       setDbBackupCols(cols);
       setDbSelectedCols(new Set(cols.map((c) => c.name))); // todo seleccionado por defecto
       setDbConfirmOpen(true);
     } catch (err) {
-      toast.error(`No se pudo leer el respaldo: ${err.message}`);
+      toast.error(`No se pudo leer el respaldo: ${err.response?.data?.detail || err.message}`);
       setDbFile(null);
+      setDbUploadId(null);
       if (dbFileRef.current) dbFileRef.current.value = '';
     } finally {
       setDbParsing(false);
+      setDbUploadPct(0);
     }
   };
 
@@ -258,27 +291,17 @@ export default function BackupCenter() {
       }
       return;
     }
-    if (!dbFile || dbSelectedCols.size === 0) return;
+    if (!dbFile || !dbUploadId || dbSelectedCols.size === 0) return;
     setDbConfirmOpen(false);
     setDbBusy('restore');
     setDbProgress(0);
     setDbRestoreResult(null);
-    const CHUNK = 4 * 1024 * 1024; // 4MB por chunk (evita límites del proxy)
     try {
-      const { data: initData } = await api.post('/admin/full-backup/upload-init');
-      const uploadId = initData.upload_id;
-      const totalChunks = Math.max(1, Math.ceil(dbFile.size / CHUNK));
-      for (let i = 0; i < totalChunks; i++) {
-        const blob = dbFile.slice(i * CHUNK, (i + 1) * CHUNK);
-        const fd = new FormData();
-        fd.append('upload_id', uploadId);
-        fd.append('chunk_index', i);
-        fd.append('file', blob, 'chunk.part');
-        await api.post('/admin/full-backup/upload-chunk', fd);
-        setDbProgress(Math.round(((i + 1) / totalChunks) * 90));
-      }
+      // El ZIP ya se subió por chunks al elegir el archivo (dbUploadId). Aquí solo
+      // disparamos la restauración desde ese archivo → sin volver a subir.
+      setDbProgress(40);
       const fd = new FormData();
-      fd.append('upload_id', uploadId);
+      fd.append('upload_id', dbUploadId);
       fd.append('mode', dbExactReplica ? 'replace' : 'merge');
       // Restauración selectiva: enviar la lista solo si NO están todas seleccionadas.
       if (dbIsSelective) fd.append('collections', JSON.stringify(Array.from(dbSelectedCols)));
@@ -292,6 +315,8 @@ export default function BackupCenter() {
     } finally {
       setDbBusy(null);
       setDbFile(null);
+      setDbUploadId(null);
+      setDbFileMeta(null);
       setDbConfirmText('');
       setDbBackupCols([]);
       setDbSelectedCols(new Set());
@@ -555,7 +580,7 @@ export default function BackupCenter() {
                 data-testid="full-backup-restore-btn"
               >
                 {dbParsing ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Upload size={16} className="mr-1.5" />}
-                Restaurar desde archivo…
+                {dbParsing ? `Subiendo respaldo… ${dbUploadPct}%` : 'Restaurar desde archivo…'}
               </Button>
               <Button
                 variant="outline"
@@ -959,7 +984,7 @@ export default function BackupCenter() {
       />
 
       {/* Confirmación de Restauración (Total o Selectiva) */}
-      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); setDbServerJobId(null); setDbServerMeta(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
+      <Dialog open={dbConfirmOpen} onOpenChange={(o) => { if (!o) { setDbConfirmOpen(false); setDbFile(null); setDbServerJobId(null); setDbServerMeta(null); setDbUploadId(null); setDbFileMeta(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; } }}>
         <DialogContent className="max-w-lg" data-testid="full-backup-confirm-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700">
@@ -992,6 +1017,28 @@ export default function BackupCenter() {
                   </div>
                   <div data-testid="server-meta-size">
                     Tamaño: <strong>{dbServerMeta.size_bytes != null ? `${(dbServerMeta.size_bytes / 1024 / 1024).toFixed(1)} MB` : '—'}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!dbServerJobId && dbFileMeta && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="full-backup-file-meta">
+                <div className="flex items-center gap-1.5 font-semibold text-amber-700 mb-1">
+                  <Upload size={13} /> Archivo subido al servidor
+                </div>
+                <div className="space-y-0.5">
+                  <div data-testid="file-meta-filename">
+                    Archivo: <strong className="break-all font-mono">{dbFileMeta.filename || '—'}</strong>
+                  </div>
+                  <div data-testid="file-meta-date">
+                    Respaldo generado: <strong>{dbFileMeta.exported_at ? new Date(dbFileMeta.exported_at).toLocaleString('es') : '—'}</strong>
+                    {dbFileMeta.exported_at && (
+                      <span className="ml-1 text-amber-600">({relativeAge(dbFileMeta.exported_at)})</span>
+                    )}
+                  </div>
+                  <div data-testid="file-meta-size">
+                    Tamaño: <strong>{dbFileMeta.size_bytes != null ? `${(dbFileMeta.size_bytes / 1024 / 1024).toFixed(1)} MB` : '—'}</strong>
                   </div>
                 </div>
               </div>
@@ -1083,7 +1130,7 @@ export default function BackupCenter() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDbConfirmOpen(false); setDbFile(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; }} data-testid="full-backup-cancel-btn">
+            <Button variant="outline" onClick={() => { setDbConfirmOpen(false); setDbFile(null); setDbServerJobId(null); setDbServerMeta(null); setDbUploadId(null); setDbFileMeta(null); setDbBackupCols([]); setDbSelectedCols(new Set()); if (dbFileRef.current) dbFileRef.current.value = ''; }} data-testid="full-backup-cancel-btn">
               Cancelar
             </Button>
             <Button

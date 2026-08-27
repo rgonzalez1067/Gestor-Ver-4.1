@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-08 — "Restaurar desde archivo" BLINDADO (el servidor lee el manifiesto, sin JSZip) + visibilidad del respaldo seleccionado
+- **Contexto:** el usuario prepara un flujo Deploy(prod) → descargar ZIP → Docker (instancia nueva) → restaurar. Cada ambiente tiene su PROPIA Mongo/GridFS, así que en Docker se restaura DESDE ARCHIVO (no "desde el servidor"). El único eslabón débil era el navegador leyendo el manifiesto con **JSZip** (OOM con ZIP de 700MB).
+- **Solución (elimina JSZip del navegador por completo):**
+  - Nuevo endpoint `POST /admin/full-backup/upload-manifest` (data_migration.py): tras subir el ZIP por chunks a `/tmp`, el SERVIDOR abre el zip (seek, memoria O(1)), valida `_manifest.json` (type=full-database-backup) y devuelve `collections [{name,count}]`, `db_name`, `exported_at`, `size_bytes`.
+  - `BackupCenter.jsx`: `openRestoreDialog(file)` ahora **sube por chunks (4MB) → pide manifiesto al servidor** y guarda `dbUploadId`. El botón muestra `Subiendo respaldo… N%`. `doRestoreFullDb` reutiliza `dbUploadId` (no re-sube) y llama `/restore`. Import de `jszip` ELIMINADO.
+- **Visibilidad del respaldo (a raíz de "no sé de cuál respaldo se restaura"):** el diálogo ahora muestra recuadro con Archivo, Fecha de generación + **antigüedad relativa** ("hace N minutos") y Tamaño — tanto para "desde el servidor" (`full-backup-server-meta`) como "desde archivo" (`full-backup-file-meta`). Helper `relativeAge()`.
+- **Testing (self, no destructivo):** validado end-to-end vía API (upload-init → 11 chunks 43MB → upload-manifest = 65 colecciones con conteos) y UI (set_input_files → sube → diálogo con file-meta + checklist). La prueba destructiva (borrar → restaurar) se hará PASO A PASO con el usuario a petición suya.
+- **Nota arquitectura confirmada:** Preview usa Mongo local (`localhost/test_database`) independiente de Deploy. "Restaurar desde el servidor" solo ve GridFS del ambiente actual; para mover entre ambientes se usa "Restaurar desde archivo".
+
+
+
 ## 2026-06 — Restaurar desde el respaldo del SERVIDOR (elimina el cuello de botella del navegador)
 - **Queja:** el restore "tardaba demasiado en arrancar aun con colecciones pequeñas y al final se caía".
 - **Causa real (cliente):** el frontend cargaba TODO el ZIP (cientos de MB) con **JSZip** solo para leer el índice → el tab se quedaba sin memoria (crash); además subía el ZIP completo aunque se restauraran pocas colecciones.

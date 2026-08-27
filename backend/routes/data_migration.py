@@ -2235,6 +2235,55 @@ async def full_backup_upload_chunk(
     return {"ok": True, "chunk_index": chunk_index, "received_bytes": len(data), "total_bytes": os.path.getsize(path)}
 
 
+@router.post("/admin/full-backup/upload-manifest")
+async def full_backup_upload_manifest(
+    upload_id: str = Form(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Lee el manifiesto del ZIP YA subido por chunks (en el servidor), SIN usar
+    JSZip en el navegador. Devuelve las colecciones con su conteo para la UI de
+    restauración selectiva. Memoria O(1): zipfile hace `seek` sobre el archivo en
+    disco, no carga los cientos de MB en memoria."""
+    await _require_admin(authorization)
+    path = _fb_upload_path(upload_id)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Respaldo subido no encontrado (¿expiró?)")
+    try:
+        zf = zipfile.ZipFile(path)
+    except Exception:
+        try:
+            os.unlink(path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail="El archivo subido no es un ZIP válido")
+    try:
+        names = zf.namelist()
+        if "_manifest.json" not in names:
+            raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total (falta _manifest.json)")
+        try:
+            manifest = json.loads(zf.read("_manifest.json"))
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo leer _manifest.json")
+        if manifest.get("type") != "full-database-backup":
+            raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total de Base de Datos")
+        cols = manifest.get("collections") or []
+        if not cols:
+            col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
+            cols = [{"name": n[len("collections/"):-len(".json")], "count": None} for n in col_files]
+        return {
+            "db_name": manifest.get("db_name"),
+            "exported_at": manifest.get("exported_at"),
+            "exported_by": manifest.get("exported_by"),
+            "size_bytes": os.path.getsize(path),
+            "collections": cols,
+        }
+    finally:
+        try:
+            zf.close()
+        except Exception:
+            pass
+
+
 def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller_token, user: dict, db_name: str, gridfs_id=None) -> dict:
     """Restaura la BD desde el ZIP usando pymongo SÍNCRONO en un HILO aparte
     (asyncio.to_thread): no bloquea el event loop y usa inserciones masivas
