@@ -509,6 +509,85 @@ async def reset_password(data: ResetPasswordRequest):
     return {"message": "Contraseña restablecida exitosamente. Ya puedes iniciar sesión."}
 
 
+def _validate_password_policy(pwd: str):
+    """Política: mínimo 10 caracteres, al menos una mayúscula, una minúscula,
+    un número y un carácter especial. Lanza HTTP 400 con el detalle si falla."""
+    errors = []
+    if len(pwd) < 10:
+        errors.append("al menos 10 caracteres")
+    if not re.search(r"[A-Z]", pwd):
+        errors.append("una letra mayúscula")
+    if not re.search(r"[a-z]", pwd):
+        errors.append("una letra minúscula")
+    if not re.search(r"[0-9]", pwd):
+        errors.append("un número")
+    if not re.search(r"[^A-Za-z0-9]", pwd):
+        errors.append("un carácter especial")
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail="La nueva contraseña debe tener " + ", ".join(errors) + ".",
+        )
+
+
+@router.post("/auth/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Cambio de contraseña self-service para el usuario autenticado.
+    Requiere la contraseña actual + la nueva (con política fuerte). Conserva la
+    sesión actual e invalida las DEMÁS sesiones del usuario por seguridad."""
+    user = await get_current_user(authorization)
+
+    # Usuarios de Google OAuth no tienen contraseña local
+    if not user.get("password_hash"):
+        raise HTTPException(
+            status_code=400,
+            detail="Tu cuenta inicia sesión con Google; no tiene contraseña para cambiar.",
+        )
+
+    # 1) Verificar contraseña actual
+    if not verify_password(data.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta.")
+
+    # 2) Rechazar si la nueva es igual a la actual
+    if verify_password(data.new_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe ser diferente a la actual.")
+
+    # 3) Política de complejidad
+    _validate_password_policy(data.new_password)
+
+    # 4) Actualizar hash
+    new_hash = hash_password(data.new_password)
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"password_hash": new_hash, "password_changed_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+    # 5) Conservar la sesión actual, invalidar las demás
+    caller_token = authorization.replace("Bearer ", "").strip() if authorization else None
+    await db.user_sessions.delete_many({
+        "user_id": user["user_id"],
+        "session_token": {"$ne": caller_token},
+    })
+
+    # Auditoría (best-effort)
+    try:
+        await db.audit_logs.insert_one({
+            "action": "password_changed_self",
+            "user_id": user["user_id"],
+            "performed_by": user["user_id"],
+            "performed_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+    logging.info(f"[AUTH] Contraseña cambiada (self-service) para user_id={user['user_id']}")
+    return {"message": "Contraseña actualizada correctamente."}
+
+
 # ==================== EMAIL VERIFICATION ====================
 
 @router.post("/auth/verify-email")

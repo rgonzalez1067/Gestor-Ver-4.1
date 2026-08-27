@@ -37,6 +37,9 @@ import {
 } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { ThemeToggle } from './ThemeToggle';
+import { KeyRound } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import api from '../utils/api';
 import { ROUTE_MODULE_MAP, isGroupActive } from '../hooks/usePermission';
@@ -120,6 +123,7 @@ const SidebarInner = () => {
   const [userName, setUserName] = useState('');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
   const [pinned, setPinned] = useState(() => localStorage.getItem('sidebar_pinned') === 'true');
+  const [pwdOpen, setPwdOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState(() => {
     // Auto-expand if current path is inside a group or nested sub-group
     const groups = {};
@@ -438,17 +442,34 @@ const SidebarInner = () => {
           {/* User info + Notification bell - only when expanded */}
           {!collapsed && userName && (
             <div className="mx-3 my-1.5 px-3 py-1.5 bg-slate-50 rounded-lg flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-slate-400">Sesión activa:</p>
-                <p className="text-xs font-medium text-slate-700 flex items-center gap-1.5 truncate">
-                  {userName}
-                  {isAdmin && (
-                    <span className="inline-flex items-center px-1 py-0 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
-                      Admin
-                    </span>
-                  )}
-                </p>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="min-w-0 flex-1 text-left rounded-md hover:bg-slate-100 transition-colors -mx-1 px-1"
+                    data-testid="profile-menu-trigger"
+                  >
+                    <p className="text-[10px] text-slate-400">Sesión activa:</p>
+                    <p className="text-xs font-medium text-slate-700 flex items-center gap-1.5 truncate">
+                      {userName}
+                      {isAdmin && (
+                        <span className="inline-flex items-center px-1 py-0 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
+                          Admin
+                        </span>
+                      )}
+                      <ChevronDown size={12} className="text-slate-400 flex-shrink-0" />
+                    </p>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="w-52">
+                  <DropdownMenuItem
+                    onClick={() => setPwdOpen(true)}
+                    data-testid="profile-change-password"
+                    className="cursor-pointer"
+                  >
+                    <KeyRound size={15} className="mr-2 text-indigo-600" /> Cambiar contraseña
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <NotificationBell />
             </div>
           )}
@@ -491,6 +512,7 @@ const SidebarInner = () => {
           )}
         </div>
       </aside>
+      <ChangePasswordDialog open={pwdOpen} onOpenChange={setPwdOpen} />
     </TooltipProvider>
   );
 };

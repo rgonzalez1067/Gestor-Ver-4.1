@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-08 — "Cambiar contraseña" self-service (todos los usuarios)
+- **Pedido:** cambio de contraseña self-service para TODOS los usuarios, con contraseña actual + nueva + confirmar, desde un menú de perfil. Política: mín 10, ≥1 mayúscula, ≥1 minúscula, ≥1 número, ≥1 especial.
+- **Backend** (`routes/auth.py`): nuevo `POST /api/auth/change-password` (autenticado). Reutiliza `config.hash_password`/`verify_password` (SHA256+salt, NO se cambió el esquema). Valida: contraseña actual correcta, bloquea cuentas OAuth (sin `password_hash`), rechaza nueva==actual, aplica `_validate_password_policy()`. Conserva la sesión actual (caller token) e invalida las DEMÁS sesiones del usuario. Audita en `audit_logs` (`password_changed_self`). Modelo `ChangePasswordRequest` en `models.py`.
+- **Frontend:** nuevo `components/ChangePasswordDialog.jsx` (3 campos, mostrar/ocultar, checklist de política en vivo, valida en cliente antes de habilitar submit). Integrado en `Sidebar.jsx` como **menú de perfil** (el bloque "Sesión activa" ahora es un DropdownMenu con "Cambiar contraseña").
+- **Testing (self):** backend por curl (6 escenarios: actual incorrecta 400, política <10 mensaje amigable 400, nueva==actual 400, cambio válido 200, sesión actual preservada 200, otra sesión invalidada 401). UI por screenshot (menú → diálogo → checklist en verde). No se alteró la clave del admin real.
+- **Nota:** implementado y probado en PREVIEW. Falta que el usuario lo DESPLIEGUE a Producción cuando esté conforme.
+
+
+
 ## 2026-08 — "Restaurar desde archivo" BLINDADO (el servidor lee el manifiesto, sin JSZip) + visibilidad del respaldo seleccionado
 - **Contexto:** el usuario prepara un flujo Deploy(prod) → descargar ZIP → Docker (instancia nueva) → restaurar. Cada ambiente tiene su PROPIA Mongo/GridFS, así que en Docker se restaura DESDE ARCHIVO (no "desde el servidor"). El único eslabón débil era el navegador leyendo el manifiesto con **JSZip** (OOM con ZIP de 700MB).
 - **Solución (elimina JSZip del navegador por completo):**

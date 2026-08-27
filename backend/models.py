@@ -1059,6 +1059,11 @@ class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(..., min_length=8)
 
+class ChangePasswordRequest(BaseModel):
+    """Cambio de contraseña self-service (usuario autenticado)"""
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=1)
+
 class VerifyEmailRequest(BaseModel):
     """Verificación de email con token"""
     token: str
