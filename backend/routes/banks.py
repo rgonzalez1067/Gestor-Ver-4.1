@@ -29,9 +29,7 @@ async def upload_bank_logo(file: UploadFile = File(...), authorization: Optional
         ext = "png"
     
     filename = f"bank_logo_{uuid.uuid4().hex[:8]}.{ext}"
-    logo_dir = os.path.join(UPLOADS_DIR, "bank_logos")
-    os.makedirs(logo_dir, exist_ok=True)
-    filepath = os.path.join(logo_dir, filename)
+    filepath = os.path.join(UPLOADS_DIR, "bank_logos", filename)
     
     content = await file.read()
     
@@ -47,8 +45,9 @@ async def upload_bank_logo(file: UploadFile = File(...), authorization: Optional
     except Exception:
         pass  # If PIL fails, save original
     
-    with open(filepath, "wb") as f:
-        f.write(content)
+    # Object Storage (persistente) + cache en disco best-effort
+    from services.pdf_storage import save_pdf_dual
+    save_pdf_dual(filepath, content, f"bank_logos/{filename}")
     
     logo_url = f"/api/uploads/bank_logos/{filename}"
     return {"logo_url": logo_url}

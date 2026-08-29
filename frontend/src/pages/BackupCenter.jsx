@@ -70,6 +70,8 @@ export default function BackupCenter() {
   const [dbUploadId, setDbUploadId] = useState(null); // upload_id del ZIP ya subido al servidor (restaurar desde archivo)
   const [dbFileMeta, setDbFileMeta] = useState(null); // { filename, exported_at, size_bytes } del archivo subido
   const [dbUploadPct, setDbUploadPct] = useState(0); // % de subida del ZIP al servidor
+  const [dbRestoreJobId, setDbRestoreJobId] = useState(null); // job de restauración async (para reanudar)
+  const [dbRestoreErr, setDbRestoreErr] = useState(null); // error de restauración (habilita reanudar)
   const dbFileRef = useRef(null);
 
   const dbAllSelected = dbBackupCols.length > 0 && dbSelectedCols.size === dbBackupCols.length;
@@ -260,60 +262,107 @@ export default function BackupCenter() {
     }
   };
 
-  const doRestoreFullDb = async () => {
-    // Restaurar desde el respaldo del servidor (sin subir archivo)
-    if (dbServerJobId) {
-      if (dbSelectedCols.size === 0) return;
-      setDbConfirmOpen(false);
-      setDbBusy('restore');
-      setDbProgress(0);
-      setDbRestoreResult(null);
+  // Sondea el estado de una restauración asíncrona hasta ready/error.
+  const pollRestore = async (restoreJobId) => {
+    setDbRestoreJobId(restoreJobId);
+    // Límite de seguridad ~30 min
+    const started = Date.now();
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      let st;
       try {
-        const fd = new FormData();
-        fd.append('job_id', dbServerJobId);
-        fd.append('mode', dbExactReplica ? 'replace' : 'merge');
-        if (dbIsSelective) fd.append('collections', JSON.stringify(Array.from(dbSelectedCols)));
-        setDbProgress(40);
-        const { data } = await api.post('/admin/full-backup/restore-from-server', fd);
-        setDbProgress(100);
-        setDbRestoreResult(data);
-        toast.success(`Restauración completada: ${data.restored_collections} colección(es), ${data.restored_documents} documento(s)`);
-        loadDbInfo();
+        // Sondeo con fetch directo (NO axios): evita el interceptor 401 global
+        // que cerraría sesión durante la ventana en que se restaura user_sessions.
+        const token = localStorage.getItem('session_token');
+        const resp = await fetch(
+          `${process.env.REACT_APP_BACKEND_URL}/api/admin/full-backup/restore-status?job_id=${encodeURIComponent(restoreJobId)}`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+        );
+        if (!resp.ok) throw new Error(`status ${resp.status}`);
+        st = await resp.json();
       } catch (err) {
-        toast.error(`Error al restaurar: ${err.response?.data?.detail || err.message}`);
-      } finally {
-        setDbBusy(null);
-        setDbServerJobId(null);
-        setDbServerMeta(null);
-        setDbConfirmText('');
-        setDbBackupCols([]);
-        setDbSelectedCols(new Set());
+        // 401 transitorio mientras se restaura user_sessions → seguir sondeando
+        await new Promise((r) => setTimeout(r, 1500));
+        if (Date.now() - started > 30 * 60 * 1000) throw new Error('La restauración tardó demasiado.');
+        continue;
       }
-      return;
+      const total = st.total_segments || 0;
+      const done = (st.completed_segments || []).length;
+      if (st.status === 'validating') setDbProgress(5);
+      else setDbProgress(total ? Math.min(99, Math.round((done / total) * 100)) : 50);
+      if (st.status === 'ready') {
+        setDbProgress(100);
+        setDbRestoreResult({
+          status: 'ok',
+          restored_collections: st.restored_collections,
+          restored_documents: st.restored_documents,
+          summary: st.summary,
+          skipped_collections: st.skipped_collections,
+          dropped_extra_collections: st.dropped_extra,
+          source_exported_at: st.source_exported_at,
+          session_preserved: st.session_preserved,
+        });
+        setDbRestoreJobId(null);
+        setDbRestoreErr(null);
+        toast.success(`Restauración completada: ${st.restored_collections} colección(es), ${st.restored_documents} documento(s)`);
+        loadDbInfo();
+        return;
+      }
+      if (st.status === 'error') {
+        setDbRestoreErr(st.error || 'Error durante la restauración');
+        toast.error(`Restauración interrumpida: ${st.error || 'error'}. Puedes reanudarla.`);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      if (Date.now() - started > 30 * 60 * 1000) throw new Error('La restauración tardó demasiado.');
     }
-    if (!dbFile || !dbUploadId || dbSelectedCols.size === 0) return;
+  };
+
+  const resumeRestore = async () => {
+    if (!dbRestoreJobId) return;
+    setDbBusy('restore');
+    setDbRestoreErr(null);
+    try {
+      const fd = new FormData();
+      fd.append('job_id', dbRestoreJobId);
+      await api.post('/admin/full-backup/restore-resume', fd);
+      await pollRestore(dbRestoreJobId);
+    } catch (err) {
+      toast.error(`No se pudo reanudar: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setDbBusy(null);
+    }
+  };
+
+  const doRestoreFullDb = async () => {
+    if (dbSelectedCols.size === 0) return;
+    const fromServer = !!dbServerJobId;
+    if (!fromServer && (!dbFile || !dbUploadId)) return;
     setDbConfirmOpen(false);
     setDbBusy('restore');
     setDbProgress(0);
     setDbRestoreResult(null);
+    setDbRestoreErr(null);
     try {
-      // El ZIP ya se subió por chunks al elegir el archivo (dbUploadId). Aquí solo
-      // disparamos la restauración desde ese archivo → sin volver a subir.
-      setDbProgress(40);
       const fd = new FormData();
-      fd.append('upload_id', dbUploadId);
       fd.append('mode', dbExactReplica ? 'replace' : 'merge');
-      // Restauración selectiva: enviar la lista solo si NO están todas seleccionadas.
       if (dbIsSelective) fd.append('collections', JSON.stringify(Array.from(dbSelectedCols)));
-      const { data } = await api.post('/admin/full-backup/restore', fd);
-      setDbProgress(100);
-      setDbRestoreResult(data);
-      toast.success(`Restauración completada: ${data.restored_collections} colección(es), ${data.restored_documents} documento(s)`);
-      loadDbInfo();
+      let endpoint;
+      if (fromServer) {
+        fd.append('job_id', dbServerJobId);
+        endpoint = '/admin/full-backup/restore-from-server';
+      } else {
+        fd.append('upload_id', dbUploadId);
+        endpoint = '/admin/full-backup/restore';
+      }
+      const { data } = await api.post(endpoint, fd);
+      await pollRestore(data.restore_job_id);
     } catch (err) {
       toast.error(`Error al restaurar: ${err.response?.data?.detail || err.message}`);
     } finally {
       setDbBusy(null);
+      setDbServerJobId(null);
+      setDbServerMeta(null);
       setDbFile(null);
       setDbUploadId(null);
       setDbFileMeta(null);
@@ -654,10 +703,31 @@ export default function BackupCenter() {
             {dbBusy === 'restore' && (
               <div className="mt-4" data-testid="full-backup-progress">
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                  <span>{dbProgress < 90 ? 'Subiendo respaldo…' : 'Restaurando colecciones…'}</span>
+                  <span>Restaurando (validando integridad y aplicando segmentos)…</span>
                   <span>{dbProgress}%</span>
                 </div>
                 <Progress value={dbProgress} className="h-2" />
+              </div>
+            )}
+
+            {dbRestoreErr && dbBusy !== 'restore' && (
+              <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3" data-testid="full-backup-restore-error">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-800 mb-1">
+                  <AlertTriangle size={15} className="text-amber-600" />
+                  Restauración interrumpida
+                </div>
+                <p className="text-xs text-amber-700 mb-2 break-words">{dbRestoreErr}</p>
+                <p className="text-[11px] text-amber-600 mb-2">
+                  Puedes reanudar desde el último segmento válido (los segmentos ya aplicados no se repiten).
+                </p>
+                <Button
+                  size="sm"
+                  onClick={resumeRestore}
+                  className="bg-amber-600 hover:bg-amber-700"
+                  data-testid="full-backup-resume-btn"
+                >
+                  <DatabaseBackup size={14} className="mr-1.5" /> Reanudar restauración
+                </Button>
               </div>
             )}
 

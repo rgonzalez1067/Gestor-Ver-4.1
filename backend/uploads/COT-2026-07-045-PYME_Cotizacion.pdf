@@ -27,14 +27,14 @@ endobj
 /F1 6 0 R
 /F2 7 0 R
 /F3 8 0 R
-/F1a28e87f4-475c-4a2c-b94b-a2c5dc5e6422 <<
+/F12f6ed7ef-6cb1-4f48-adbe-76e0ab5c02da <<
 /BaseFont /Helvetica
 /Encoding /WinAnsiEncoding
 /Name /F1
 /Subtype /Type1
 /Type /Font
 >>
-/F2413bf145-e1ee-44d7-858b-162176f96b2c <<
+/F2a01f2262-0740-4e2d-9908-4e9ae6335a9d <<
 /BaseFont /Helvetica-Bold
 /Encoding /WinAnsiEncoding
 /Name /F2
@@ -45,7 +45,7 @@ endobj
 /XObject <<
 /FormXob.565f5aa9167e75ef23af7458965f766d 11 0 R
 >>
-/ProcSet [ /PDF /ImageI /Text /ImageB /ImageC ]
+/ProcSet [ /PDF /ImageB /ImageC /ImageI /Text ]
 >>
 /Rotate 0
 /Trans <<
@@ -57,7 +57,7 @@ endobj
 endobj
 5 0 obj
 <<
-/Length 4649
+/Length 4633
 >>
 stream
 q
@@ -203,7 +203,7 @@ BT
 1 0 0 1 0 3 Tm
 /F2 12 Tf
 15 TL
-(A\056C\056\040VALLE\040ARRIBA\040ATHLETIC\040CLUB) Tj
+(TODO\040EN\040UNO\040C\056A) Tj
 T*
 ET
 Q
@@ -229,7 +229,7 @@ BT
 1 0 0 1 0 3 Tm
 /F2 12 Tf
 15 TL
-(J\055305153060) Tj
+(J\055500773587) Tj
 T*
 ET
 Q
@@ -255,7 +255,7 @@ BT
 1 0 0 1 0 3 Tm
 /F2 12 Tf
 15 TL
-(Altaris\040Partners) Tj
+(Sin\040integrador\040por\040el\040momento) Tj
 T*
 ET
 Q
@@ -281,7 +281,7 @@ BT
 1 0 0 1 0 3 Tm
 /F2 12 Tf
 15 TL
-(Canta\040Bingo\040v1\0562\0560) Tj
+(Stand\040Alone) Tj
 T*
 ET
 Q
@@ -438,7 +438,7 @@ BT
 1 0 0 1 0 3 Tm
 /F2 13 Tf
 16 TL
-(29\05707\0572026) Tj
+(06\05708\0572026) Tj
 T*
 ET
 Q
@@ -494,7 +494,7 @@ W
 n
 1 0 0 1 0 0 cm
 BT
-/F1a28e87f4-475c-4a2c-b94b-a2c5dc5e6422 12 Tf
+/F12f6ed7ef-6cb1-4f48-adbe-76e0ab5c02da 12 Tf
 14.4 TL
 ET
 q
@@ -508,7 +508,7 @@ n
 562 712 l
 S
 BT
-/F2413bf145-e1ee-44d7-858b-162176f96b2c 10 Tf
+/F2a01f2262-0740-4e2d-9908-4e9ae6335a9d 10 Tf
 12 TL
 ET
 0 0.266667 0.486275 rg
@@ -518,7 +518,7 @@ BT
 T*
 ET
 BT
-/F1a28e87f4-475c-4a2c-b94b-a2c5dc5e6422 8 Tf
+/F12f6ed7ef-6cb1-4f48-adbe-76e0ab5c02da 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -534,7 +534,7 @@ n
 562 40 l
 S
 BT
-/F1a28e87f4-475c-4a2c-b94b-a2c5dc5e6422 8 Tf
+/F12f6ed7ef-6cb1-4f48-adbe-76e0ab5c02da 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -621,14 +621,14 @@ endobj
 /F1 6 0 R
 /F2 7 0 R
 /F3 8 0 R
-/F1ca43e7c2-db92-4750-8301-5333c0660cf9 <<
+/F17571fa55-61f8-4d08-9378-039987dcf71f <<
 /BaseFont /Helvetica
 /Encoding /WinAnsiEncoding
 /Name /F1
 /Subtype /Type1
 /Type /Font
 >>
-/F228dac4f2-c0d4-472f-bb98-e55f91a1341b <<
+/F20bbba1ca-7362-4e60-99eb-86956699e068 <<
 /BaseFont /Helvetica-Bold
 /Encoding /WinAnsiEncoding
 /Name /F2
@@ -639,7 +639,7 @@ endobj
 /XObject <<
 /FormXob.565f5aa9167e75ef23af7458965f766d 16 0 R
 >>
-/ProcSet [ /PDF /ImageI /Text /ImageB /ImageC ]
+/ProcSet [ /PDF /ImageB /ImageC /ImageI /Text ]
 >>
 /Rotate 0
 /Trans <<
@@ -651,7 +651,7 @@ endobj
 endobj
 13 0 obj
 <<
-/Length 2794
+/Length 2521
 >>
 stream
 q
@@ -670,27 +670,27 @@ BT
 0.2 0.2 0.2 rg
 (Señores\072) Tj
 /F1 10 Tf
-(\040A\056C\056\040VALLE\040ARRIBA\040ATHLETIC\040CLUB) Tj
+(\040TODO\040EN\040UNO\040C\056A) Tj
 T*
 /F2 10 Tf
 (RIF\072) Tj
 /F1 10 Tf
-(\040J\055305153060) Tj
+(\040J\055500773587) Tj
 T*
 /F2 10 Tf
 (Att\072) Tj
 /F1 10 Tf
-(\040JEFFERSON\040ARAGOT) Tj
+(\040Departamento\040de\040Compras) Tj
 T*
 T*
 ET
 Q
 Q
 q
-1 0 0 1 56 568 cm
+1 0 0 1 56 582 cm
 q
 BT
-1 0 0 1 0 46 Tm
+1 0 0 1 0 32 Tm
 14 TL
 /F1 10 Tf
 0.2 0.2 0.2 rg
@@ -700,29 +700,18 @@ T*
 /F2 10 Tf
 (Payment\040Gateway) Tj
 /F1 10 Tf
-(\040a\040través\040del\040Merchant\040Server\056\040La\040solución\040propuesta\040se\040integra\040con\040el\040aplicativo) Tj
+(\040a\040través\040del\040Merchant\040Server\056\040La\040solución\040propuesta\040se\040integra\040con\040su\040plataforma) Tj
 T*
--0.095 Tw
-/F2 10 Tf
-(Canta\040Bingo\040v1\0562\0560) Tj
-/F1 10 Tf
-(\040desarrollado\040por\040) Tj
-/F2 10 Tf
-(Altaris\040Partners) Tj
-/F1 10 Tf
-(\054\040garantizando\040una\040experiencia\040de\040cobro\040segura\040y\040eficiente) Tj
-T*
-0 Tw
-(para\040transacciones\040en\040línea\056) Tj
+(de\040e\055commerce\054\040garantizando\040una\040experiencia\040de\040cobro\040segura\040y\040eficiente\040para\040transacciones\040en\040línea\056) Tj
 T*
 ET
 Q
 Q
 q
-1 0 0 1 56 547 cm
+1 0 0 1 56 561 cm
 Q
 q
-1 0 0 1 56 520 cm
+1 0 0 1 56 534 cm
 q
 0 0.266667 0.486275 rg
 BT
@@ -735,14 +724,14 @@ ET
 Q
 Q
 q
-1 0 0 1 56 504 cm
+1 0 0 1 56 518 cm
 Q
 q
-1 0 0 1 61 448 cm
+1 0 0 1 61 468 cm
 q
 0 0.266667 0.486275 rg
 n
-0 56 490 -28 re
+0 50 490 -28 re
 f*
 1 1 1 rg
 BT
@@ -750,12 +739,12 @@ BT
 12 TL
 ET
 BT
-1 0 0 1 73.746 39 Tm
+1 0 0 1 73.746 33 Tm
 (Bancos) Tj
 T*
 ET
 BT
-1 0 0 1 312.7475 39 Tm
+1 0 0 1 312.7475 33 Tm
 (Productos) Tj
 T*
 ET
@@ -765,7 +754,7 @@ BT
 12 TL
 ET
 BT
-1 0 0 1 6 12 Tm
+1 0 0 1 6 9 Tm
 (Banco\040Mercantil) Tj
 T*
 ET
@@ -774,16 +763,14 @@ BT
 12 TL
 ET
 q
-1 0 0 1 186 5 cm
+1 0 0 1 186 6.5 cm
 q
 0 0 0 rg
 BT
-1 0 0 1 0 10.5 Tm
+1 0 0 1 0 1.5 Tm
 /F1 7.5 Tf
 9 TL
-(Verificación\040de\040P2C\040\050PG\051\054\040Pago\040C2P\040\050PG\051\054\040Tarjeta\040de\040Crédito\057Débito\040\050PG\051\054\040Debito) Tj
-T*
-(Inmediato\040\050PG\051) Tj
+(C\100mbio\040\055\040Pago\040Movil\040\050PG\051) Tj
 T*
 ET
 Q
@@ -794,8 +781,8 @@ q
 0.878431 0.878431 0.878431 RG
 0.5 w
 n
-0 56 m
-490 56 l
+0 50 m
+490 50 l
 S
 n
 0 0 m
@@ -803,19 +790,19 @@ n
 S
 n
 0 0 m
-0 56 l
+0 50 l
 S
 n
 490 0 m
-490 56 l
+490 50 l
 S
 n
-0 28 m
-490 28 l
+0 22 m
+490 22 l
 S
 n
 180 0 m
-180 56 l
+180 50 l
 S
 Q
 Q
@@ -827,7 +814,7 @@ W
 n
 1 0 0 1 0 0 cm
 BT
-/F1ca43e7c2-db92-4750-8301-5333c0660cf9 12 Tf
+/F17571fa55-61f8-4d08-9378-039987dcf71f 12 Tf
 14.4 TL
 ET
 q
@@ -841,7 +828,7 @@ n
 562 712 l
 S
 BT
-/F228dac4f2-c0d4-472f-bb98-e55f91a1341b 10 Tf
+/F20bbba1ca-7362-4e60-99eb-86956699e068 10 Tf
 12 TL
 ET
 0 0.266667 0.486275 rg
@@ -851,7 +838,7 @@ BT
 T*
 ET
 BT
-/F1ca43e7c2-db92-4750-8301-5333c0660cf9 8 Tf
+/F17571fa55-61f8-4d08-9378-039987dcf71f 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -867,7 +854,7 @@ n
 562 40 l
 S
 BT
-/F1ca43e7c2-db92-4750-8301-5333c0660cf9 8 Tf
+/F17571fa55-61f8-4d08-9378-039987dcf71f 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -927,14 +914,14 @@ endobj
 /F1 6 0 R
 /F2 7 0 R
 /F3 8 0 R
-/F1678a8b98-d228-4542-a848-c38e854732c9 <<
+/F10d398a64-3a17-4eed-8f2d-e9615df9b74c <<
 /BaseFont /Helvetica
 /Encoding /WinAnsiEncoding
 /Name /F1
 /Subtype /Type1
 /Type /Font
 >>
-/F25dcba6a8-16ad-473a-a364-9c7aeb45931d <<
+/F2f6b6d5ff-59ee-44e5-99a8-8188d498782f <<
 /BaseFont /Helvetica-Bold
 /Encoding /WinAnsiEncoding
 /Name /F2
@@ -945,7 +932,7 @@ endobj
 /XObject <<
 /FormXob.565f5aa9167e75ef23af7458965f766d 21 0 R
 >>
-/ProcSet [ /PDF /ImageI /Text /ImageB /ImageC ]
+/ProcSet [ /PDF /ImageB /ImageC /ImageI /Text ]
 >>
 /Rotate 0
 /Trans <<
@@ -957,7 +944,7 @@ endobj
 endobj
 18 0 obj
 <<
-/Length 4260
+/Length 3169
 >>
 stream
 q
@@ -983,11 +970,11 @@ q
 1 0 0 1 56 658 cm
 Q
 q
-1 0 0 1 61 490 cm
+1 0 0 1 61 544 cm
 q
 0 0.266667 0.486275 rg
 n
-0 168 490 -24 re
+0 114 490 -24 re
 f*
 0.960784 0.960784 0.960784 rg
 n
@@ -999,11 +986,7 @@ n
 f*
 0.960784 0.960784 0.960784 rg
 n
-0 126 490 -18 re
-f*
-0.960784 0.960784 0.960784 rg
-n
-0 90 490 -18 re
+0 72 490 -18 re
 f*
 1 1 1 rg
 BT
@@ -1011,27 +994,27 @@ BT
 12 TL
 ET
 BT
-1 0 0 1 8.012 154 Tm
+1 0 0 1 8.012 100 Tm
 (N\260) Tj
 T*
 ET
 BT
-1 0 0 1 89.056 154 Tm
+1 0 0 1 89.056 100 Tm
 (Concepto) Tj
 T*
 ET
 BT
-1 0 0 1 203.948 154 Tm
+1 0 0 1 203.948 100 Tm
 (Costo\040\050USD\051) Tj
 T*
 ET
 BT
-1 0 0 1 310.276 154 Tm
+1 0 0 1 310.276 100 Tm
 (Banco) Tj
 T*
 ET
 BT
-1 0 0 1 410.768 154 Tm
+1 0 0 1 410.768 100 Tm
 (Observación) Tj
 T*
 ET
@@ -1041,12 +1024,12 @@ BT
 12 TL
 ET
 BT
-1 0 0 1 10.554 134 Tm
+1 0 0 1 10.554 80 Tm
 (1) Tj
 T*
 ET
 q
-1 0 0 1 31 130.5 cm
+1 0 0 1 31 76.5 cm
 q
 0 0 0 rg
 BT
@@ -1059,12 +1042,12 @@ ET
 Q
 Q
 BT
-1 0 0 1 214.851 134 Tm
-(\044240\05600) Tj
+1 0 0 1 218.743 80 Tm
+(\0440\05600) Tj
 T*
 ET
 q
-1 0 0 1 271 130.5 cm
+1 0 0 1 271 76.5 cm
 q
 0 0 0 rg
 BT
@@ -1077,7 +1060,7 @@ ET
 Q
 Q
 q
-1 0 0 1 386 130.5 cm
+1 0 0 1 386 76.5 cm
 q
 0 0 0 rg
 BT
@@ -1090,125 +1073,8 @@ ET
 Q
 Q
 BT
-1 0 0 1 10.554 116 Tm
-(2) Tj
-T*
-ET
-q
-1 0 0 1 31 112.5 cm
-q
-0 0 0 rg
-BT
-1 0 0 1 0 2 Tm
-/F1 7 Tf
-9 TL
-(Tarjeta\040de\040Crédito\057Débito\040\050PG\051) Tj
-T*
-ET
-Q
-Q
-BT
-1 0 0 1 216.797 116 Tm
-(\04460\05600) Tj
-T*
-ET
-q
-1 0 0 1 271 112.5 cm
-q
-0 0 0 rg
-BT
-1 0 0 1 0 2 Tm
-/F1 7 Tf
-9 TL
-(Banco\040Mercantil) Tj
-T*
-ET
-Q
-Q
-q
-1 0 0 1 386 117 cm
-Q
-BT
-1 0 0 1 10.554 98 Tm
-(3) Tj
-T*
-ET
-q
-1 0 0 1 31 94.5 cm
-q
-0 0 0 rg
-BT
-1 0 0 1 0 2 Tm
-/F1 7 Tf
-9 TL
-(Verificación\040de\040P2C\040\050PG\051) Tj
-T*
-ET
-Q
-Q
-BT
-1 0 0 1 216.797 98 Tm
-(\04436\05600) Tj
-T*
-ET
-q
-1 0 0 1 271 94.5 cm
-q
-0 0 0 rg
-BT
-1 0 0 1 0 2 Tm
-/F1 7 Tf
-9 TL
-(Banco\040Mercantil) Tj
-T*
-ET
-Q
-Q
-q
-1 0 0 1 386 99 cm
-Q
-BT
-1 0 0 1 10.554 80 Tm
-(4) Tj
-T*
-ET
-q
-1 0 0 1 31 76.5 cm
-q
-0 0 0 rg
-BT
-1 0 0 1 0 2 Tm
-/F1 7 Tf
-9 TL
-(Pago\040C2P\040\050PG\051) Tj
-T*
-ET
-Q
-Q
-BT
-1 0 0 1 216.797 80 Tm
-(\04436\05600) Tj
-T*
-ET
-q
-1 0 0 1 271 76.5 cm
-q
-0 0 0 rg
-BT
-1 0 0 1 0 2 Tm
-/F1 7 Tf
-9 TL
-(Banco\040Mercantil) Tj
-T*
-ET
-Q
-Q
-q
-1 0 0 1 386 81 cm
-Q
-BT
 1 0 0 1 10.554 62 Tm
-(5) Tj
+(2) Tj
 T*
 ET
 q
@@ -1219,14 +1085,14 @@ BT
 1 0 0 1 0 2 Tm
 /F1 7 Tf
 9 TL
-(Debito\040Inmediato\040\050PG\051) Tj
+(C\100mbio\040\055\040Pago\040Movil\040\050PG\051) Tj
 T*
 ET
 Q
 Q
 BT
 1 0 0 1 216.797 62 Tm
-(\04460\05600) Tj
+(\04448\05600) Tj
 T*
 ET
 q
@@ -1259,8 +1125,8 @@ BT
 T*
 ET
 BT
-1 0 0 1 213.044 43 Tm
-(\044432\05600) Tj
+1 0 0 1 215.268 43 Tm
+(\04448\05600) Tj
 T*
 ET
 BT
@@ -1281,8 +1147,8 @@ BT
 T*
 ET
 BT
-1 0 0 1 215.268 25 Tm
-(\04469\05612) Tj
+1 0 0 1 217.492 25 Tm
+(\0447\05668) Tj
 T*
 ET
 BT
@@ -1303,8 +1169,8 @@ BT
 T*
 ET
 BT
-1 0 0 1 213.044 7 Tm
-(\044501\05612) Tj
+1 0 0 1 215.268 7 Tm
+(\04455\05668) Tj
 T*
 ET
 BT
@@ -1321,8 +1187,8 @@ q
 0.878431 0.878431 0.878431 RG
 0.5 w
 n
-0 168 m
-490 168 l
+0 114 m
+490 114 l
 S
 n
 0 0 m
@@ -1330,23 +1196,11 @@ n
 S
 n
 0 0 m
-0 168 l
+0 114 l
 S
 n
 490 0 m
-490 168 l
-S
-n
-0 144 m
-490 144 l
-S
-n
-0 126 m
-490 126 l
-S
-n
-0 108 m
-490 108 l
+490 114 l
 S
 n
 0 90 m
@@ -1370,19 +1224,19 @@ n
 S
 n
 25 0 m
-25 168 l
+25 114 l
 S
 n
 190 0 m
-190 168 l
+190 114 l
 S
 n
 265 0 m
-265 168 l
+265 114 l
 S
 n
 380 0 m
-380 168 l
+380 114 l
 S
 Q
 Q
@@ -1394,7 +1248,7 @@ W
 n
 1 0 0 1 0 0 cm
 BT
-/F1678a8b98-d228-4542-a848-c38e854732c9 12 Tf
+/F10d398a64-3a17-4eed-8f2d-e9615df9b74c 12 Tf
 14.4 TL
 ET
 q
@@ -1408,7 +1262,7 @@ n
 562 712 l
 S
 BT
-/F25dcba6a8-16ad-473a-a364-9c7aeb45931d 10 Tf
+/F2f6b6d5ff-59ee-44e5-99a8-8188d498782f 10 Tf
 12 TL
 ET
 0 0.266667 0.486275 rg
@@ -1418,7 +1272,7 @@ BT
 T*
 ET
 BT
-/F1678a8b98-d228-4542-a848-c38e854732c9 8 Tf
+/F10d398a64-3a17-4eed-8f2d-e9615df9b74c 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -1434,7 +1288,7 @@ n
 562 40 l
 S
 BT
-/F1678a8b98-d228-4542-a848-c38e854732c9 8 Tf
+/F10d398a64-3a17-4eed-8f2d-e9615df9b74c 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -1494,14 +1348,14 @@ endobj
 /F1 6 0 R
 /F2 7 0 R
 /F3 8 0 R
-/F10ebdf6b7-0609-44a2-bf88-258ddaea902f <<
+/F198bd64fb-af66-4f6e-badb-45f1f75f45f8 <<
 /BaseFont /Helvetica
 /Encoding /WinAnsiEncoding
 /Name /F1
 /Subtype /Type1
 /Type /Font
 >>
-/F2f667f22b-a69a-4d6e-9328-c1ca8b3cedd7 <<
+/F2b8fb9551-ce73-4c9c-a954-0f1ac8d4937f <<
 /BaseFont /Helvetica-Bold
 /Encoding /WinAnsiEncoding
 /Name /F2
@@ -1512,7 +1366,7 @@ endobj
 /XObject <<
 /FormXob.565f5aa9167e75ef23af7458965f766d 26 0 R
 >>
-/ProcSet [ /PDF /ImageI /Text /ImageB /ImageC ]
+/ProcSet [ /PDF /ImageB /ImageC /ImageI /Text ]
 >>
 /Rotate 0
 /Trans <<
@@ -1524,7 +1378,7 @@ endobj
 endobj
 23 0 obj
 <<
-/Length 5511
+/Length 1048
 >>
 stream
 q
@@ -1549,489 +1403,6 @@ Q
 q
 1 0 0 1 56 662 cm
 Q
-q
-1 0 0 1 56 648 cm
-q
-BT
-1 0 0 1 0 5 Tm
-14 TL
-/F1 9 Tf
-0.2 0.2 0.2 rg
-(Calculado\040para\040) Tj
-/F2 9 Tf
-(4) Tj
-/F1 9 Tf
-(\040medio\050s\051\040de\040pago) Tj
-T*
-ET
-Q
-Q
-q
-1 0 0 1 83.5 272 cm
-q
-0 0.266667 0.486275 rg
-n
-0 370 445 -40 re
-f*
-0.862745 0.901961 0.945098 rg
-n
-0 308 445 -22 re
-f*
-0.862745 0.901961 0.945098 rg
-n
-0 264 445 -22 re
-f*
-0.862745 0.901961 0.945098 rg
-n
-0 220 445 -22 re
-f*
-0.862745 0.901961 0.945098 rg
-n
-0 176 445 -22 re
-f*
-0.862745 0.901961 0.945098 rg
-n
-0 132 445 -22 re
-f*
-0.862745 0.901961 0.945098 rg
-n
-0 88 445 -22 re
-f*
-0.862745 0.901961 0.945098 rg
-n
-0 44 445 -22 re
-f*
-1 1 1 rg
-BT
-/F2 9 Tf
-12 TL
-ET
-BT
-1 0 0 1 13.5005 347 Tm
-(Rango) Tj
-T*
-ET
-BT
-1 0 0 1 93.4865 347 Tm
-(Transacciones) Tj
-T*
-ET
-BT
-1 0 0 1 232.2435 347 Tm
-(Total\040Base) Tj
-T*
-ET
-BT
-1 0 0 1 345.7415 353 Tm
-(Precio\040Tope\040por) Tj
-T*
-ET
-BT
-1 0 0 1 367.499 341 Tm
-(rango) Tj
-T*
-ET
-0 0 0 rg
-BT
-/F1 9 Tf
-12 TL
-ET
-BT
-1 0 0 1 24.998 316 Tm
-(1) Tj
-T*
-ET
-BT
-1 0 0 1 110.9915 316 Tm
-(0\040\055\040200) Tj
-T*
-ET
-BT
-1 0 0 1 241.239 316 Tm
-(\04448\05600) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 316 Tm
-(\0440\056240000) Tj
-T*
-ET
-BT
-1 0 0 1 24.998 294 Tm
-(2) Tj
-T*
-ET
-BT
-1 0 0 1 105.9875 294 Tm
-(201\040\055\040400) Tj
-T*
-ET
-BT
-1 0 0 1 241.239 294 Tm
-(\04450\05600) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 294 Tm
-(\0440\056125000) Tj
-T*
-ET
-BT
-1 0 0 1 24.998 272 Tm
-(3) Tj
-T*
-ET
-BT
-1 0 0 1 105.9875 272 Tm
-(401\040\055\040600) Tj
-T*
-ET
-BT
-1 0 0 1 241.239 272 Tm
-(\04453\05660) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 272 Tm
-(\0440\056089333) Tj
-T*
-ET
-BT
-1 0 0 1 24.998 250 Tm
-(4) Tj
-T*
-ET
-BT
-1 0 0 1 105.9875 250 Tm
-(601\040\055\040800) Tj
-T*
-ET
-BT
-1 0 0 1 241.239 250 Tm
-(\04457\05660) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 250 Tm
-(\0440\056072000) Tj
-T*
-ET
-BT
-1 0 0 1 24.998 228 Tm
-(5) Tj
-T*
-ET
-BT
-1 0 0 1 102.2345 228 Tm
-(801\040\055\0401\054000) Tj
-T*
-ET
-BT
-1 0 0 1 241.239 228 Tm
-(\04461\05650) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 228 Tm
-(\0440\056061500) Tj
-T*
-ET
-BT
-1 0 0 1 24.998 206 Tm
-(6) Tj
-T*
-ET
-BT
-1 0 0 1 98.4815 206 Tm
-(1\054001\040\055\0402\054000) Tj
-T*
-ET
-BT
-1 0 0 1 241.239 206 Tm
-(\04476\05680) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 206 Tm
-(\0440\056038400) Tj
-T*
-ET
-BT
-1 0 0 1 24.998 184 Tm
-(7) Tj
-T*
-ET
-BT
-1 0 0 1 98.4815 184 Tm
-(2\054001\040\055\0403\054000) Tj
-T*
-ET
-BT
-1 0 0 1 241.239 184 Tm
-(\04488\05635) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 184 Tm
-(\0440\056029450) Tj
-T*
-ET
-BT
-1 0 0 1 24.998 162 Tm
-(8) Tj
-T*
-ET
-BT
-1 0 0 1 98.4815 162 Tm
-(3\054001\040\055\0404\054000) Tj
-T*
-ET
-BT
-1 0 0 1 241.239 162 Tm
-(\04497\05695) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 162 Tm
-(\0440\056024488) Tj
-T*
-ET
-BT
-1 0 0 1 24.998 140 Tm
-(9) Tj
-T*
-ET
-BT
-1 0 0 1 98.4815 140 Tm
-(4\054001\040\055\0405\054000) Tj
-T*
-ET
-BT
-1 0 0 1 238.737 140 Tm
-(\044111\05670) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 140 Tm
-(\0440\056022340) Tj
-T*
-ET
-BT
-1 0 0 1 22.496 118 Tm
-(10) Tj
-T*
-ET
-BT
-1 0 0 1 98.4815 118 Tm
-(5\054001\040\055\0406\054000) Tj
-T*
-ET
-BT
-1 0 0 1 238.737 118 Tm
-(\044118\05670) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 118 Tm
-(\0440\056019783) Tj
-T*
-ET
-BT
-1 0 0 1 22.496 96 Tm
-(11) Tj
-T*
-ET
-BT
-1 0 0 1 98.4815 96 Tm
-(6\054001\040\055\0407\054000) Tj
-T*
-ET
-BT
-1 0 0 1 238.737 96 Tm
-(\044132\05665) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 96 Tm
-(\0440\056018950) Tj
-T*
-ET
-BT
-1 0 0 1 22.496 74 Tm
-(12) Tj
-T*
-ET
-BT
-1 0 0 1 98.4815 74 Tm
-(7\054001\040\055\0408\054000) Tj
-T*
-ET
-BT
-1 0 0 1 238.737 74 Tm
-(\044140\05650) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 74 Tm
-(\0440\056017562) Tj
-T*
-ET
-BT
-1 0 0 1 22.496 52 Tm
-(13) Tj
-T*
-ET
-BT
-1 0 0 1 98.4815 52 Tm
-(8\054001\040\055\0409\054000) Tj
-T*
-ET
-BT
-1 0 0 1 238.737 52 Tm
-(\044146\05600) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 52 Tm
-(\0440\056016222) Tj
-T*
-ET
-BT
-1 0 0 1 22.496 30 Tm
-(14) Tj
-T*
-ET
-BT
-1 0 0 1 95.9795 30 Tm
-(9\054001\040\055\04010\054000) Tj
-T*
-ET
-BT
-1 0 0 1 238.737 30 Tm
-(\044153\05660) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 30 Tm
-(\0440\056015360) Tj
-T*
-ET
-BT
-1 0 0 1 22.496 8 Tm
-(15) Tj
-T*
-ET
-BT
-1 0 0 1 108.611 8 Tm
-(10\054001\053) Tj
-T*
-ET
-BT
-1 0 0 1 232.491 8 Tm
-(Negociable) Tj
-T*
-ET
-BT
-1 0 0 1 358.733 8 Tm
-(\0440\056009960) Tj
-T*
-ET
-q
-1 J
-1 j
-0.690196 0.690196 0.690196 RG
-0.5 w
-n
-0 370 m
-445 370 l
-S
-n
-0 0 m
-445 0 l
-S
-n
-0 0 m
-0 370 l
-S
-n
-445 0 m
-445 370 l
-S
-n
-0 330 m
-445 330 l
-S
-n
-0 308 m
-445 308 l
-S
-n
-0 286 m
-445 286 l
-S
-n
-0 264 m
-445 264 l
-S
-n
-0 242 m
-445 242 l
-S
-n
-0 220 m
-445 220 l
-S
-n
-0 198 m
-445 198 l
-S
-n
-0 176 m
-445 176 l
-S
-n
-0 154 m
-445 154 l
-S
-n
-0 132 m
-445 132 l
-S
-n
-0 110 m
-445 110 l
-S
-n
-0 88 m
-445 88 l
-S
-n
-0 66 m
-445 66 l
-S
-n
-0 44 m
-445 44 l
-S
-n
-0 22 m
-445 22 l
-S
-n
-55 0 m
-55 370 l
-S
-n
-195 0 m
-195 370 l
-S
-n
-315 0 m
-315 370 l
-S
-Q
-Q
-Q
 Q
 q
 0 0 612 792 re
@@ -2039,7 +1410,7 @@ W
 n
 1 0 0 1 0 0 cm
 BT
-/F10ebdf6b7-0609-44a2-bf88-258ddaea902f 12 Tf
+/F198bd64fb-af66-4f6e-badb-45f1f75f45f8 12 Tf
 14.4 TL
 ET
 q
@@ -2053,7 +1424,7 @@ n
 562 712 l
 S
 BT
-/F2f667f22b-a69a-4d6e-9328-c1ca8b3cedd7 10 Tf
+/F2b8fb9551-ce73-4c9c-a954-0f1ac8d4937f 10 Tf
 12 TL
 ET
 0 0.266667 0.486275 rg
@@ -2063,7 +1434,7 @@ BT
 T*
 ET
 BT
-/F10ebdf6b7-0609-44a2-bf88-258ddaea902f 8 Tf
+/F198bd64fb-af66-4f6e-badb-45f1f75f45f8 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -2079,7 +1450,7 @@ n
 562 40 l
 S
 BT
-/F10ebdf6b7-0609-44a2-bf88-258ddaea902f 8 Tf
+/F198bd64fb-af66-4f6e-badb-45f1f75f45f8 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -2139,14 +1510,14 @@ endobj
 /F1 6 0 R
 /F2 7 0 R
 /F3 8 0 R
-/F1ef9e99a1-5ca8-4c0f-92c0-d35d564cf5d2 <<
+/F1954122b0-3e92-4f83-8e09-f209c2a734cc <<
 /BaseFont /Helvetica
 /Encoding /WinAnsiEncoding
 /Name /F1
 /Subtype /Type1
 /Type /Font
 >>
-/F2c806135a-2110-428e-ac11-4700f7f4fc0b <<
+/F216c81841-e03c-4182-96ff-1166b5bb6f91 <<
 /BaseFont /Helvetica-Bold
 /Encoding /WinAnsiEncoding
 /Name /F2
@@ -2157,7 +1528,7 @@ endobj
 /XObject <<
 /FormXob.565f5aa9167e75ef23af7458965f766d 31 0 R
 >>
-/ProcSet [ /PDF /ImageI /Text /ImageB /ImageC ]
+/ProcSet [ /PDF /ImageB /ImageC /ImageI /Text ]
 >>
 /Rotate 0
 /Trans <<
@@ -2244,7 +1615,7 @@ W
 n
 1 0 0 1 0 0 cm
 BT
-/F1ef9e99a1-5ca8-4c0f-92c0-d35d564cf5d2 12 Tf
+/F1954122b0-3e92-4f83-8e09-f209c2a734cc 12 Tf
 14.4 TL
 ET
 q
@@ -2258,7 +1629,7 @@ n
 562 712 l
 S
 BT
-/F2c806135a-2110-428e-ac11-4700f7f4fc0b 10 Tf
+/F216c81841-e03c-4182-96ff-1166b5bb6f91 10 Tf
 12 TL
 ET
 0 0.266667 0.486275 rg
@@ -2268,7 +1639,7 @@ BT
 T*
 ET
 BT
-/F1ef9e99a1-5ca8-4c0f-92c0-d35d564cf5d2 8 Tf
+/F1954122b0-3e92-4f83-8e09-f209c2a734cc 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -2284,7 +1655,7 @@ n
 562 40 l
 S
 BT
-/F1ef9e99a1-5ca8-4c0f-92c0-d35d564cf5d2 8 Tf
+/F1954122b0-3e92-4f83-8e09-f209c2a734cc 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -2346,14 +1717,14 @@ endobj
 /Font <<
 /F1 35 0 R
 /F2 39 0 R
-/F194e305ce-835c-4327-ade7-c41c8d0533e1 <<
+/F1d7644de3-1c4e-4c54-b1f4-88d595608952 <<
 /BaseFont /Helvetica
 /Encoding /WinAnsiEncoding
 /Name /F1
 /Subtype /Type1
 /Type /Font
 >>
-/F27300da2e-65a4-4603-b069-ffeb52a242de <<
+/F2bb46c4ce-43e5-4279-8d0c-6297b67ad467 <<
 /BaseFont /Helvetica-Bold
 /Encoding /WinAnsiEncoding
 /Name /F2
@@ -2364,7 +1735,7 @@ endobj
 /XObject <<
 /FormXob.565f5aa9167e75ef23af7458965f766d 45 0 R
 >>
-/ProcSet [ /PDF /ImageI /Text /ImageB /ImageC ]
+/ProcSet [ /PDF /ImageB /ImageC /ImageI /Text ]
 >>
 /MediaBox [ 0 0 612 792 ]
 /Contents 46 0 R
@@ -4195,7 +3566,7 @@ W
 n
 1 0 0 1 0 0 cm
 BT
-/F194e305ce-835c-4327-ade7-c41c8d0533e1 12 Tf
+/F1d7644de3-1c4e-4c54-b1f4-88d595608952 12 Tf
 14.4 TL
 ET
 q
@@ -4209,7 +3580,7 @@ n
 562 712 l
 S
 BT
-/F27300da2e-65a4-4603-b069-ffeb52a242de 10 Tf
+/F2bb46c4ce-43e5-4279-8d0c-6297b67ad467 10 Tf
 12 TL
 ET
 0 0.266667 0.486275 rg
@@ -4219,7 +3590,7 @@ BT
 T*
 ET
 BT
-/F194e305ce-835c-4327-ade7-c41c8d0533e1 8 Tf
+/F1d7644de3-1c4e-4c54-b1f4-88d595608952 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -4235,7 +3606,7 @@ n
 562 40 l
 S
 BT
-/F194e305ce-835c-4327-ade7-c41c8d0533e1 8 Tf
+/F1d7644de3-1c4e-4c54-b1f4-88d595608952 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -4264,14 +3635,14 @@ endobj
 /Font <<
 /F1 35 0 R
 /F2 39 0 R
-/F1dd76f345-e488-4f99-bc20-bc56dd4c90a1 <<
+/F10c9aa112-6669-48ea-993b-7b1e44d338dc <<
 /BaseFont /Helvetica
 /Encoding /WinAnsiEncoding
 /Name /F1
 /Subtype /Type1
 /Type /Font
 >>
-/F29d8bb958-fd25-47b3-b1c5-4e51f6f17bbc <<
+/F2aca0ba87-41ed-405b-910a-315c0d06b3f4 <<
 /BaseFont /Helvetica-Bold
 /Encoding /WinAnsiEncoding
 /Name /F2
@@ -4282,7 +3653,7 @@ endobj
 /XObject <<
 /FormXob.565f5aa9167e75ef23af7458965f766d 50 0 R
 >>
-/ProcSet [ /PDF /ImageI /Text /ImageB /ImageC ]
+/ProcSet [ /PDF /ImageB /ImageC /ImageI /Text ]
 >>
 /MediaBox [ 0 0 612 792 ]
 /Contents 51 0 R
@@ -5728,7 +5099,7 @@ W
 n
 1 0 0 1 0 0 cm
 BT
-/F1dd76f345-e488-4f99-bc20-bc56dd4c90a1 12 Tf
+/F10c9aa112-6669-48ea-993b-7b1e44d338dc 12 Tf
 14.4 TL
 ET
 q
@@ -5742,7 +5113,7 @@ n
 562 712 l
 S
 BT
-/F29d8bb958-fd25-47b3-b1c5-4e51f6f17bbc 10 Tf
+/F2aca0ba87-41ed-405b-910a-315c0d06b3f4 10 Tf
 12 TL
 ET
 0 0.266667 0.486275 rg
@@ -5752,7 +5123,7 @@ BT
 T*
 ET
 BT
-/F1dd76f345-e488-4f99-bc20-bc56dd4c90a1 8 Tf
+/F10c9aa112-6669-48ea-993b-7b1e44d338dc 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -5768,7 +5139,7 @@ n
 562 40 l
 S
 BT
-/F1dd76f345-e488-4f99-bc20-bc56dd4c90a1 8 Tf
+/F10c9aa112-6669-48ea-993b-7b1e44d338dc 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -5800,14 +5171,14 @@ endobj
 /F3 53 0 R
 /F4 56 0 R
 /F5 64 0 R
-/F1106cee3b-5a28-4146-891a-57ffe598c649 <<
+/F1cb6fcd46-b80b-4844-a6a5-1a555040849b <<
 /BaseFont /Helvetica
 /Encoding /WinAnsiEncoding
 /Name /F1
 /Subtype /Type1
 /Type /Font
 >>
-/F2e8c7d804-448f-459d-aab3-1d8ffe0bfe26 <<
+/F2ca3d25af-8388-4932-bc33-6508dbe8ef51 <<
 /BaseFont /Helvetica-Bold
 /Encoding /WinAnsiEncoding
 /Name /F2
@@ -5819,7 +5190,7 @@ endobj
 /Image24 69 0 R
 /FormXob.565f5aa9167e75ef23af7458965f766d 70 0 R
 >>
-/ProcSet [ /PDF /ImageI /Text /ImageB /ImageC ]
+/ProcSet [ /PDF /ImageB /ImageC /ImageI /Text ]
 >>
 /MediaBox [ 0 0 612 792 ]
 /Contents 71 0 R
@@ -9603,7 +8974,7 @@ W
 n
 1 0 0 1 0 0 cm
 BT
-/F1106cee3b-5a28-4146-891a-57ffe598c649 12 Tf
+/F1cb6fcd46-b80b-4844-a6a5-1a555040849b 12 Tf
 14.4 TL
 ET
 q
@@ -9617,7 +8988,7 @@ n
 562 712 l
 S
 BT
-/F2e8c7d804-448f-459d-aab3-1d8ffe0bfe26 10 Tf
+/F2ca3d25af-8388-4932-bc33-6508dbe8ef51 10 Tf
 12 TL
 ET
 0 0.266667 0.486275 rg
@@ -9627,7 +8998,7 @@ BT
 T*
 ET
 BT
-/F1106cee3b-5a28-4146-891a-57ffe598c649 8 Tf
+/F1cb6fcd46-b80b-4844-a6a5-1a555040849b 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -9643,7 +9014,7 @@ n
 562 40 l
 S
 BT
-/F1106cee3b-5a28-4146-891a-57ffe598c649 8 Tf
+/F1cb6fcd46-b80b-4844-a6a5-1a555040849b 8 Tf
 9.6 TL
 ET
 0.4 0.4 0.4 rg
@@ -9669,72 +9040,72 @@ xref
 0000000163 00000 n 
 0000000212 00000 n 
 0000000776 00000 n 
-0000005477 00000 n 
-0000005584 00000 n 
-0000005696 00000 n 
-0000005811 00000 n 
-0000005918 00000 n 
-0000006031 00000 n 
-0000100120 00000 n 
-0000100686 00000 n 
-0000103533 00000 n 
-0000103641 00000 n 
-0000103754 00000 n 
-0000197843 00000 n 
-0000198409 00000 n 
-0000202722 00000 n 
-0000202830 00000 n 
-0000202943 00000 n 
-0000297032 00000 n 
-0000297598 00000 n 
-0000303162 00000 n 
-0000303270 00000 n 
-0000303383 00000 n 
-0000397472 00000 n 
-0000398038 00000 n 
-0000400282 00000 n 
-0000400390 00000 n 
-0000400503 00000 n 
-0000494592 00000 n 
-0000495235 00000 n 
-0000495292 00000 n 
-0000495349 00000 n 
-0000495536 00000 n 
-0000495796 00000 n 
-0000533013 00000 n 
-0000533503 00000 n 
-0000533685 00000 n 
-0000533940 00000 n 
-0000596334 00000 n 
-0000596922 00000 n 
-0000597030 00000 n 
-0000597143 00000 n 
-0000691232 00000 n 
-0000712191 00000 n 
-0000712834 00000 n 
-0000712942 00000 n 
-0000713055 00000 n 
-0000807144 00000 n 
-0000824739 00000 n 
-0000825431 00000 n 
-0000825615 00000 n 
-0000825867 00000 n 
-0000825891 00000 n 
-0000826025 00000 n 
-0000826052 00000 n 
-0000826216 00000 n 
-0000826291 00000 n 
-0000826538 00000 n 
-0000832660 00000 n 
-0000832702 00000 n 
-0000833001 00000 n 
-0000833175 00000 n 
-0000833417 00000 n 
-0000833441 00000 n 
-0000833549 00000 n 
-0000833662 00000 n 
-0000941041 00000 n 
-0001035130 00000 n 
+0000005461 00000 n 
+0000005568 00000 n 
+0000005680 00000 n 
+0000005795 00000 n 
+0000005902 00000 n 
+0000006015 00000 n 
+0000100104 00000 n 
+0000100670 00000 n 
+0000103244 00000 n 
+0000103352 00000 n 
+0000103465 00000 n 
+0000197554 00000 n 
+0000198120 00000 n 
+0000201342 00000 n 
+0000201450 00000 n 
+0000201563 00000 n 
+0000295652 00000 n 
+0000296218 00000 n 
+0000297319 00000 n 
+0000297427 00000 n 
+0000297540 00000 n 
+0000391629 00000 n 
+0000392195 00000 n 
+0000394439 00000 n 
+0000394547 00000 n 
+0000394660 00000 n 
+0000488749 00000 n 
+0000489392 00000 n 
+0000489449 00000 n 
+0000489506 00000 n 
+0000489693 00000 n 
+0000489953 00000 n 
+0000527170 00000 n 
+0000527660 00000 n 
+0000527842 00000 n 
+0000528097 00000 n 
+0000590491 00000 n 
+0000591079 00000 n 
+0000591187 00000 n 
+0000591300 00000 n 
+0000685389 00000 n 
+0000706348 00000 n 
+0000706991 00000 n 
+0000707099 00000 n 
+0000707212 00000 n 
+0000801301 00000 n 
+0000818896 00000 n 
+0000819588 00000 n 
+0000819772 00000 n 
+0000820024 00000 n 
+0000820048 00000 n 
+0000820182 00000 n 
+0000820209 00000 n 
+0000820373 00000 n 
+0000820448 00000 n 
+0000820695 00000 n 
+0000826817 00000 n 
+0000826859 00000 n 
+0000827158 00000 n 
+0000827332 00000 n 
+0000827574 00000 n 
+0000827598 00000 n 
+0000827706 00000 n 
+0000827819 00000 n 
+0000935198 00000 n 
+0001029287 00000 n 
 trailer
 <<
 /Size 72
@@ -9742,5 +9113,5 @@ trailer
 /Info 2 0 R
 >>
 startxref
-1067144
+1061301
 %%EOF

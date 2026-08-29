@@ -11,7 +11,6 @@ import os
 
 from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
 from models import *
-import shutil
 
 router = APIRouter()
 
@@ -342,8 +341,9 @@ async def upload_logo(file: UploadFile = File(...), authorization: Optional[str]
     for existing_logo in UPLOADS_DIR.glob("logo.*"):
         existing_logo.unlink()
     
-    with open(logo_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    content = await file.read()
+    from services.pdf_storage import save_pdf_dual
+    save_pdf_dual(logo_path, content, f"logo.{file_extension}")
     
     return {"message": "Logo subido exitosamente", "filename": f"logo.{file_extension}"}
 
@@ -382,8 +382,9 @@ async def upload_notification_logo(file: UploadFile = File(...), authorization: 
     for existing in UPLOADS_DIR.glob("notif_logo.*"):
         existing.unlink()
     logo_path = UPLOADS_DIR / f"notif_logo.{file_extension}"
-    with open(logo_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    content = await file.read()
+    from services.pdf_storage import save_pdf_dual
+    save_pdf_dual(logo_path, content, f"notif_logo.{file_extension}")
 
     await db.config.update_one(
         {"type": "notification_footer_logo"},
@@ -456,8 +457,9 @@ async def upload_template(template_type: str, file: UploadFile = File(...), auth
     if template_path.exists():
         template_path.unlink()
     
-    with open(template_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    content = await file.read()
+    from services.pdf_storage import save_pdf_dual
+    save_pdf_dual(template_path, content, f"templates/{template_type}.pdf")
     
     return {"message": f"Plantilla {template_type} subida exitosamente", "filename": f"{template_type}.pdf"}
 

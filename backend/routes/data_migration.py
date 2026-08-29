@@ -15,6 +15,7 @@ import io
 import json
 import logging
 import gc
+import hashlib
 import os
 import secrets
 import tempfile
@@ -1714,11 +1715,59 @@ async def recover_attachments_to_storage(
 # drop + insert por colección => réplica exacta del respaldo. La subida es por
 # chunks para evitar límites del proxy con archivos grandes.
 
-def _fb_upload_path(upload_id: str) -> str:
-    safe = "".join(ch for ch in (upload_id or "") if ch.isalnum() or ch in "-_")
-    if not safe:
-        raise HTTPException(status_code=400, detail="upload_id inválido")
-    return os.path.join(tempfile.gettempdir(), f"fb_upload_{safe}.zip")
+def _assemble_upload_to_gridfs_sync(upload_id: str, db_name: str) -> str:
+    """Ensambla los chunks (guardados en Mongo) en un único archivo GridFS y
+    devuelve su gridfs_id. Memoria O(1): escribe chunk por chunk. Almacenamiento
+    COMPARTIDO entre réplicas (evita el /tmp por-pod que rompía con 2 réplicas).
+    Reutiliza el ensamblado si ya existe (idempotente)."""
+    from pymongo import MongoClient
+    from bson import ObjectId
+    sclient = MongoClient(os.environ["MONGO_URL"])
+    sdb = sclient[db_name]
+    try:
+        up = sdb.fb_uploads.find_one({"upload_id": upload_id})
+        if not up:
+            raise HTTPException(status_code=404, detail="Respaldo subido no encontrado (¿expiró?)")
+        if up.get("assembled_gridfs_id"):
+            return str(up["assembled_gridfs_id"])
+        bucket = _sync_gridfs_bucket(sdb)
+        grid_in = bucket.open_upload_stream(f"upload_{upload_id}.zip", metadata={"upload_id": upload_id})
+        try:
+            for ch in sdb.fb_upload_chunks.find({"upload_id": upload_id}).sort("chunk_index", 1):
+                grid_in.write(bytes(ch["data"]))
+            grid_in.close()
+        except Exception:
+            try:
+                grid_in.abort()
+            except Exception:
+                pass
+            raise
+        gid = grid_in._id
+        sdb.fb_uploads.update_one({"upload_id": upload_id}, {"$set": {"assembled_gridfs_id": gid}})
+        sdb.fb_upload_chunks.delete_many({"upload_id": upload_id})
+        return str(gid)
+    finally:
+        sclient.close()
+
+
+def _cleanup_upload_sync(upload_id: str, db_name: str):
+    """Borra el buffer de subida (chunks + archivo GridFS ensamblado + doc)."""
+    from pymongo import MongoClient
+    sclient = MongoClient(os.environ["MONGO_URL"])
+    sdb = sclient[db_name]
+    try:
+        up = sdb.fb_uploads.find_one({"upload_id": upload_id}) or {}
+        gid = up.get("assembled_gridfs_id")
+        if gid:
+            try:
+                _sync_gridfs_bucket(sdb).delete(gid)
+            except Exception:
+                pass
+        sdb.fb_upload_chunks.delete_many({"upload_id": upload_id})
+        sdb.fb_uploads.delete_one({"upload_id": upload_id})
+    finally:
+        sclient.close()
+
 
 
 @router.get("/admin/full-backup/info")
@@ -1789,13 +1838,39 @@ _BACKUP_BUCKET = "backups"
 # Colecciones que NUNCA se incluyen en el dump:
 #  - backups.files / backups.chunks: el propio transporte GridFS del respaldo
 #    (incluirlas causaría recursión y tamaño explosivo).
-#  - backup_jobs / download_tickets: estado operativo transitorio.
+#  - backup_jobs / download_tickets / restore_jobs: estado operativo transitorio.
+#  - fb_uploads / fb_upload_chunks: buffer transitorio de subida por chunks.
 _BACKUP_EXCLUDE = {
     f"{_BACKUP_BUCKET}.files",
     f"{_BACKUP_BUCKET}.chunks",
     "backup_jobs",
     "download_tickets",
+    "restore_jobs",
+    "fb_uploads",
+    "fb_upload_chunks",
 }
+
+# Respaldo Total V2 — SEGMENTACIÓN Y DESACOPLE DE MAESTRAS
+# Las 11 colecciones maestras "de negocio" del Centro de Respaldos se EXCLUYEN
+# del Respaldo Total (se respaldan/restauran por su rutina propia). users y
+# profiles se MANTIENEN en el Total para garantizar el login tras un desastre.
+_MASTER_EXCLUDE = {
+    "clients",
+    "banks",
+    "services",                    # Medios de Pago
+    "hardware",                    # Bienes y Servicios
+    "commercial_categories",
+    "inventory_movements",
+    "warehouses",
+    "serial_assignments",
+    "inventory_movement_audits",
+    "taller_equipos",
+    "integrators",
+}
+
+# Tamaño máximo (bytes, sin comprimir) por segmento del Respaldo Total V2.
+SEGMENT_MAX_BYTES = 50 * 1024 * 1024
+
 
 
 def _sync_gridfs_bucket(sdb):
@@ -1875,44 +1950,113 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
     grid_in = bucket.open_upload_stream(f"{job_id}.zip", metadata={"job_id": job_id, "filename": filename})
     closed = False
     try:
-        cols = [c for c in sorted(sdb.list_collection_names()) if c not in _BACKUP_EXCLUDE]
+        all_cols = sorted(sdb.list_collection_names())
+        excluded_present = sorted([c for c in all_cols if c in _MASTER_EXCLUDE])
+        cols = [c for c in all_cols if c not in _BACKUP_EXCLUDE and c not in _MASTER_EXCLUDE]
+        logger.info(
+            f"[full-backup] job {job_id}: maestras EXCLUIDAS ({len(excluded_present)})={excluded_present} "
+            f"| colecciones a respaldar={len(cols)}"
+        )
         manifest = {
-            "schema_version": 1,
-            "type": "full-database-backup",
-            "format": "mongodb-extended-json",
+            "schema_version": 2,
+            "type": "full-database-backup-segmented",
+            "format": "mongodb-extended-json-jsonl",
             "db_name": db_name,
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "exported_by": user.get("email"),
             "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+            "excluded_masters": excluded_present,
+            "segment_max_bytes": SEGMENT_MAX_BYTES,
+            "segments": [],
             "collections": [],
         }
-        with zipfile.ZipFile(_GridZipWriter(grid_in), "w", zipfile.ZIP_DEFLATED) as zf:
-            _since_gc = 0
+        col_counts = []
+        # Estado de segmentación (un ZIP anidado por segmento, ≤ SEGMENT_MAX_BYTES)
+        seg_state = {"idx": 0, "buf": None, "zf": None, "bytes": 0, "parts": []}
+
+        def _new_segment():
+            buf = io.BytesIO()
+            seg_state["buf"] = buf
+            seg_state["zf"] = zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED)
+            seg_state["bytes"] = 0
+            seg_state["parts"] = []
+
+        def _finalize_segment(container):
+            if seg_state["zf"] is None:
+                return
+            seg_state["zf"].close()
+            data = seg_state["buf"].getvalue()
+            seg_state["idx"] += 1
+            seg_name = f"segments/segment_{seg_state['idx']:04d}.zip"
+            container.writestr(seg_name, data)
+            manifest["segments"].append({
+                "index": seg_state["idx"],
+                "filename": seg_name,
+                "size_bytes": len(data),
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "parts": seg_state["parts"],
+            })
+            sdb.backup_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"progress_segments": seg_state["idx"]}},
+            )
+            seg_state["buf"] = None
+            seg_state["zf"] = None
+            seg_state["bytes"] = 0
+            seg_state["parts"] = []
+            gc.collect()
+
+        with zipfile.ZipFile(_GridZipWriter(grid_in), "w", zipfile.ZIP_STORED) as container:
             done_cols = 0
             for cname in cols:
+                if seg_state["zf"] is None:
+                    _new_segment()
                 count = 0
+                part_index = 1
+                part_name = f"collections/{cname}.part{part_index:04d}.jsonl"
+                entry = seg_state["zf"].open(part_name, "w")
+                part_count = 0
+                part_hash = hashlib.sha256()
                 cursor = sdb[cname].find({}).batch_size(200)
-                with zf.open(f"collections/{cname}.json", "w") as entry:
-                    entry.write(b"[")
-                    first = True
-                    for doc in cursor:
-                        piece = (b"" if first else b",") + b"\n" + bson_dumps(doc, ensure_ascii=False).encode("utf-8")
-                        entry.write(piece)
-                        del piece, doc
-                        first = False
-                        count += 1
-                        _since_gc += 1
-                        if _since_gc >= 5000:
-                            gc.collect()
-                            _since_gc = 0
-                    entry.write(b"\n]" if count else b"]")
-                manifest["collections"].append({"name": cname, "count": count})
+                for doc in cursor:
+                    line = bson_dumps(doc, ensure_ascii=False).encode("utf-8") + b"\n"
+                    entry.write(line)
+                    part_hash.update(line)
+                    part_count += 1
+                    count += 1
+                    seg_state["bytes"] += len(line)
+                    del doc, line
+                    # Corte de segmento: cerrar parte y segmento; continuar la
+                    # misma colección en un segmento nuevo (parte siguiente).
+                    if seg_state["bytes"] >= SEGMENT_MAX_BYTES:
+                        entry.close()
+                        seg_state["parts"].append({
+                            "collection": cname, "part": part_index,
+                            "count": part_count, "sha256": part_hash.hexdigest(),
+                        })
+                        _finalize_segment(container)
+                        _new_segment()
+                        part_index += 1
+                        part_name = f"collections/{cname}.part{part_index:04d}.jsonl"
+                        entry = seg_state["zf"].open(part_name, "w")
+                        part_count = 0
+                        part_hash = hashlib.sha256()
+                entry.close()
+                seg_state["parts"].append({
+                    "collection": cname, "part": part_index,
+                    "count": part_count, "sha256": part_hash.hexdigest(),
+                })
+                col_counts.append({"name": cname, "count": count})
                 done_cols += 1
                 sdb.backup_jobs.update_one(
                     {"job_id": job_id},
                     {"$set": {"progress_collections": done_cols, "total_collections": len(cols)}},
                 )
-            zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+            _finalize_segment(container)
+            manifest["collections"] = col_counts
+            manifest["total_collections"] = len(col_counts)
+            manifest["total_documents"] = sum(c["count"] for c in col_counts)
+            container.writestr("backup_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
         grid_in.close()  # finaliza el archivo GridFS
         closed = True
@@ -1929,6 +2073,9 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
                 "collections": len(cols),
                 "manifest_collections": manifest["collections"],
                 "exported_at": manifest["exported_at"],
+                "schema_version": 2,
+                "segments": len(manifest["segments"]),
+                "excluded_masters": manifest["excluded_masters"],
                 "ready_at": datetime.now(timezone.utc).isoformat(),
             }},
         )
@@ -2210,10 +2357,15 @@ async def full_backup_collection_page(
 
 @router.post("/admin/full-backup/upload-init")
 async def full_backup_upload_init(authorization: Optional[str] = Header(None)):
-    """Inicia una carga por chunks. Devuelve un upload_id."""
+    """Inicia una carga por chunks. Devuelve un upload_id. Los chunks se guardan
+    en Mongo (almacenamiento compartido entre réplicas), no en /tmp del pod."""
     await _require_admin(authorization)
     upload_id = uuid.uuid4().hex
-    open(_fb_upload_path(upload_id), "wb").close()
+    await db.fb_uploads.insert_one({
+        "upload_id": upload_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "assembled_gridfs_id": None,
+    })
     return {"upload_id": upload_id}
 
 
@@ -2224,15 +2376,19 @@ async def full_backup_upload_chunk(
     file: UploadFile = File(...),
     authorization: Optional[str] = Header(None),
 ):
-    """Anexa un chunk del ZIP al archivo temporal (los chunks llegan en orden)."""
+    """Guarda un chunk del ZIP en Mongo (fb_upload_chunks). Idempotente por
+    (upload_id, chunk_index)."""
     await _require_admin(authorization)
-    path = _fb_upload_path(upload_id)
-    if not os.path.exists(path):
+    up = await db.fb_uploads.find_one({"upload_id": upload_id})
+    if not up:
         raise HTTPException(status_code=404, detail="upload_id no encontrado (inicia la carga primero)")
     data = await file.read()
-    with open(path, "ab") as f:
-        f.write(data)
-    return {"ok": True, "chunk_index": chunk_index, "received_bytes": len(data), "total_bytes": os.path.getsize(path)}
+    await db.fb_upload_chunks.update_one(
+        {"upload_id": upload_id, "chunk_index": chunk_index},
+        {"$set": {"data": data}},
+        upsert=True,
+    )
+    return {"ok": True, "chunk_index": chunk_index, "received_bytes": len(data)}
 
 
 @router.post("/admin/full-backup/upload-manifest")
@@ -2240,62 +2396,87 @@ async def full_backup_upload_manifest(
     upload_id: str = Form(...),
     authorization: Optional[str] = Header(None),
 ):
-    """Lee el manifiesto del ZIP YA subido por chunks (en el servidor), SIN usar
-    JSZip en el navegador. Devuelve las colecciones con su conteo para la UI de
-    restauración selectiva. Memoria O(1): zipfile hace `seek` sobre el archivo en
-    disco, no carga los cientos de MB en memoria."""
+    """Ensambla el ZIP subido (chunks Mongo → GridFS) y el SERVIDOR lee su
+    manifiesto (sin JSZip en el navegador). Soporta V1 (`_manifest.json`) y V2
+    (`backup_manifest.json`). Memoria O(1)."""
     await _require_admin(authorization)
-    path = _fb_upload_path(upload_id)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Respaldo subido no encontrado (¿expiró?)")
+    gid = await asyncio.to_thread(_assemble_upload_to_gridfs_sync, upload_id, db.name)
+    result = await asyncio.to_thread(_read_backup_manifest_sync, gid, db.name)
+    return result
+
+
+def _read_backup_manifest_sync(gridfs_id, db_name: str) -> dict:
+    """Lee el manifiesto (V1/V2) desde un ZIP en GridFS. Memoria O(1)."""
+    from pymongo import MongoClient
+    from bson import ObjectId
+    sclient = MongoClient(os.environ["MONGO_URL"])
+    sdb = sclient[db_name]
+    stream = None
     try:
-        zf = zipfile.ZipFile(path)
-    except Exception:
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
-        raise HTTPException(status_code=400, detail="El archivo subido no es un ZIP válido")
-    try:
+        stream = _sync_gridfs_bucket(sdb).open_download_stream(ObjectId(gridfs_id))
+        size_bytes = getattr(stream, "length", None)
+        zf = zipfile.ZipFile(stream)
         names = zf.namelist()
-        if "_manifest.json" not in names:
-            raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total (falta _manifest.json)")
-        try:
+        if "backup_manifest.json" in names:
+            manifest = json.loads(zf.read("backup_manifest.json"))
+            cols = manifest.get("collections") or []
+            return {
+                "schema_version": manifest.get("schema_version", 2),
+                "db_name": manifest.get("db_name"),
+                "exported_at": manifest.get("exported_at"),
+                "exported_by": manifest.get("exported_by"),
+                "excluded_masters": manifest.get("excluded_masters", []),
+                "segments": len(manifest.get("segments", [])),
+                "size_bytes": size_bytes,
+                "collections": cols,
+            }
+        if "_manifest.json" in names:
             manifest = json.loads(zf.read("_manifest.json"))
-        except Exception:
-            raise HTTPException(status_code=400, detail="No se pudo leer _manifest.json")
-        if manifest.get("type") != "full-database-backup":
-            raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total de Base de Datos")
-        cols = manifest.get("collections") or []
-        if not cols:
-            col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
-            cols = [{"name": n[len("collections/"):-len(".json")], "count": None} for n in col_files]
-        return {
-            "db_name": manifest.get("db_name"),
-            "exported_at": manifest.get("exported_at"),
-            "exported_by": manifest.get("exported_by"),
-            "size_bytes": os.path.getsize(path),
-            "collections": cols,
-        }
+            if manifest.get("type") != "full-database-backup":
+                raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total de Base de Datos")
+            cols = manifest.get("collections") or []
+            if not cols:
+                col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
+                cols = [{"name": n[len("collections/"):-len(".json")], "count": None} for n in col_files]
+            return {
+                "schema_version": 1,
+                "db_name": manifest.get("db_name"),
+                "exported_at": manifest.get("exported_at"),
+                "exported_by": manifest.get("exported_by"),
+                "excluded_masters": [],
+                "segments": 0,
+                "size_bytes": size_bytes,
+                "collections": cols,
+            }
+        raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total (falta el manifiesto)")
     finally:
         try:
-            zf.close()
+            if stream is not None:
+                stream.close()
         except Exception:
             pass
+        sclient.close()
 
 
-def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller_token, user: dict, db_name: str, gridfs_id=None) -> dict:
-    """Restaura la BD desde el ZIP usando pymongo SÍNCRONO en un HILO aparte
-    (asyncio.to_thread): no bloquea el event loop y usa inserciones masivas
-    (insert_many ordered=False, batches grandes) mucho más rápidas que awaitar
-    lote por lote con Motor. Además hace parse en STREAMING (una línea = un doc)
-    con `zf.open`, acotando memoria y solapando parseo con inserción → mejora
-    dramática de velocidad. Si un archivo no viene línea-por-línea, cae al parse
-    del array completo (compatibilidad).
+def _rjob_update(sdb, job_id, **fields):
+    """Actualiza el documento de progreso de restauración (checkpoints)."""
+    if not job_id:
+        return
+    fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        sdb.restore_jobs.update_one({"job_id": job_id}, {"$set": fields})
+    except Exception:
+        pass
 
-    Fuente del ZIP: si `gridfs_id` viene, se abre DIRECTO desde GridFS (stream
-    buscable, sin subir ni escribir a disco → restore inmediato desde el respaldo
-    ya guardado en el servidor). Si no, se usa el archivo `path` (subida)."""
+
+def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller_token, user: dict, db_name: str, gridfs_id=None, job_id=None) -> dict:
+    """Restaura la BD desde el ZIP usando pymongo SÍNCRONO en un HILO aparte.
+    Detecta el formato:
+      - V2 SEGMENTADO (`backup_manifest.json`): valida el checksum de TODOS los
+        segmentos antes de inyectar; restaura segmento por segmento liberando
+        memoria; soporta checkpoints/reanudación vía `restore_jobs`.
+      - V1 MONOLÍTICO (`collections/<x>.json`): compatibilidad hacia atrás.
+    Fuente del ZIP: `gridfs_id` (stream buscable desde GridFS) o `path` (disco)."""
     from pymongo import MongoClient
     from bson.json_util import loads as _loads
 
@@ -2304,70 +2485,161 @@ def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller
     sdb = sclient[db_name]
     summary = []
     backup_cols = set()
+    dropped_extra = []
     zip_source = None
     try:
         if gridfs_id is not None:
-            zip_source = _sync_gridfs_bucket(sdb).open_download_stream(gridfs_id)
+            from bson import ObjectId
+            gid = gridfs_id if isinstance(gridfs_id, ObjectId) else ObjectId(str(gridfs_id))
+            zip_source = _sync_gridfs_bucket(sdb).open_download_stream(gid)
             zf = zipfile.ZipFile(zip_source)
         else:
             zf = zipfile.ZipFile(path)
         names = zf.namelist()
-        col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
-        for n in col_files:
-            cname = n[len("collections/"):-len(".json")]
-            backup_cols.add(cname)
-            if selective and cname not in selected:
-                continue
-            coll = sdb[cname]
-            coll.drop()
-            inserted = 0
-            batch = []
-            used_fallback = False
-            try:
-                with zf.open(n) as fh:
-                    for rawline in io.TextIOWrapper(fh, encoding="utf-8"):
-                        line = rawline.strip()
-                        if not line or line == "[" or line == "]":
-                            continue
-                        if line.endswith(","):
-                            line = line[:-1].rstrip()
-                        if not line:
-                            continue
-                        try:
-                            doc = _loads(line)
-                        except Exception:
-                            used_fallback = True
-                            break
-                        batch.append(doc)
-                        if len(batch) >= BATCH:
+
+        if "backup_manifest.json" in names:
+            # ==================== V2 SEGMENTADO ====================
+            manifest = json.loads(zf.read("backup_manifest.json"))
+            segments = manifest.get("segments", [])
+            for c in manifest.get("collections", []):
+                backup_cols.add(c["name"])
+
+            # 1) Validación de integridad (checksums) de TODOS los segmentos
+            #    ANTES de iniciar la inyección de datos.
+            _rjob_update(sdb, job_id, status="validating", total_segments=len(segments),
+                         message="Validando integridad de segmentos…")
+            for seg in segments:
+                data = zf.read(seg["filename"])
+                if hashlib.sha256(data).hexdigest() != seg.get("sha256"):
+                    raise ValueError(f"Checksum inválido en {seg['filename']}: respaldo corrupto o incompleto")
+                del data
+            gc.collect()
+
+            # 2) Restauración secuencial e idempotente con checkpoints.
+            rjob = sdb.restore_jobs.find_one({"job_id": job_id}) if job_id else None
+            completed = set((rjob or {}).get("completed_segments", []))
+            started = set((rjob or {}).get("collections_started", []))
+            restored_counts = {s["name"]: s["restored"] for s in (rjob or {}).get("summary", [])}
+            _rjob_update(sdb, job_id, status="restoring", message="Restaurando segmentos…")
+            for seg in segments:
+                if seg["index"] in completed:
+                    continue
+                data = zf.read(seg["filename"])
+                inner = zipfile.ZipFile(io.BytesIO(data))
+                for part in seg.get("parts", []):
+                    cname = part["collection"]
+                    if selective and cname not in selected:
+                        continue
+                    coll = sdb[cname]
+                    if cname not in started:
+                        coll.drop()          # drop UNA sola vez por colección
+                        started.add(cname)
+                        restored_counts.setdefault(cname, 0)
+                    pname = f"collections/{cname}.part{part['part']:04d}.jsonl"
+                    inserted = 0
+                    batch = []
+                    with inner.open(pname) as fh:
+                        for rawline in io.TextIOWrapper(fh, encoding="utf-8"):
+                            line = rawline.strip()
+                            if not line:
+                                continue
+                            batch.append(_loads(line))
+                            if len(batch) >= BATCH:
+                                coll.insert_many(batch, ordered=False, bypass_document_validation=True)
+                                inserted += len(batch)
+                                batch = []
+                        if batch:
+                            coll.insert_many(batch, ordered=False, bypass_document_validation=True)
+                            inserted += len(batch)
+                    restored_counts[cname] = restored_counts.get(cname, 0) + inserted
+                completed.add(seg["index"])
+                del data, inner
+                gc.collect()
+                # Mantener viva la sesión del operador entre segmentos: la
+                # restauración de `user_sessions` borraría su token; lo re-insertamos
+                # (idempotente) para que el sondeo de progreso no reciba 401.
+                if caller_token and user.get("user_id"):
+                    try:
+                        sdb.user_sessions.update_one(
+                            {"session_token": caller_token},
+                            {"$setOnInsert": {
+                                "user_id": user["user_id"],
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                                "restored_after_full_backup": True,
+                            }},
+                            upsert=True,
+                        )
+                    except Exception:
+                        pass
+                _rjob_update(sdb, job_id,
+                             completed_segments=sorted(completed),
+                             collections_started=sorted(started),
+                             progress_segments=len(completed),
+                             summary=[{"name": k, "restored": v} for k, v in restored_counts.items()])
+            summary = [{"name": k, "restored": v} for k, v in restored_counts.items()]
+
+            if mode == "replace" and not selective:
+                protected = backup_cols | _BACKUP_EXCLUDE | _MASTER_EXCLUDE
+                for cname in sdb.list_collection_names():
+                    if cname not in protected:
+                        sdb[cname].drop()
+                        dropped_extra.append(cname)
+        else:
+            # ==================== V1 MONOLÍTICO (compatibilidad) ====================
+            col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
+            for n in col_files:
+                cname = n[len("collections/"):-len(".json")]
+                backup_cols.add(cname)
+                if selective and cname not in selected:
+                    continue
+                coll = sdb[cname]
+                coll.drop()
+                inserted = 0
+                batch = []
+                used_fallback = False
+                try:
+                    with zf.open(n) as fh:
+                        for rawline in io.TextIOWrapper(fh, encoding="utf-8"):
+                            line = rawline.strip()
+                            if not line or line == "[" or line == "]":
+                                continue
+                            if line.endswith(","):
+                                line = line[:-1].rstrip()
+                            if not line:
+                                continue
+                            try:
+                                doc = _loads(line)
+                            except Exception:
+                                used_fallback = True
+                                break
+                            batch.append(doc)
+                            if len(batch) >= BATCH:
+                                coll.insert_many(batch, ordered=False, bypass_document_validation=True)
+                                inserted += len(batch)
+                                batch = []
+                        if not used_fallback and batch:
                             coll.insert_many(batch, ordered=False, bypass_document_validation=True)
                             inserted += len(batch)
                             batch = []
-                    if not used_fallback and batch:
-                        coll.insert_many(batch, ordered=False, bypass_document_validation=True)
-                        inserted += len(batch)
-                        batch = []
-            except Exception:
-                used_fallback = True
-            if used_fallback:
-                # Compatibilidad: archivo no delimitado por línea → parse del array completo
-                coll.drop()
-                inserted = 0
-                raw = zf.read(n).decode("utf-8")
-                docs = _loads(raw) if raw.strip() else []
-                for i in range(0, len(docs), BATCH):
-                    b = docs[i:i + BATCH]
-                    if b:
-                        coll.insert_many(b, ordered=False, bypass_document_validation=True)
-                        inserted += len(b)
-            summary.append({"name": cname, "restored": inserted})
+                except Exception:
+                    used_fallback = True
+                if used_fallback:
+                    coll.drop()
+                    inserted = 0
+                    raw = zf.read(n).decode("utf-8")
+                    docs = _loads(raw) if raw.strip() else []
+                    for i in range(0, len(docs), BATCH):
+                        b = docs[i:i + BATCH]
+                        if b:
+                            coll.insert_many(b, ordered=False, bypass_document_validation=True)
+                            inserted += len(b)
+                summary.append({"name": cname, "restored": inserted})
 
-        dropped_extra = []
-        if mode == "replace" and not selective:
-            for cname in sdb.list_collection_names():
-                if cname not in backup_cols:
-                    sdb[cname].drop()
-                    dropped_extra.append(cname)
+            if mode == "replace" and not selective:
+                for cname in sdb.list_collection_names():
+                    if cname not in backup_cols:
+                        sdb[cname].drop()
+                        dropped_extra.append(cname)
 
         session_preserved = False
         if caller_token and user.get("user_id"):
@@ -2402,115 +2674,154 @@ def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller
             pass
 
 
-@router.post("/admin/full-backup/restore")
-async def full_backup_restore(
-    upload_id: str = Form(...),
-    mode: str = Form("replace"),  # "replace": además borra colecciones que no estén en el respaldo; "merge": solo reemplaza las presentes
-    collections: Optional[str] = Form(None),  # JSON array de nombres → restauración SELECTIVA (solo esas)
-    authorization: Optional[str] = Header(None),
-):
-    """Restaura la base de datos desde el ZIP subido por chunks.
-    Cada colección se DROP + re-inserta => réplica exacta.
-    Si se envía `collections` (subconjunto), restaura SOLO esas y nunca borra
-    colecciones fuera de la selección. Preserva la sesión del admin."""
-    user = await _require_admin(authorization)
-    caller_token = authorization.replace("Bearer ", "").strip() if authorization else None
+def _run_restore_job_sync(restore_job_id, mode, selected, selective, caller_token, user_min, db_name, gridfs_id):
+    """Ejecuta la restauración (V1/V2) escribiendo checkpoints en restore_jobs.
+    En error deja el job como 'error' (reanudable); en éxito lo marca 'ready'."""
+    from pymongo import MongoClient
+    sclient = MongoClient(os.environ["MONGO_URL"])
+    sdb = sclient[db_name]
+    try:
+        result = _restore_full_backup_sync(
+            None, mode, selected, selective, caller_token, user_min, db_name, gridfs_id, job_id=restore_job_id
+        )
+        summary = result["summary"]
+        backup_cols = set(result["backup_cols"])
+        skipped = sorted(selected - backup_cols) if selective else []
+        sdb.restore_jobs.update_one({"job_id": restore_job_id}, {"$set": {
+            "status": "ready",
+            "summary": summary,
+            "restored_collections": len(summary),
+            "restored_documents": sum(s["restored"] for s in summary),
+            "dropped_extra": result["dropped_extra"],
+            "skipped_collections": skipped,
+            "session_preserved": result["session_preserved"],
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        }})
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"[full-restore] job {restore_job_id} fallo: {e}")
+        sdb.restore_jobs.update_one({"job_id": restore_job_id}, {"$set": {"status": "error", "error": str(e)}})
+    finally:
+        sclient.close()
 
-    # Parsear selección de colecciones (restauración selectiva)
+
+async def _launch_restore_job(restore_job_id):
+    """Lanza el runner en un hilo. Limpia el buffer de subida SOLO si terminó
+    con éxito (para permitir reanudar en caso de error)."""
+    job = await db.restore_jobs.find_one({"job_id": restore_job_id})
+    if not job:
+        return
+    selected = set(job.get("selected") or []) or None
+    await asyncio.to_thread(
+        _run_restore_job_sync, restore_job_id, job.get("mode"), selected,
+        bool(job.get("selective")), job.get("caller_token"),
+        {"user_id": job.get("user_id"), "email": job.get("email")},
+        db.name, job.get("gridfs_id"),
+    )
+    final = await db.restore_jobs.find_one({"job_id": restore_job_id})
+    if final and final.get("status") == "ready":
+        await db.bitacora.insert_one({
+            "action": "full_backup_restore",
+            "source": job.get("source"),
+            "mode": job.get("mode"),
+            "selective": bool(job.get("selective")),
+            "source_exported_at": job.get("source_exported_at"),
+            "restored_collections": final.get("restored_collections"),
+            "executed_by": job.get("email"),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        if job.get("upload_id"):
+            try:
+                await asyncio.to_thread(_cleanup_upload_sync, job.get("upload_id"), db.name)
+            except Exception:
+                pass
+
+
+async def _create_and_start_restore(*, source, gridfs_id, mode, collections, user, caller_token,
+                                     upload_id=None, source_exported_at=None, source_label=None):
     selected = None
     if collections:
         try:
             parsed = json.loads(collections)
             if isinstance(parsed, list):
-                selected = {str(x) for x in parsed if str(x).strip()}
+                selected = [str(x) for x in parsed if str(x).strip()]
         except Exception:
-            selected = {c.strip() for c in collections.split(",") if c.strip()}
+            selected = [c.strip() for c in collections.split(",") if c.strip()]
     selective = bool(selected)
-
-    path = _fb_upload_path(upload_id)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Respaldo subido no encontrado (¿expiró?)")
-
-    try:
-        zf = zipfile.ZipFile(path)
-    except Exception:
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
-        raise HTTPException(status_code=400, detail="El archivo subido no es un ZIP válido")
-
-    names = zf.namelist()
-    if "_manifest.json" not in names:
-        raise HTTPException(status_code=400, detail="ZIP inválido: falta _manifest.json")
-    try:
-        manifest = json.loads(zf.read("_manifest.json"))
-    except Exception:
-        raise HTTPException(status_code=400, detail="No se pudo leer _manifest.json")
-    if manifest.get("type") != "full-database-backup":
-        raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total de Base de Datos")
-
-    col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
-    if not col_files:
-        raise HTTPException(status_code=400, detail="El respaldo no contiene colecciones")
-
-    backup_cols = set()
-    summary = []
-    skipped = []
-
-    user_min = {
+    restore_job_id = uuid.uuid4().hex
+    await db.restore_jobs.insert_one({
+        "job_id": restore_job_id,
+        "status": "queued",
+        "source": source,
+        "gridfs_id": gridfs_id,
+        "upload_id": upload_id,
+        "mode": mode,
+        "selective": selective,
+        "selected": selected,
+        "caller_token": caller_token,
         "user_id": user.get("user_id"),
         "email": user.get("email"),
-    }
-    # Trabajo pesado (drop + inserciones masivas) en un HILO con pymongo → rápido
-    # y sin bloquear el event loop del servidor.
-    result = await asyncio.to_thread(
-        _restore_full_backup_sync, path, mode, selected, selective, caller_token, user_min, db.name
+        "source_exported_at": source_exported_at,
+        "source_label": source_label,
+        "completed_segments": [],
+        "collections_started": [],
+        "summary": [],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    asyncio.create_task(_launch_restore_job(restore_job_id))
+    return restore_job_id
+
+
+@router.post("/admin/full-backup/restore")
+async def full_backup_restore(
+    upload_id: str = Form(...),
+    mode: str = Form("replace"),
+    collections: Optional[str] = Form(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Restaura desde el ZIP subido por chunks (ensamblado a GridFS). Arranca un
+    job ASÍNCRONO (con checkpoints/reanudación) y devuelve restore_job_id para
+    sondear el progreso. Soporta formato V1 (monolítico) y V2 (segmentado)."""
+    user = await _require_admin(authorization)
+    caller_token = authorization.replace("Bearer ", "").strip() if authorization else None
+    gid = await asyncio.to_thread(_assemble_upload_to_gridfs_sync, upload_id, db.name)
+    meta = await asyncio.to_thread(_read_backup_manifest_sync, gid, db.name)
+    restore_job_id = await _create_and_start_restore(
+        source="file-upload", gridfs_id=gid, mode=mode, collections=collections,
+        user=user, caller_token=caller_token, upload_id=upload_id,
+        source_exported_at=meta.get("exported_at"), source_label=meta.get("db_name"),
     )
-    summary = result["summary"]
-    backup_cols = set(result["backup_cols"])
-    dropped_extra = result["dropped_extra"]
-    session_preserved = result["session_preserved"]
+    return {"status": "started", "restore_job_id": restore_job_id, "schema_version": meta.get("schema_version")}
 
-    if selective:
-        # Reportar colecciones pedidas que no existen en el respaldo
-        skipped = sorted(selected - backup_cols)
-        if not summary:
-            raise HTTPException(status_code=400, detail="Ninguna de las colecciones seleccionadas existe en el respaldo")
 
-    try:
-        await db.bitacora.insert_one({
-            "action": "full_backup_restore",
-            "mode": mode,
-            "selective": selective,
-            "selected_collections": sorted(selected) if selective else None,
-            "source_db": manifest.get("db_name"),
-            "source_exported_at": manifest.get("exported_at"),
-            "restored_collections": len(summary),
-            "dropped_extra_collections": dropped_extra,
-            "executed_by": user.get("email"),
-            "executed_at": datetime.now(timezone.utc).isoformat(),
-        })
-    except Exception:
-        pass
+@router.get("/admin/full-backup/restore-status")
+async def full_backup_restore_status(job_id: str, authorization: Optional[str] = Header(None)):
+    """Estado/progreso de una restauración asíncrona (para sondeo desde la UI)."""
+    await _require_admin(authorization)
+    job = await db.restore_jobs.find_one(
+        {"job_id": job_id},
+        {"_id": 0, "caller_token": 0, "gridfs_id": 0},
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Restauración no encontrada")
+    return job
 
-    try:
-        os.unlink(path)
-    except Exception:
-        pass
 
-    return {
-        "status": "ok",
-        "selective": selective,
-        "source_db": manifest.get("db_name"),
-        "source_exported_at": manifest.get("exported_at"),
-        "restored_collections": len(summary),
-        "restored_documents": sum(s["restored"] for s in summary),
-        "summary": summary,
-        "skipped_collections": skipped,
-        "dropped_extra_collections": dropped_extra,
-        "session_preserved": session_preserved,
-    }
+@router.post("/admin/full-backup/restore-resume")
+async def full_backup_restore_resume(job_id: str = Form(...), authorization: Optional[str] = Header(None)):
+    """Reanuda una restauración interrumpida desde el último segmento válido
+    (checkpoints). Reutiliza el mismo ZIP en GridFS y omite segmentos completados."""
+    await _require_admin(authorization)
+    job = await db.restore_jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Restauración no encontrada")
+    if job.get("status") == "ready":
+        return {"status": "ready", "message": "La restauración ya había finalizado."}
+    if not job.get("gridfs_id"):
+        raise HTTPException(status_code=400, detail="No se puede reanudar: el respaldo fuente ya no está disponible.")
+    await db.restore_jobs.update_one({"job_id": job_id}, {"$set": {"status": "queued", "error": None}})
+    asyncio.create_task(_launch_restore_job(job_id))
+    return {"status": "resumed", "restore_job_id": job_id}
+
 
 
 
@@ -2545,9 +2856,9 @@ async def full_backup_restore_from_server(
     collections: Optional[str] = Form(None),
     authorization: Optional[str] = Header(None),
 ):
-    """Restaura DIRECTO desde un respaldo ya guardado en el servidor (GridFS),
-    sin descarga ni subida ni JSZip. El ZIP se lee en streaming buscable desde
-    GridFS y el trabajo pesado corre en un hilo con pymongo (rápido)."""
+    """Restaura DIRECTO desde un respaldo ya guardado en el servidor (GridFS).
+    Arranca un job ASÍNCRONO (con checkpoints/reanudación) y devuelve
+    restore_job_id para sondear el progreso. Soporta V1 y V2 (segmentado)."""
     user = await _require_admin(authorization)
     caller_token = authorization.replace("Bearer ", "").strip() if authorization else None
 
@@ -2555,57 +2866,10 @@ async def full_backup_restore_from_server(
     if not job or job.get("status") != "ready" or not job.get("gridfs_id"):
         raise HTTPException(status_code=404, detail="Respaldo del servidor no encontrado o expirado; genera uno nuevo")
 
-    selected = None
-    if collections:
-        try:
-            parsed = json.loads(collections)
-            if isinstance(parsed, list):
-                selected = {str(x) for x in parsed if str(x).strip()}
-        except Exception:
-            selected = {c.strip() for c in collections.split(",") if c.strip()}
-    selective = bool(selected)
-
-    user_min = {"user_id": user.get("user_id"), "email": user.get("email")}
-    result = await asyncio.to_thread(
-        _restore_full_backup_sync, None, mode, selected, selective, caller_token, user_min, db.name, job.get("gridfs_id")
+    restore_job_id = await _create_and_start_restore(
+        source="server-gridfs", gridfs_id=job.get("gridfs_id"), mode=mode, collections=collections,
+        user=user, caller_token=caller_token, upload_id=None,
+        source_exported_at=job.get("exported_at"), source_label=job.get("filename"),
     )
-    summary = result["summary"]
-    backup_cols = set(result["backup_cols"])
-    dropped_extra = result["dropped_extra"]
-    session_preserved = result["session_preserved"]
+    return {"status": "started", "restore_job_id": restore_job_id, "schema_version": job.get("schema_version", 1)}
 
-    skipped = []
-    if selective:
-        skipped = sorted(selected - backup_cols)
-        if not summary:
-            raise HTTPException(status_code=400, detail="Ninguna de las colecciones seleccionadas existe en el respaldo")
-
-    try:
-        await db.bitacora.insert_one({
-            "action": "full_backup_restore",
-            "source": "server-gridfs",
-            "mode": mode,
-            "selective": selective,
-            "selected_collections": sorted(selected) if selective else None,
-            "source_db": job.get("filename"),
-            "source_exported_at": job.get("exported_at"),
-            "restored_collections": len(summary),
-            "dropped_extra_collections": dropped_extra,
-            "executed_by": user.get("email"),
-            "executed_at": datetime.now(timezone.utc).isoformat(),
-        })
-    except Exception:
-        pass
-
-    return {
-        "status": "ok",
-        "selective": selective,
-        "source_db": job.get("db_name") or db.name,
-        "source_exported_at": job.get("exported_at"),
-        "restored_collections": len(summary),
-        "restored_documents": sum(s["restored"] for s in summary),
-        "summary": summary,
-        "skipped_collections": skipped,
-        "dropped_extra_collections": dropped_extra,
-        "session_preserved": session_preserved,
-    }

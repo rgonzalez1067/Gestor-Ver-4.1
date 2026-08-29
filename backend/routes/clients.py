@@ -367,8 +367,8 @@ async def update_client_from_rif(client_id: str, file: UploadFile = File(...), a
     safe_rif = re.sub(r'[^a-zA-Z0-9]', '', scanned["rif"])
     rif_filename = f"{client_id}_{safe_rif}_rif{ext}"
     rif_path = RIF_DOCS_DIR / rif_filename
-    with open(rif_path, "wb") as f:
-        f.write(content)
+    from services.pdf_storage import save_pdf_dual
+    save_pdf_dual(rif_path, content, f"rif_documents/{rif_filename}")
 
     rif_url = f"/uploads/rif_documents/{rif_filename}"
 
@@ -409,19 +409,28 @@ async def download_rif_document(client_id: str, authorization: Optional[str] = H
     if not rif_url:
         raise HTTPException(status_code=404, detail="Este cliente no tiene un documento RIF archivado")
 
-    file_path = UPLOADS_DIR / rif_url.replace("/uploads/", "")
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Archivo RIF no encontrado en el servidor")
-
-    ext = file_path.suffix.lower()
+    rel = rif_url.replace("/api/uploads/", "").replace("/uploads/", "")
+    ext = os.path.splitext(rel)[1].lower()
     content_types = {'.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
     content_type = content_types.get(ext, 'application/octet-stream')
+    dl_name = client.get("rif_document_filename", f"RIF_{client.get('rif', 'unknown')}{ext}")
 
-    return FileResponse(
-        path=str(file_path),
-        media_type=content_type,
-        filename=client.get("rif_document_filename", f"RIF_{client.get('rif', 'unknown')}{ext}")
-    )
+    # 1) Object Storage (persistente cross-deploy)
+    from services.pdf_storage import get_pdf_from_storage
+    res = get_pdf_from_storage(rel)
+    if res is not None:
+        data_bytes, ctype = res
+        return Response(
+            content=data_bytes,
+            media_type=ctype or content_type,
+            headers={"Content-Disposition": f'inline; filename="{dl_name}"'},
+        )
+
+    # 2) Fallback a disco local (legacy)
+    file_path = UPLOADS_DIR / rel
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Archivo RIF no encontrado en el servidor")
+    return FileResponse(path=str(file_path), media_type=content_type, filename=dl_name)
 
 async def _sync_group_name(data: dict):
     """Normaliza grupo_economico_id y sincroniza el nombre visible (grupo_economico)

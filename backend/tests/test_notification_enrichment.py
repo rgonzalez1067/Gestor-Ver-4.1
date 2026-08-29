@@ -264,7 +264,6 @@ async def _scenario_no_client_no_project_still_works():
 def test_all_notification_scenarios():
     """Runs all async scenarios (unit + E2E) sequentially in a single
     asyncio.run() so the Motor client's thread-executor stays bound to one loop."""
-    import os
     import requests
 
     BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")

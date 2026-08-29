@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-08 — Respaldo Total V2: segmentación, exclusión de maestras y restauración reanudable
+- **Exclusión de 11 maestras de negocio** (`_MASTER_EXCLUDE` en data_migration.py): clients, banks, services, hardware, commercial_categories, inventory_movements, warehouses, serial_assignments, inventory_movement_audits, taller_equipos, integrators. `users`+`profiles` SE MANTIENEN en el Total (login tras desastre). El build loguea las maestras excluidas.
+- **Build segmentado (schema_version=2)**: un ZIP contenedor (`ZIP_STORED`) en GridFS con `backup_manifest.json` + `segments/segment_NNNN.zip` (nested, ≤ `SEGMENT_MAX_BYTES`=50MB sin comprimir; colecciones grandes se parten en `collections/<c>.partNNNN.jsonl`). Manifiesto con sha256 por segmento y por parte, orden estricto, excluded_masters y conteos.
+- **Restauración V2**: valida el checksum de TODOS los segmentos ANTES de inyectar; restaura segmento por segmento liberando memoria; **checkpoints** en `restore_jobs` (completed_segments/collections_started) → **reanudable** (`/restore-resume`) desde el último segmento válido; idempotente (drop una vez por colección). Compatibilidad hacia atrás con V1 monolítico (`_manifest.json`).
+- **Restauración ASÍNCRONA** (evita timeouts): `/restore` y `/restore-from-server` devuelven `restore_job_id`; nuevos `GET /restore-status` y `POST /restore-resume`. Frontend sondea con `fetch` directo (ignora el interceptor 401 global) y muestra progreso + botón "Reanudar" ante error.
+- **Subida por chunks migrada a GridFS** (fix bug prod 2-réplicas + lint ephemeral-storage): `upload-init/upload-chunk` guardan en Mongo (`fb_uploads`/`fb_upload_chunks`), se ensamblan a GridFS y el file-restore reusa el mismo motor gridfs. Se eliminó `/tmp`.
+- **Keepalive de sesión** del operador entre segmentos (la restauración de `user_sessions` ya no lo desloguea).
+- **Testing (self):** build V2 (16 cols, 0 maestras, users/profiles incluidos), restore-from-server async (browser E2E: 16 cols/8277 docs), restore-from-file async (GridFS assembly), compat V1 (schema 1, 3 docs), checksums en manifiesto. La "prueba de fuego" con VOLUMEN real queda pendiente de que el usuario cargue su respaldo.
+
+
+
 ## 2026-08 — "Cambiar contraseña" self-service (todos los usuarios)
 - **Pedido:** cambio de contraseña self-service para TODOS los usuarios, con contraseña actual + nueva + confirmar, desde un menú de perfil. Política: mín 10, ≥1 mayúscula, ≥1 minúscula, ≥1 número, ≥1 especial.
 - **Backend** (`routes/auth.py`): nuevo `POST /api/auth/change-password` (autenticado). Reutiliza `config.hash_password`/`verify_password` (SHA256+salt, NO se cambió el esquema). Valida: contraseña actual correcta, bloquea cuentas OAuth (sin `password_hash`), rechaza nueva==actual, aplica `_validate_password_policy()`. Conserva la sesión actual (caller token) e invalida las DEMÁS sesiones del usuario. Audita en `audit_logs` (`password_changed_self`). Modelo `ChangePasswordRequest` en `models.py`.

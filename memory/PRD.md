@@ -4,6 +4,12 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Feature: Respaldo Total V2 (segmentado, reasumible) + Cambiar contraseña self-service — Ago 2026
+- **Respaldo Total V2** (`routes/data_migration.py`): build SEGMENTADO por tamaño (≤50MB/segmento, colecciones grandes partidas) escrito a GridFS como ZIP contenedor con `backup_manifest.json` (schema_version=2) + `segments/segment_NNNN.zip`; sha256 por segmento y por parte. **Excluye 11 maestras de negocio** (`_MASTER_EXCLUDE`) que ya viven en el Centro de Respaldos; MANTIENE `users`+`profiles` para login tras DR. Restauración: valida checksums de TODOS los segmentos antes de inyectar, restaura segmento a segmento liberando memoria, con **checkpoints/reanudación** (`restore_jobs`, `/restore-resume`) y **compat V1** monolítico. Restauración ASÍNCRONA (`/restore`, `/restore-from-server` → `restore_job_id`; `GET /restore-status`). Subida por chunks migrada de `/tmp` a **GridFS** (fix 2-réplicas). Frontend: sondeo con `fetch` directo (tolera 401 transitorio), progreso + botón "Reanudar". Self-tested (build, server/file restore async E2E, compat V1). ⚠️ PREVIEW; falta prueba de fuego con volumen (usuario cargará su respaldo) y REDEPLOY.
+- **Cambiar contraseña self-service** (`POST /api/auth/change-password` + `components/ChangePasswordDialog.jsx` en menú de perfil del Sidebar): todos los usuarios; contraseña actual + nueva + confirmar; política mín 10 · mayús · minús · número · especial; conserva sesión actual, invalida las demás. Self-tested (curl 6 escenarios + UI). ⚠️ PREVIEW; requiere REDEPLOY.
+
+
+
 ### Bug Fix: Aprobación de Cotización de Reparación enviaba al Contacto Principal (no al de Taller) — Jun 2026
 - **Síntoma:** los correos disparados desde la acción **Aprobación** de cotizaciones de reparación iban al Contacto Principal aunque el cliente tuviera contactos con perfil 'taller'. (La feature de perfilamiento previa solo cubría "Enviar al Cliente", no "Aprobación".)
 - **RCA:** tanto el engine (`notification_engine.try_dispatch`, filas `client_field` usan `client_email`=contacts[0]) como el bloque legacy de reparación (`quote_actions.approve_quote`, `client_email=contacts[0]`) resolvían al Primario, sin filtrar por 'taller'.
