@@ -1668,3 +1668,13 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Fix: (1) Cache-warming — al servir desde Object Storage se reescribe el PDF en el disco del pod (attachments.py y quote_history.py) → próximas aperturas instantáneas. (2) Auto-sanación — al servir desde disco se sube en 2º plano a Object Storage (idempotente). (3) Backfill ejecutado en PREVIEW: 805 anexos → 653 ya en storage, 147 subidos, 5 irrecuperables (perdidos en deploy previo, cotización COT-2026-04-037-PYME).
 - Verificado: curl (borrado del archivo local → descarga 200 desde storage + recreación en disco) y testing_agent iter304 (2/2 descargas UI 200/application/pdf/%PDF).
 - ACCIONES EN PRODUCCIÓN (pendientes del usuario): (a) redeploy para llevar el código; (b) ejecutar UNA vez POST /api/admin/attachments/recover-to-storage (paginado dry_run=false) para backfill de TODOS los anexos de producción; (c) confirmar con Soporte que APP_ENV en producción es estable/'production' (el namespace pdfs/{APP_ENV} depende de ella). Tras (a)+(b), ya NO se requiere respaldo/restore del disco.
+
+**Feature · Depuración de la colección `inbox_messages` por periodos · 2026-06:**
+- Nueva opción admin dentro de "Configuración General" (NO en Centro de Respaldos): tile "Depuración Inbox_messages" → ruta /settings/inbox-cleanup (InboxCleanup.jsx). Ícono Inbox, accent rose, adminOnly.
+- Backend: routes/inbox_cleanup.py (prefix /admin/inbox/cleanup, admin-only via _require_admin role==admin). Endpoints:
+  - GET  /stats   → total_count, total_size_bytes ($bsonSize), oldest/newest, desglose by_month (YYYY-MM con count+size).
+  - POST /preview → {start_date,end_date YYYY-MM-DD} → count + size_bytes del rango.
+  - POST /purge   → elimina PERMANENTEMENTE (delete_many) el rango. Filtro por created_at con límites [inicio_inclusivo, fin_exclusivo=fin+1día) para robustez lexicográfica ISO.
+- Registrado en server.py (inbox_cleanup_router). No requiere RBAC map (prefijo no mapeado → pasa al handler que valida admin).
+- UI: 3 cards de panorama, selector de fechas con "Calcular registros" (preview), confirmación destructiva antes de "Depurar ahora", tabla desglose por mes con botón "Seleccionar" que autocarga el periodo.
+- Verificado E2E por curl (stats/preview mes+rango/purge=deleted_count correcto, stats refleja borrado) + screenshot de la página. Datos de prueba sembrados y limpiados.

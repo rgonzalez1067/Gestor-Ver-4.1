@@ -26,6 +26,7 @@ import OtherActionsConfig from './pages/OtherActionsConfig';
 import ProjectSlaConfig from './pages/ProjectSlaConfig';
 import ConnectedUsers from './pages/ConnectedUsers';
 import BackupCenter from './pages/BackupCenter';
+import InboxCleanup from './pages/InboxCleanup';
 import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
 import HistoricalQuotes from './pages/HistoricalQuotes';
 import SalesReports from './pages/SalesReports';
@@ -276,6 +277,11 @@ function AppRouter() {
       <Route path="/settings/backup-center" element={
         <ProtectedRoute>
           <BackupCenter />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings/inbox-cleanup" element={
+        <ProtectedRoute>
+          <InboxCleanup />
         </ProtectedRoute>
       } />
       <Route path="/admin/users" element={
