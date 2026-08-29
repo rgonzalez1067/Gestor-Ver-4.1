@@ -1932,17 +1932,16 @@ async def _cleanup_stale_backups(max_age_hours: int = 2):
         logger.warning(f"[full-backup] cleanup stale fallo: {e}")
 
 
-def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
-    """Arma el ZIP de TODA la BD y lo escribe DIRECTO a GridFS (Mongo) usando un
-    cliente SÍNCRONO (pymongo) en un HILO aparte (vía asyncio.to_thread). Así:
-      - el trabajo CPU-intensivo de compresión NO bloquea el event loop (1 worker);
-      - el artefacto queda en almacenamiento COMPARTIDO → cualquier réplica lo sirve;
-      - memoria O(1) (un doc a la vez) y sin usar el disco efímero del pod.
-    El progreso y el estado final se escriben en `backup_jobs`."""
+def _build_full_backup_sync(job_id: str, user: dict, db_name: str, only_collections=None, group_label=None):
+    """Arma el ZIP de la BD (o de un SUBCONJUNTO/grupo de colecciones) y lo escribe
+    DIRECTO a GridFS con pymongo síncrono en un hilo. `only_collections` limita el
+    respaldo a ese grupo (respaldo modular); si es None, respalda todo (menos las
+    12 maestras y las colecciones internas). El progreso va en `backup_jobs`."""
     from pymongo import MongoClient
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"full_backup_{db_name}_{ts}.zip"
+    lbl = f"_{group_label}" if group_label else ""
+    filename = f"full_backup_{db_name}{lbl}_{ts}.zip"
 
     sclient = MongoClient(os.environ["MONGO_URL"])
     sdb = sclient[db_name]
@@ -1951,10 +1950,15 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
     closed = False
     try:
         all_cols = sorted(sdb.list_collection_names())
-        excluded_present = sorted([c for c in all_cols if c in _MASTER_EXCLUDE])
-        cols = [c for c in all_cols if c not in _BACKUP_EXCLUDE and c not in _MASTER_EXCLUDE]
+        if only_collections:
+            subset = set(only_collections)
+            cols = [c for c in all_cols if c in subset and c not in _BACKUP_EXCLUDE]
+            excluded_present = []
+        else:
+            excluded_present = sorted([c for c in all_cols if c in _MASTER_EXCLUDE])
+            cols = [c for c in all_cols if c not in _BACKUP_EXCLUDE and c not in _MASTER_EXCLUDE]
         logger.info(
-            f"[full-backup] job {job_id}: maestras EXCLUIDAS ({len(excluded_present)})={excluded_present} "
+            f"[full-backup] job {job_id} grupo={group_label or 'TOTAL'}: maestras EXCLUIDAS ({len(excluded_present)})={excluded_present} "
             f"| colecciones a respaldar={len(cols)}"
         )
         manifest = {
@@ -2017,30 +2021,33 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
                 entry = seg_state["zf"].open(part_name, "w")
                 part_count = 0
                 part_hash = hashlib.sha256()
-                cursor = sdb[cname].find({}).batch_size(200)
-                for doc in cursor:
-                    line = bson_dumps(doc, ensure_ascii=False).encode("utf-8") + b"\n"
-                    entry.write(line)
-                    part_hash.update(line)
-                    part_count += 1
-                    count += 1
-                    seg_state["bytes"] += len(line)
-                    del doc, line
-                    # Corte de segmento: cerrar parte y segmento; continuar la
-                    # misma colección en un segmento nuevo (parte siguiente).
-                    if seg_state["bytes"] >= SEGMENT_MAX_BYTES:
-                        entry.close()
-                        seg_state["parts"].append({
-                            "collection": cname, "part": part_index,
-                            "count": part_count, "sha256": part_hash.hexdigest(),
-                        })
-                        _finalize_segment(container)
-                        _new_segment()
-                        part_index += 1
-                        part_name = f"collections/{cname}.part{part_index:04d}.jsonl"
-                        entry = seg_state["zf"].open(part_name, "w")
-                        part_count = 0
-                        part_hash = hashlib.sha256()
+                cursor = sdb[cname].find({}, no_cursor_timeout=True).batch_size(500)
+                try:
+                    for doc in cursor:
+                        line = bson_dumps(doc, ensure_ascii=False).encode("utf-8") + b"\n"
+                        entry.write(line)
+                        part_hash.update(line)
+                        part_count += 1
+                        count += 1
+                        seg_state["bytes"] += len(line)
+                        del doc, line
+                        # Corte de segmento: cerrar parte y segmento; continuar la
+                        # misma colección en un segmento nuevo (parte siguiente).
+                        if seg_state["bytes"] >= SEGMENT_MAX_BYTES:
+                            entry.close()
+                            seg_state["parts"].append({
+                                "collection": cname, "part": part_index,
+                                "count": part_count, "sha256": part_hash.hexdigest(),
+                            })
+                            _finalize_segment(container)
+                            _new_segment()
+                            part_index += 1
+                            part_name = f"collections/{cname}.part{part_index:04d}.jsonl"
+                            entry = seg_state["zf"].open(part_name, "w")
+                            part_count = 0
+                            part_hash = hashlib.sha256()
+                finally:
+                    cursor.close()
                 entry.close()
                 seg_state["parts"].append({
                     "collection": cname, "part": part_index,
@@ -2114,10 +2121,10 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str):
             pass
 
 
-async def _run_build_in_thread(job_id: str, user: dict, db_name: str):
+async def _run_build_in_thread(job_id: str, user: dict, db_name: str, only_collections=None, group_label=None):
     """Lanza el build síncrono en un hilo del executor (no bloquea el loop)."""
     try:
-        await asyncio.to_thread(_build_full_backup_sync, job_id, user, db_name)
+        await asyncio.to_thread(_build_full_backup_sync, job_id, user, db_name, only_collections, group_label)
     except Exception as e:  # noqa: BLE001
         logger.error(f"[full-backup] thread wrapper job {job_id} fallo: {e}")
         try:
@@ -2129,27 +2136,113 @@ async def _run_build_in_thread(job_id: str, user: dict, db_name: str):
             pass
 
 
+def _compute_backup_groups_sync(db_name: str, target_bytes: int = 80 * 1024 * 1024):
+    """Calcula grupos MODULARES por tamaño: cada colección grande (> target) queda
+    en su propio grupo; las pequeñas se empaquetan (first-fit decreasing) en grupos
+    equilibrados ≤ target. Excluye las 12 maestras (rutina propia) y las internas."""
+    from pymongo import MongoClient
+    sclient = MongoClient(os.environ["MONGO_URL"])
+    sdb = sclient[db_name]
+    try:
+        cols = [c for c in sorted(sdb.list_collection_names())
+                if c not in _BACKUP_EXCLUDE and c not in _MASTER_EXCLUDE]
+        sized = []
+        for c in cols:
+            try:
+                st = sdb.command("collStats", c)
+                size = int(st.get("size", 0))  # tamaño BSON sin comprimir
+                count = int(st.get("count", 0))
+            except Exception:
+                size, count = 0, sdb[c].estimated_document_count()
+            sized.append({"name": c, "size": size, "count": count})
+        sized.sort(key=lambda x: x["size"], reverse=True)
+
+        big = [c for c in sized if c["size"] > target_bytes]
+        small = [c for c in sized if c["size"] <= target_bytes]
+
+        groups = []
+        for c in big:
+            groups.append({"collections": [c], "size": c["size"]})
+        # first-fit decreasing para las pequeñas
+        bins = []
+        for c in small:
+            placed = False
+            for b in bins:
+                if b["size"] + c["size"] <= target_bytes:
+                    b["collections"].append(c)
+                    b["size"] += c["size"]
+                    placed = True
+                    break
+            if not placed:
+                bins.append({"collections": [c], "size": c["size"]})
+        groups.extend(bins)
+
+        result = []
+        for i, g in enumerate(groups, start=1):
+            names = [c["name"] for c in g["collections"]]
+            if len(names) == 1:
+                label = names[0]
+            else:
+                label = f"grupo_{i:02d}"
+            result.append({
+                "group_id": f"g{i:02d}",
+                "label": label,
+                "is_large_isolated": len(names) == 1 and g["size"] > target_bytes,
+                "est_size_bytes": g["size"],
+                "collections": [{"name": c["name"], "size_bytes": c["size"], "count": c["count"]} for c in g["collections"]],
+            })
+        return {"target_bytes": target_bytes, "total_groups": len(result), "groups": result}
+    finally:
+        sclient.close()
+
+
+@router.get("/admin/full-backup/groups")
+async def full_backup_groups(authorization: Optional[str] = Header(None)):
+    """Devuelve los grupos MODULARES calculados por tamaño (para respaldar/restaurar
+    por grupos independientes). Las 12 maestras van por su rutina propia."""
+    await _require_admin(authorization)
+    return await asyncio.to_thread(_compute_backup_groups_sync, db.name)
+
+
 @router.post("/admin/full-backup/build")
-async def full_backup_build(authorization: Optional[str] = Header(None)):
-    """Inicia el armado del Respaldo Total en 2º plano. Devuelve un job_id para
-    sondear el estado. El ZIP se escribe a disco (no se envía por HTTP mientras
-    se arma → evita el 524 de Cloudflare)."""
+async def full_backup_build(
+    collections: Optional[str] = Form(None),
+    group_label: Optional[str] = Form(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Inicia el armado en 2º plano. Sin `collections` → Respaldo Total (menos las
+    12 maestras). Con `collections` (JSON array) → respaldo MODULAR de ese grupo,
+    etiquetado con `group_label` (cada grupo es un .zip independiente reutilizable
+    con el mismo motor de restauración V2). Devuelve job_id para sondear."""
     user = await _require_admin(authorization)
     await _cleanup_stale_backups()
-    # Borrar respaldos previos de ESTE usuario (mantener solo el último → acota GridFS)
+
+    only_collections = None
+    if collections:
+        try:
+            parsed = json.loads(collections)
+            if isinstance(parsed, list):
+                only_collections = [str(x) for x in parsed if str(x).strip()]
+        except Exception:
+            only_collections = [c.strip() for c in collections.split(",") if c.strip()]
+
+    # Borrar solo el respaldo previo del MISMO alcance (total vs. este grupo)
+    scope_filter = {"user_id": user.get("user_id"), "group_label": group_label}
     try:
-        async for prev in db.backup_jobs.find({"user_id": user.get("user_id")}):
+        async for prev in db.backup_jobs.find(scope_filter):
             await _delete_backup_gridfs(prev.get("gridfs_id"))
             await db.backup_jobs.delete_one({"_id": prev["_id"]})
     except Exception:
         pass
+
     job_id = uuid.uuid4().hex
-    total_cols = len(await db.list_collection_names())
+    total_cols = len(only_collections) if only_collections else len(await db.list_collection_names())
     await db.backup_jobs.insert_one({
         "job_id": job_id,
         "status": "building",
         "user_id": user.get("user_id"),
         "user_email": user.get("email"),
+        "group_label": group_label,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "progress_collections": 0,
         "total_collections": total_cols,
@@ -2158,14 +2251,13 @@ async def full_backup_build(authorization: Optional[str] = Header(None)):
         "size_bytes": None,
         "error": None,
     })
-    # Copia mínima del usuario para la tarea (no arrastrar el doc completo)
     user_min = {
         "email": user.get("email"),
         "first_name": user.get("first_name", ""),
         "last_name": user.get("last_name", ""),
     }
-    asyncio.create_task(_run_build_in_thread(job_id, user_min, db.name))
-    return {"job_id": job_id, "status": "building", "total_collections": total_cols}
+    asyncio.create_task(_run_build_in_thread(job_id, user_min, db.name, only_collections, group_label))
+    return {"job_id": job_id, "status": "building", "total_collections": total_cols, "group_label": group_label}
 
 
 @router.get("/admin/full-backup/build-status")

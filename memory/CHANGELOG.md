@@ -1,5 +1,18 @@
 # CHANGELOG — MegaNexus
 
+## 2026-08 — Respaldo MODULAR por grupos (bloques por tamaño, grandes aisladas)
+- **Motivo:** el Respaldo Total (una sola operación) fallaba al GENERAR con volumen real. Solución acordada: partir en paquetes independientes por tamaño.
+- **Backend (data_migration.py):**
+  - `GET /admin/full-backup/groups`: calcula grupos por tamaño (collStats). Cada colección > 80MB queda AISLADA en su propio grupo; las pequeñas se empaquetan (first-fit decreasing) en bloques ≤80MB. Excluye las 12 maestras (rutina propia) y las internas.
+  - `POST /admin/full-backup/build` ahora acepta `collections` (subconjunto/grupo) + `group_label` → arma un **.zip V2 independiente** de ese grupo (reutiliza el motor V2 ya probado: manifiesto + segmentos + checksums). Borrado de respaldo previo AHORA por alcance (`group_label`), no global → los grupos no se pisan entre sí. `backup_jobs` lleva `group_label`.
+  - Cursor endurecido con `no_cursor_timeout=True` + `cursor.close()` (evita timeouts en colecciones grandes durante el build).
+  - Restauración por grupo: se usa el flujo existente "Restaurar desde archivo" (cada .zip de grupo es un backup V2 válido) → merge/replace de sus colecciones.
+- **Frontend (BackupCenter.jsx):** nueva tarjeta "Respaldo Modular por Grupos (Recomendado)": Calcular/Recalcular grupos, y por grupo **Generar** (build+polling) y **Descargar** el .zip. Marca colecciones grandes aisladas.
+- **Testing (self):** groups computa OK; build de subconjunto (projects+quotes) genera .zip V2 con SOLO esas colecciones; E2E navegador (Calcular→Generar→Descargar). En Preview la data es pequeña (1 grupo); en Producción con volumen habrá varios grupos y grandes aisladas.
+- ⚠️ Requiere **redeploy** para que el modular esté en Producción.
+
+
+
 ## 2026-08 — Respaldo Total V2: segmentación, exclusión de maestras y restauración reanudable
 - **Exclusión de 11 maestras de negocio** (`_MASTER_EXCLUDE` en data_migration.py): clients, banks, services, hardware, commercial_categories, inventory_movements, warehouses, serial_assignments, inventory_movement_audits, taller_equipos, integrators. `users`+`profiles` SE MANTIENEN en el Total (login tras desastre). El build loguea las maestras excluidas.
 - **Build segmentado (schema_version=2)**: un ZIP contenedor (`ZIP_STORED`) en GridFS con `backup_manifest.json` + `segments/segment_NNNN.zip` (nested, ≤ `SEGMENT_MAX_BYTES`=50MB sin comprimir; colecciones grandes se parten en `collections/<c>.partNNNN.jsonl`). Manifiesto con sha256 por segmento y por parte, orden estricto, excluded_masters y conteos.

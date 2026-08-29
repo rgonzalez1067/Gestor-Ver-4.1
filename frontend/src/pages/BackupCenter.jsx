@@ -72,6 +72,11 @@ export default function BackupCenter() {
   const [dbUploadPct, setDbUploadPct] = useState(0); // % de subida del ZIP al servidor
   const [dbRestoreJobId, setDbRestoreJobId] = useState(null); // job de restauración async (para reanudar)
   const [dbRestoreErr, setDbRestoreErr] = useState(null); // error de restauración (habilita reanudar)
+  const [bkGroups, setBkGroups] = useState(null);
+  const [bkGroupsLoading, setBkGroupsLoading] = useState(false);
+  const [bkGroupBusy, setBkGroupBusy] = useState(null); // group_id en proceso
+  const [bkGroupPct, setBkGroupPct] = useState(0);
+  const [bkReadyGroups, setBkReadyGroups] = useState({}); // group_id -> {jobId, filename, sizeBytes}
   const dbFileRef = useRef(null);
 
   const dbAllSelected = dbBackupCols.length > 0 && dbSelectedCols.size === dbBackupCols.length;
@@ -256,6 +261,67 @@ export default function BackupCenter() {
       document.body.appendChild(a);
       a.click();
       a.remove();
+      toast.success('Descarga iniciada. Revisa tu carpeta de descargas.');
+    } catch (err) {
+      toast.error(`Error al descargar: ${err.response?.data?.detail || err.message}`);
+    }
+  };
+
+  // ---- Respaldo MODULAR por grupos (bloques por tamaño; grandes aisladas) ----
+  const loadGroups = async () => {
+    setBkGroupsLoading(true);
+    try {
+      const { data } = await api.get('/admin/full-backup/groups');
+      setBkGroups(data);
+    } catch (err) {
+      toast.error(`No se pudieron calcular los grupos: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setBkGroupsLoading(false);
+    }
+  };
+
+  const buildGroup = async (g) => {
+    setBkGroupBusy(g.group_id);
+    setBkGroupPct(0);
+    try {
+      const fd = new FormData();
+      fd.append('collections', JSON.stringify(g.collections.map((c) => c.name)));
+      fd.append('group_label', g.label);
+      const { data: build } = await api.post('/admin/full-backup/build', fd);
+      const jobId = build.job_id;
+      const started = Date.now();
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { data: st } = await api.get('/admin/full-backup/build-status', { params: { job_id: jobId } });
+        if (st.status !== 'building') {
+          if (st.status !== 'ready') throw new Error(st.error || 'No se pudo armar el grupo');
+          setBkReadyGroups((prev) => ({ ...prev, [g.group_id]: { jobId, filename: st.filename, sizeBytes: st.size_bytes } }));
+          toast.success(`Grupo "${g.label}" listo (${(st.size_bytes / 1024 / 1024).toFixed(1)} MB). Pulsa Descargar.`);
+          break;
+        }
+        const total = st.total_collections || 0;
+        const done = st.progress_collections || 0;
+        setBkGroupPct(total ? Math.min(99, Math.round((done / total) * 100)) : 50);
+        if (Date.now() - started > 30 * 60 * 1000) throw new Error('El armado tardó demasiado.');
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    } catch (err) {
+      toast.error(`Error al generar el grupo: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setBkGroupBusy(null);
+      setBkGroupPct(0);
+    }
+  };
+
+  const downloadGroup = async (g) => {
+    const rg = bkReadyGroups[g.group_id];
+    if (!rg) return;
+    try {
+      const { data: tk } = await api.post('/admin/full-backup/export-ticket', { job_id: rg.jobId });
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/admin/full-backup/export?ticket=${encodeURIComponent(tk.ticket)}`;
+      const a = document.createElement('a');
+      a.href = url; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
       toast.success('Descarga iniciada. Revisa tu carpeta de descargas.');
     } catch (err) {
       toast.error(`Error al descargar: ${err.response?.data?.detail || err.message}`);
@@ -573,6 +639,91 @@ export default function BackupCenter() {
             Cotizaciones, Histórico y Proyectos se respaldan en sus propias vistas y no forman parte de
             este centro. Formato de respaldo: <strong>JSON</strong> (round-trip sin pérdida).
           </span>
+        </div>
+
+        {/* Respaldo MODULAR por grupos (recomendado para bases grandes) */}
+        <div className="bg-white rounded-xl border border-emerald-200 shadow-sm mb-6 overflow-hidden" data-testid="modular-backup-card">
+          <div className="bg-emerald-50/70 border-b border-emerald-100 px-4 py-3 flex items-start gap-3">
+            <div className="rounded-lg bg-emerald-600 text-white p-2 shadow-sm shrink-0">
+              <Package size={18} />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold text-slate-900">Respaldo Modular por Grupos <span className="ml-1 text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Recomendado</span></h2>
+              <p className="text-xs text-slate-600 mt-0.5 max-w-2xl">
+                Divide la base en <strong>bloques equilibrados por tamaño</strong> (~80 MB c/u) y deja cada
+                colección muy grande en su <strong>propio paquete</strong>. Cada grupo es un <strong>.zip independiente</strong>:
+                lo respaldas y restauras por separado (menos memoria, menos tiempo, menos contención). Si uno falla, reintentas solo ese.
+              </p>
+              <p className="text-[11px] text-emerald-700/80 mt-1">
+                Las 12 colecciones maestras van por su rutina propia (arriba). Para restaurar cada grupo usa "Restaurar desde archivo" con su .zip.
+              </p>
+            </div>
+          </div>
+
+          <div className="px-4 py-4">
+            <Button
+              onClick={loadGroups}
+              disabled={bkGroupsLoading || bkGroupBusy !== null}
+              variant="outline"
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              data-testid="modular-compute-groups-btn"
+            >
+              {bkGroupsLoading ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Package size={16} className="mr-1.5" />}
+              {bkGroups ? 'Recalcular grupos' : 'Calcular grupos'}
+            </Button>
+
+            {bkGroups && (
+              <div className="mt-3 space-y-2" data-testid="modular-groups-list">
+                <p className="text-[11px] text-slate-500">
+                  {bkGroups.total_groups} grupo(s) · objetivo {(bkGroups.target_bytes / 1024 / 1024).toFixed(0)} MB por grupo
+                </p>
+                {bkGroups.groups.map((g) => {
+                  const rg = bkReadyGroups[g.group_id];
+                  const busy = bkGroupBusy === g.group_id;
+                  return (
+                    <div key={g.group_id} className="rounded-lg border border-slate-200 p-3" data-testid={`modular-group-${g.group_id}`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                            {g.label}
+                            {g.is_large_isolated && (
+                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Colección grande (aislada)</span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            ~{(g.est_size_bytes / 1024 / 1024).toFixed(1)} MB · {g.collections.length} colección(es): {g.collections.map((c) => c.name).join(', ')}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            onClick={() => buildGroup(g)}
+                            disabled={bkGroupBusy !== null}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                            data-testid={`modular-build-${g.group_id}`}
+                          >
+                            {busy ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <DatabaseBackup size={14} className="mr-1.5" />}
+                            {busy ? `Armando… ${bkGroupPct}%` : 'Generar'}
+                          </Button>
+                          {rg && (
+                            <Button
+                              size="sm"
+                              onClick={() => downloadGroup(g)}
+                              className="bg-indigo-600 hover:bg-indigo-700"
+                              data-testid={`modular-download-${g.group_id}`}
+                            >
+                              <Download size={14} className="mr-1.5" />
+                              Descargar ({(rg.sizeBytes / 1024 / 1024).toFixed(1)} MB)
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Respaldo Total de Base de Datos (todas las colecciones) */}
