@@ -1871,6 +1871,12 @@ _MASTER_EXCLUDE = {
 # Tamaño máximo (bytes, sin comprimir) por segmento del Respaldo Total V2.
 SEGMENT_MAX_BYTES = 50 * 1024 * 1024
 
+# Colecciones CRÍTICAS de acceso que NUNCA deben eliminarse en el paso de
+# "borrado de sobrantes" de una restauración en modo `replace`, aunque el ZIP
+# que se está restaurando no las contenga. Garantiza que el login sobreviva a
+# una restauración modular (varios ZIP por grupo) o parcial.
+_LOGIN_PROTECT = {"users", "profiles"}
+
 
 
 def _sync_gridfs_bucket(sdb):
@@ -2671,7 +2677,7 @@ def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller
             summary = [{"name": k, "restored": v} for k, v in restored_counts.items()]
 
             if mode == "replace" and not selective:
-                protected = backup_cols | _BACKUP_EXCLUDE | _MASTER_EXCLUDE
+                protected = backup_cols | _BACKUP_EXCLUDE | _MASTER_EXCLUDE | _LOGIN_PROTECT
                 for cname in sdb.list_collection_names():
                     if cname not in protected:
                         sdb[cname].drop()
@@ -2728,8 +2734,9 @@ def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller
                 summary.append({"name": cname, "restored": inserted})
 
             if mode == "replace" and not selective:
+                protected = backup_cols | _LOGIN_PROTECT
                 for cname in sdb.list_collection_names():
-                    if cname not in backup_cols:
+                    if cname not in protected:
                         sdb[cname].drop()
                         dropped_extra.append(cname)
 

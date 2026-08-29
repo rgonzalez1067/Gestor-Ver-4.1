@@ -1678,3 +1678,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Registrado en server.py (inbox_cleanup_router). No requiere RBAC map (prefijo no mapeado → pasa al handler que valida admin).
 - UI: 3 cards de panorama, selector de fechas con "Calcular registros" (preview), confirmación destructiva antes de "Depurar ahora", tabla desglose por mes con botón "Seleccionar" que autocarga el periodo.
 - Verificado E2E por curl (stats/preview mes+rango/purge=deleted_count correcto, stats refleja borrado) + screenshot de la página. Datos de prueba sembrados y limpiados.
+
+**Fix (crítico) · Pérdida del usuario admin durante restauración modular en modo `replace` · 2026-06:**
+- Causa raíz: en _restore_full_backup_sync (routes/data_migration.py), el paso "borrado de sobrantes" del modo replace solo protegía `backup_cols | _BACKUP_EXCLUDE | _MASTER_EXCLUDE`. `users` y `profiles` NO estaban protegidos, así que restaurar un grupo/zip que no contuviera `users` DROPEABA la colección users → login imposible (se perdía el admin repetidamente).
+- Fix: nuevo set `_LOGIN_PROTECT = {"users","profiles"}` agregado a `protected` en ambos formatos (V2 segmentado y V1 monolítico). Ahora users/profiles nunca se eliminan en el drop-extras de replace, aunque el zip no los incluya. Coherente con el diseño documentado ("users y profiles se MANTIENEN para garantizar el login tras un desastre").
+- Verificado: simulación de protected con backup_cols sin users → users/profiles protegidos; login admin en vivo OK.
+- Contexto de datos (PREVIEW): la colección `users` se había vaciado 2 veces por este bug durante pruebas de restore del usuario. Admin recreado: rgonzalez@megasoft.com.ve / admin123 (user_id=user_admin_main).
