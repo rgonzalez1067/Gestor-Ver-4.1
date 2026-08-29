@@ -1,0 +1,27 @@
+{
+  "summary": "E2E validation of the 'Nº de Factura individual por adjunto' feature. Flows A (Quotes → Factura/Proforma modal), B (Historical → Anexos → Factura staging) and C (Historical grid 'Nº Factura' column) were all validated end-to-end and are working as specified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (multiple pages)", "issues": ["React hydration warnings in console: '<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>' — non-blocking but should be reviewed to prevent hydration mismatches."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "WorkflowUploadModal per-file inputs and validation work correctly. Toast validation message 'Debe indicar \"Nro. de Factura\" para cada archivo' is shown when any file is missing its number.",
+    "HistoricalAnexosModal Factura staging behaves as designed (files not uploaded until confirm; per-file numero_factura required).",
+    "HistoricalQuotes 'Nº Factura' column correctly aggregates invoice numbers as comma-separated list after reload.",
+    "Consider fixing the recurring React hydration warning (<tr>/<span>/<tbody> nesting) reported in the console on multiple pages."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (Admin)",
+  "seed_data_creation": "None. Used existing seeded qtest_fac1 and qhist_test_fac1 with prior anexos F-100, F-200, F-300.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature validated. FLUJO A: opened Factura/Proforma directly (CORP), attached f_a.pdf and f_b.pdf via data-testid=workflow-file-input, both file rows and per-file inputs rendered with correct testids (workflow-file-row-0/1, workflow-perfile-input-0/1). Submit with empty numbers surfaced the required toast; then filling F-100/F-200 completed successfully (button transitioned to 'Procesando...' state). FLUJO B: opened qh-anexos-qhist_test_fac1, used hist-anexo-upload-input-factura with 2 files → 2 staged rows with numero inputs and 'Confirmar carga (2)' button appeared. Empty confirm was rejected; with F-400/F-500 the success toast '2 factura(s) cargada(s) al histórico' appeared and both new anexos showed 'Nro. Factura: F-400/F-500' via hist-anexo-numfactura-<id>. FLUJO C: qh-invoice-qhist_test_fac1 read 'F-100, F-200, F-300' before and 'F-100, F-200, F-300, F-400, F-500' after reload — all 5 present, comma-separated.",
+  "rca of the issue": "N/A — no issues found in the tested feature."
+}

@@ -254,7 +254,11 @@ export const HistoricalQuotes = () => {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-xs">${(r.total_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3 text-xs font-mono">{r.invoice_number || '—'}</td>
+                    <td className="px-4 py-3 text-xs font-mono" data-testid={`qh-invoice-${r.history_id}`}>
+                      {(r.invoice_numbers && r.invoice_numbers.length > 0)
+                        ? r.invoice_numbers.join(', ')
+                        : (r.invoice_number || '—')}
+                    </td>
                     <td className="px-4 py-3 text-xs">{r.responsible?.name || '—'}</td>
                     <td className="px-4 py-3 text-xs text-slate-500">{r.archived_at?.substring(0, 19).replace('T', ' ') || '—'}</td>
                     <td className="px-4 py-3 text-center">
@@ -309,7 +313,7 @@ export const HistoricalQuotes = () => {
                   <div><Label className="text-[10px] uppercase text-slate-400">Total USD</Label><p className="font-mono">${(detailRecord.total_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p></div>
                   <div><Label className="text-[10px] uppercase text-slate-400">Total Bs</Label><p className="font-mono">Bs. {(detailRecord.total_bs || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p></div>
                   <div><Label className="text-[10px] uppercase text-slate-400">Tasa</Label><p className="font-mono">{detailRecord.exchange_rate || '—'}</p></div>
-                  <div><Label className="text-[10px] uppercase text-slate-400">Nº Factura</Label><p className="font-mono">{detailRecord.invoice_number || '—'}</p></div>
+                  <div><Label className="text-[10px] uppercase text-slate-400">Nº Factura</Label><p className="font-mono">{(detailRecord.invoice_numbers && detailRecord.invoice_numbers.length > 0) ? detailRecord.invoice_numbers.join(', ') : (detailRecord.invoice_number || '—')}</p></div>
                   <div><Label className="text-[10px] uppercase text-slate-400">Responsable</Label><p>{detailRecord.responsible?.name || '—'}</p></div>
                   <div><Label className="text-[10px] uppercase text-slate-400">Archivada por</Label><p>{detailRecord.archived_by_name || '—'}</p></div>
                 </div>

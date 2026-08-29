@@ -1684,3 +1684,16 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Fix: nuevo set `_LOGIN_PROTECT = {"users","profiles"}` agregado a `protected` en ambos formatos (V2 segmentado y V1 monolítico). Ahora users/profiles nunca se eliminan en el drop-extras de replace, aunque el zip no los incluya. Coherente con el diseño documentado ("users y profiles se MANTIENEN para garantizar el login tras un desastre").
 - Verificado: simulación de protected con backup_cols sin users → users/profiles protegidos; login admin en vivo OK.
 - Contexto de datos (PREVIEW): la colección `users` se había vaciado 2 veces por este bug durante pruebas de restore del usuario. Admin recreado: rgonzalez@megasoft.com.ve / admin123 (user_id=user_admin_main).
+
+**Feature · Nº de Factura individual por adjunto (Factura/Proforma + Histórico) · 2026-06:**
+- Objetivo: capturar un Nº de Factura por CADA archivo al cargar Factura/Proforma, tanto en la acción de Facturación de Cotizaciones como en el modal de Anexos del Histórico; y desplegarlos en la columna 'Nº Factura' de la grilla del Histórico.
+- Backend:
+  - attachments.py POST /quotes/{id}/attachments: nuevo Form `numero_factura` → guardado en el anexo.
+  - quote_history.py POST /quote-history/{id}/attachments: nuevo Form `numero_factura` → guardado en el anexo. list_quote_history calcula `invoice_numbers` (únicos, desde anexos categoría Factura + invoice_number legacy) y extiende filtros `invoice_number`/`search` para matchear `attachments.numero_factura` (vía $and/$or).
+- Frontend:
+  - WorkflowUploadModal.jsx: soporte `config.perFileField {name,label,placeholder,required,stateField}`. Renderiza un input por archivo; valida obligatoriedad por archivo; envía numero_factura en cada POST de anexo y consolida (join ', ') hacia el endpoint de estado (invoice_number).
+  - Quotes.jsx (_openInvoiceModalDirect): la acción Factura/Proforma usa perFileField numero_factura (required) en vez del campo único.
+  - HistoricalAnexosModal.jsx: la categoría 'Factura' ahora usa STAGING (input múltiple) con Nº por archivo + botón 'Confirmar carga (N)'; muestra 'Nro. Factura: X' en anexos ya cargados. Otras categorías conservan carga inmediata.
+  - HistoricalQuotes.jsx: columna 'Nº Factura' y detalle muestran `invoice_numbers.join(', ')` (fallback a invoice_number legacy).
+- Verificado: backend por curl (persistencia por archivo en cotización e histórico; invoice_numbers=F-100,F-200,F-300; filtro y search por numero_factura) y frontend por testing_agent iter329 (100%: FLUJO A/B/C OK, validación de obligatoriedad, grilla comma-separated).
+- Datos de prueba sembrados en PREVIEW: quote qtest_fac1 (COT-TEST-FAC-001, Aprobada/CORP) y quote_history qhist_test_fac1 (anexos F-100/F-200/F-300 + F-400/F-500).

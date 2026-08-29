@@ -31,12 +31,14 @@ import { toast } from 'sonner';
  */
 export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config }) {
   const [files, setFiles] = useState([]);
+  const [perFileValues, setPerFileValues] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [extraData, setExtraData] = useState({});
   const fileInputRef = useRef(null);
 
   const resetState = () => {
     setFiles([]);
+    setPerFileValues([]);
     setUploading(false);
     setExtraData({});
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -60,14 +62,21 @@ export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config 
 
     if (config.acceptMultiple) {
       setFiles(prev => [...prev, ...selected]);
+      setPerFileValues(prev => [...prev, ...selected.map(() => '')]);
     } else {
       setFiles([selected[0]]);
+      setPerFileValues(['']);
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const removeFile = (index) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
+    setPerFileValues(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const setPerFileValue = (index, value) => {
+    setPerFileValues(prev => prev.map((v, i) => (i === index ? value : v)));
   };
 
   const handleSubmit = async () => {
@@ -86,13 +95,26 @@ export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config 
       }
     }
 
+    // Check required per-file field (e.g., Nº de Factura por archivo)
+    if (config.perFileField?.required) {
+      const missing = files.some((_, i) => !(perFileValues[i] || '').trim());
+      if (missing) {
+        toast.error(`Debe indicar "${config.perFileField.label}" para cada archivo`);
+        return;
+      }
+    }
+
     setUploading(true);
     try {
       // Step 1: Upload all files as attachments
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const formData = new FormData();
         formData.append('file', file);
         formData.append('category', config.category);
+        if (config.perFileField && (perFileValues[i] || '').trim()) {
+          formData.append(config.perFileField.name, perFileValues[i].trim());
+        }
         await api.post(`/quotes/${quoteId}/attachments`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -109,13 +131,20 @@ export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config 
         if (config.emailHeaders) {
           Object.assign(exHeaders, config.emailHeaders);
         }
-        if (config.extraFields?.length > 0) {
-          // Send extra fields as form data (e.g., invoice_number)
+        // Consolidar los Nº de factura por archivo hacia el campo del endpoint de estado.
+        const joinedPerFile = config.perFileField?.stateField
+          ? perFileValues.map(v => (v || '').trim()).filter(Boolean).join(', ')
+          : '';
+        const hasStateForm = (config.extraFields?.length > 0) || (config.perFileField?.stateField && joinedPerFile);
+        if (hasStateForm) {
           const formData = new FormData();
-          for (const field of config.extraFields) {
+          for (const field of (config.extraFields || [])) {
             if (extraData[field.name]) {
               formData.append(field.name, extraData[field.name]);
             }
+          }
+          if (config.perFileField?.stateField && joinedPerFile) {
+            formData.append(config.perFileField.stateField, joinedPerFile);
           }
           await api.post(`/quotes/${quoteId}/${config.stateEndpoint}`, formData, {
             headers: { 'Content-Type': 'multipart/form-data', ...exHeaders }
@@ -206,21 +235,38 @@ export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config 
 
           {/* File list */}
           {files.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {files.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-white rounded-md px-3 py-2 border border-slate-200">
-                  <FileText size={14} className="text-red-500 shrink-0" />
-                  <span className="text-sm truncate flex-1">{file.name}</span>
-                  <span className="text-xs text-slate-400 shrink-0">
-                    {(file.size / 1024).toFixed(0)} KB
-                  </span>
-                  <button
-                    onClick={() => removeFile(idx)}
-                    className="text-slate-400 hover:text-red-500 transition-colors"
-                    data-testid={`workflow-remove-file-${idx}`}
-                  >
-                    <X size={14} />
-                  </button>
+                <div key={idx} className="rounded-md border border-slate-200 bg-white px-3 py-2" data-testid={`workflow-file-row-${idx}`}>
+                  <div className="flex items-center gap-2">
+                    <FileText size={14} className="text-red-500 shrink-0" />
+                    <span className="text-sm truncate flex-1">{file.name}</span>
+                    <span className="text-xs text-slate-400 shrink-0">
+                      {(file.size / 1024).toFixed(0)} KB
+                    </span>
+                    <button
+                      onClick={() => removeFile(idx)}
+                      className="text-slate-400 hover:text-red-500 transition-colors"
+                      data-testid={`workflow-remove-file-${idx}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  {config.perFileField && (
+                    <div className="mt-2 pl-6">
+                      <Label htmlFor={`wf-perfile-${idx}`} className="text-xs text-slate-600">
+                        {config.perFileField.label} {config.perFileField.required && <span className="text-red-500">*</span>}
+                      </Label>
+                      <Input
+                        id={`wf-perfile-${idx}`}
+                        value={perFileValues[idx] || ''}
+                        onChange={(e) => setPerFileValue(idx, e.target.value)}
+                        placeholder={config.perFileField.placeholder}
+                        className="h-8 text-sm mt-1"
+                        data-testid={`workflow-perfile-input-${idx}`}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

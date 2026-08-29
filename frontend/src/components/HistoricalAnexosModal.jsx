@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import {
   FileText, Upload, Trash2, Download, FolderOpen, File, Image,
-  FileSpreadsheet, Loader2, DollarSign, Truck,
+  FileSpreadsheet, Loader2, DollarSign, Truck, X,
 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -44,6 +46,8 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(null);
+  // Staging para la categoría Factura: [{file, numero}] con Nº de factura por archivo.
+  const [facturaStaged, setFacturaStaged] = useState([]);
   const fileInputRefs = useRef({});
 
   // Matriz estricta de permisos de Anexos (módulo "Histórico de Cotizaciones"):
@@ -55,6 +59,7 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
 
   useEffect(() => {
     if (open && historyId) fetchAttachments();
+    if (!open) setFacturaStaged([]);
   }, [open, historyId]);
 
   const fetchAttachments = async () => {
@@ -72,6 +77,19 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
   const handleUpload = async (category) => {
     const input = fileInputRefs.current[category];
     if (!input?.files?.[0]) return;
+    // Categoría Factura: NO subir de inmediato; preparar staging con Nº de factura por archivo.
+    if (category === 'Factura') {
+      const selected = Array.from(input.files);
+      const oversized = selected.filter(f => f.size > 10 * 1024 * 1024);
+      if (oversized.length) {
+        toast.error('Los archivos no deben superar los 10MB cada uno');
+        input.value = '';
+        return;
+      }
+      setFacturaStaged(prev => [...prev, ...selected.map(f => ({ file: f, numero: '' }))]);
+      input.value = '';
+      return;
+    }
     const file = input.files[0];
     if (file.size > 10 * 1024 * 1024) {
       toast.error('El archivo no debe superar los 10MB');
@@ -94,6 +112,42 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
     } finally {
       setUploading(null);
       input.value = '';
+    }
+  };
+
+  const setStagedNumero = (idx, value) => {
+    setFacturaStaged(prev => prev.map((it, i) => (i === idx ? { ...it, numero: value } : it)));
+  };
+
+  const removeStaged = (idx) => {
+    setFacturaStaged(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const confirmFacturaUpload = async () => {
+    if (facturaStaged.length === 0) return;
+    if (facturaStaged.some(it => !(it.numero || '').trim())) {
+      toast.error('Debe indicar el Nº de Factura para cada archivo');
+      return;
+    }
+    setUploading('Factura');
+    try {
+      for (const it of facturaStaged) {
+        const formData = new FormData();
+        formData.append('file', it.file);
+        formData.append('category', 'Factura');
+        formData.append('numero_factura', it.numero.trim());
+        const res = await api.post(`/quote-history/${historyId}/attachments`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        setAttachments(prev => [...prev, res.data.attachment]);
+      }
+      toast.success(`${facturaStaged.length} factura(s) cargada(s) al histórico`);
+      setFacturaStaged([]);
+      onChange && onChange();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al subir las facturas');
+    } finally {
+      setUploading(null);
     }
   };
 
@@ -178,6 +232,7 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
                     <input
                       type="file"
                       className="hidden"
+                      multiple={id === 'Factura'}
                       ref={el => fileInputRefs.current[id] = el}
                       onChange={() => handleUpload(id)}
                       accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp"
@@ -200,6 +255,50 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
                 </div>
                 <p className="text-[11px] text-slate-500 mb-2 pl-6">{desc}</p>
 
+                {/* Staging de Factura: Nº de factura por archivo antes de confirmar */}
+                {id === 'Factura' && facturaStaged.length > 0 && (
+                  <div className="mb-2 space-y-2 bg-white/70 rounded-md p-2 border border-purple-200" data-testid="hist-factura-staging">
+                    {facturaStaged.map((it, idx) => (
+                      <div key={idx} className="rounded-md border border-slate-200 bg-white px-2.5 py-2" data-testid={`hist-factura-staged-row-${idx}`}>
+                        <div className="flex items-center gap-2">
+                          {getFileIcon(it.file.name)}
+                          <span className="text-sm truncate flex-1">{it.file.name}</span>
+                          <span className="text-xs text-slate-400 shrink-0">{formatFileSize(it.file.size)}</span>
+                          <button
+                            onClick={() => removeStaged(idx)}
+                            className="text-slate-400 hover:text-red-500 transition-colors"
+                            data-testid={`hist-factura-staged-remove-${idx}`}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <div className="mt-1.5 pl-6">
+                          <Label className="text-[11px] text-slate-600">Nro. de Factura <span className="text-red-500">*</span></Label>
+                          <Input
+                            value={it.numero}
+                            onChange={(e) => setStagedNumero(idx, e.target.value)}
+                            placeholder="Ej: F-00012344"
+                            className="h-8 text-sm mt-1"
+                            data-testid={`hist-factura-staged-numero-${idx}`}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1"
+                        disabled={uploading === 'Factura'}
+                        onClick={confirmFacturaUpload}
+                        data-testid="hist-factura-confirm-btn"
+                      >
+                        {uploading === 'Factura' ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                        Confirmar carga ({facturaStaged.length})
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {files.length === 0 ? (
                   <p className="text-xs text-slate-400 italic pl-6">Sin documentos</p>
                 ) : (
@@ -213,6 +312,11 @@ export function HistoricalAnexosModal({ open, onClose, historyId, quoteNumber, o
                         {getFileIcon(att.filename)}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{att.filename}</p>
+                          {att.numero_factura && (
+                            <p className="text-xs text-purple-700 font-mono" data-testid={`hist-anexo-numfactura-${att.attachment_id}`}>
+                              Nro. Factura: {att.numero_factura}
+                            </p>
+                          )}
                           <p className="text-xs text-slate-400">
                             {formatFileSize(att.file_size)} · {att.uploaded_by_name || att.uploaded_by} · {att.uploaded_at ? new Date(att.uploaded_at).toLocaleDateString('es-VE') : ''}
                           </p>

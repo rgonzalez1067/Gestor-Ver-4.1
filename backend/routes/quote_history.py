@@ -209,6 +209,7 @@ async def list_quote_history(
         raise HTTPException(status_code=403, detail="Acceso restringido a Director o Administrador del Sistema")
 
     query = {}
+    and_conditions = []
     # ===== Aislamiento por segmento (sede del creador) =====
     # Regla: los usuarios solo ven registros históricos emitidos por usuarios de
     # su MISMA sede (Corp ve Corp, Pyme ve Pyme, etc.). Excepción: Administrador
@@ -222,7 +223,13 @@ async def list_quote_history(
     if client_id:
         query["client_id"] = client_id
     if invoice_number:
-        query["invoice_number"] = {"$regex": re.escape(invoice_number), "$options": "i"}
+        # Coincide con el Nº de factura del histórico o con el numero_factura
+        # individual de cualquier anexo de factura asociado.
+        inv_regex = {"$regex": re.escape(invoice_number), "$options": "i"}
+        and_conditions.append({"$or": [
+            {"invoice_number": inv_regex},
+            {"attachments.numero_factura": inv_regex},
+        ]})
     if search:
         # Escapar caracteres especiales de regex para que la búsqueda sea una
         # coincidencia literal de substring (estilo LIKE %texto%). Sin esto, nombres
@@ -233,6 +240,7 @@ async def list_quote_history(
             {"quote_number": {"$regex": safe, "$options": "i"}},
             {"client_name": {"$regex": safe, "$options": "i"}},
             {"invoice_number": {"$regex": safe, "$options": "i"}},
+            {"attachments.numero_factura": {"$regex": safe, "$options": "i"}},
         ]
         # Búsqueda multicriterio: además de los campos del histórico, se resuelven
         # los client_id del maestro de clientes cuyo Nombre de Fantasía, Razón Social
@@ -246,7 +254,7 @@ async def list_quote_history(
         })
         if matching_client_ids:
             or_conditions.append({"client_id": {"$in": matching_client_ids}})
-        query["$or"] = or_conditions
+        and_conditions.append({"$or": or_conditions})
     if from_date or to_date:
         date_q = {}
         if from_date:
@@ -254,6 +262,8 @@ async def list_quote_history(
         if to_date:
             date_q["$lte"] = to_date
         query["archived_at"] = date_q
+    if and_conditions:
+        query["$and"] = and_conditions
 
     cursor = db.quote_history.find(query, {"_id": 0, "snapshot": 0}).sort("archived_at", -1)
     docs = await cursor.to_list(1000)
@@ -272,6 +282,18 @@ async def list_quote_history(
         d["fantasy_name"] = cl.get("fantasy_name") or ""
         d["legal_name"] = cl.get("legal_name") or d.get("client_name") or ""
         d["grupo_economico"] = cl.get("grupo_economico") or ""
+        # Nº de factura para la grilla: números individuales de los anexos de
+        # factura + el Nº de factura legacy del histórico, únicos y en orden.
+        invoice_numbers = []
+        for att in (d.get("attachments") or []):
+            if att.get("category") == "Factura":
+                nf = (att.get("numero_factura") or "").strip()
+                if nf and nf not in invoice_numbers:
+                    invoice_numbers.append(nf)
+        legacy = (d.get("invoice_number") or "").strip()
+        if legacy and legacy not in invoice_numbers:
+            invoice_numbers.append(legacy)
+        d["invoice_numbers"] = invoice_numbers
     return docs
 
 
@@ -438,6 +460,7 @@ async def upload_history_attachment(
     history_id: str,
     file: UploadFile = File(...),
     category: str = Form(...),
+    numero_factura: Optional[str] = Form(None),
     authorization: Optional[str] = Header(None),
 ):
     """Sube un anexo al registro del histórico. Requiere nivel Edición Total
@@ -518,6 +541,8 @@ async def upload_history_attachment(
         "file_size": len(content),
         "content_type": file.content_type or "application/octet-stream",
         "is_subsana": category in SUBSANA_CATEGORIES,
+        # Nº de factura individual por archivo (relevante para categoría 'Factura').
+        "numero_factura": (numero_factura or "").strip() or None,
     }
 
     await db.quote_history.update_one(

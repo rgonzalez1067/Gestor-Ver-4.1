@@ -67,6 +67,7 @@ async def upload_quote_attachment(
     file: UploadFile = File(...),
     category: str = Form(...),
     context: Optional[str] = Form(None),
+    numero_factura: Optional[str] = Form(None),
     authorization: Optional[str] = Header(None)
 ):
     """Sube un anexo a una cotización.
@@ -128,7 +129,9 @@ async def upload_quote_attachment(
         "uploaded_by_name": current_user.get("full_name", current_user.get("email", "unknown")),
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "file_size": len(content),
-        "content_type": file.content_type or "application/octet-stream"
+        "content_type": file.content_type or "application/octet-stream",
+        # Nº de factura individual por archivo (relevante para categoría 'Factura').
+        "numero_factura": (numero_factura or "").strip() or None,
     }
     
     await db.quotes.update_one(

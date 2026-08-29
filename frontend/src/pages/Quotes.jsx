@@ -4140,9 +4140,7 @@ export const Quotes = () => {
       actionIcon: <Receipt size={20} className="text-purple-600" />,
       stateEndpoint: 'invoice',
       successMessage: 'Factura / Proforma registrada exitosamente',
-      extraFields: [
-        { name: 'invoice_number', label: 'Número de Factura', placeholder: 'Ej: FAC-001234', required: false }
-      ],
+      perFileField: { name: 'numero_factura', label: 'Nro. de Factura', placeholder: 'Ej: F-00012344', required: true, stateField: 'invoice_number' },
       exceptionHeaders: exceptionInfo || null,
       emailHeaders: emailHeadersOverride || getEmailHeaders(),
     });
