@@ -27,7 +27,7 @@ en MongoDB — la BD conserva el valor original.
 from __future__ import annotations
 import re
 
-_PLACEHOLDERS = {"N/A", "NA", "-", "—", "SIN RIF", "SIN_RIF", "NO APLICA", "NOAPLICA"}
+_PLACEHOLDERS = {"N/A", "NA", "-", "—", "SIN RIF", "SIN_RIF", "NO_APLICA", "NOAPLICA"}
 _RIF_LETTERS = set("JVEGPCjvegpc")
 
 
@@ -39,7 +39,7 @@ def format_rif(rif) -> str:
     if not s:
         return ""
     if s.upper() in _PLACEHOLDERS:
-        return "NO APLICA"
+        return "NO_APLICA"
 
     # Detecta letra inicial (J/V/E/G/P/C). Si no hay, se asume puramente
     # numérico (caso raro pero válido en imports masivos).

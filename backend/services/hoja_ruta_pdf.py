@@ -350,7 +350,7 @@ def generate_nota_entrega_pdf(
             else:
                 serials_para = Paragraph("<br/>".join([f"SN: {s}" for s in serials]), s_cell_serial)
         else:
-            serials_para = Paragraph("NO APLICA", s_small)
+            serials_para = Paragraph("NO_APLICA", s_small)
 
         category = item.get("category", "Equipo")
         row_data = [[

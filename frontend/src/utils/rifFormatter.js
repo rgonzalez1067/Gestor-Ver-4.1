@@ -17,14 +17,14 @@
  * Esta función debe usarse SOLO al renderizar el RIF al usuario final
  * (pantallas, tablas, PDFs). NO debe usarse al guardar o buscar en BD.
  */
-const PLACEHOLDERS = new Set(['N/A', 'NA', '-', '—', 'SIN RIF', 'SIN_RIF', 'NO APLICA', 'NOAPLICA']);
+const PLACEHOLDERS = new Set(['N/A', 'NA', '-', '—', 'SIN RIF', 'SIN_RIF', 'NO_APLICA', 'NOAPLICA']);
 const RIF_LETTERS = new Set(['J', 'V', 'E', 'G', 'P', 'C']);
 
 export function formatRif(rif) {
   if (rif === null || rif === undefined) return '';
   const s = String(rif).trim();
   if (!s) return '';
-  if (PLACEHOLDERS.has(s.toUpperCase())) return 'NO APLICA';
+  if (PLACEHOLDERS.has(s.toUpperCase())) return 'NO_APLICA';
 
   let letter = '';
   let rest = s;

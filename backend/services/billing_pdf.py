@@ -38,7 +38,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
 
     # Datos para la Factura — campos requeridos por Administración
     elements.append(Paragraph("Datos para la Factura", header_style))
-    legal_name = client.get('legal_name') or client.get('fantasy_name') or 'NO APLICA'
+    legal_name = client.get('legal_name') or client.get('fantasy_name') or 'NO_APLICA'
     address = (client.get('address') or '').strip() or 'No especificada'
     contacts = client.get('contacts') or []
     primary_contact = contacts[0] if contacts else (client.get('contact1') or {})
@@ -53,11 +53,11 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
         contact_email = primary_contact.get('email') or 'No especificado'
     else:
         contact_name = contact_phone = contact_email = 'No especificado'
-    quote_number = quote.get('quote_number') or 'NO APLICA'
+    quote_number = quote.get('quote_number') or 'NO_APLICA'
     approval_date = datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M UTC')
 
     info_data = [
-        [Paragraph('<b>RIF:</b>', cell_bold_style), Paragraph(format_rif(client.get('rif')) or 'NO APLICA', cell_style)],
+        [Paragraph('<b>RIF:</b>', cell_bold_style), Paragraph(format_rif(client.get('rif')) or 'NO_APLICA', cell_style)],
         [Paragraph('<b>Razón Social:</b>', cell_bold_style), Paragraph(legal_name, cell_style)],
         [Paragraph('<b>Dirección Fiscal:</b>', cell_bold_style), Paragraph(address, cell_style)],
         [Paragraph('<b>Nombre Contacto:</b>', cell_bold_style), Paragraph(contact_name, cell_style)],
@@ -193,7 +193,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
             qty = item.get('quantity', 1) or 1
             cu_bs = bs_val / qty if qty > 0 else 0
             td.append([
-                Paragraph(item.get('name', 'NO APLICA'), cell_style),
+                Paragraph(item.get('name', 'NO_APLICA'), cell_style),
                 Paragraph(str(qty), cell_center_style),
                 Paragraph(f"${usd_val:,.2f}", cell_right_style),
                 Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
@@ -289,7 +289,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
             qty = item.get('quantity', 1) or 1
             cu_bs = bs_val / qty if qty > 0 else 0
             td.append([
-                Paragraph(item.get('name', 'NO APLICA'), cell_style),
+                Paragraph(item.get('name', 'NO_APLICA'), cell_style),
                 Paragraph(str(qty), cell_center_style),
                 Paragraph(f"${usd_val:,.2f}", cell_right_style),
                 Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
