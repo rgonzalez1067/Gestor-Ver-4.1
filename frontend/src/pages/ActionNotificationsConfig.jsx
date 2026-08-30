@@ -37,15 +37,12 @@ function configKey(business_type, sub_category, action_id) {
   return `${business_type}|${sub_category || '_'}|${action_id}`;
 }
 
-// Filtra y ordena los destinatarios según la unidad de negocio:
-//  - implementacion_pyme → solo usuarios con sede 'PYME'
-//  - implementacion_corp → solo usuarios con sede 'CORP'
-//  - resto → sin filtro de sede
-// Siempre devuelve la lista en orden alfabético estricto (A-Z) por nombre.
+// Ordena los destinatarios en orden alfabético estricto (A-Z) por nombre.
+// NOTA: NO se filtra por sede. Cualquier usuario (PYME o CORP) puede ser
+// destinatario de notificaciones de cualquier unidad de negocio, incluyendo
+// las Implementaciones Pyme (que pueden requerir avisar a personal Corporativo).
 function usersForBiz(users, bizId) {
-  let list = users || [];
-  if (bizId === 'implementacion_pyme') list = list.filter((u) => (u.sede || '').toUpperCase() === 'PYME');
-  else if (bizId === 'implementacion_corp') list = list.filter((u) => (u.sede || '').toUpperCase() === 'CORP');
+  const list = users || [];
   return [...list].sort((a, b) => (a.label || '').localeCompare(b.label || '', 'es', { sensitivity: 'base' }));
 }
 

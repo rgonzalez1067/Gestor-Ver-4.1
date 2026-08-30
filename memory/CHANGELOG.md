@@ -1728,3 +1728,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
   - Frontend: FiscalPrintersCatalog.jsx y ServersCatalog.jsx ahora tienen botón Editar (lápiz) por fila que carga el registro al formulario (modo edición con 'Guardar cambios' + 'Cancelar'). Columna 'Acciones' siempre visible; Editar disponible; Eliminar solo Admin.
 - data-testids: fp-edit-<id>/fp-cancel-btn, server-edit-<id>/server-cancel-btn.
 - Verificado: curl (PUT ambos 200) + screenshot (flujo de edición carga datos y cambia el título a 'Editar').
+
+**Bug fix · Destinatarios de notificaciones no permitían usuarios CORP en acciones Pyme · 2026-06:**
+- Causa: en ActionNotificationsConfig.jsx, usersForBiz() filtraba la lista de destinatarios a solo sede PYME cuando business_type='implementacion_pyme' (y solo CORP para implementacion_corp). Esto impedía asignar destinatarios Corporativos en la configuración de acciones Pyme.
+- Fix: eliminado el filtro por sede; ahora usersForBiz() devuelve TODOS los usuarios activos (orden alfabético) para cualquier unidad de negocio. El backend /action-notifications/catalog ya devolvía todos los usuarios (sin filtro).
+- Verificado por UI: en Implementaciones Pyme → VPOS → 'Enviar al Cliente' → tipo 'Usuario interno', el desplegable de destinatarios ahora lista los 50 usuarios (incluye CORP: Antonio Castro, Arnoldo Hernandez...). Antes solo 17 PYME.
