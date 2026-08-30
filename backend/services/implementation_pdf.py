@@ -186,8 +186,23 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     )
 
     elements = []
-    now = datetime.now()
-    fecha = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+    # Fecha de emisión CONGELADA: se usa la fecha en que se creó la ficha/proyecto
+    # (ficha_emission_date), NO la fecha actual. Fallback a hoy solo si no viene.
+    def _parse_emission_date(raw):
+        if not raw:
+            return None
+        if isinstance(raw, datetime):
+            return raw
+        try:
+            s = str(raw).replace("Z", "+00:00")
+            return datetime.fromisoformat(s)
+        except (ValueError, TypeError):
+            try:
+                return datetime.strptime(str(raw)[:10], "%Y-%m-%d")
+            except (ValueError, TypeError):
+                return None
+    emission_dt = _parse_emission_date(quote.get('ficha_emission_date')) or datetime.now()
+    fecha = f"{emission_dt.day} de {MESES_ES[emission_dt.month]} de {emission_dt.year}"
     quote_number = quote.get('quote_number', 'S/N')
     client_name = client.get('legal_name') or client.get('fantasy_name') or 'N/A'
     cantidad_cajas = quote.get('cantidad_cajas', 1)

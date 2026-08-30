@@ -507,50 +507,56 @@ export const QuoteModals = ({ ctx }) => {
                     <p className="text-xs text-slate-400 mt-1">Puede continuar y agregar destinatarios manualmente.</p>
                   </div>
                 ) : (
-                  <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[340px] overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50 text-slate-500 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 w-10"></th>
-                          <th className="px-3 py-2 text-left text-xs uppercase font-medium">Nombre</th>
-                          <th className="px-3 py-2 text-left text-xs uppercase font-medium">Email</th>
-                          <th className="px-3 py-2 text-left text-xs uppercase font-medium">Rol / Cargo</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {contactList.map((c, idx) => {
-                          const checked = contactSelectedEmails.includes(c.email);
-                          return (
-                            <tr
-                              key={c.contact_id || c.email || idx}
-                              className={`cursor-pointer hover:bg-blue-50/60 ${checked ? 'bg-blue-50' : ''}`}
-                              onClick={() => toggleContactEmail(c.email)}
-                              data-testid={`contact-row-${idx}`}
-                            >
-                              <td className="px-3 py-2 text-center">
-                                <Checkbox
-                                  checked={checked}
-                                  onCheckedChange={() => toggleContactEmail(c.email)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  data-testid={`contact-checkbox-${idx}`}
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-slate-700 font-medium">
-                                {c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '—'}
-                                {c.scope === 'local' && (
-                                  <span className="ml-1.5 text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full" data-testid={`contact-scope-local-${idx}`}>Sucursal{c.sucursal ? `: ${c.sucursal}` : ''}</span>
-                                )}
-                                {c.scope === 'principal' && (
-                                  <span className="ml-1.5 text-[10px] font-semibold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded-full" data-testid={`contact-scope-principal-${idx}`}>Principal</span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-slate-600 truncate max-w-[180px]">{c.email}</td>
-                              <td className="px-3 py-2 text-slate-500">{c.role || '—'}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[340px] overflow-y-auto" data-testid="contact-select-groups">
+                    {[
+                      { key: 'grupo', label: 'Grupo Económico', bar: 'bg-purple-100 text-purple-800 border-purple-200' },
+                      { key: 'principal', label: 'RIF Principal', bar: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+                      { key: 'local', label: 'Sucursal', bar: 'bg-amber-100 text-amber-800 border-amber-200' },
+                    ].map((grp) => {
+                      const rows = contactList
+                        .map((c, idx) => ({ c, idx }))
+                        .filter(({ c }) => (c.scope || 'principal') === grp.key);
+                      if (rows.length === 0) return null;
+                      return (
+                        <div key={grp.key} data-testid={`contact-group-${grp.key}`}>
+                          <div className={`px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide border-y ${grp.bar} sticky top-0 z-10`}>
+                            {grp.label} <span className="opacity-70">({rows.length})</span>
+                          </div>
+                          <table className="w-full text-sm">
+                            <tbody className="divide-y divide-slate-100">
+                              {rows.map(({ c, idx }) => {
+                                const checked = contactSelectedEmails.includes(c.email);
+                                return (
+                                  <tr
+                                    key={c.contact_id || c.email || idx}
+                                    className={`cursor-pointer hover:bg-blue-50/60 ${checked ? 'bg-blue-50' : ''}`}
+                                    onClick={() => toggleContactEmail(c.email)}
+                                    data-testid={`contact-row-${idx}`}
+                                  >
+                                    <td className="px-3 py-2 text-center w-10">
+                                      <Checkbox
+                                        checked={checked}
+                                        onCheckedChange={() => toggleContactEmail(c.email)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        data-testid={`contact-checkbox-${idx}`}
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2 text-slate-700 font-medium">
+                                      {c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '—'}
+                                      {grp.key === 'local' && c.sucursal && c.sucursal !== 'Principal' && (
+                                        <span className="ml-1.5 text-[10px] font-semibold text-amber-700">({c.sucursal})</span>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 text-slate-600 truncate max-w-[180px]">{c.email}</td>
+                                    <td className="px-3 py-2 text-slate-500">{c.role || '—'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 <div className="flex items-center justify-between pt-3 border-t">

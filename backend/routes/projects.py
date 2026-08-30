@@ -1238,6 +1238,8 @@ async def download_ficha_tecnica(project_id: str, authorization: Optional[str] =
         # fuente de verdad al regenerar la ficha (la cotización origen puede haber
         # sido archivada/eliminada, y en Proyectos Directos el quote_id es ficticio).
         "implementation_instructions": pick(project.get("implementation_instructions"), quote_like.get("implementation_instructions")),
+        # Fecha de emisión CONGELADA de la Ficha Técnica = fecha de creación del proyecto.
+        "ficha_emission_date": pick(project.get("created_at"), quote_like.get("created_at")),
     })
 
     contacts = client.get("contacts", []) if client else []

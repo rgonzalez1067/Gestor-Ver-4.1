@@ -1,0 +1,28 @@
+{
+  "summary": "Verified (1) Ficha Técnica PDF prints the FROZEN project.created_at date (in Spanish) instead of today's date, and (2) 'Seleccionar Destinatarios' modal groups contacts by scope (grupo/principal/local) with visible bordered section headers. Backend: 2/2 pytest tests passed (specific project prj_826643491b64 shows '29 de abril de 2026' and 2 additional past-dated projects also show their created_at date, none show today '30 de agosto de 2026'). Frontend: opened the modal via Cotizaciones → Acciones → 'Enviar al Cliente' on a PYME quote (COT-2026-08-213-PYME, quo_dfe914fd9f16 — AHA GROUP TECHNOLOGY). Modal renders data-testid='contact-select-modal' with grouped container 'contact-select-groups' and section 'contact-group-principal' having header 'RIF PRINCIPAL (1)'. Checkbox 'contact-checkbox-0' toggles counter from '0 seleccionado(s)' to '1 seleccionado(s)' correctly. This client only has principal-scope contacts, so 'grupo' and 'local' sections are correctly hidden. Cancelar/Continuar buttons present.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/quotes (global)", "issues": ["Console hydration warnings: '<span> cannot be a child of <tbody>' and '<tr> cannot be a child of <span>' — pre-existing React hydration errors in QuotesTable, not related to this iteration but flagged for cleanup"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter334_ficha_frozen_date.py",
+    "/app/test_reports/pytest/iter334_ficha.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "QuoteModals.jsx (~509) modal grouping implementation is clean and defensive (renders only non-empty scope sections; falls back to 'principal' when scope missing). Good use of data-testid on each group.",
+    "implementation_pdf.py fallback to today when ficha_emission_date is missing is acceptable, but consider logging a warning when the fallback triggers to detect stale/incomplete quotes."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter334_ficha_frozen_date.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None — used pre-existing prj_826643491b64 (created_at=2026-04-29) and quote quo_dfe914fd9f16 (AHA GROUP PYME).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both fixes validated. Backend test file test_iter334_ficha_frozen_date.py extracts PDF text with pypdf and asserts Spanish frozen-date format. Frontend modal 'contact-select-modal' groups contacts under 'contact-group-grupo|principal|local' with headers 'Grupo Económico', 'RIF Principal', 'Sucursal' respectively; sections only render if they contain rows. Note: to click the quote-actions dropdown reliably on /quotes I had to dispatch PointerEvent+Mouse events via page.evaluate — Playwright's locator.click(force=True) intermittently times out (likely due to virtualized rows in QuotesTable), so future testers should use dispatchEvent fallback.",
+  "rca of the issue": "N/A — both fixes verified working. Ficha Técnica now uses quote['ficha_emission_date']=project.created_at in generate_implementation_pdf. Modal groups by (c.scope || 'principal') across ['grupo','principal','local']."
+}

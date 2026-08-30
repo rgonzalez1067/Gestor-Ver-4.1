@@ -633,6 +633,8 @@ async def create_direct_project(
     # para que el PDF use PRD-XXXX en el encabezado.
     synthetic_quote_for_pdf = dict(synthetic_quote)
     synthetic_quote_for_pdf["quote_number"] = prd_number
+    # Fecha de emisión CONGELADA = fecha de creación del proyecto.
+    synthetic_quote_for_pdf["ficha_emission_date"] = project.get("created_at") or now_iso
     contacts = client.get("contacts") or []
     try:
         pdf_bytes = generate_implementation_pdf(
