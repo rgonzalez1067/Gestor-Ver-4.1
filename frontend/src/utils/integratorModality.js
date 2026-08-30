@@ -1,42 +1,56 @@
 // Filtrado dinámico de Integradores según Tipo de Proyecto.
-// Regla de negocio basada en la "Modalidad de Integración" (campo
-// `integration_modality`) del integrador. Centralizado para garantizar
-// consistencia entre Cotizaciones y Proyectos Directos.
+// Regla de negocio basada en el "Tipo de Integración" del integrador
+// (campo `integration_type`): CR / MP / PG / LP / TK. Centralizado para
+// garantizar consistencia entre Cotizaciones y Proyectos Directos.
 //
-//  - Ecosistema Físico  (VPOS / MPOS / Fast Track / Multi-RIF):
-//        REST, Stand Alone, Wrapper, MPOS
-//  - Ecosistema Digital (Payment Gateway / Link de Pago):
-//        Bridge PG, Web Link de Pago (No Universal / Universal),
-//        TKN (No Universal / Universal), PG (No Universal / Universal)
+//   VPOS / VPOS Multi-RIF        → CR
+//   MPOS / MPOS (Imple + POS)    → MP
+//   Payment Gateway              → PG
+//   Link de Pago / Tokenizador   → LP, TK   (opción combinada)
 
-const _norm = (s) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+const _norm = (s) => (s || '').toString().trim().toUpperCase();
 
-export const PHYSICAL_MODALITIES = ['Rest', 'Stand Alone', 'Wrapper', 'MPOS', 'Linux'];
-
-export const DIGITAL_MODALITIES = [
-  'Bridge PG',
-  'Web Link de Pago Modalidad No Universal',
-  'Web Link de Pago Modalidad Universal',
-  'Web Tokenizador Modalidad No Universal con Verificación de Micro',
-  'Web Tokenizador Modalidad No Universal sin Verificación de Micro',
-  'Web Tokenizador Modalidad Universal con Verificación de Micro',
-  'Web Tokenizador Modalidad Universal Sin Verificación de Micro',
-  'PG Modalidad Universal',
-  'PG Modalidad No Universal',
-];
-
-const PHYSICAL_SET = new Set(PHYSICAL_MODALITIES.map(_norm));
-const DIGITAL_SET = new Set(DIGITAL_MODALITIES.map(_norm));
-
-// Tipos de Proyecto agrupados por ecosistema.
-const PHYSICAL_TYPES = new Set(['VPOS', 'VPOS_MULTIRIF', 'MPOS', 'FAST_TRACK']);
-const DIGITAL_TYPES = new Set(['GATEWAY', 'LINK_PAGO', 'LINK']);
-
-// Devuelve un predicado (modalidad) => boolean según el Tipo de Proyecto.
-// Si el tipo es desconocido / no seleccionado, no filtra (devuelve true).
-export const integratorModalityMatch = (quoteType) => {
-  const qt = (quoteType || '').toString().trim().toUpperCase();
-  if (PHYSICAL_TYPES.has(qt)) return (m) => PHYSICAL_SET.has(_norm(m));
-  if (DIGITAL_TYPES.has(qt)) return (m) => DIGITAL_SET.has(_norm(m));
-  return () => true;
+// Tipo de Proyecto → tipos de integración permitidos.
+const PROJECT_TYPE_INTEGRATION = {
+  VPOS: ['CR'],
+  VPOS_MULTIRIF: ['CR'],
+  MPOS: ['MP'],
+  FAST_TRACK: ['MP'],
+  GATEWAY: ['PG'],
+  LINK_PAGO: ['LP', 'TK'],
+  LINK: ['LP', 'TK'],
 };
+
+// Tipos de proyecto "pasarela" que muestran distintivo visual [PG]/[LP]/[TK].
+const BADGE_PROJECT_TYPES = new Set(['GATEWAY', 'LINK_PAGO', 'LINK']);
+
+export const allowedIntegrationTypes = (quoteType) =>
+  PROJECT_TYPE_INTEGRATION[_norm(quoteType)] || null;
+
+// Predicado (integration_type) => boolean según el Tipo de Proyecto.
+// Tipo desconocido / no seleccionado → no filtra (devuelve true).
+export const integratorTypeMatch = (quoteType) => {
+  const allowed = allowedIntegrationTypes(quoteType);
+  if (!allowed) return () => true;
+  const set = new Set(allowed);
+  return (t) => set.has(_norm(t));
+};
+
+// Compat: alias histórico usado en los formularios de cotización/proyecto.
+export const integratorModalityMatch = integratorTypeMatch;
+
+// ¿El tipo de proyecto debe mostrar el distintivo de tipo de integración?
+export const shouldShowIntegrationBadge = (quoteType) =>
+  BADGE_PROJECT_TYPES.has(_norm(quoteType));
+
+// Devuelve los integration_type distintos asociados a un nombre de integrador
+// dentro de una lista ya filtrada (para armar el sufijo/badge visible).
+export const integrationTypesForName = (rows, name) =>
+  Array.from(new Set((rows || [])
+    .filter((r) => r.name === name)
+    .map((r) => _norm(r.integration_type))
+    .filter(Boolean)));
+
+// Sufijo visible p.ej. "[PG]" o "[LP] [TK]" a partir de una lista de tipos.
+export const formatIntegrationBadge = (types) =>
+  (types || []).filter(Boolean).map((t) => `[${_norm(t)}]`).join(' ');

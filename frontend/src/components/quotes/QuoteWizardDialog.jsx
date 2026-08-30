@@ -16,7 +16,7 @@ import { BranchDetailPanel } from '../BranchDetailPanel';
 import { MultiRifDistributionPanel } from './MultiRifDistributionPanel';
 import { MultiProductSelector } from '../MultiProductSelector';
 import { QUOTE_TYPES, PRICING_MODELS, SETUP_CONCEPTS } from './constants';
-import { integratorModalityMatch } from '../../utils/integratorModality';
+import { integratorModalityMatch, shouldShowIntegrationBadge, integrationTypesForName, formatIntegrationBadge } from '../../utils/integratorModality';
 import { toast } from 'sonner';
 
 export const QuoteWizardDialog = ({ ctx }) => {
@@ -320,7 +320,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         // siendo válida para el nuevo Tipo de Proyecto (helper compartido).
                         const currentIntegrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
                         const matchesNew = integratorModalityMatch(value);
-                        const keepIntegrator = !!currentIntegrator && matchesNew(currentIntegrator.integration_modality);
+                        const keepIntegrator = !!currentIntegrator && matchesNew(currentIntegrator.integration_type);
                         let newIntegratorId = keepIntegrator ? quoteData.integrator_id : '';
                         const newIntegratorName = keepIntegrator ? quoteData.integrator_name : '';
                         const newIntegratorApp = keepIntegrator ? quoteData.integrator_app_name : '';
@@ -872,8 +872,9 @@ export const QuoteWizardDialog = ({ ctx }) => {
                   {(() => {
                     const matches = integratorModalityMatch(quoteData.quote_type);
                     const certifiedFiltered = integrators.filter(i =>
-                      i.integrator_status === 'Certificado' && matches(i.integration_modality)
+                      i.integrator_status === 'Certificado' && matches(i.integration_type)
                     );
+                    const showBadge = shouldShowIntegrationBadge(quoteData.quote_type);
                     const q = integratorSearchQuery.trim().toLowerCase();
                     const allNames = Array.from(new Set(certifiedFiltered.map(i => i.name).filter(Boolean)))
                       .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
@@ -926,13 +927,17 @@ export const QuoteWizardDialog = ({ ctx }) => {
                               {(isMPOS || isPaymentGateway || isVPOS) && (
                                 <SelectItem value="sin_integrador">Sin integrador</SelectItem>
                               )}
-                              {visibleNames.length > 0 ? visibleNames.map((name) => (
-                                <SelectItem key={name} value={name} data-testid={`integrator-option-${name.trim().replace(/\s+/g, '-').toLowerCase()}`}>
-                                  {name}
-                                </SelectItem>
-                              )) : (
+                              {visibleNames.length > 0 ? visibleNames.map((name) => {
+                                const badge = showBadge ? formatIntegrationBadge(integrationTypesForName(certifiedFiltered, name)) : '';
+                                return (
+                                  <SelectItem key={name} value={name} data-testid={`integrator-option-${name.trim().replace(/\s+/g, '-').toLowerCase()}`}>
+                                    <span>{name}</span>
+                                    {badge && <span className="ml-1.5 text-xs font-semibold text-indigo-600">{badge}</span>}
+                                  </SelectItem>
+                                );
+                              }) : (
                                 <SelectItem value="_no_integrators_" disabled>
-                                  {q ? 'Sin coincidencias' : 'No hay integradores para esta modalidad'}
+                                  {q ? 'Sin coincidencias' : 'No hay integradores para este tipo de proyecto'}
                                 </SelectItem>
                               )}
                             </SelectContent>

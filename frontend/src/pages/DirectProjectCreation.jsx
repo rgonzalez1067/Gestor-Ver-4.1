@@ -15,7 +15,7 @@ import { ProcessorLinkBankModal } from '../components/shared/ProcessorLinkBankMo
 import { DirectMultiRifSection } from '../components/projects/DirectMultiRifSection';
 import { toast } from 'sonner';
 import api from '../utils/api';
-import { integratorModalityMatch } from '../utils/integratorModality';
+import { integratorModalityMatch, shouldShowIntegrationBadge, integrationTypesForName, formatIntegrationBadge } from '../utils/integratorModality';
 import { usePermission } from '../hooks/usePermission';
 
 const QUOTE_TYPES = [
@@ -471,7 +471,7 @@ export default function DirectProjectCreation() {
   const certifiedIntegrators = useMemo(() => {
     const matches = integratorModalityMatch(form.quote_type);
     return integrators.filter(
-      (i) => i.integrator_status === 'Certificado' && matches(i.integration_modality)
+      (i) => i.integrator_status === 'Certificado' && matches(i.integration_type)
     );
   }, [integrators, form.quote_type]);
 
@@ -963,7 +963,15 @@ export default function DirectProjectCreation() {
                 <SelectContent>
                   {integratorNames.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-slate-400 italic">No hay integradores certificados para este tipo de proyecto</div>
-                  ) : integratorNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  ) : integratorNames.map((n) => {
+                    const badge = shouldShowIntegrationBadge(form.quote_type) ? formatIntegrationBadge(integrationTypesForName(certifiedIntegrators, n)) : '';
+                    return (
+                      <SelectItem key={n} value={n}>
+                        <span>{n}</span>
+                        {badge && <span className="ml-1.5 text-xs font-semibold text-indigo-600">{badge}</span>}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

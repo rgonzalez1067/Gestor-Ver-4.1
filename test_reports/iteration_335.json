@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend-only validation of Cotizaciones wizard + DirectProjectCreation for (A) hidden 'MPOS (Tablet/Móvil)' entry, (B) dynamic integrator filtering by integration_type, and (C) [PG]/[LP]/[TK] badges only for gateway/link projects. All 3 requirements verified end-to-end via Playwright against the live preview URL.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "quote_wizard_pyme": {
+      "quote_type_options": ["VPOS (Cajas)", "VPOS Multi-RIF", "MPOS (Imple + POS)", "Payment Gateway", "Link de Pago/Tokenizador"],
+      "mpos_tablet_movil_hidden": true,
+      "GATEWAY": {"options_count": 132, "all_have_badge_PG": true},
+      "LINK_PAGO": {"options_count": 13, "all_have_badge_LP_or_TK": true},
+      "VPOS": {"options_count": 154, "no_brackets": true},
+      "FAST_TRACK": {"options_count": 13, "no_brackets": true}
+    },
+    "direct_project_creation": {
+      "quote_type_options": ["VPOS", "MPOS", "Payment Gateway", "Link de Pago"],
+      "VPOS": {"options_count": 154, "no_brackets": true},
+      "MPOS": {"options_count": 13, "no_brackets": true},
+      "GATEWAY": {"options_count": 132, "all_have_badge_PG": true},
+      "LINK_PAGO": {"options_count": 13, "all_have_badge_LP_or_TK": true}
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Nice: filtering + badge logic centralized in src/utils/integratorModality.js and reused by both QuoteWizardDialog.jsx and DirectProjectCreation.jsx – single source of truth. Behavior matches PROJECT_TYPE_INTEGRATION map exactly (CR/MP/PG/LP+TK).",
+    "MPOS entry kept in QUOTE_TYPES with disabled:true and filtered via .filter(t=>!t.disabled) – acceptable soft-hide; consider fully removing later once no legacy quote_type='MPOS' documents remain, otherwise old quotes/lists may still show it in read-only surfaces.",
+    "Console shows a pre-existing (unrelated) hydration warning on /quotes page: <span data-ve-dynamic> wrapping a <tr> inside <tbody> in QuotesTable.jsx (~line 289). Not caused by this change, but worth cleaning up separately."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin, session_token flow)",
+  "seed_data_creation": "None. Only opened forms and read dropdowns (no data mutated).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Both wizard (data-testid=select-quote-type + select-integrator) and DirectProjectCreation (dp-quote-type + dp-integrator) now correctly (i) hide MPOS Tablet/Móvil in the wizard, (ii) filter integrators by integration_type via integratorModalityMatch, and (iii) show [PG]/[LP]/[TK] suffix only for GATEWAY/LINK_PAGO projects (VPOS and MPOS Imple+POS show clean names). Counts observed in current DB: PG=132 names, CR=154, MP=13, LP+TK=13. To reproduce: login admin → /quotes → Implementaciones → Clientes Pymes → choose any client → cycle Tipo de Cotización and open Integrador; then /direct-projects → cycle dp-quote-type and open dp-integrator. LINK_PAGO in the wizard triggers an AlertDialog variant selector (Link de Pago / Tokenizador / ambos) which needs the 'Continuar' button clicked before subsequent quote_type changes are possible.",
+  "rca of the issue": "N/A – no bug reproduced. All acceptance criteria in the review request met."
+}
