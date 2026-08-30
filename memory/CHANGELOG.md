@@ -1739,3 +1739,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Fix render (services/implementation_pdf.py): nuevo helper _norm_na() que estandariza a 'N/A' cualquier variante ('NO APLICA','No Aplica','NA','N.A.','', None). Aplicado en _key_value_table (todos los pares clave-valor) y en el bloque 'Modelo de Impresora Fiscal' (mantiene ocultar cuando el campo está realmente vacío; 'NO APLICA' → 'N/A').
 - Migración de datos: quotes.fiscal_printer_model y projects.fiscal_printer_model con /^no aplica$/i → 'N/A' (3 + 66 registros). 0 restantes.
 - Verificado: unit _norm_na (todas las variantes → 'N/A') + generación real de Ficha Técnica PDF (200, PDF válido) para un proyecto migrado.
+
+**Fix · Matriz de Implementación en conversión Cotización→Proyecto: cantidad exacta para MONOTIENDA · 2026-06:**
+- Problema: proyectos Monotienda sobredimensionaban las cajas por banco/producto (se usaba el valor máximo/box_count al ejecutar la matriz), obligando a ajustes manuales.
+- Fix (routes/quote_transitions.py, _create_project_from_quote): al construir la matriz VPOS/MPOS (no-gateway) se recopila additional_qty[banco][producto]=cantidad exacta (quantity/cantidad_cajas). Tras resolver multistore/multirif, un bloque pre-pobla implementation_matrix SOLO para monotienda (project_type NOT IN multistore/multirif y no gateway): cada celda banco→producto→fase = {expected: cantidad_exacta, processed:0, completed:False} en las 4 fases (Recibido/Configurado/Testeado/En Producción).
+- Multitienda y Multi-RIF: SIN cambios (celdas vacías / deepcopy; siguen usando box_count/valor máximo). Payment Gateway sin cambios.
+- Verificado: prueba directa de la función (mono → Banco A=2, Banco B=4; multi → celdas vacías) + testing_agent iter333 (100% backend, vía API send-to-implementation: monotienda exacto, multitienda sin regresión).

@@ -118,6 +118,8 @@ async def _create_project_from_quote(
     #   con `expected: 1` para que el implementador pueda editar y propagar a las
     #   fases siguientes desde "Recibido" (igual UX que hardware).
     implementation_matrix = {}
+    # Cantidad EXACTA de cajas cotizada por banco/producto (para proyectos Monotienda).
+    additional_qty = {}
     if is_gateway:
         for it in quote.get("pg_setup_items", []) or []:
             bn = (it.get("banco") or "").strip()
@@ -145,6 +147,10 @@ async def _create_project_from_quote(
                 implementation_matrix[bn] = {}
             if name not in implementation_matrix[bn]:
                 implementation_matrix[bn][name] = {}
+            # Guardar la cantidad exacta cotizada de cajas por banco/producto.
+            qty = int(item.get("quantity") or item.get("cantidad_cajas") or 0)
+            additional_qty.setdefault(bn, {})
+            additional_qty[bn][name] = max(additional_qty[bn].get(name, 0), qty)
 
     # Anexos del proyecto: por homologación con Proyectos Directos, el proyecto
     # NO hereda los anexos de la cotización (p.ej. el PDF de la Cotización). Solo
@@ -321,6 +327,22 @@ async def _create_project_from_quote(
             "created_by_name": "Sistema",
             "created_at": now.isoformat(),
         })
+
+    # ── FIX Monotienda: asignar la cantidad EXACTA de cajas cotizada por banco/producto ──
+    # Aplica SOLO a proyectos monotienda (ni multistore ni multirif) y NO Payment Gateway.
+    # Multitienda/Multi-RIF conservan su lógica actual (valor máximo / box_count) SIN cambios.
+    if not is_gateway and project.get("project_type") not in ("multistore", "multirif"):
+        _MONO_PHASES = ["Recibido", "Configurado", "Testeado", "En Producción"]
+        for _bn, _prods in implementation_matrix.items():
+            for _name in list(_prods.keys()):
+                _qty = (additional_qty.get(_bn, {}) or {}).get(_name) or 0
+                if not _qty:
+                    # Fallback conservador si el ítem no trae cantidad explícita.
+                    _qty = int(project.get("box_count") or 0)
+                implementation_matrix[_bn][_name] = {
+                    _phase: {"expected": _qty, "processed": 0, "completed": False}
+                    for _phase in _MONO_PHASES
+                }
 
     # Tipo de Proyecto de Implementación (POS Fast Track / VPOS-MPOS / Payment Gateway)
     if project_type_impl:
