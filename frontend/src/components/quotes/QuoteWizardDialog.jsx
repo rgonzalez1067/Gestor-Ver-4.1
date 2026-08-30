@@ -69,8 +69,41 @@ export const QuoteWizardDialog = ({ ctx }) => {
     isLoadingEdit, editingQuoteId, currentUser,
   } = ctx;
 
+  // ── Filtro dinámico por Marca según Tipo de Proyecto (Detalles de Integración y Hardware) ──
+  // Regla de negocio: el desplegable "Modelo de Pinpad / POS" solo debe mostrar
+  // Bienes (Clasificación = 'Bien') de la marca compatible con la tecnología:
+  //   VPOS (Cajas) y VPOS Multi-RIF → Verifone
+  //   MPOS (Imple + POS / FAST_TRACK) y MPOS (Tablet/Móvil) → MoreFun
+  const marcaForType = (qt) => {
+    if (qt === 'VPOS' || qt === 'VPOS_MULTIRIF') return 'Verifone';
+    if (qt === 'MPOS' || qt === 'FAST_TRACK') return 'MoreFun';
+    return null;
+  };
+  const marcaFilter = marcaForType(quoteData.quote_type);
+  const applyMarca = (list) => {
+    const bienes = (list || []).filter(hw => (hw.asset_type || 'Bien') === 'Bien');
+    return marcaFilter ? bienes.filter(hw => hw.marca === marcaFilter) : bienes;
+  };
+  // Listas visibles para el selector (NO mutan las listas base usadas para lookups).
+  const visiblePinpads = applyMarca(pinpads);
+  const visiblePosDevices = applyMarca(posDevices);
+  const visibleFastTrackDevices = [...visiblePosDevices, ...visiblePinpads];
+
+  // Reset automático: si el modelo seleccionado ya no cumple el filtro de la
+  // tecnología actual, limpiar el campo para forzar una nueva selección válida.
+  useEffect(() => {
+    const pid = quoteData.pinpad_id;
+    if (!pid || pid === 'none') return;
+    const allowed = isFastTrackType ? visibleFastTrackDevices : (isMPOS ? visiblePosDevices : visiblePinpads);
+    if (!allowed.some(d => d.hardware_id === pid)) {
+      setQuoteData(prev => ({ ...prev, pinpad_id: isFastTrackType ? '' : 'none' }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteData.quote_type]);
+
   // Búsqueda interna en el selector de integradores
   const [integratorSearchQuery, setIntegratorSearchQuery] = useState('');
+
 
   // VPOS Multi-RIF: el banco de Medios de Pago se hereda del banco de adquirencia
   // seleccionado al inicio (paso 1), filtrando solo sus productos.
@@ -971,22 +1004,22 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           <SelectItem value="none">Sin {isMPOS ? 'POS' : 'Pinpad'}</SelectItem>
                         )}
                         {isFastTrackType ? (
-                          // Fast Track: mostrar POS + Pinpads combinados (solo tipo Bien)
-                          [...posDevices, ...pinpads].length === 0 ? (
-                            <SelectItem value="no-devices" disabled>No hay dispositivos disponibles</SelectItem>
+                          // Fast Track: mostrar POS + Pinpads combinados (solo Bien + marca MoreFun)
+                          visibleFastTrackDevices.length === 0 ? (
+                            <SelectItem value="no-devices" disabled>No existen modelos disponibles para esta tecnología</SelectItem>
                           ) : (
-                            [...posDevices, ...pinpads].map((device) => (
+                            visibleFastTrackDevices.map((device) => (
                               <SelectItem key={device.hardware_id} value={device.hardware_id}>
                                 {device.name} — {device.type} {(device.price_bs_usd || device.price_usd) > 0 && `($${device.price_bs_usd || device.price_usd})`}
                               </SelectItem>
                             ))
                           )
                         ) : (
-                          // VPOS/MPOS: lógica original
-                          (isMPOS ? posDevices : pinpads).length === 0 ? (
-                            <SelectItem value="no-devices" disabled>No hay {isMPOS ? 'POS' : 'Pinpads'} disponibles</SelectItem>
+                          // VPOS/MPOS: Bien + marca compatible (Verifone/MoreFun)
+                          (isMPOS ? visiblePosDevices : visiblePinpads).length === 0 ? (
+                            <SelectItem value="no-devices" disabled>No existen modelos disponibles para esta tecnología</SelectItem>
                           ) : (
-                            (isMPOS ? posDevices : pinpads).map((device) => (
+                            (isMPOS ? visiblePosDevices : visiblePinpads).map((device) => (
                               <SelectItem key={device.hardware_id} value={device.hardware_id}>
                                 {device.name} {(device.price_bs_usd || device.price_usd) > 0 && `($${device.price_bs_usd || device.price_usd})`}
                               </SelectItem>

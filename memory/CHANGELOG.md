@@ -1714,3 +1714,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Enviar a Implementación (QuoteModals.jsx): fase Servidor ahora lista el catálogo /servers ('tipo — descripcion') + 'Otro'; fase Impresora Fiscal agrega combo /fiscal-printers (data-testid fiscal-printer-catalog-select) preservando prellenado del cliente e input editable. Carga catálogos al abrir el diálogo.
 - Verificado: backend por curl (fiscal-printers/servers, validaciones 400) + testing_agent iter331 (3/4 features 100%: catálogos CRUD y combo en Clientes). PENDIENTE de verificación por UI: el flujo 'Enviar a Implementación' no fue alcanzable en la sesión de QA (depende del estado de la cotización); código en su lugar leyendo endpoints ya validados.
 - Seeds de ejemplo en preview: impresora 'Bixolon — SRP-812' (voucher Sí), servidor 'Multicomercio — MSC principal'.
+
+**Feature · Filtrado dinámico por Marca/Clasificación en 'Modelo de Pinpad/POS' del FORMULARIO DE COTIZACIONES · 2026-06:**
+- Distinto del filtro de Proyectos (Fase 1): aquí es el asistente de creación/edición de cotizaciones (QuoteWizardDialog.jsx), sección 'Detalles de Integración y Hardware', campo select-pinpad.
+- Regla: VPOS (id 'VPOS') y VPOS Multi-RIF ('VPOS_MULTIRIF') → Bien + Marca 'Verifone'. MPOS (Imple+POS 'FAST_TRACK') y MPOS Tablet/Móvil ('MPOS') → Bien + Marca 'MoreFun'. Otros tipos sin filtro de marca (solo Bien).
+- Implementación: marcaForType()/applyMarca() derivan visiblePinpads/visiblePosDevices/visibleFastTrackDevices sin mutar las listas base (usadas para lookups por hardware_id). useEffect que limpia pinpad_id al cambiar quote_type si el modelo ya no cumple el filtro (reset dinámico). Estado vacío: 'No existen modelos disponibles para esta tecnología'.
+- Añadido data-testid='select-quote-type' (ya existía select-pinpad).
+- Verificado: testing_agent iter332 (100%): 4 escenarios de marca correctos, reset dinámico, exclusión de Servicios/otras marcas, empty-state.

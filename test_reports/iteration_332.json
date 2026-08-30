@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only QA of dynamic Marca/Clasificación filtering in QuoteWizardDialog 'Modelo de Pinpad/POS' select. All 4 scenarios (VPOS, VPOS_MULTIRIF, FAST_TRACK, MPOS) filtered correctly by brand and asset_type=Bien; RESET DINÁMICO on quote_type change works; no Servicios or wrong-brand leaks; empty-state message logic present.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "VPOS_Cajas": {"total_options": 5, "verifone": 4, "morefun_leak": 0, "options": ["Sin Pinpad", "PinPad Verifone VX810 ($10)", "Pinpad Verifone VX820 ($10)", "PinPad Verifone P200 Engage... ($345)", "QA Verifone PP ($50)"], "pass": true},
+    "VPOS_MULTIRIF": {"total_options": 5, "verifone": 4, "morefun_leak": 0, "pass": true},
+    "FAST_TRACK_MPOS_Imple_POS": {"total_options": 7, "verifone_leak": 0, "morefun": 7, "includes_pos_and_pinpad": true, "options": ["Morefun MF960 — POS", "Morefun MF360 — POS", "Morefun POS10Q — POS", "Morefun MF919 Ver 7 — POS", "QA MoreFun POS — POS", "Morefun MP63 — Pinpad", "QA MoreFun PP — Pinpad"], "pass": true},
+    "MPOS_Tablet_Movil": {"total_options": 6, "verifone_leak": 0, "morefun": 5, "options": ["Sin POS", "Morefun MF960", "Morefun MF360", "Morefun POS10Q", "Morefun MF919 Ver 7", "QA MoreFun POS"], "pass": true},
+    "reset_dinamico": {"before": "PinPad Verifone VX810 ($10)", "after_switch_to_MPOS_Imple_POS": "Seleccione modelo (obligatorio)...", "cleared_ok": true}
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "QuoteWizardDialog.jsx marcaForType() + applyMarca() cleanly derives visiblePinpads / visiblePosDevices / visibleFastTrackDevices. Correct exclusion of asset_type != 'Bien' (Servicios) and enforcement of Verifone / MoreFun per quote_type.",
+    "useEffect on quoteData.quote_type correctly resets pinpad_id when current selection is not in the new allowed list. Behaves correctly for FastTrack ('') and VPOS/MPOS ('none' placeholder).",
+    "Empty-state SelectItem 'No existen modelos disponibles para esta tecnología' is rendered when visible list is empty (verified conditional).",
+    "Minor: The filter uses hw.marca strict equality; make sure catalog seeds always store 'Verifone' / 'MoreFun' with exact casing (already validated via seeded QA rows)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "None - used existing catalog (QA Verifone PP, QA MoreFun PP, QA MoreFun POS, Morefun MF*, PinPad Verifone VX/P200)",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Wizard is opened via 'Implementaciones' button → dropdown → 'Clientes Pymes' (or 'Clientes Corporativos'). Client selection needed BEFORE hardware section is populated. Pinpad selector is data-testid='select-pinpad'. Quote type selector is data-testid='select-quote-type'. All 7 acceptance criteria in the review passed."
+}
