@@ -77,13 +77,25 @@ def _section_banner(title, styles):
     return t
 
 
+def _norm_na(value):
+    """Homologa los valores 'vacíos' o 'no aplica' de la Ficha Técnica a 'N/A'.
+
+    Estandariza expresiones equivalentes (NO APLICA, No Aplica, NA, N.A., '', None...)
+    a un único término 'N/A' para consistencia visual en toda la ficha.
+    """
+    s = str(value or "").strip()
+    if s.upper().replace(".", "").replace(" ", "") in ("", "NA", "NOAPLICA", "N/A", "N/A."):
+        return "N/A"
+    return s
+
+
 def _key_value_table(pairs, styles):
     """Tabla de pares clave-valor"""
     data = []
     for label, value in pairs:
         data.append([
             Paragraph(f"<b>{label}:</b>", styles['NormalText']),
-            Paragraph(str(value or 'N/A'), styles['NormalText'])
+            Paragraph(_norm_na(value), styles['NormalText'])
         ])
     t = Table(data, colWidths=[180, 300])
     t.setStyle(TableStyle([
@@ -344,8 +356,9 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     # Bloque ubicado justo detrás de "Seriales de los Equipos" (Feb 2026):
     # imprime el modelo de impresora fiscal capturado en el wizard al
     # enviar a implementación, o tomado de la ficha del cliente.
-    fiscal_printer_model = (quote.get("fiscal_printer_model") or client.get("modelo_impresora_fiscal") or "").strip()
-    if fiscal_printer_model:
+    fp_raw = (quote.get("fiscal_printer_model") or client.get("modelo_impresora_fiscal") or "").strip()
+    if fp_raw:
+        fiscal_printer_model = _norm_na(fp_raw)
         elements.append(Paragraph("<b>Modelo de Impresora Fiscal</b>", styles['BlockLabel']))
         elements.append(Spacer(1, 4))
         fp_table = Table(

@@ -1733,3 +1733,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Causa: en ActionNotificationsConfig.jsx, usersForBiz() filtraba la lista de destinatarios a solo sede PYME cuando business_type='implementacion_pyme' (y solo CORP para implementacion_corp). Esto impedía asignar destinatarios Corporativos en la configuración de acciones Pyme.
 - Fix: eliminado el filtro por sede; ahora usersForBiz() devuelve TODOS los usuarios activos (orden alfabético) para cualquier unidad de negocio. El backend /action-notifications/catalog ya devolvía todos los usuarios (sin filtro).
 - Verificado por UI: en Implementaciones Pyme → VPOS → 'Enviar al Cliente' → tipo 'Usuario interno', el desplegable de destinatarios ahora lista los 50 usuarios (incluye CORP: Antonio Castro, Arnoldo Hernandez...). Antes solo 17 PYME.
+
+**Homologación · Términos de campos vacíos en Ficha Técnica → 'N/A' · 2026-06:**
+- Problema: la Ficha Técnica mostraba indistintamente 'N/A' y 'NO APLICA' en campos vacíos. El origen era el valor almacenado 'NO APLICA' en fiscal_printer_model (3 quotes, 66 projects, texto libre legacy).
+- Fix render (services/implementation_pdf.py): nuevo helper _norm_na() que estandariza a 'N/A' cualquier variante ('NO APLICA','No Aplica','NA','N.A.','', None). Aplicado en _key_value_table (todos los pares clave-valor) y en el bloque 'Modelo de Impresora Fiscal' (mantiene ocultar cuando el campo está realmente vacío; 'NO APLICA' → 'N/A').
+- Migración de datos: quotes.fiscal_printer_model y projects.fiscal_printer_model con /^no aplica$/i → 'N/A' (3 + 66 registros). 0 restantes.
+- Verificado: unit _norm_na (todas las variantes → 'N/A') + generación real de Ficha Técnica PDF (200, PDF válido) para un proyecto migrado.
