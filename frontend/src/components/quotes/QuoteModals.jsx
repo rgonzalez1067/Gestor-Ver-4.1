@@ -759,27 +759,28 @@ export const QuoteModals = ({ ctx }) => {
                     <p className="text-xs text-slate-400 mt-0.5">Último paso de captura. Estos datos se archivan en la Ficha Técnica del proyecto.</p>
                   </div>
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-                    {/* Servidor */}
+                    {/* Servidor — DropList del catálogo */}
                     <div>
-                      <Label className="text-sm font-medium">Nombre del Servidor <span className="text-red-500">*</span></Label>
-                      <div className="grid gap-1.5 mt-1.5">
-                        {[...catalogServers.map(s => `${s.tipo} — ${s.descripcion}`), 'Otro'].map(opt => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => { setPymeServerName(opt); if (opt !== 'Otro') setPymeServerCustom(''); }}
-                            className={`w-full text-left px-3 py-2 rounded-md border-2 transition-all text-sm ${pymeServerName === opt ? 'border-blue-500 bg-blue-50 font-semibold text-blue-800' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-slate-700'}`}
-                            data-testid={`consolidated-server-${opt.replace(/\s/g, '-').toLowerCase()}`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                        {catalogServers.length === 0 && (
-                          <p className="text-[11px] text-amber-600" data-testid="consolidated-server-empty-hint">
-                            No hay servidores en el catálogo. Regístralos en Catálogos → Servidores, o elige "Otro".
-                          </p>
-                        )}
-                      </div>
+                      <Label htmlFor="consolidated_server_name" className="text-sm font-medium">Nombre del Servidor <span className="text-red-500">*</span></Label>
+                      <select
+                        id="consolidated_server_name"
+                        value={pymeServerName || ''}
+                        onChange={(e) => { const v = e.target.value; setPymeServerName(v); if (v !== 'Otro') setPymeServerCustom(''); }}
+                        className="mt-1.5 w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                        data-testid="consolidated-server-select"
+                      >
+                        <option value="">— Selecciona un servidor —</option>
+                        {catalogServers.map((s) => {
+                          const opt = `${s.tipo} — ${s.descripcion}`;
+                          return <option key={s.server_id || opt} value={opt}>{opt}</option>;
+                        })}
+                        <option value="Otro">Otro</option>
+                      </select>
+                      {catalogServers.length === 0 && (
+                        <p className="text-[11px] text-amber-600 mt-1.5" data-testid="consolidated-server-empty-hint">
+                          No hay servidores en el catálogo. Regístralos en Catálogos → Servidores, o elige "Otro".
+                        </p>
+                      )}
                       {pymeServerName === 'Otro' && (
                         <Input
                           type="text"
