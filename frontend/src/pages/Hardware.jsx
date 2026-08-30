@@ -52,6 +52,7 @@ export const Hardware = () => {
     category: 'dispositivos',
     type: 'Pinpad',
     asset_type: 'Bien',
+    marca: '',
     price_usd: '',
     price_bs_usd: '',
     description: ''
@@ -82,9 +83,15 @@ export const Hardware = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Marca obligatoria para Pinpad y POS
+    if (['Pinpad', 'POS'].includes(formData.type) && !formData.marca) {
+      toast.error('La Marca es obligatoria para dispositivos Pinpad y POS');
+      return;
+    }
     try {
       const payload = {
         ...formData,
+        marca: formData.marca || null,
         price_usd: parseFloat(formData.price_usd) || 0,
         price_bs_usd: parseFloat(formData.price_bs_usd) || 0
       };
@@ -139,6 +146,7 @@ export const Hardware = () => {
       name: hardware.name,
       type: hardware.type,
       asset_type: hardware.asset_type || 'Bien',
+      marca: hardware.marca || '',
       price_usd: hardware.price_usd?.toString() || '0',
       price_bs_usd: hardware.price_bs_usd?.toString() || '0',
       description: hardware.description || ''
@@ -151,6 +159,7 @@ export const Hardware = () => {
       name: '',
       type: 'Pinpad',
       asset_type: 'Bien',
+      marca: '',
       price_usd: '',
       price_bs_usd: '',
       description: ''
@@ -480,6 +489,28 @@ export const Hardware = () => {
                       </Select>
                     </div>
 
+                    <div>
+                      <Label>
+                        Marca {['Pinpad', 'POS'].includes(formData.type) ? <span className="text-red-500">*</span> : <span className="text-slate-400 text-xs">(opcional)</span>}
+                      </Label>
+                      <Select
+                        value={formData.marca || '__none__'}
+                        onValueChange={(value) => setFormData({ ...formData, marca: value === '__none__' ? '' : value })}
+                      >
+                        <SelectTrigger data-testid="hardware-marca-select">
+                          <SelectValue placeholder="Seleccione marca" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Sin marca —</SelectItem>
+                          <SelectItem value="Verifone">Verifone</SelectItem>
+                          <SelectItem value="MoreFun">MoreFun</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {['Pinpad', 'POS'].includes(formData.type) && (
+                        <p className="text-xs text-slate-500 mt-1">Obligatoria para Pinpad y POS (define el filtro VPOS/MPOS en Proyectos).</p>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="price_usd">Precio Efectivo (USD)</Label>
@@ -580,6 +611,9 @@ export const Hardware = () => {
                     Dispositivo / Accesorio
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
+                    Marca
+                  </th>
+                  <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Categoría
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
@@ -605,6 +639,17 @@ export const Hardware = () => {
                       <p className="font-medium text-slate-900">{hardware.name}</p>
                       {hardware.description && (
                         <p className="text-xs text-slate-500 mt-1 truncate max-w-xs">{hardware.description}</p>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-center" data-testid={`hardware-marca-${hardware.hardware_id}`}>
+                      {hardware.marca ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          hardware.marca === 'Verifone'
+                            ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                            : 'bg-orange-100 text-orange-700 border border-orange-200'
+                        }`}>{hardware.marca}</span>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
                       )}
                     </td>
                     <td className="px-3 py-3 text-center">

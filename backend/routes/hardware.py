@@ -47,9 +47,26 @@ async def delete_component_type(component_id: str, authorization: Optional[str] 
 
 # ==================== HARDWARE ENDPOINTS ====================
 
+MARCA_OPTIONS = ["Verifone", "MoreFun"]
+MARCA_REQUIRED_TYPES = ("Pinpad", "POS")
+
+
+def _validate_marca(hardware_data):
+    """Marca obligatoria y válida (Verifone/MoreFun) solo para Pinpad y POS."""
+    marca = (hardware_data.marca or "").strip()
+    if hardware_data.type in MARCA_REQUIRED_TYPES:
+        if not marca:
+            raise HTTPException(status_code=400, detail="La Marca es obligatoria para dispositivos Pinpad y POS")
+        if marca not in MARCA_OPTIONS:
+            raise HTTPException(status_code=400, detail=f"Marca inválida. Opciones: {', '.join(MARCA_OPTIONS)}")
+    elif marca and marca not in MARCA_OPTIONS:
+        raise HTTPException(status_code=400, detail=f"Marca inválida. Opciones: {', '.join(MARCA_OPTIONS)}")
+
+
 @router.post("/hardware", response_model=Hardware)
 async def create_hardware(hardware_data: HardwareCreate, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    _validate_marca(hardware_data)
     hardware = Hardware(**hardware_data.model_dump())
     doc = hardware.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
@@ -68,6 +85,7 @@ async def get_hardware(authorization: Optional[str] = Header(None)):
 @router.put("/hardware/{hardware_id}", response_model=Hardware)
 async def update_hardware(hardware_id: str, hardware_data: HardwareCreate, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    _validate_marca(hardware_data)
     result = await db.hardware.update_one(
         {"hardware_id": hardware_id},
         {"$set": hardware_data.model_dump()}

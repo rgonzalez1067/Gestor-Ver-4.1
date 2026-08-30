@@ -235,14 +235,22 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
   }, [form?.status]);
 
   // Hardware visible: solo Categoría Pinpad/POS y Clasificación 'Bien' (evita
-  // saturar la ventana). Se conservan los ya seleccionados aunque no cumplan
-  // el filtro, para no ocultar selecciones existentes.
+  // saturar la ventana). Además, filtro de negocio por Tipo de Proyecto:
+  //   VPOS → solo Marca 'Verifone'  ·  MPOS → solo Marca 'MoreFun'.
+  // Otros tipos (Gateway/Link) no aplican filtro de marca. Se conservan los ya
+  // seleccionados aunque no cumplan el filtro, para no ocultar selecciones existentes.
   const visibleHardware = useMemo(() => {
     const selectedIds = new Set((form?.hardware || []).map(h => h.hardware_id));
-    return hardwareCatalog.filter(hw =>
-      (['Pinpad', 'POS'].includes(hw.type) && hw.asset_type === 'Bien') || selectedIds.has(hw.hardware_id)
-    );
-  }, [hardwareCatalog, form?.hardware]);
+    const qt = (form?.quote_type || '').toUpperCase();
+    const marcaFilter = qt === 'VPOS' ? 'Verifone' : qt === 'MPOS' ? 'MoreFun' : null;
+    return hardwareCatalog.filter(hw => {
+      if (selectedIds.has(hw.hardware_id)) return true;
+      const baseOk = ['Pinpad', 'POS'].includes(hw.type) && hw.asset_type === 'Bien';
+      if (!baseOk) return false;
+      if (marcaFilter) return hw.marca === marcaFilter;
+      return true;
+    });
+  }, [hardwareCatalog, form?.hardware, form?.quote_type]);
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 

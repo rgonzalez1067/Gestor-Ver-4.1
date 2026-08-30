@@ -485,13 +485,17 @@ export default function DirectProjectCreation() {
     return certifiedIntegrators.filter((i) => i.name === form.integrator_name && (i.app_name || '').trim());
   }, [certifiedIntegrators, form.integrator_name]);
 
-  /* Pinpad models — solo Bien + Pinpad/POS */
+  /* Pinpad models — solo Bien + Pinpad/POS. Filtro de negocio por Tipo de
+     Proyecto: VPOS → Marca 'Verifone'; MPOS → Marca 'MoreFun'. */
   const pinpadModels = useMemo(() => {
+    const qt = (form.quote_type || '').toUpperCase();
+    const marcaFilter = qt === 'VPOS' ? 'Verifone' : qt === 'MPOS' ? 'MoreFun' : null;
     return hardware
       .filter((h) => (h.asset_type === 'Bien') && (h.type === 'Pinpad' || h.type === 'POS'))
+      .filter((h) => !marcaFilter || h.marca === marcaFilter)
       .map((h) => ({ value: h.name, label: h.name, type: h.type }))
       .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
-  }, [hardware]);
+  }, [hardware, form.quote_type]);
 
   /* Validación pre-envío — Iter38 reglas actualizadas:
      - Grilla INDEPENDIENTE de cantidad_cajas (no se valida la suma).

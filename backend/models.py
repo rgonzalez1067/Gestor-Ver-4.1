@@ -246,6 +246,7 @@ class HardwareCreate(BaseModel):
     name: str
     type: str
     asset_type: Literal["Bien", "Servicio"] = "Bien"
+    marca: Optional[str] = None  # Verifone | MoreFun (obligatorio para Pinpad/POS)
     price_usd: float
     price_bs_usd: float
     description: Optional[str] = None
@@ -255,6 +256,7 @@ class Hardware(BaseModel):
     name: str
     type: str
     asset_type: str = "Bien"
+    marca: Optional[str] = None  # Verifone | MoreFun
     price_usd: float
     price_bs_usd: float
     description: Optional[str] = None

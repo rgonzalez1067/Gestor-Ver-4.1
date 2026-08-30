@@ -1697,3 +1697,11 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
   - HistoricalQuotes.jsx: columna 'Nº Factura' y detalle muestran `invoice_numbers.join(', ')` (fallback a invoice_number legacy).
 - Verificado: backend por curl (persistencia por archivo en cotización e histórico; invoice_numbers=F-100,F-200,F-300; filtro y search por numero_factura) y frontend por testing_agent iter329 (100%: FLUJO A/B/C OK, validación de obligatoriedad, grilla comma-separated).
 - Datos de prueba sembrados en PREVIEW: quote qtest_fac1 (COT-TEST-FAC-001, Aprobada/CORP) y quote_history qhist_test_fac1 (anexos F-100/F-200/F-300 + F-400/F-500).
+
+**Feature (FASE 1) · Marca en Bienes y Servicios + Filtro VPOS/MPOS de Pinpads · 2026-06:**
+- Objetivo Fase 1 (de un requerimiento mayor de 5 partes): (a) campo Marca (Verifone/MoreFun) en Bienes y Servicios, columna ANTES de 'Categoría', obligatoria solo para Pinpad/POS; (b) filtro de negocio en Proyectos: selector de Modelo de Pinpad muestra solo Verifone si el Tipo de Proyecto es VPOS, solo MoreFun si es MPOS.
+- Backend: models.py Hardware/HardwareCreate +campo `marca`. hardware.py `_validate_marca` exige Verifone/MoreFun para type Pinpad/POS en POST y PUT (400 si falta/ inválida).
+- Frontend: Hardware.jsx (columna Marca antes de Categoría + selector en form, obligatorio si Pinpad/POS, badges Verifone azul/MoreFun naranja). MasterEditDialog.jsx (visibleHardware filtra por marca según form.quote_type: VPOS→Verifone, MPOS→MoreFun; conserva seleccionados). DirectProjectCreation.jsx (pinpadModels mismo filtro). Gateway/Link no filtran marca (intencional).
+- Verificado: backend por curl (todas las combinaciones) y frontend por testing_agent iter330 (100%: columna, obligatoriedad, filtro dinámico VPOS/MPOS).
+- Decisiones del usuario: marca obligatoria solo Pinpad/POS; catálogos nuevos irán en menú Catálogos (Fase 2); combo Cliente mostrará 'Marca — Modelo' (Fase 2); tipo VPOS/MPOS se toma del Tipo de Cotización (quote_type). Orden acordado: Fase 1 primero, luego Fase 2.
+- PENDIENTE FASE 2: catálogos Impresoras Fiscales (extender fiscal_printer_models con Marca+Modelo+valida_voucher_vpos) y Servidores (tipo Monocomercio/Multicomercio + descripción ≤50), combo box Impresora Fiscal en Ficha de Clientes, y modales de Impresora Fiscal + Servidor en 'Enviar a Implementación'.

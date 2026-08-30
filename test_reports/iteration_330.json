@@ -1,0 +1,26 @@
+{
+  "summary": "FRONTEND-ONLY QA for FASE 1: Marca (Verifone/MoreFun) en Bienes y Servicios + filtro VPOS/MPOS por marca en MasterEditDialog de Proyectos. Todas las verificaciones críticas PASSED. Login admin OK. En /hardware el orden de columnas es correcto (Dispositivo → Marca → Categoría → Clasificación → ...); los badges de marca se ven bien (Verifone azul, MoreFun naranja, sin-marca '—'). Data de referencia verificada: 'Morefun MF960'=Verifone y 'Morefun MF360'=MoreFun. Form: intento de guardar Pinpad sin marca → toast 'La Marca es obligatoria para dispositivos Pinpad y POS' y NO guarda (correcto). Pinpad+Verifone guarda OK. Accesorio+Servicio sin marca guarda OK. Ítems QA_ eliminados al finalizar. En MasterEditDialog al cambiar Tipo de Proyecto=VPOS solo aparece 'Morefun MF960 (POS)'; al cambiar a MPOS solo 'Morefun MF360 (POS)'. Cambio dinámico verificado al alternar. Ningún ítem seleccionado previamente en ese proyecto, la excepción por selección previa no fue necesaria pero está implementada correctamente en el código.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/hardware", "issues": ["Hydration warning en consola: <span data-ve-dynamic='true'> es hijo directo de <tbody> (envoltorio automático del sistema editable). No es bloqueante pero React advierte 'span cannot be a child of tbody'. Reportar para saneamiento futuro."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Hardware.jsx: openEditDialog omite 'category' al setear formData al editar (setFormData sin category), por lo que resetForm y edición dejan la categoría en el estado por defecto 'dispositivos'. Si en el futuro se persiste category, esto podría causar inconsistencias.",
+    "MasterEditDialog.jsx visibleHardware: filtro por marca solo aplica a VPOS/MPOS; GATEWAY y LINK no filtran marca (comportamiento intencional documentado en el comentario). Correcto.",
+    "Warning de hidratación 'span child of tbody' aparece en /hardware — parece introducido por wrappers del entorno editable (x-ve-dynamic). No es introducido por esta iteración, solo se observa."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (no probado, ya validado por curl según contexto)", "frontend": "100%"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se crearon 2 ítems QA_TestPinpadNoMarca y QA_TestAccesorioNoMarca durante la prueba y ambos fueron ELIMINADOS al finalizar (verificado por toast 'Dispositivo eliminado exitosamente').",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "FASE 1 completa. Marca en Hardware y filtro VPOS/MPOS en MasterEditDialog funcionan correctamente. DirectProjectCreation NO fue probado exhaustivamente (fuera de scope explícito del pedido). Si en fases futuras se agregan operaciones basadas en marca (ej. cotizador), reutilizar 'Morefun MF960' (Verifone) y 'Morefun MF360' (MoreFun) como fixtures de referencia.",
+  "rca of the issue": "n/a — no se reprodujo bug; feature implementada correctamente."
+}
