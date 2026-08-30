@@ -78,14 +78,14 @@ def _section_banner(title, styles):
 
 
 def _norm_na(value):
-    """Homologa los valores 'vacíos' o 'no aplica' de la Ficha Técnica a 'N/A'.
+    """Homologa los valores 'vacíos' o 'no aplica' de la Ficha Técnica a 'NO APLICA'.
 
-    Estandariza expresiones equivalentes (NO APLICA, No Aplica, NA, N.A., '', None...)
-    a un único término 'N/A' para consistencia visual en toda la ficha.
+    Estandariza expresiones equivalentes (N/A, NA, N.A., '', None...)
+    a un único término 'NO APLICA' para consistencia visual en toda la ficha.
     """
     s = str(value or "").strip()
     if s.upper().replace(".", "").replace(" ", "") in ("", "NA", "NOAPLICA", "N/A", "N/A."):
-        return "N/A"
+        return "NO APLICA"
     return s
 
 
@@ -204,7 +204,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     emission_dt = _parse_emission_date(quote.get('ficha_emission_date')) or datetime.now()
     fecha = f"{emission_dt.day} de {MESES_ES[emission_dt.month]} de {emission_dt.year}"
     quote_number = quote.get('quote_number', 'S/N')
-    client_name = client.get('legal_name') or client.get('fantasy_name') or 'N/A'
+    client_name = client.get('legal_name') or client.get('fantasy_name') or 'NO APLICA'
     cantidad_cajas = quote.get('cantidad_cajas', 1)
 
     # ==================== 1. ENCABEZADO: Cotización y Fecha ====================
@@ -238,7 +238,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     #   GATEWAY           -> Payment Gateway
     #   LINK_PAGO / LINK  -> Link de Pago
     #   VPOS_MPOS (legacy)-> VPOS  (consistente con la Sección A de la UI)
-    quote_type = quote.get('quote_type', 'N/A')
+    quote_type = quote.get('quote_type', 'NO APLICA')
     qt_upper = (quote_type or '').upper()
     tipo_display = (
         'VPOS' if qt_upper in ('VPOS', 'VPOS_MPOS')
@@ -255,7 +255,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         ("Tipo de Proyecto", tipo_display),
         ("Grupo Económico", economic_group),
         ("Nombre del Comercio", client_name),
-        ("RIF", format_rif(client.get('rif', 'N/A')) or 'N/A'),
+        ("RIF", format_rif(client.get('rif', 'NO APLICA')) or 'NO APLICA'),
         ("Nombre de Fantasía", fantasy_name),
     ], styles))
     elements.append(Spacer(1, 14))
@@ -269,10 +269,10 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     _pp_proc = (quote.get('sponsor_processor_name') or "").strip()
     pinpad_sponsor = (f"{_pp_proc} - {_pp_bank}" if _pp_proc and _pp_bank else (_pp_proc or _pp_bank))
     tech_pairs = [
-        ("Nombre del Integrador", quote.get('integrator_name', 'N/A')),
-        ("Nombre del Aplicativo", quote.get('integrator_app_name', 'N/A')),
-        ("Modelo de Pinpad", quote.get('pinpad_model', 'N/A')),
-        ("Patrocinador de Pinpads", pinpad_sponsor or 'N/A'),
+        ("Nombre del Integrador", quote.get('integrator_name', 'NO APLICA')),
+        ("Nombre del Aplicativo", quote.get('integrator_app_name', 'NO APLICA')),
+        ("Modelo de Pinpad", quote.get('pinpad_model', 'NO APLICA')),
+        ("Patrocinador de Pinpads", pinpad_sponsor or 'NO APLICA'),
     ]
     # Patrocinador de la Implementación (independiente del Patrocinador de Pinpads):
     # proviene de "¿Implementación patrocinada?" (cotizaciones) o "Banco Patrocinante"
@@ -282,7 +282,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         _proc = (quote.get("sponsoring_processor_name") or "").strip()
         _bank = (quote.get("sponsoring_bank_name") or "").strip()
         impl_sponsor = f"{_proc} - {_bank}" if _proc else _bank
-    tech_pairs.append(("Patrocinador de la Implementacion", impl_sponsor or "N/A"))
+    tech_pairs.append(("Patrocinador de la Implementacion", impl_sponsor or "NO APLICA"))
     server_name = quote.get("server_name") or ""
     if server_name:
         tech_pairs.append(("Servidor de Instalacion", server_name))
@@ -326,8 +326,8 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         for eq in all_serials:
             source_label = "Inventario" if eq in pinpad_serials else "Taller/Entrega"
             eq_data.append([
-                Paragraph(str(eq.get("modelo", "N/A")), styles['SmallText']),
-                Paragraph(str(eq.get("serial", "N/A")), styles['SmallText']),
+                Paragraph(str(eq.get("modelo", "NO APLICA")), styles['SmallText']),
+                Paragraph(str(eq.get("serial", "NO APLICA")), styles['SmallText']),
                 Paragraph(source_label, styles['SmallText']),
             ])
         eq_table = Table(eq_data, colWidths=[180, 180, 120])
@@ -452,8 +452,8 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         ]
         pg_data = [pg_header]
         for idx, item in enumerate(pg_setup_items, 1):
-            concepto = str(item.get('concepto') or item.get('item_name') or 'N/A')
-            banco = str(item.get('banco') or 'N/A')
+            concepto = str(item.get('concepto') or item.get('item_name') or 'NO APLICA')
+            banco = str(item.get('banco') or 'NO APLICA')
             observacion = str(item.get('observacion') or '')
             pg_data.append([
                 Paragraph(str(idx), styles['SmallText']),
@@ -495,8 +495,8 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
             bank_data = [bank_header]
             for item in additional_items:
                 bank_data.append([
-                    Paragraph(str(item.get('bank_name', 'N/A')), styles['SmallText']),
-                    Paragraph(str(item.get('item_name', item.get('name', 'N/A'))), styles['SmallText']),
+                    Paragraph(str(item.get('bank_name', 'NO APLICA')), styles['SmallText']),
+                    Paragraph(str(item.get('item_name', item.get('name', 'NO APLICA'))), styles['SmallText']),
                     Paragraph(str(item.get('quantity', cantidad_cajas)), styles['SmallText']),
                 ])
             bank_table = Table(bank_data, colWidths=[160, 230, 90])
@@ -600,12 +600,12 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
 
     if contacts:
         for c in contacts:
-            name = c.get('full_name') or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or 'N/A'
+            name = c.get('full_name') or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or 'NO APLICA'
             contact_data.append([
                 Paragraph(str(name), styles['SmallText']),
-                Paragraph(str(c.get('role', c.get('position', 'N/A'))), styles['SmallText']),
-                Paragraph(str(c.get('phone', 'N/A')), styles['SmallText']),
-                Paragraph(str(c.get('email', 'N/A')), styles['SmallText']),
+                Paragraph(str(c.get('role', c.get('position', 'NO APLICA'))), styles['SmallText']),
+                Paragraph(str(c.get('phone', 'NO APLICA')), styles['SmallText']),
+                Paragraph(str(c.get('email', 'NO APLICA')), styles['SmallText']),
             ])
     else:
         contact_data.append([

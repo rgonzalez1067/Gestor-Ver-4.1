@@ -347,7 +347,7 @@ def generate_transfer_note_pdf(
             else:
                 serials_para = Paragraph("<br/>".join([f"SN: {s}" for s in serials]), s_cell_serial)
         else:
-            serials_para = Paragraph("N/A", s_small)
+            serials_para = Paragraph("NO APLICA", s_small)
 
         row_data = [[
             Paragraph(str(idx), s_cell),

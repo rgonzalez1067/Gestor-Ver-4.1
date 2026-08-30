@@ -132,7 +132,7 @@ def generate_temporary_assignment_pdf(assignment: dict, items_detail: list = Non
         "serials": assignment.get("serials", []) or [],
     }]
     for it in items:
-        serials_text = ", ".join(it.get("serials", [])) if it.get("serials") else "N/A"
+        serials_text = ", ".join(it.get("serials", [])) if it.get("serials") else "NO APLICA"
         rows.append([
             Paragraph(it.get("name", ""), s_cell),
             Paragraph(it.get("type", "General"), s_cell),

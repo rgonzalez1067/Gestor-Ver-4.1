@@ -104,6 +104,16 @@ MODULES = {
         "key": "integrator_id",
         "label": "Integradores",
     },
+    "servers": {
+        "collection": "servers",
+        "key": "server_id",
+        "label": "Servidores",
+    },
+    "fiscal-printers": {
+        "collection": "fiscal_printer_models",
+        "key": "model_id",
+        "label": "Impresoras Fiscales",
+    },
 }
 
 # Módulo virtual multi-colección: respalda Usuarios + Perfiles/Roles de forma relacional.
@@ -520,6 +530,8 @@ BACKUP_CENTER_ENTITIES = [
     {"module": "taller-equipos", "label": "Equipos en Reparación"},
     {"module": USER_PERMISSIONS_MODULE, "label": "Permisos de Usuarios"},
     {"module": "integrators", "label": "Integradores"},
+    {"module": "servers", "label": "Servidores"},
+    {"module": "fiscal-printers", "label": "Impresoras Fiscales"},
 ]
 
 
