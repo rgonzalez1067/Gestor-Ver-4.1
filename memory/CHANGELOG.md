@@ -1705,3 +1705,12 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Verificado: backend por curl (todas las combinaciones) y frontend por testing_agent iter330 (100%: columna, obligatoriedad, filtro dinámico VPOS/MPOS).
 - Decisiones del usuario: marca obligatoria solo Pinpad/POS; catálogos nuevos irán en menú Catálogos (Fase 2); combo Cliente mostrará 'Marca — Modelo' (Fase 2); tipo VPOS/MPOS se toma del Tipo de Cotización (quote_type). Orden acordado: Fase 1 primero, luego Fase 2.
 - PENDIENTE FASE 2: catálogos Impresoras Fiscales (extender fiscal_printer_models con Marca+Modelo+valida_voucher_vpos) y Servidores (tipo Monocomercio/Multicomercio + descripción ≤50), combo box Impresora Fiscal en Ficha de Clientes, y modales de Impresora Fiscal + Servidor en 'Enviar a Implementación'.
+
+**Feature (FASE 2) · Catálogos Impresoras Fiscales + Servidores, combo en Clientes y modales de Implementación · 2026-06:**
+- Impresoras Fiscales: clients.py POST /fiscal-printers extendido (marca+modelo+valida_voucher_vpos; name='Marca — Modelo'; compat legacy con name); +DELETE admin. Nueva página FiscalPrintersCatalog.jsx (/catalogs/fiscal-printers, adminOnly).
+- Servidores: nuevo routes/servers.py (GET/POST/PUT/DELETE /servers; tipo Monocomercio|Multicomercio, descripcion<=50; DELETE admin). Nueva página ServersCatalog.jsx (/catalogs/servers, adminOnly). Router registrado en server.py.
+- Sidebar: items 'Impresoras Fiscales' y 'Servidores' bajo Catálogos (adminOnly; filterChild ahora respeta child.adminOnly).
+- Clientes: el combo de Impresora Fiscal se alimenta de /fiscal-printers (muestra 'Marca — Modelo'). Verificado E2E.
+- Enviar a Implementación (QuoteModals.jsx): fase Servidor ahora lista el catálogo /servers ('tipo — descripcion') + 'Otro'; fase Impresora Fiscal agrega combo /fiscal-printers (data-testid fiscal-printer-catalog-select) preservando prellenado del cliente e input editable. Carga catálogos al abrir el diálogo.
+- Verificado: backend por curl (fiscal-printers/servers, validaciones 400) + testing_agent iter331 (3/4 features 100%: catálogos CRUD y combo en Clientes). PENDIENTE de verificación por UI: el flujo 'Enviar a Implementación' no fue alcanzable en la sesión de QA (depende del estado de la cotización); código en su lugar leyendo endpoints ya validados.
+- Seeds de ejemplo en preview: impresora 'Bixolon — SRP-812' (voucher Sí), servidor 'Multicomercio — MSC principal'.

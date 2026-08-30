@@ -301,7 +301,24 @@ export const QuoteModals = ({ ctx }) => {
     equipmentSelected, setEquipmentSelected,
   } = ctx;
 
-  // Handlers estables para Multitienda (evitan romper el memo de las filas).
+  // Catálogos maestros para el flujo "Enviar a Implementación" (Fase 2):
+  // Servidores y Impresoras Fiscales. Se cargan al abrir el diálogo.
+  const [catalogServers, setCatalogServers] = useState([]);
+  const [catalogFiscalPrinters, setCatalogFiscalPrinters] = useState([]);
+  useEffect(() => {
+    if (!multistoreDialogOpen) return;
+    (async () => {
+      try {
+        const [srvRes, fpRes] = await Promise.all([
+          api.get('/servers'),
+          api.get('/fiscal-printers'),
+        ]);
+        setCatalogServers(srvRes.data || []);
+        setCatalogFiscalPrinters(fpRes.data || []);
+      } catch { /* no bloquear el flujo si falla la carga del catálogo */ }
+    })();
+  }, [multistoreDialogOpen]);
+
   const commitStore = useCallback((idx, patch) => {
     setMultistoreStores(prev => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   }, [setMultistoreStores]);
@@ -737,7 +754,7 @@ export const QuoteModals = ({ ctx }) => {
                     <div>
                       <Label className="text-sm font-medium">Nombre del Servidor <span className="text-red-500">*</span></Label>
                       <div className="grid gap-1.5 mt-1.5">
-                        {['Multicomercio MSC', 'Multicomercio MSC2', 'Otro'].map(opt => (
+                        {[...catalogServers.map(s => `${s.tipo} — ${s.descripcion}`), 'Otro'].map(opt => (
                           <button
                             key={opt}
                             type="button"
@@ -748,6 +765,11 @@ export const QuoteModals = ({ ctx }) => {
                             {opt}
                           </button>
                         ))}
+                        {catalogServers.length === 0 && (
+                          <p className="text-[11px] text-amber-600" data-testid="consolidated-server-empty-hint">
+                            No hay servidores en el catálogo. Regístralos en Catálogos → Servidores, o elige "Otro".
+                          </p>
+                        )}
                       </div>
                       {pymeServerName === 'Otro' && (
                         <Input
@@ -1066,18 +1088,33 @@ export const QuoteModals = ({ ctx }) => {
                   <div className="bg-white border border-slate-200 rounded-lg p-3">
                     {fiscalPrinterFromClient ? (
                       <p className="text-[11px] text-emerald-700 mb-2" data-testid="fiscal-printer-prefilled-hint">
-                        ✓ Precargado desde la ficha del cliente. Puedes editarlo si requiere corrección.
+                        ✓ Precargado desde la ficha del cliente. Puedes cambiarlo si requiere corrección.
                       </p>
                     ) : (
                       <p className="text-xs text-amber-800 mb-2">
                         La ficha del cliente no tiene registrado el modelo de impresora fiscal.
-                        <b> Indique el modelo</b> para imprimirlo en la Ficha Técnica.
+                        <b> Seleccione la Marca y el Modelo</b> del catálogo para la Ficha Técnica.
                       </p>
+                    )}
+                    {catalogFiscalPrinters.length > 0 && (
+                      <select
+                        value={catalogFiscalPrinters.some(p => p.name === fiscalPrinterModel) ? fiscalPrinterModel : ''}
+                        onChange={(e) => setFiscalPrinterModel(e.target.value)}
+                        className="w-full mb-2 h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                        data-testid="fiscal-printer-catalog-select"
+                      >
+                        <option value="">— Seleccionar del catálogo (Marca — Modelo) —</option>
+                        {catalogFiscalPrinters.map(p => (
+                          <option key={p.model_id} value={p.name}>
+                            {p.name}{p.valida_voucher_vpos ? ' · voucher VPOS' : ''}
+                          </option>
+                        ))}
+                      </select>
                     )}
                     <Input
                       value={fiscalPrinterModel}
                       onChange={(e) => setFiscalPrinterModel(e.target.value)}
-                      placeholder="Ej: BIXOLON SRP-330, EPSON TM-T20III"
+                      placeholder="Ej: Bixolon — SRP-812 (o edítelo manualmente)"
                       className="bg-white"
                       data-testid="fiscal-printer-input" />
                   </div>

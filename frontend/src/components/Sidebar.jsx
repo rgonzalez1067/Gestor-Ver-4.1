@@ -33,7 +33,9 @@ import {
   ChevronRight,
   BookOpen,
   ClipboardList,
-  PackageCheck
+  PackageCheck,
+  Printer,
+  Server
 } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { ThemeToggle } from './ThemeToggle';
@@ -65,6 +67,8 @@ const menuItems = [
       { path: '/banks', icon: Building2, label: 'Bancos' },
       { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
       { path: '/hardware', icon: Boxes, label: 'Bienes y Servicios' },
+      { path: '/catalogs/fiscal-printers', icon: Printer, label: 'Impresoras Fiscales', adminOnly: true },
+      { path: '/catalogs/servers', icon: Server, label: 'Servidores', adminOnly: true },
       { path: '/commercial-categories', icon: Tag, label: 'Categoría Comercial' },
       { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' },
     ]
@@ -219,6 +223,8 @@ const SidebarInner = () => {
 
     const filterChild = (child) => {
       try {
+        // Ítems marcados como adminOnly: solo visibles para Administrador.
+        if (child.adminOnly && role !== 'admin') return null;
         // Visibilidad de Histórico de Cotizaciones: debe basarse en el PERMISO de
         // la matriz de seguridad (módulo `quote_history`), no solo en el cargo.
         // Se mantiene el acceso legacy para admin/Director como respaldo aditivo.

@@ -1,0 +1,29 @@
+{
+  "summary": "FRONTEND-ONLY QA de FASE 2 (Impresoras Fiscales + Servidores + combo en Clientes + flujo Impl). Todos los objetivos alcanzables PASSED. (A) /catalogs/fiscal-printers: página carga con data-testid='fiscal-printers-catalog-page'; seed 'Bixolon — SRP-812' presente en tabla con badge Voucher VPOS = Sí; validación 'Marca y Modelo son obligatorios' al intentar guardar sin Modelo (toast mostrado, no crea registro); creación de QA_MarcaTest/QA_ModeloTest OK con checkbox Voucher VPOS marcado; eliminación (fp-delete-<id>) OK como admin. (B) /catalogs/servers: carga con data-testid='servers-catalog-page'; seed 'Multicomercio — MSC principal' presente; maxLength 50 correctamente enforced en Input (60 chars entrantes → truncado a 50); contador X/50 visible; creación con tipo Multicomercio + descripción QA_ServidorTest OK; eliminación OK. (C) Ficha de Cliente (Nuevo Cliente): el campo 'Modelo de Impresora Fiscal' (data-testid='client-printer-select') es un Select con opciones ['Sin especificar', 'Bixolon — SRP-812', 'Otra...']; el catálogo alimenta el combo correctamente. (D) Flujo 'Enviar a Implementación' no fue alcanzable vía UI: aunque hay 12 cotizaciones Aprobadas visibles en el contador, el menú de acciones (…) en las filas no expuso un item 'Enviar a Implementación' clickeable en la sesión de prueba (posiblemente requiere estados intermedios adicionales o el menú se renderiza sin role='menuitem'). Se reporta como NO-BLOQUEANTE conforme al requerimiento; verificación estática confirma que los data-testid 'fiscal-printer-phase', 'fiscal-printer-catalog-select', 'fiscal-printer-input' y 'consolidated-data-phase' (con 'consolidated-server-*') existen en frontend/src/components/quotes/QuoteModals.jsx (líneas 747, 763, 1081, 1104, 1119).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/catalogs/fiscal-printers y /catalogs/servers", "issues": ["Hydration warnings <span data-ve-dynamic> como hijo directo de <tbody>/<tr> — provienen del wrapper editable del entorno (x-ve-dynamic), no del código de la aplicación. Igual a lo observado en iteración 330; no bloqueante."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Best-effort: verificar manualmente el flujo 'Enviar a Implementación' → fase 'fiscal-printer-phase' → combo 'fiscal-printer-catalog-select' visible cuando el cliente NO tiene impresora asignada; y fase 'consolidated-data-phase' con botones 'consolidated-server-*' listando el catálogo de servidores. El código está implementado (verificado por grep). Requiere una cotización en el estado exacto que permita disparar la acción desde el menú de acciones."
+  ],
+  "critical_code_review_comments": [
+    "FiscalPrintersCatalog.jsx y ServersCatalog.jsx están correctamente implementados: validación en cliente (marca+modelo obligatorios; descripción máx 50 con maxLength e input hint), badges de estado (Voucher VPOS Sí/No; Monocomercio/Multicomercio), acciones admin-only.",
+    "Clients.jsx: combo 'Modelo de Impresora Fiscal' alimentado dinámicamente por fetchFiscalPrinters (/fiscal-printers) con opciones 'Sin especificar' y 'Otra...' que permite crear ad-hoc via POST /fiscal-printers y refrescar. Buena UX.",
+    "QuoteModals.jsx: fase fiscal-printer contiene ambos: Select del catálogo (fiscal-printer-catalog-select) y Input editable (fiscal-printer-input); la fase consolidated-data-phase renderiza botones consolidated-server-* desde catalogServers más la opción 'Otro'. Diseño consistente con el pedido.",
+    "Warnings de hidratación <span child of tbody> persisten en todas las tablas — es introducido por el entorno editable (x-ve-dynamic wrapper); no es un defecto del código de la aplicación."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only según pedido)", "frontend": "100% en objetivos alcanzables (3/4 features verificadas 100%; flujo Impl no alcanzable vía UI — reportado no-bloqueante)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se crearon y eliminaron: QA_MarcaTest/QA_ModeloTest en Impresoras Fiscales y 'QA_ServidorTest' (Multicomercio) en Servidores. Todos removidos al finalizar.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "FASE 2 catálogos (Impresoras Fiscales, Servidores) y combo en Clientes verificados end-to-end. Para probar el flujo 'Enviar a Implementación', identificar en /quotes una cotización que exponga la acción 'Enviar a Implementación' en el menú (…) o botón directo — posiblemente sólo aplique a Implementaciones aprobadas no facturadas. El código de las fases con data-testid está presente en QuoteModals.jsx (líneas 747, 763, 1081, 1104, 1119).",
+  "rca of the issue": "n/a — no se detectaron bugs."
+}

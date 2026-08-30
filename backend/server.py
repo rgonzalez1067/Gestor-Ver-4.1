@@ -57,6 +57,7 @@ from routes.project_sla import router as project_sla_router
 from routes.calendar import router as calendar_router
 from routes.inbox import router as inbox_router
 from routes.inbox_cleanup import router as inbox_cleanup_router
+from routes.servers import router as servers_router
 from routes.connected_users import router as connected_users_router
 from routes.other_actions_config import router as other_actions_router
 from routes.bank_payment_conditions import router as bank_payment_conditions_router
@@ -336,6 +337,7 @@ api_router.include_router(seed_templates_router)
 api_router.include_router(action_notifications_router)
 api_router.include_router(inbox_router)
 api_router.include_router(inbox_cleanup_router)
+api_router.include_router(servers_router)
 api_router.include_router(connected_users_router)
 api_router.include_router(other_actions_router)
 api_router.include_router(quote_action_customization_router)

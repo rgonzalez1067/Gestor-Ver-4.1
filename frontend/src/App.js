@@ -36,6 +36,8 @@ import Banks from './pages/Banks';
 import BankDetail from './pages/BankDetail';
 import IntegrationReport from './pages/IntegrationReport';
 import Hardware from './pages/Hardware';
+import FiscalPrintersCatalog from './pages/FiscalPrintersCatalog';
+import ServersCatalog from './pages/ServersCatalog';
 import MediosPago from './pages/MediosPago';
 import Integrators from './pages/Integrators';
 import Quotes from './pages/Quotes';
@@ -107,6 +109,16 @@ function AppRouter() {
       <Route path="/hardware" element={
         <ProtectedRoute>
           <Hardware />
+        </ProtectedRoute>
+      } />
+      <Route path="/catalogs/fiscal-printers" element={
+        <ProtectedRoute>
+          <FiscalPrintersCatalog />
+        </ProtectedRoute>
+      } />
+      <Route path="/catalogs/servers" element={
+        <ProtectedRoute>
+          <ServersCatalog />
         </ProtectedRoute>
       } />
       <Route path="/medios-pago" element={

@@ -1204,21 +1204,49 @@ async def get_fiscal_printers(authorization: Optional[str] = Header(None)):
 
 @router.post("/fiscal-printers")
 async def create_fiscal_printer(data: dict, authorization: Optional[str] = Header(None)):
-    """Registrar nuevo modelo de impresora fiscal en la tabla maestra"""
+    """Registrar modelo de impresora fiscal (Marca + Modelo + válida vouchers VPOS).
+
+    Compatibilidad: si sólo llega `name`, se conserva el comportamiento legacy.
+    El campo `name` almacena la etiqueta display 'Marca — Modelo' para alimentar
+    el combo de la Ficha de Clientes.
+    """
     await get_current_user(authorization)
-    name = data.get("name", "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="El nombre del modelo es obligatorio")
+    marca = (data.get("marca") or "").strip()
+    modelo = (data.get("modelo") or "").strip()
+    valida = bool(data.get("valida_voucher_vpos", False))
+    if marca or modelo:
+        if not marca or not modelo:
+            raise HTTPException(status_code=400, detail="Marca y Modelo son obligatorios")
+        name = f"{marca} — {modelo}"
+    else:
+        name = (data.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="El nombre del modelo es obligatorio")
     existing = await db.fiscal_printer_models.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail=f"El modelo '{name}' ya existe")
     model = {
         "model_id": f"fpm_{uuid.uuid4().hex[:8]}",
         "name": name,
+        "marca": marca or None,
+        "modelo": modelo or None,
+        "valida_voucher_vpos": valida,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.fiscal_printer_models.insert_one(model)
-    return {"model_id": model["model_id"], "name": model["name"], "created_at": model["created_at"]}
+    return {k: v for k, v in model.items() if k != "_id"}
+
+
+@router.delete("/fiscal-printers/{model_id}")
+async def delete_fiscal_printer(model_id: str, authorization: Optional[str] = Header(None)):
+    """Eliminar un modelo de impresora fiscal (solo Administrador)."""
+    user = await get_current_user(authorization)
+    if (user or {}).get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo el Administrador puede eliminar del catálogo")
+    res = await db.fiscal_printer_models.delete_one({"model_id": model_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Modelo no encontrado")
+    return {"message": "Modelo eliminado"}
 
 
 
