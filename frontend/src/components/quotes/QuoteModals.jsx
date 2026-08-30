@@ -305,16 +305,19 @@ export const QuoteModals = ({ ctx }) => {
   // Servidores y Impresoras Fiscales. Se cargan al abrir el diálogo.
   const [catalogServers, setCatalogServers] = useState([]);
   const [catalogFiscalPrinters, setCatalogFiscalPrinters] = useState([]);
+  const [catalogEconomicGroups, setCatalogEconomicGroups] = useState([]);
   useEffect(() => {
     if (!multistoreDialogOpen) return;
     (async () => {
       try {
-        const [srvRes, fpRes] = await Promise.all([
+        const [srvRes, fpRes, egRes] = await Promise.all([
           api.get('/servers'),
           api.get('/fiscal-printers'),
+          api.get('/grupos-economicos'),
         ]);
         setCatalogServers(srvRes.data || []);
         setCatalogFiscalPrinters(fpRes.data || []);
+        setCatalogEconomicGroups(egRes.data || []);
       } catch { /* no bloquear el flujo si falla la carga del catálogo */ }
     })();
   }, [multistoreDialogOpen]);
@@ -783,21 +786,28 @@ export const QuoteModals = ({ ctx }) => {
                       )}
                     </div>
 
-                    {/* Grupo Económico */}
+                    {/* Grupo Económico — DropList del catálogo (prellenado desde la ficha del cliente) */}
                     <div>
                       <Label htmlFor="consolidated_economic_group" className="text-sm font-medium">Grupo Económico</Label>
-                      <Input
+                      <select
                         id="consolidated_economic_group"
-                        type="text"
-                        placeholder="(opcional — vacío registra 'Sin Grupo Económico')"
-                        value={economicGroup}
+                        value={economicGroup || ''}
                         onChange={(e) => setEconomicGroup(e.target.value)}
-                        className="mt-1.5"
-                        data-testid="consolidated-economic-group-input"
-                      />
+                        className="mt-1.5 w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                        data-testid="consolidated-economic-group-select"
+                      >
+                        <option value="">— Sin Grupo Económico —</option>
+                        {/* Valor heredado de la ficha aunque no esté (aún) en el catálogo */}
+                        {economicGroup && !catalogEconomicGroups.some(g => (g.name || '') === economicGroup) && (
+                          <option value={economicGroup}>{economicGroup}</option>
+                        )}
+                        {catalogEconomicGroups.map((g) => (
+                          <option key={g.group_id || g.name} value={g.name}>{g.name}</option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Nombre de Fantasía */}
+                    {/* Nombre de Fantasía — prellenado desde la ficha; editable si está vacío */}
                     <div>
                       <Label htmlFor="consolidated_fantasy_name" className="text-sm font-medium">Nombre de Fantasía</Label>
                       <Input
