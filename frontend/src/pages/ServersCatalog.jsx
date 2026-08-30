@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
-import { Server, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Server, Plus, Trash2, RefreshCw, Pencil } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -15,6 +15,7 @@ export default function ServersCatalog() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ tipo: 'Monocomercio', descripcion: '' });
   const isAdmin = (() => { try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u?.role === 'admin'; } catch { return false; } })();
 
@@ -25,15 +26,29 @@ export default function ServersCatalog() {
   };
   useEffect(() => { load(); }, []);
 
+  const resetForm = () => { setForm({ tipo: 'Monocomercio', descripcion: '' }); setEditingId(null); };
+
+  const startEdit = (s) => {
+    setEditingId(s.server_id);
+    setForm({ tipo: s.tipo, descripcion: s.descripcion || '' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const save = async () => {
     if (!form.descripcion.trim()) { toast.error('La descripción es obligatoria'); return; }
     setSaving(true);
     try {
-      await api.post('/servers', { tipo: form.tipo, descripcion: form.descripcion.trim() });
-      toast.success('Servidor registrado');
-      setForm({ tipo: 'Monocomercio', descripcion: '' });
+      const payload = { tipo: form.tipo, descripcion: form.descripcion.trim() };
+      if (editingId) {
+        await api.put(`/servers/${editingId}`, payload);
+        toast.success('Servidor actualizado');
+      } else {
+        await api.post('/servers', payload);
+        toast.success('Servidor registrado');
+      }
+      resetForm();
       load();
-    } catch (e) { toast.error(e?.response?.data?.detail || 'Error al registrar'); }
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Error al guardar'); }
     finally { setSaving(false); }
   };
 
@@ -57,7 +72,9 @@ export default function ServersCatalog() {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6" data-testid="server-form">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2"><Plus size={18} /> Registrar servidor</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              {editingId ? <><Pencil size={18} /> Editar servidor</> : <><Plus size={18} /> Registrar servidor</>}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <Label className="text-sm">Tipo <span className="text-red-500">*</span></Label>
@@ -72,9 +89,12 @@ export default function ServersCatalog() {
                 <p className="text-[11px] text-slate-400 mt-1">{form.descripcion.length}/50</p>
               </div>
             </div>
-            <div className="flex justify-end mt-2">
+            <div className="flex justify-end gap-2 mt-2">
+              {editingId && (
+                <Button variant="outline" onClick={resetForm} data-testid="server-cancel-btn">Cancelar</Button>
+              )}
               <Button onClick={save} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 text-white" data-testid="server-save-btn">
-                {saving ? 'Guardando...' : 'Agregar al catálogo'}
+                {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Agregar al catálogo'}
               </Button>
             </div>
           </div>
@@ -94,7 +114,7 @@ export default function ServersCatalog() {
                   <tr>
                     <th className="px-4 py-2.5 text-left font-medium text-slate-600">Tipo</th>
                     <th className="px-4 py-2.5 text-left font-medium text-slate-600">Descripción</th>
-                    {isAdmin && <th className="px-4 py-2.5 text-right"></th>}
+                    <th className="px-4 py-2.5 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -104,13 +124,18 @@ export default function ServersCatalog() {
                         <Badge className={s.tipo === 'Multicomercio' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-teal-100 text-teal-700 border-teal-200'}>{s.tipo}</Badge>
                       </td>
                       <td className="px-4 py-2.5 text-slate-700">{s.descripcion}</td>
-                      {isAdmin && (
-                        <td className="px-4 py-2.5 text-right">
-                          <Button size="sm" variant="ghost" onClick={() => remove(s)} data-testid={`server-delete-${s.server_id}`} className="text-rose-500 hover:text-rose-700">
-                            <Trash2 size={14} />
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => startEdit(s)} data-testid={`server-edit-${s.server_id}`} className="text-slate-500 hover:text-indigo-700">
+                            <Pencil size={14} />
                           </Button>
-                        </td>
-                      )}
+                          {isAdmin && (
+                            <Button size="sm" variant="ghost" onClick={() => remove(s)} data-testid={`server-delete-${s.server_id}`} className="text-rose-500 hover:text-rose-700">
+                              <Trash2 size={14} />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

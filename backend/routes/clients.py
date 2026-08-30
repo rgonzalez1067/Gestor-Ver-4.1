@@ -1237,6 +1237,35 @@ async def create_fiscal_printer(data: dict, authorization: Optional[str] = Heade
     return {k: v for k, v in model.items() if k != "_id"}
 
 
+@router.put("/fiscal-printers/{model_id}")
+async def update_fiscal_printer(model_id: str, data: dict, authorization: Optional[str] = Header(None)):
+    """Modificar un modelo de impresora fiscal (Marca + Modelo + válida vouchers VPOS)."""
+    await get_current_user(authorization)
+    marca = (data.get("marca") or "").strip()
+    modelo = (data.get("modelo") or "").strip()
+    if not marca or not modelo:
+        raise HTTPException(status_code=400, detail="Marca y Modelo son obligatorios")
+    name = f"{marca} — {modelo}"
+    dup = await db.fiscal_printer_models.find_one({
+        "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"},
+        "model_id": {"$ne": model_id},
+    }, {"_id": 0})
+    if dup:
+        raise HTTPException(status_code=400, detail=f"El modelo '{name}' ya existe")
+    res = await db.fiscal_printer_models.update_one(
+        {"model_id": model_id},
+        {"$set": {
+            "name": name,
+            "marca": marca,
+            "modelo": modelo,
+            "valida_voucher_vpos": bool(data.get("valida_voucher_vpos", False)),
+        }},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Modelo no encontrado")
+    return await db.fiscal_printer_models.find_one({"model_id": model_id}, {"_id": 0})
+
+
 @router.delete("/fiscal-printers/{model_id}")
 async def delete_fiscal_printer(model_id: str, authorization: Optional[str] = Header(None)):
     """Eliminar un modelo de impresora fiscal (solo Administrador)."""

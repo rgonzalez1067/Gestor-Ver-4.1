@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
-import { Printer, Plus, Trash2, RefreshCw, Check, X } from 'lucide-react';
+import { Printer, Plus, Trash2, RefreshCw, Check, X, Pencil } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -13,6 +13,7 @@ export default function FiscalPrintersCatalog() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ marca: '', modelo: '', valida_voucher_vpos: false });
   const isAdmin = (() => { try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u?.role === 'admin'; } catch { return false; } })();
 
@@ -25,15 +26,29 @@ export default function FiscalPrintersCatalog() {
   };
   useEffect(() => { load(); }, []);
 
+  const resetForm = () => { setForm({ marca: '', modelo: '', valida_voucher_vpos: false }); setEditingId(null); };
+
+  const startEdit = (m) => {
+    setEditingId(m.model_id);
+    setForm({ marca: m.marca || '', modelo: m.modelo || '', valida_voucher_vpos: !!m.valida_voucher_vpos });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const save = async () => {
     if (!form.marca.trim() || !form.modelo.trim()) { toast.error('Marca y Modelo son obligatorios'); return; }
     setSaving(true);
     try {
-      await api.post('/fiscal-printers', { marca: form.marca.trim(), modelo: form.modelo.trim(), valida_voucher_vpos: form.valida_voucher_vpos });
-      toast.success('Impresora fiscal registrada');
-      setForm({ marca: '', modelo: '', valida_voucher_vpos: false });
+      const payload = { marca: form.marca.trim(), modelo: form.modelo.trim(), valida_voucher_vpos: form.valida_voucher_vpos };
+      if (editingId) {
+        await api.put(`/fiscal-printers/${editingId}`, payload);
+        toast.success('Impresora fiscal actualizada');
+      } else {
+        await api.post('/fiscal-printers', payload);
+        toast.success('Impresora fiscal registrada');
+      }
+      resetForm();
       load();
-    } catch (e) { toast.error(e?.response?.data?.detail || 'Error al registrar'); }
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Error al guardar'); }
     finally { setSaving(false); }
   };
 
@@ -57,7 +72,9 @@ export default function FiscalPrintersCatalog() {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6" data-testid="fiscal-printer-form">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2"><Plus size={18} /> Registrar impresora fiscal</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              {editingId ? <><Pencil size={18} /> Editar impresora fiscal</> : <><Plus size={18} /> Registrar impresora fiscal</>}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm">Marca <span className="text-red-500">*</span></Label>
@@ -72,9 +89,12 @@ export default function FiscalPrintersCatalog() {
               <Checkbox checked={form.valida_voucher_vpos} onCheckedChange={(v) => setForm({ ...form, valida_voucher_vpos: !!v })} data-testid="fp-valida-vpos" />
               Válida para impresión de vouchers VPOS
             </label>
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-end gap-2 mt-4">
+              {editingId && (
+                <Button variant="outline" onClick={resetForm} data-testid="fp-cancel-btn">Cancelar</Button>
+              )}
               <Button onClick={save} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="fp-save-btn">
-                {saving ? 'Guardando...' : 'Agregar al catálogo'}
+                {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Agregar al catálogo'}
               </Button>
             </div>
           </div>
@@ -95,7 +115,7 @@ export default function FiscalPrintersCatalog() {
                     <th className="px-4 py-2.5 text-left font-medium text-slate-600">Marca</th>
                     <th className="px-4 py-2.5 text-left font-medium text-slate-600">Modelo</th>
                     <th className="px-4 py-2.5 text-center font-medium text-slate-600">Voucher VPOS</th>
-                    {isAdmin && <th className="px-4 py-2.5 text-right"></th>}
+                    <th className="px-4 py-2.5 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -108,13 +128,18 @@ export default function FiscalPrintersCatalog() {
                           ? <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200"><Check size={12} className="mr-1" />Sí</Badge>
                           : <Badge className="bg-slate-100 text-slate-500 border-slate-200"><X size={12} className="mr-1" />No</Badge>}
                       </td>
-                      {isAdmin && (
-                        <td className="px-4 py-2.5 text-right">
-                          <Button size="sm" variant="ghost" onClick={() => remove(m)} data-testid={`fp-delete-${m.model_id}`} className="text-rose-500 hover:text-rose-700">
-                            <Trash2 size={14} />
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => startEdit(m)} data-testid={`fp-edit-${m.model_id}`} className="text-slate-500 hover:text-purple-700">
+                            <Pencil size={14} />
                           </Button>
-                        </td>
-                      )}
+                          {isAdmin && (
+                            <Button size="sm" variant="ghost" onClick={() => remove(m)} data-testid={`fp-delete-${m.model_id}`} className="text-rose-500 hover:text-rose-700">
+                              <Trash2 size={14} />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

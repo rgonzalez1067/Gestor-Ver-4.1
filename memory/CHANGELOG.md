@@ -1721,3 +1721,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Implementación: marcaForType()/applyMarca() derivan visiblePinpads/visiblePosDevices/visibleFastTrackDevices sin mutar las listas base (usadas para lookups por hardware_id). useEffect que limpia pinpad_id al cambiar quote_type si el modelo ya no cumple el filtro (reset dinámico). Estado vacío: 'No existen modelos disponibles para esta tecnología'.
 - Añadido data-testid='select-quote-type' (ya existía select-pinpad).
 - Verificado: testing_agent iter332 (100%): 4 escenarios de marca correctos, reset dinámico, exclusión de Servicios/otras marcas, empty-state.
+
+**Fix/Feature · Edición (modificar) en catálogos Impresoras Fiscales y Servidores · 2026-06:**
+- Faltaba la capacidad de MODIFICAR (solo tenían crear + eliminar). Agregado:
+  - Backend: PUT /fiscal-printers/{model_id} (clients.py) con validación marca+modelo y unicidad. (/servers ya tenía PUT).
+  - Frontend: FiscalPrintersCatalog.jsx y ServersCatalog.jsx ahora tienen botón Editar (lápiz) por fila que carga el registro al formulario (modo edición con 'Guardar cambios' + 'Cancelar'). Columna 'Acciones' siempre visible; Editar disponible; Eliminar solo Admin.
+- data-testids: fp-edit-<id>/fp-cancel-btn, server-edit-<id>/server-cancel-btn.
+- Verificado: curl (PUT ambos 200) + screenshot (flujo de edición carga datos y cambia el título a 'Editar').
