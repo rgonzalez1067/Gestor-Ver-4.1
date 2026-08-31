@@ -26,6 +26,7 @@ Regla: usuarios no-admin/no-Director solo ven registros del Histórico cuya `sed
 - Password: admin123
 - Role: admin
 - Name: Rafael González
+- Nota (2026-06): password re-restablecido a `admin123` con config.hash_password en PREVIEW (se había cambiado a otra clave). Verificado login OK vía API.
 
 ## Usuario Implementador (Jrojas)
 - Email: jrojas@megasoft.com.ve  (⚠️ el email está en MINÚSCULAS en BD; el login usa match exacto)
