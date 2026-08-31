@@ -2473,6 +2473,13 @@ async def full_backup_upload_init(authorization: Optional[str] = Header(None)):
     en Mongo (almacenamiento compartido entre réplicas), no en /tmp del pod."""
     await _require_admin(authorization)
     upload_id = uuid.uuid4().hex
+    # Índice compuesto: el ensamblado ordena por (upload_id, chunk_index). Con
+    # índice el orden es index-backed y evita el sort EN MEMORIA (menos presión
+    # de RAM durante el ensamblado del respaldo). Idempotente.
+    try:
+        await db.fb_upload_chunks.create_index([("upload_id", 1), ("chunk_index", 1)])
+    except Exception:
+        pass
     await db.fb_uploads.insert_one({
         "upload_id": upload_id,
         "created_at": datetime.now(timezone.utc).isoformat(),

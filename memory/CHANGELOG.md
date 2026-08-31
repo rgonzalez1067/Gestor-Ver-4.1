@@ -1779,3 +1779,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
   2) `_restore_full_backup_sync` (rama V2): el borrado destructivo de sobrantes SOLO se ejecuta para un Respaldo TOTAL marcado explícitamente: `is_total_backup = (manifest.is_partial is False) and not manifest.group_label`. Respaldos parciales/grupo y respaldos de formato antiguo (sin marca) NUNCA eliminan colecciones ausentes del ZIP.
 - Resultado: restaurar un grupo solo reemplaza (drop+reinsert) las colecciones contenidas en ese grupo; las demás quedan intactas. La restauración TOTAL de recuperación de desastres conserva su borrado de sobrantes.
 - Verificado (prueba directa a funciones internas, sin HTTP): respaldo parcial de `_canary_backup` restaurado en replace no-selectivo → `dropped_extra=[]`; `_canary_survivor`, `notifications` y `email_logs` intactas; colección respaldada restaurada OK. Manifiesto: is_partial=True, group_label=test_canary → is_total_backup=False.
+
+**RCA (producción) · 500 al restaurar respaldo modular inbox_messages = OOMKilled (512Mi) · 2026-06:**
+- Deployer RCA: el pod backend es OOMKilled (exit 137) x2 bajo tier_0 (512Mi, 2 réplicas). El worker muere por SIGKILL a mitad del POST /api/admin/full-backup/upload-manifest → 500 SIN detail ni traceback (por eso no era BadZipFile/JSONDecodeError). NO es ingress body-limit (nginx 100M, subida por chunks). GridFS OK.
+- Causa: ensamblado/lectura del respaldo + RSS base (FastAPI+APScheduler+motor) supera 512Mi con el respaldo de inbox_messages.
+- FIX PRINCIPAL (acción del usuario, infra): subir tier_0→tier_1+ en Panel → Deployment → Resources. Es la palanca que elimina el OOM.
+- Mitigaciones de código aplicadas: (1) hardening en _read_backup_manifest_sync (BadZipFile/JSONDecodeError → 400 claro + log); (2) índice compuesto fb_upload_chunks(upload_id, chunk_index) creado y asegurado en upload-init para que el ensamblado ordene index-backed y evite sort en memoria. NOTA: un OOMKill/SIGKILL NO es capturable con try/except; sin más RAM el restore de respaldos grandes seguirá fallando.
+- RCA completo: /app/deployer-agent-docs/RCA_bfda1ddd-ab26-42a8-b9d3-c6ce295af312.MD
