@@ -2527,39 +2527,52 @@ def _read_backup_manifest_sync(gridfs_id, db_name: str) -> dict:
     try:
         stream = _sync_gridfs_bucket(sdb).open_download_stream(ObjectId(gridfs_id))
         size_bytes = getattr(stream, "length", None)
-        zf = zipfile.ZipFile(stream)
-        names = zf.namelist()
-        if "backup_manifest.json" in names:
-            manifest = json.loads(zf.read("backup_manifest.json"))
-            cols = manifest.get("collections") or []
-            return {
-                "schema_version": manifest.get("schema_version", 2),
-                "db_name": manifest.get("db_name"),
-                "exported_at": manifest.get("exported_at"),
-                "exported_by": manifest.get("exported_by"),
-                "excluded_masters": manifest.get("excluded_masters", []),
-                "segments": len(manifest.get("segments", [])),
-                "size_bytes": size_bytes,
-                "collections": cols,
-            }
-        if "_manifest.json" in names:
-            manifest = json.loads(zf.read("_manifest.json"))
-            if manifest.get("type") != "full-database-backup":
-                raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total de Base de Datos")
-            cols = manifest.get("collections") or []
-            if not cols:
-                col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
-                cols = [{"name": n[len("collections/"):-len(".json")], "count": None} for n in col_files]
-            return {
-                "schema_version": 1,
-                "db_name": manifest.get("db_name"),
-                "exported_at": manifest.get("exported_at"),
-                "exported_by": manifest.get("exported_by"),
-                "excluded_masters": [],
-                "segments": 0,
-                "size_bytes": size_bytes,
-                "collections": cols,
-            }
+        try:
+            zf = zipfile.ZipFile(stream)
+            names = zf.namelist()
+        except zipfile.BadZipFile as e:
+            logger.error(f"[full-backup] upload-manifest: ZIP inválido/truncado (gridfs={gridfs_id}, size={size_bytes}): {e}")
+            raise HTTPException(
+                status_code=400,
+                detail=("El archivo de respaldo llegó incompleto o corrupto (no es un ZIP válido). "
+                        "Suele deberse a un límite de tamaño de subida en el servidor o una carga interrumpida. "
+                        "Vuelve a intentar la restauración; si persiste, restaura el respaldo por grupos más pequeños."),
+            )
+        try:
+            if "backup_manifest.json" in names:
+                manifest = json.loads(zf.read("backup_manifest.json"))
+                cols = manifest.get("collections") or []
+                return {
+                    "schema_version": manifest.get("schema_version", 2),
+                    "db_name": manifest.get("db_name"),
+                    "exported_at": manifest.get("exported_at"),
+                    "exported_by": manifest.get("exported_by"),
+                    "excluded_masters": manifest.get("excluded_masters", []),
+                    "segments": len(manifest.get("segments", [])),
+                    "size_bytes": size_bytes,
+                    "collections": cols,
+                }
+            if "_manifest.json" in names:
+                manifest = json.loads(zf.read("_manifest.json"))
+                if manifest.get("type") != "full-database-backup":
+                    raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total de Base de Datos")
+                cols = manifest.get("collections") or []
+                if not cols:
+                    col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]
+                    cols = [{"name": n[len("collections/"):-len(".json")], "count": None} for n in col_files]
+                return {
+                    "schema_version": 1,
+                    "db_name": manifest.get("db_name"),
+                    "exported_at": manifest.get("exported_at"),
+                    "exported_by": manifest.get("exported_by"),
+                    "excluded_masters": [],
+                    "segments": 0,
+                    "size_bytes": size_bytes,
+                    "collections": cols,
+                }
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.error(f"[full-backup] upload-manifest: manifiesto ilegible (gridfs={gridfs_id}): {e}")
+            raise HTTPException(status_code=400, detail="El manifiesto del respaldo está dañado o es ilegible.")
         raise HTTPException(status_code=400, detail="El archivo no es un Respaldo Total (falta el manifiesto)")
     finally:
         try:
