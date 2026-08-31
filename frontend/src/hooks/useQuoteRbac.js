@@ -47,10 +47,13 @@ export function useQuoteRbac({ currentUser, canEdit, quotes }) {
       if (cat === 'implementation') {
         return seg === 'CORP' ? rbac.hasImplCorp : rbac.hasImplPyme;
       }
-      // Fast Track (MPOS Imple+POS): es siempre PYME. Visible con impl_pyme o
-      // por Operaciones (lectura sobre MPOS PYME para la fase técnica).
+      // Fast Track (MPOS Imple+POS): puede ser PyME o CORPORATIVO. Antes se
+      // asumía "siempre PYME" y solo se mostraba con impl_pyme, lo que ocultaba
+      // las MPOS Corp a ejecutivos que solo tienen impl_corp. Se segmenta igual
+      // que Implementación. Operaciones conserva su lectura técnica (todas).
       if (cat === 'fast_track') {
-        return rbac.hasImplPyme || rbac.isOpsReadonly;
+        if (rbac.isOpsReadonly) return true;
+        return seg === 'CORP' ? rbac.hasImplCorp : rbac.hasImplPyme;
       }
       if (cat === 'equipment') return rbac.hasEquipos;
       if (cat === 'repair') return rbac.hasReparaciones;

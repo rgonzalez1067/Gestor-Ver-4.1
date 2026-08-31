@@ -1786,3 +1786,11 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - FIX PRINCIPAL (acción del usuario, infra): subir tier_0→tier_1+ en Panel → Deployment → Resources. Es la palanca que elimina el OOM.
 - Mitigaciones de código aplicadas: (1) hardening en _read_backup_manifest_sync (BadZipFile/JSONDecodeError → 400 claro + log); (2) índice compuesto fb_upload_chunks(upload_id, chunk_index) creado y asegurado en upload-init para que el ensamblado ordene index-backed y evite sort en memoria. NOTA: un OOMKill/SIGKILL NO es capturable con try/except; sin más RAM el restore de respaldos grandes seguirá fallando.
 - RCA completo: /app/deployer-agent-docs/RCA_bfda1ddd-ab26-42a8-b9d3-c6ce295af312.MD
+
+**FIX · Cotización MPOS (FAST_TRACK) Corp no visible para usuarios Corp · 2026-06:**
+- Reporte: COT-2026-08-024-CORP (MPOS) no visible para mmartin/mposligua/jperez (role=user, sede=CORP, perms=[proyectos:create, cotizaciones:impl_corp]), aunque sí ven VPOS/Gateway Corp.
+- RCA (deployer, read-only prod): la cotización es quote_category="fast_track" (quote_type FAST_TRACK, "MPOS Imple+POS"), client_segment="CORP". La rama fast_track de useQuoteRbac.js (L52-54) asumía "fast_track siempre PYME" y exigía impl_pyme → ocultaba las MPOS Corp a ejecutivos con solo impl_corp. NO era problema de client_segment (era CORP) ni de status.
+- FIX (frontend src/hooks/useQuoteRbac.js): la rama fast_track ahora segmenta igual que implementation → seg==='CORP' ? hasImplCorp : hasImplPyme; Operaciones (isOpsReadonly) conserva lectura de todas. 
+- Validado (replica de la lógica en node): fast_track+CORP visible con impl_corp; implementation+CORP sigue visible; fast_track+PYME NO visible para solo-Corp (sin sobre-exposición); fast_track+PYME visible con impl_pyme.
+- Filtro secundario quoteStatus.js: bajo categoría Implementación ya admite fast_track (L49-50) y el segmento coincide (CORP) → no bloquea. KPIs usan el mismo set rbacFilteredQuotes.
+- REQUIERE REDEPLOY para aplicar en producción (el dato afectado vive en prod; no reproducible en preview).
