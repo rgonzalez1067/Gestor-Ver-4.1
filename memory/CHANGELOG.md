@@ -1770,3 +1770,12 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - (C) Badge/sufijo [PG]/[LP]/[TK] junto al nombre del integrador SOLO para proyectos pasarela (GATEWAY, LINK_PAGO); VPOS/MPOS sin badge. shouldShowIntegrationBadge + formatIntegrationBadge + integrationTypesForName.
 - Aplicado en: QuoteWizardDialog.jsx (Cotizaciones PyME+Corp) y DirectProjectCreation.jsx (Proyectos Directos).
 - Verificado: testing_agent iter335 (100% frontend). Wizard oculta MPOS Tablet/Móvil; GATEWAY→todas con [PG]; LINK_PAGO→[LP]/[TK]; VPOS/FAST_TRACK sin corchetes. Idéntico en Proyectos Directos. integration_type en BD: CR 220, PG 200, MP 17, TK 19, LP 4.
+
+**FIX CRÍTICO · Restauración modular/por grupo blanqueaba las demás colecciones · 2026-06:**
+- BUG: al restaurar un Respaldo MODULAR/por grupo (full-backup V2 construido con `only_collections`) en modo `replace` NO selectivo, el paso de "borrado de sobrantes" (data_migration.py ~L2691) hacía `drop()` de TODAS las colecciones ausentes del ZIP → restaurar un grupo eliminaba las colecciones de los demás grupos. Pérdida de datos grave al reconstruir la BD grupo por grupo.
+- CAUSA: el manifiesto no distinguía respaldo TOTAL vs PARCIAL; la restauración asumía réplica exacta total y purgaba lo que no venía en el ZIP.
+- FIX (2 partes):
+  1) `_build_full_backup_sync`: el manifiesto ahora incluye `is_partial` (bool(only_collections)) y `group_label`.
+  2) `_restore_full_backup_sync` (rama V2): el borrado destructivo de sobrantes SOLO se ejecuta para un Respaldo TOTAL marcado explícitamente: `is_total_backup = (manifest.is_partial is False) and not manifest.group_label`. Respaldos parciales/grupo y respaldos de formato antiguo (sin marca) NUNCA eliminan colecciones ausentes del ZIP.
+- Resultado: restaurar un grupo solo reemplaza (drop+reinsert) las colecciones contenidas en ese grupo; las demás quedan intactas. La restauración TOTAL de recuperación de desastres conserva su borrado de sobrantes.
+- Verificado (prueba directa a funciones internas, sin HTTP): respaldo parcial de `_canary_backup` restaurado en replace no-selectivo → `dropped_extra=[]`; `_canary_survivor`, `notifications` y `email_logs` intactas; colección respaldada restaurada OK. Manifiesto: is_partial=True, group_label=test_canary → is_total_backup=False.

@@ -1988,6 +1988,8 @@ def _build_full_backup_sync(job_id: str, user: dict, db_name: str, only_collecti
             "exported_by": user.get("email"),
             "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
             "excluded_masters": excluded_present,
+            "group_label": group_label,
+            "is_partial": bool(only_collections),
             "segment_max_bytes": SEGMENT_MAX_BYTES,
             "segments": [],
             "collections": [],
@@ -2689,11 +2691,18 @@ def _restore_full_backup_sync(path, mode: str, selected, selective: bool, caller
             summary = [{"name": k, "restored": v} for k, v in restored_counts.items()]
 
             if mode == "replace" and not selective:
-                protected = backup_cols | _BACKUP_EXCLUDE | _MASTER_EXCLUDE | _LOGIN_PROTECT
-                for cname in sdb.list_collection_names():
-                    if cname not in protected:
-                        sdb[cname].drop()
-                        dropped_extra.append(cname)
+                # BORRADO DE SOBRANTES (réplica exacta destructiva): SOLO se permite
+                # para un Respaldo TOTAL marcado explícitamente (is_partial == False).
+                # Un respaldo MODULAR/parcial (por grupo) o de formato antiguo (sin
+                # marca) NUNCA elimina colecciones ausentes del ZIP: así, restaurar un
+                # grupo jamás blanquea las colecciones de los demás grupos.
+                is_total_backup = (manifest.get("is_partial") is False) and not manifest.get("group_label")
+                if is_total_backup:
+                    protected = backup_cols | _BACKUP_EXCLUDE | _MASTER_EXCLUDE | _LOGIN_PROTECT
+                    for cname in sdb.list_collection_names():
+                        if cname not in protected:
+                            sdb[cname].drop()
+                            dropped_extra.append(cname)
         else:
             # ==================== V1 MONOLÍTICO (compatibilidad) ====================
             col_files = [n for n in names if n.startswith("collections/") and n.endswith(".json")]

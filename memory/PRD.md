@@ -4649,3 +4649,11 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - NO tocado: números con toLocaleString (montos/KPIs) y campos solo-fecha con 'T12:00:00' (Integrators timeline / last_contact).
 - Verificado testing_agent iter296: 100% (bitácora, settings-logs, notificaciones muestran UTC-4; sin regresión en solo-fecha ni en montos). Se corrigió además una recursión introducida en AssetLedgerReport (formatDateTime local) y se validó su carga.
 - Nota: almacenamiento sigue en UTC; PDFs/correos backend ya convertían en su mayoría a Caracas (recepción, bitácora, reportes). Si se detectan PDFs/correos puntuales en UTC, migrar a un helper Caracas compartido en backend (pendiente P2).
+
+---
+### Actualización 2026-06 (fork continuación)
+- NO_APLICA estandarizado en todos los PDFs + RIF (antes N/A). 
+- Respaldo por segmento incluye Servidores y Impresoras Fiscales.
+- Depuración de Archivos: módulo genérico multi-colección (inbox_messages, notifications, email_logs, bitacora, user_sessions) con whitelist de seguridad.
+- MPOS (Tablet/Móvil) oculto del menú de cotizaciones; filtro de Integradores por integration_type (CR/MP/PG/LP/TK) + badges [PG]/[LP]/[TK] en proyectos pasarela.
+- FIX CRÍTICO: restauración modular/por grupo ya NO blanquea las demás colecciones (ver CHANGELOG). Requiere DEPLOY a producción para aplicar el fix allí.
