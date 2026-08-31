@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, Inbox, Database, Calculator, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, FolderCog, Database, Calculator, AlertTriangle } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -25,7 +25,6 @@ function fmtDate(iso) {
 }
 
 function monthLabel(ym) {
-  // ym: "2026-06"
   const [y, m] = (ym || '').split('-');
   const names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   const idx = parseInt(m, 10) - 1;
@@ -34,8 +33,11 @@ function monthLabel(ym) {
 
 export default function InboxCleanup() {
   const navigate = useNavigate();
+  const [collections, setCollections] = useState([]);
+  const [selected, setSelected] = useState('');
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingCols, setLoadingCols] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const [startDate, setStartDate] = useState('');
@@ -44,27 +46,47 @@ export default function InboxCleanup() {
   const [calculating, setCalculating] = useState(false);
   const [purging, setPurging] = useState(false);
 
-  const loadStats = useCallback(async () => {
+  const selectedLabel = collections.find((c) => c.collection === selected)?.label || selected;
+
+  const loadCollections = useCallback(async () => {
     try {
-      const { data } = await api.get('/admin/inbox/cleanup/stats');
-      setStats(data);
+      const { data } = await api.get('/admin/records/cleanup/collections');
+      setCollections(data.collections || []);
+      if ((data.collections || []).length > 0) {
+        setSelected((prev) => prev || data.collections[0].collection);
+      }
     } catch (err) {
       const status = err?.response?.status;
       if (status === 403) {
-        toast.error('Solo administradores pueden depurar el buzón interno');
+        toast.error('Solo administradores pueden depurar archivos');
         navigate('/settings');
       } else {
-        toast.error(err?.response?.data?.detail || 'No se pudieron cargar las estadísticas');
+        toast.error(err?.response?.data?.detail || 'No se pudo cargar el catálogo de colecciones');
       }
+    } finally {
+      setLoadingCols(false);
+    }
+  }, [navigate]);
+
+  const loadStats = useCallback(async (col) => {
+    if (!col) return;
+    setLoading(true);
+    try {
+      const { data } = await api.get(`/admin/records/cleanup/${col}/stats`);
+      setStats(data);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'No se pudieron cargar las estadísticas');
+      setStats(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [navigate]);
+  }, []);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
+  useEffect(() => { loadCollections(); }, [loadCollections]);
+  useEffect(() => { if (selected) { setPreview(null); setStartDate(''); setEndDate(''); loadStats(selected); } }, [selected, loadStats]);
 
-  const handleRefresh = () => { setRefreshing(true); setPreview(null); loadStats(); };
+  const handleRefresh = () => { setRefreshing(true); setPreview(null); loadCollections(); loadStats(selected); };
 
   const selectMonth = (ym) => {
     const [y, m] = ym.split('-');
@@ -81,7 +103,7 @@ export default function InboxCleanup() {
     setCalculating(true);
     setPreview(null);
     try {
-      const { data } = await api.post('/admin/inbox/cleanup/preview', { start_date: startDate, end_date: endDate });
+      const { data } = await api.post(`/admin/records/cleanup/${selected}/preview`, { start_date: startDate, end_date: endDate });
       setPreview(data);
       if (data.count === 0) toast.info('No hay registros en el periodo seleccionado');
     } catch (err) {
@@ -94,19 +116,19 @@ export default function InboxCleanup() {
   const handlePurge = async () => {
     if (!preview || preview.count === 0) return;
     const ok = window.confirm(
-      `Se eliminarán PERMANENTEMENTE ${preview.count} mensaje(s) del buzón ` +
+      `Se eliminarán PERMANENTEMENTE ${preview.count} registro(s) de "${selectedLabel}" ` +
       `(${formatBytes(preview.size_bytes)}) del periodo ${startDate} a ${endDate}.\n\n` +
       `Esta acción NO se puede deshacer. ¿Continuar?`
     );
     if (!ok) return;
     setPurging(true);
     try {
-      const { data } = await api.post('/admin/inbox/cleanup/purge', { start_date: startDate, end_date: endDate });
-      toast.success(`Depuración completada: ${data.deleted_count} mensaje(s) eliminado(s)`);
+      const { data } = await api.post(`/admin/records/cleanup/${selected}/purge`, { start_date: startDate, end_date: endDate });
+      toast.success(`Depuración completada: ${data.deleted_count} registro(s) eliminado(s)`);
       setPreview(null);
       handleRefresh();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Error al depurar los mensajes');
+      toast.error(err?.response?.data?.detail || 'Error al depurar los registros');
     } finally {
       setPurging(false);
     }
@@ -115,7 +137,7 @@ export default function InboxCleanup() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-      <main className="flex-1 p-8" data-testid="inbox-cleanup-page">
+      <main className="flex-1 p-8" data-testid="records-cleanup-page">
         <div className="max-w-4xl mx-auto">
           <Button variant="ghost" size="sm" onClick={() => navigate('/settings')} className="mb-4 -ml-3" data-testid="back-to-settings">
             <ArrowLeft size={16} className="mr-2" /> Volver a Configuración
@@ -124,13 +146,13 @@ export default function InboxCleanup() {
           <div className="flex items-start justify-between gap-4 mb-6">
             <div className="flex items-start gap-3">
               <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
-                <Inbox size={26} />
+                <FolderCog size={26} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-slate-900 font-manrope">Depuración Inbox_messages</h1>
+                <h1 className="text-3xl font-bold text-slate-900 font-manrope">Depuración de Archivos</h1>
                 <p className="text-slate-600 text-sm mt-1 max-w-2xl">
-                  Calcule cuántos registros del buzón interno existen en un periodo y depúrelos
-                  para reducir el peso de la colección. La eliminación es permanente.
+                  Seleccione una colección, calcule cuántos registros existen en un periodo y
+                  depúrelos para reducir el peso de la base de datos. La eliminación es permanente.
                 </p>
               </div>
             </div>
@@ -139,17 +161,47 @@ export default function InboxCleanup() {
             </Button>
           </div>
 
+          {/* Selector de colección */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6" data-testid="collection-selector">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-3">Colección a depurar</p>
+            {loadingCols ? (
+              <div className="flex items-center text-slate-400 text-sm py-2">
+                <RefreshCw size={16} className="animate-spin mr-2" /> Cargando colecciones...
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {collections.map((c) => {
+                  const active = c.collection === selected;
+                  return (
+                    <button
+                      key={c.collection}
+                      type="button"
+                      onClick={() => setSelected(c.collection)}
+                      className={`px-3.5 py-2 rounded-lg border-2 text-sm transition-all flex items-center gap-2 ${active ? 'border-rose-500 bg-rose-50 text-rose-800 font-semibold' : 'border-slate-200 hover:border-rose-300 hover:bg-rose-50/50 text-slate-700'}`}
+                      data-testid={`collection-tab-${c.collection}`}
+                    >
+                      <span>{c.label}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${active ? 'bg-rose-200 text-rose-800' : 'bg-slate-100 text-slate-500'}`}>
+                        {(c.total_count ?? 0).toLocaleString('es-VE')}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center py-16 text-slate-400">
               <RefreshCw size={20} className="animate-spin mr-2" /> Cargando estadísticas...
             </div>
-          ) : (
+          ) : stats && (
             <>
               {/* Panorama general */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6" data-testid="inbox-stats-cards">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6" data-testid="records-stats-cards">
                 <div className="bg-white rounded-xl border border-slate-200 p-5">
                   <div className="flex items-center gap-2 text-slate-500 text-xs font-medium uppercase tracking-wide">
-                    <Inbox size={14} /> Total de registros
+                    <Database size={14} /> Total de registros
                   </div>
                   <p className="text-3xl font-bold text-slate-900 mt-2" data-testid="stat-total-count">
                     {(stats?.total_count ?? 0).toLocaleString('es-VE')}
@@ -179,7 +231,7 @@ export default function InboxCleanup() {
               {/* Selección de periodo */}
               <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6" data-testid="period-selector">
                 <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                  <Calculator size={20} className="text-slate-600" /> Seleccionar periodo a depurar
+                  <Calculator size={20} className="text-slate-600" /> Depurar {selectedLabel} por periodo
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -221,7 +273,7 @@ export default function InboxCleanup() {
                       <AlertTriangle size={20} className="text-rose-600 flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <p className="text-sm text-rose-800 font-medium">
-                          Está por eliminar {preview.count.toLocaleString('es-VE')} mensaje(s) permanentemente.
+                          Está por eliminar {preview.count.toLocaleString('es-VE')} registro(s) permanentemente.
                         </p>
                         <p className="text-xs text-rose-600 mt-0.5">Esta acción no se puede deshacer.</p>
                       </div>
@@ -240,7 +292,7 @@ export default function InboxCleanup() {
                 <h2 className="text-lg font-semibold text-slate-900 mb-1">Desglose por mes</h2>
                 <p className="text-sm text-slate-500 mb-4">Haga clic en un mes para cargarlo como periodo.</p>
                 {(!stats?.by_month || stats.by_month.length === 0) ? (
-                  <p className="text-sm text-slate-400 py-4">No hay mensajes registrados.</p>
+                  <p className="text-sm text-slate-400 py-4">No hay registros en esta colección.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm" data-testid="monthly-table">

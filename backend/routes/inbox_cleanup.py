@@ -1,16 +1,21 @@
-"""Depuración de la colección `inbox_messages` (Admin).
+"""Depuración de Archivos por periodos (Admin).
 
-Permite calcular cuántos registros existen en un periodo específico y depurar
-(eliminar de forma permanente) esa selección para reducir el peso de la
-colección. Función permanente de mantenimiento.
+Módulo de mantenimiento genérico: permite calcular cuántos registros existen en
+un periodo específico y depurarlos (eliminación permanente) para reducir el peso
+de colecciones de alto volumen. Antes solo aplicaba a `inbox_messages`; ahora
+soporta un catálogo blanco (whitelist) de colecciones depurables.
+
+Colecciones soportadas: inbox_messages, notifications, email_logs, bitacora,
+user_sessions.
 
 Endpoints (todos admin-only):
-- GET  /api/admin/inbox/cleanup/stats            → panorama general + desglose por mes.
-- POST /api/admin/inbox/cleanup/preview          → cuenta y tamaño aprox. de un rango.
-- POST /api/admin/inbox/cleanup/purge            → elimina permanentemente el rango.
+- GET  /api/admin/records/cleanup/collections              → catálogo + conteo total.
+- GET  /api/admin/records/cleanup/{collection}/stats       → panorama + desglose por mes.
+- POST /api/admin/records/cleanup/{collection}/preview     → cuenta y tamaño de un rango.
+- POST /api/admin/records/cleanup/{collection}/purge       → elimina permanentemente el rango.
 """
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
@@ -18,15 +23,33 @@ from pydantic import BaseModel
 
 from config import db, get_current_user
 
-router = APIRouter(prefix="/admin/inbox/cleanup", tags=["inbox-cleanup"])
-logger = logging.getLogger("inbox_cleanup")
+router = APIRouter(prefix="/admin/records/cleanup", tags=["records-cleanup"])
+logger = logging.getLogger("records_cleanup")
+
+
+# Catálogo blanco de colecciones depurables. `date_fields` define el orden de
+# coalescencia (primer campo presente gana) para resolver la fecha del registro.
+CLEANABLE_COLLECTIONS = {
+    "inbox_messages": {"label": "Inbox (Buzón interno)", "date_fields": ["created_at"]},
+    "notifications": {"label": "Notificaciones", "date_fields": ["created_at"]},
+    "email_logs": {"label": "Logs de Correo", "date_fields": ["created_at"]},
+    "bitacora": {"label": "Bitácora", "date_fields": ["executed_at", "created_at", "date"]},
+    "user_sessions": {"label": "Sesiones de Usuario", "date_fields": ["created_at"]},
+}
 
 
 async def _require_admin(authorization: Optional[str]):
     user = await get_current_user(authorization)
     if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Solo administradores pueden depurar el buzón interno")
+        raise HTTPException(status_code=403, detail="Solo administradores pueden depurar archivos")
     return user
+
+
+def _get_cfg_or_404(collection: str) -> dict:
+    cfg = CLEANABLE_COLLECTIONS.get(collection)
+    if not cfg:
+        raise HTTPException(status_code=404, detail=f"Colección '{collection}' no depurable")
+    return cfg
 
 
 class PeriodBody(BaseModel):
@@ -35,12 +58,7 @@ class PeriodBody(BaseModel):
 
 
 def _period_bounds(start_date: str, end_date: str) -> tuple[str, str]:
-    """Devuelve (inicio_inclusivo, fin_exclusivo) como cadenas ISO comparables.
-
-    `created_at` se guarda como ISO string; el rango se resuelve con
-    comparación lexicográfica de prefijos de fecha, robusta ante distintos
-    sufijos de zona horaria.
-    """
+    """Devuelve (inicio_inclusivo, fin_exclusivo) como cadenas ISO comparables."""
     try:
         d0 = datetime.strptime(start_date, "%Y-%m-%d").date()
         d1 = datetime.strptime(end_date, "%Y-%m-%d").date()
@@ -53,65 +71,107 @@ def _period_bounds(start_date: str, end_date: str) -> tuple[str, str]:
     return start_inclusive, end_exclusive
 
 
-async def _count_and_size(query: dict) -> dict:
+def _date_expr(date_fields: list) -> dict:
+    """Expresión de coalescencia de fecha ($ifNull anidado, termina en "")."""
+    expr = ""
+    for f in reversed(date_fields):
+        expr = {"$ifNull": [f"${f}", expr]}
+    return expr
+
+
+def _range_query(cfg: dict, start_incl: str, end_excl: str) -> dict:
+    de = _date_expr(cfg["date_fields"])
+    return {"$expr": {"$and": [
+        {"$gte": [de, start_incl]},
+        {"$lt": [de, end_excl]},
+    ]}}
+
+
+async def _count_and_size(collection: str, query: dict) -> dict:
     """Cuenta documentos y estima el tamaño total en bytes vía $bsonSize."""
-    count = await db.inbox_messages.count_documents(query)
+    coll = db[collection]
+    count = await coll.count_documents(query)
     size_bytes = 0
     if count:
         pipeline = [
             {"$match": query},
             {"$group": {"_id": None, "size": {"$sum": {"$bsonSize": "$$ROOT"}}}},
         ]
-        agg = await db.inbox_messages.aggregate(pipeline).to_list(1)
+        agg = await coll.aggregate(pipeline).to_list(1)
         if agg:
             size_bytes = int(agg[0].get("size") or 0)
     return {"count": count, "size_bytes": size_bytes}
 
 
-@router.get("/stats")
-async def cleanup_stats(authorization: Optional[str] = Header(None)):
+@router.get("/collections")
+async def list_collections(authorization: Optional[str] = Header(None)):
+    """Catálogo de colecciones depurables con su conteo total de registros."""
+    await _require_admin(authorization)
+    out = []
+    for key, cfg in CLEANABLE_COLLECTIONS.items():
+        total = await db[key].count_documents({})
+        out.append({"collection": key, "label": cfg["label"], "total_count": total})
+    return {"collections": out}
+
+
+@router.get("/{collection}/stats")
+async def cleanup_stats(collection: str, authorization: Optional[str] = Header(None)):
     """Panorama general de la colección + desglose por mes (para elegir periodo)."""
     await _require_admin(authorization)
+    cfg = _get_cfg_or_404(collection)
+    coll = db[collection]
+    de = _date_expr(cfg["date_fields"])
 
-    totals = await _count_and_size({})
+    totals = await _count_and_size(collection, {})
 
-    oldest_doc = await db.inbox_messages.find_one({}, {"_id": 0, "created_at": 1}, sort=[("created_at", 1)])
-    newest_doc = await db.inbox_messages.find_one({}, {"_id": 0, "created_at": 1}, sort=[("created_at", -1)])
-
-    # Desglose por mes (YYYY-MM) con conteo y tamaño
+    oldest = newest = None
     by_month = []
     if totals["count"]:
-        pipeline = [
+        # Excluir registros sin fecha resoluble (dateExpr == "")
+        base_match = {"$match": {"$expr": {"$ne": [de, ""]}}}
+
+        rng = await coll.aggregate([
+            base_match,
+            {"$group": {"_id": None, "oldest": {"$min": de}, "newest": {"$max": de}}},
+        ]).to_list(1)
+        if rng:
+            oldest = rng[0].get("oldest")
+            newest = rng[0].get("newest")
+
+        rows = await coll.aggregate([
+            base_match,
             {"$group": {
-                "_id": {"$substrBytes": ["$created_at", 0, 7]},
+                "_id": {"$substrBytes": [de, 0, 7]},
                 "count": {"$sum": 1},
                 "size_bytes": {"$sum": {"$bsonSize": "$$ROOT"}},
             }},
             {"$sort": {"_id": -1}},
-        ]
-        rows = await db.inbox_messages.aggregate(pipeline).to_list(500)
+        ]).to_list(500)
         by_month = [
             {"month": r["_id"], "count": r["count"], "size_bytes": int(r.get("size_bytes") or 0)}
             for r in rows if r.get("_id")
         ]
 
     return {
+        "collection": collection,
+        "label": cfg["label"],
         "total_count": totals["count"],
         "total_size_bytes": totals["size_bytes"],
-        "oldest": (oldest_doc or {}).get("created_at"),
-        "newest": (newest_doc or {}).get("created_at"),
+        "oldest": oldest,
+        "newest": newest,
         "by_month": by_month,
     }
 
 
-@router.post("/preview")
-async def cleanup_preview(body: PeriodBody, authorization: Optional[str] = Header(None)):
+@router.post("/{collection}/preview")
+async def cleanup_preview(collection: str, body: PeriodBody, authorization: Optional[str] = Header(None)):
     """Calcula cuántos registros y qué tamaño ocupa el periodo seleccionado."""
     await _require_admin(authorization)
-    start_inclusive, end_exclusive = _period_bounds(body.start_date, body.end_date)
-    query = {"created_at": {"$gte": start_inclusive, "$lt": end_exclusive}}
-    result = await _count_and_size(query)
+    cfg = _get_cfg_or_404(collection)
+    start_incl, end_excl = _period_bounds(body.start_date, body.end_date)
+    result = await _count_and_size(collection, _range_query(cfg, start_incl, end_excl))
     return {
+        "collection": collection,
         "start_date": body.start_date,
         "end_date": body.end_date,
         "count": result["count"],
@@ -119,20 +179,21 @@ async def cleanup_preview(body: PeriodBody, authorization: Optional[str] = Heade
     }
 
 
-@router.post("/purge")
-async def cleanup_purge(body: PeriodBody, authorization: Optional[str] = Header(None)):
-    """Elimina permanentemente los mensajes del buzón dentro del periodo."""
+@router.post("/{collection}/purge")
+async def cleanup_purge(collection: str, body: PeriodBody, authorization: Optional[str] = Header(None)):
+    """Elimina permanentemente los registros de la colección dentro del periodo."""
     user = await _require_admin(authorization)
-    start_inclusive, end_exclusive = _period_bounds(body.start_date, body.end_date)
-    query = {"created_at": {"$gte": start_inclusive, "$lt": end_exclusive}}
+    cfg = _get_cfg_or_404(collection)
+    start_incl, end_excl = _period_bounds(body.start_date, body.end_date)
 
-    res = await db.inbox_messages.delete_many(query)
+    res = await db[collection].delete_many(_range_query(cfg, start_incl, end_excl))
     deleted = res.deleted_count
     logger.info(
-        f"[InboxCleanup] admin={user.get('email') or user.get('user_id')} "
-        f"purgó {deleted} mensaje(s) del rango {body.start_date}..{body.end_date}"
+        f"[RecordsCleanup] admin={user.get('email') or user.get('user_id')} "
+        f"purgó {deleted} registro(s) de '{collection}' rango {body.start_date}..{body.end_date}"
     )
     return {
+        "collection": collection,
         "start_date": body.start_date,
         "end_date": body.end_date,
         "deleted_count": deleted,

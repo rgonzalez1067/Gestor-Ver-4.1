@@ -795,7 +795,7 @@ export const Settings = () => {
               { key: 'project-sla', icon: Gauge, accent: 'emerald', title: 'Tiempos y SLA de Proyectos', desc: 'Matriz del semáforo y disparadores automáticos por etapa.', route: '/settings/project-sla', testid: 'open-project-sla-btn' },
               { key: 'backup', adminOnly: true, icon: DatabaseBackup, accent: 'indigo', title: 'Centro de Respaldos', desc: 'Exporta e importa datos maestros (12 entidades) en JSON/ZIP.', route: '/settings/backup-center', testid: 'open-backup-center-btn' },
               { key: 'connected', adminOnly: true, icon: Wifi, accent: 'rose', title: 'Usuarios Conectados', desc: 'Sesiones activas en tiempo real (auto-refresh cada 15s).', route: '/settings/connected-users', testid: 'open-connected-users-btn' },
-              { key: 'inbox-cleanup', adminOnly: true, icon: Inbox, accent: 'rose', title: 'Depuración Inbox_messages', desc: 'Calcula y depura registros del buzón interno por periodos para reducir su peso.', route: '/settings/inbox-cleanup', testid: 'open-inbox-cleanup-btn' },
+              { key: 'inbox-cleanup', adminOnly: true, icon: Inbox, accent: 'rose', title: 'Depuración de Archivos', desc: 'Calcula y depura por periodos registros de Inbox, Notificaciones, Logs de Correo, Bitácora y Sesiones para reducir el peso de la base de datos.', route: '/settings/inbox-cleanup', testid: 'open-inbox-cleanup-btn' },
             ];
 
             return (
