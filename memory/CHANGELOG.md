@@ -1794,3 +1794,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Validado (replica de la lógica en node): fast_track+CORP visible con impl_corp; implementation+CORP sigue visible; fast_track+PYME NO visible para solo-Corp (sin sobre-exposición); fast_track+PYME visible con impl_pyme.
 - Filtro secundario quoteStatus.js: bajo categoría Implementación ya admite fast_track (L49-50) y el segmento coincide (CORP) → no bloquea. KPIs usan el mismo set rbacFilteredQuotes.
 - REQUIERE REDEPLOY para aplicar en producción (el dato afectado vive en prod; no reproducible en preview).
+
+**AJUSTE · users en grupo modular EXCLUSIVO · 2026-06:**
+- Solicitud: el respaldo modular por grupo que contenía `users` se quedaba en 50% al restaurar y no restauraba el resto de colecciones del grupo. Aislar `users` para respaldar/restaurar por separado.
+- Cambio (backend routes/data_migration.py, _compute_backup_groups_sync): nueva constante `_FORCE_ISOLATED_GROUPS = {"users"}`. Las colecciones en ese set SIEMPRE quedan en un grupo exclusivo (solas), nunca empaquetadas con otras. Se añade flag `is_forced_isolated` en la respuesta de /admin/full-backup/groups. NO se tocó el proceso de restauración.
+- El frontend BackupCenter.jsx ya construye cada grupo con las colecciones que devuelve /groups (collections + group_label), así que el ZIP del grupo `users` contendrá solo `users`.
+- Verificado (llamada directa): grupo label="users", forced=True, collections=['users']; users aparece en exactamente 1 grupo.
+- REQUIERE DEPLOY para regenerar los respaldos modulares en producción con users aislado.

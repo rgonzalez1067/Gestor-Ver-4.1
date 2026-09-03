@@ -2156,10 +2156,20 @@ async def _run_build_in_thread(job_id: str, user: dict, db_name: str, only_colle
             pass
 
 
+# Colecciones que SIEMPRE deben quedar en un grupo modular EXCLUSIVO (solas),
+# nunca empaquetadas con otras. `users` va aislada para poder respaldarla/
+# restaurarla por separado sin arrastrar el resto de colecciones del grupo.
+_FORCE_ISOLATED_GROUPS = {"users"}
+
+
 def _compute_backup_groups_sync(db_name: str, target_bytes: int = 80 * 1024 * 1024):
     """Calcula grupos MODULARES por tamaño: cada colección grande (> target) queda
     en su propio grupo; las pequeñas se empaquetan (first-fit decreasing) en grupos
-    equilibrados ≤ target. Excluye las 12 maestras (rutina propia) y las internas."""
+    equilibrados ≤ target. Excluye las 12 maestras (rutina propia) y las internas.
+
+    Excepción: las colecciones en `_FORCE_ISOLATED_GROUPS` (ej. `users`) SIEMPRE
+    quedan en un grupo EXCLUSIVO (solas), sin empaquetarse con otras, para poder
+    respaldarlas/restaurarlas de forma aislada."""
     from pymongo import MongoClient
     sclient = MongoClient(os.environ["MONGO_URL"])
     sdb = sclient[db_name]
@@ -2177,10 +2187,18 @@ def _compute_backup_groups_sync(db_name: str, target_bytes: int = 80 * 1024 * 10
             sized.append({"name": c, "size": size, "count": count})
         sized.sort(key=lambda x: x["size"], reverse=True)
 
-        big = [c for c in sized if c["size"] > target_bytes]
-        small = [c for c in sized if c["size"] <= target_bytes]
+        # Colecciones forzadas a grupo exclusivo (van solas, sin empaquetar).
+        forced = [c for c in sized if c["name"] in _FORCE_ISOLATED_GROUPS]
+        rest = [c for c in sized if c["name"] not in _FORCE_ISOLATED_GROUPS]
+
+        big = [c for c in rest if c["size"] > target_bytes]
+        small = [c for c in rest if c["size"] <= target_bytes]
 
         groups = []
+        # 1) Grupos exclusivos forzados (ej. users) — SIEMPRE solos.
+        for c in forced:
+            groups.append({"collections": [c], "size": c["size"], "forced": True})
+        # 2) Colecciones grandes, cada una en su propio grupo.
         for c in big:
             groups.append({"collections": [c], "size": c["size"]})
         # first-fit decreasing para las pequeñas
@@ -2208,6 +2226,7 @@ def _compute_backup_groups_sync(db_name: str, target_bytes: int = 80 * 1024 * 10
                 "group_id": f"g{i:02d}",
                 "label": label,
                 "is_large_isolated": len(names) == 1 and g["size"] > target_bytes,
+                "is_forced_isolated": bool(g.get("forced")),
                 "est_size_bytes": g["size"],
                 "collections": [{"name": c["name"], "size_bytes": c["size"], "count": c["count"]} for c in g["collections"]],
             })
