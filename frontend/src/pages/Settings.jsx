@@ -38,6 +38,47 @@ export const Settings = () => {
   const [notifUploading, setNotifUploading] = useState(false);
   const [notifDragOver, setNotifDragOver] = useState(false);  const [loading, setLoading] = useState(true);
   const [backfillRunning, setBackfillRunning] = useState(false);
+  // ===== Zona de Peligro (oculta): borrar todas las colecciones excepto Admin =====
+  // Se revela con la combinación Ctrl + Shift + Alt + K.
+  const [dangerUnlocked, setDangerUnlocked] = useState(false);
+  const [wipeModalOpen, setWipeModalOpen] = useState(false);
+  const [wipeConfirmText, setWipeConfirmText] = useState('');
+  const [wiping, setWiping] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey && e.shiftKey && e.altKey && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        // Idempotente: el combo SIEMPRE revela la zona (no alterna) para evitar
+        // que un doble keydown la vuelva a ocultar. Además expande la sección
+        // "Configuración General" donde vive la tarjeta oculta.
+        setDangerUnlocked(true);
+        setGeneralConfigOpen(true);
+        toast.warning('Zona de peligro desbloqueada');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const handleWipeAll = async () => {
+    if (wipeConfirmText.trim() !== 'BORRAR TODO') return;
+    if (!window.confirm('ÚLTIMA ADVERTENCIA: se borrarán TODAS las colecciones excepto el usuario y la clave del Administrador. Esta acción es IRREVERSIBLE. ¿Continuar?')) return;
+    setWiping(true);
+    try {
+      const { data } = await api.post('/admin/danger/wipe-all-except-admin', { confirm: 'BORRAR TODO' });
+      toast.success(`Base de datos reiniciada. Colecciones limpiadas: ${data?.deleted?.cleared_collections_count ?? 0}. Admin(s) preservado(s): ${data?.preserved?.admin_users ?? 0}.`);
+      setWipeModalOpen(false);
+      setWipeConfirmText('');
+      setDangerUnlocked(false);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Error al borrar las colecciones');
+    } finally {
+      setWiping(false);
+    }
+  };
+
 
   const runBitacoraBackfill = async () => {
     if (!window.confirm('¿Rescatar los correos históricos de la Bitácora de Proyectos convirtiéndolos a texto simple legible? El HTML original se conserva; el proceso es seguro y repetible.')) return;
@@ -825,6 +866,83 @@ export const Settings = () => {
               </div>
             );
           })()}
+
+          {/* ===== Zona de Peligro (oculta) — se revela con Ctrl+Shift+Alt+K ===== */}
+          {(() => {
+            let isAdminUser = false;
+            try {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              isAdminUser = u?.role === 'admin' || u?.is_admin === true;
+            } catch { /* noop */ }
+            if (!dangerUnlocked || !isAdminUser) return null;
+            return (
+              <div className="mb-4 rounded-xl border-2 border-rose-300 bg-rose-50 p-5" data-testid="danger-zone-card">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                    <Trash2 size={22} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-rose-800 font-manrope">Zona de Peligro · Reinicio total</h3>
+                    <p className="text-xs text-rose-600 mt-1">
+                      Borra TODAS las colecciones de la base de datos, preservando únicamente el usuario y la clave del Administrador (y su acceso). Acción irreversible.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => { setWipeConfirmText(''); setWipeModalOpen(true); }}
+                    className="bg-rose-600 hover:bg-rose-700 text-white flex-shrink-0"
+                    data-testid="open-wipe-all-btn"
+                  >
+                    <Trash2 size={16} className="mr-2" /> Borrar todo (excepto Admin)
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Modal de confirmación del borrado total */}
+          {wipeModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" data-testid="wipe-all-modal">
+              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+                <div className="flex items-center gap-2 text-rose-700 mb-3">
+                  <AlertCircle size={22} />
+                  <h3 className="text-lg font-bold">Confirmar reinicio total</h3>
+                </div>
+                <p className="text-sm text-slate-700">
+                  Se eliminarán <b>TODAS las colecciones</b> de la base de datos. Solo se conservará el
+                  usuario y la clave del <b>Administrador</b> (y su sesión activa). Esta acción
+                  <b> NO se puede deshacer</b>.
+                </p>
+                <p className="text-sm text-slate-700 mt-3">Para continuar, escribe exactamente <b>BORRAR TODO</b>:</p>
+                <Input
+                  value={wipeConfirmText}
+                  onChange={(e) => setWipeConfirmText(e.target.value)}
+                  placeholder="BORRAR TODO"
+                  className="mt-2"
+                  data-testid="wipe-confirm-input"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2 mt-5">
+                  <Button
+                    variant="outline"
+                    onClick={() => { setWipeModalOpen(false); setWipeConfirmText(''); }}
+                    disabled={wiping}
+                    data-testid="wipe-cancel-btn"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleWipeAll}
+                    disabled={wiping || wipeConfirmText.trim() !== 'BORRAR TODO'}
+                    className="bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
+                    data-testid="wipe-confirm-btn"
+                  >
+                    {wiping ? 'Borrando...' : 'Borrar definitivamente'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
 
           {/* Rescatar correos antiguos de la Bitácora (solo admin) */}
           {(() => {

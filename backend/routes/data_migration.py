@@ -2255,6 +2255,79 @@ async def full_backup_groups(authorization: Optional[str] = Header(None)):
     return await asyncio.to_thread(_compute_backup_groups_sync, db.name)
 
 
+# ==================== ZONA DE PELIGRO: BORRADO TOTAL ====================
+
+WIPE_CONFIRM_PHRASE = "BORRAR TODO"
+
+
+@router.post("/admin/danger/wipe-all-except-admin")
+async def wipe_all_except_admin(
+    confirm: str = Body(..., embed=True),
+    authorization: Optional[str] = Header(None),
+):
+    """PELIGRO: vacía TODAS las colecciones de la base de datos, preservando
+    únicamente al/los usuario(s) Administrador (con su clave), su(s) perfil(es)
+    referenciado(s) y su(s) sesión(es) activa(s) — para no perder el acceso.
+
+    Requiere rol admin y la frase de confirmación exacta 'BORRAR TODO'.
+    Operación IRREVERSIBLE. Pensada como reinicio a cero manteniendo el login admin.
+    """
+    user = await _require_admin(authorization)
+    if (confirm or "").strip() != WIPE_CONFIRM_PHRASE:
+        raise HTTPException(status_code=400, detail=f"Confirmación inválida. Escribe exactamente: {WIPE_CONFIRM_PHRASE}")
+
+    # Preservar TODOS los administradores para no bloquear el acceso.
+    admin_users = await db.users.find({"role": "admin"}, {"_id": 0, "user_id": 1, "profile_id": 1}).to_list(None)
+    if not admin_users:
+        raise HTTPException(status_code=400, detail="No se encontró ningún usuario admin para preservar; operación abortada por seguridad")
+    admin_user_ids = [u["user_id"] for u in admin_users if u.get("user_id")]
+    admin_profile_ids = list({u.get("profile_id") for u in admin_users if u.get("profile_id")})
+
+    PRESERVE_SPECIAL = {"users", "profiles", "user_sessions"}
+    cleared = []
+    names = await db.list_collection_names()
+    for name in names:
+        if name in PRESERVE_SPECIAL:
+            continue
+        if name.startswith("system."):
+            continue
+        res = await db[name].delete_many({})
+        cleared.append({"collection": name, "deleted": res.deleted_count})
+
+    # users: conservar solo administradores
+    du = await db.users.delete_many({"role": {"$ne": "admin"}})
+    # profiles: conservar solo los perfiles referenciados por los admins
+    if admin_profile_ids:
+        dp = await db.profiles.delete_many({"profile_id": {"$nin": admin_profile_ids}})
+    else:
+        dp = await db.profiles.delete_many({})
+    # user_sessions: conservar solo las sesiones de los admins (para no desconectar
+    # a quien ejecuta la acción)
+    ds = await db.user_sessions.delete_many({"user_id": {"$nin": admin_user_ids}})
+
+    logger.warning(
+        f"[DANGER][wipe-all] admin={user.get('email') or user.get('user_id')} vació la base de datos. "
+        f"Preservados: {len(admin_user_ids)} admin(s), {len(admin_profile_ids)} perfil(es). "
+        f"Colecciones limpiadas: {len(cleared)} | users_del={du.deleted_count} profiles_del={dp.deleted_count} sessions_del={ds.deleted_count}"
+    )
+
+    return {
+        "status": "ok",
+        "preserved": {
+            "admin_users": len(admin_user_ids),
+            "admin_profiles": len(admin_profile_ids),
+        },
+        "deleted": {
+            "non_admin_users": du.deleted_count,
+            "non_admin_profiles": dp.deleted_count,
+            "non_admin_sessions": ds.deleted_count,
+            "cleared_collections": cleared,
+            "cleared_collections_count": len(cleared),
+        },
+    }
+
+
+
 @router.post("/admin/full-backup/build")
 async def full_backup_build(
     collections: Optional[str] = Form(None),

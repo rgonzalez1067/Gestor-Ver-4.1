@@ -1802,3 +1802,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Verificado (llamada directa): grupo label="users", forced=True, collections=['users']; users aparece en exactamente 1 grupo.
 - REQUIERE DEPLOY para regenerar los respaldos modulares en producción con users aislado.
 - ACTUALIZACIÓN: por pedido del usuario, `profiles` + `users` van JUNTOS en un solo grupo exclusivo (label "usuarios_permisos"), no users solo. Constante ahora es `_FORCE_GROUPS` (lista de conjuntos multi-colección). Verificado: ambos en el mismo y único grupo.
+
+**FEATURE · Zona de Peligro: reinicio total preservando Admin (oculta) · 2026-06:**
+- Solicitud: función para borrar TODAS las colecciones excepto el usuario y clave del Administrador; oculta en Configuración, revelable con combinación de teclas.
+- Backend (routes/data_migration.py): POST /api/admin/danger/wipe-all-except-admin. Admin-only + frase de confirmación exacta "BORRAR TODO" (Body). Preserva TODOS los usuarios role=admin, sus profiles referenciados y sus user_sessions (para no desconectar al ejecutor). Vacía (delete_many({})) el resto de colecciones; borra users no-admin y profiles no referenciados. Aborta si no hay admin. Log de auditoría en backend logger.
+- Frontend (Settings.jsx): tarjeta oculta "Zona de Peligro · Reinicio total" que se revela con Ctrl+Shift+Alt+K (idempotente: siempre revela; además auto-expande la sección colapsable "Configuración General" donde vive). Modal con input que exige teclear "BORRAR TODO" (botón deshabilitado hasta que coincida) + window.confirm final. testids: danger-zone-card, open-wipe-all-btn, wipe-all-modal, wipe-confirm-input, wipe-confirm-btn, wipe-cancel-btn.
+- Verificado: guardias backend (sin token→401, confirm inválido→400, sin confirm→422, datos intactos); frontend (combo revela tarjeta, modal exige frase, botón habilita solo con frase correcta). NO se ejecutó el borrado real en preview.
+- Combinación de teclas: Ctrl + Shift + Alt + K.
