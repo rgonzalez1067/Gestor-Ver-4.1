@@ -2156,10 +2156,12 @@ async def _run_build_in_thread(job_id: str, user: dict, db_name: str, only_colle
             pass
 
 
-# Colecciones que SIEMPRE deben quedar en un grupo modular EXCLUSIVO (solas),
-# nunca empaquetadas con otras. `users` va aislada para poder respaldarla/
-# restaurarla por separado sin arrastrar el resto de colecciones del grupo.
-_FORCE_ISOLATED_GROUPS = {"users"}
+# Grupos modulares FORZADOS: conjuntos de colecciones que SIEMPRE se respaldan
+# juntas en un grupo exclusivo (nunca mezcladas con otras). `profiles` + `users`
+# van juntas (permisos de usuario) para respaldarlas/restaurarlas como unidad.
+_FORCE_GROUPS = [
+    {"label": "usuarios_permisos", "collections": ["profiles", "users"]},
+]
 
 
 def _compute_backup_groups_sync(db_name: str, target_bytes: int = 80 * 1024 * 1024):
@@ -2167,9 +2169,9 @@ def _compute_backup_groups_sync(db_name: str, target_bytes: int = 80 * 1024 * 10
     en su propio grupo; las pequeñas se empaquetan (first-fit decreasing) en grupos
     equilibrados ≤ target. Excluye las 12 maestras (rutina propia) y las internas.
 
-    Excepción: las colecciones en `_FORCE_ISOLATED_GROUPS` (ej. `users`) SIEMPRE
-    quedan en un grupo EXCLUSIVO (solas), sin empaquetarse con otras, para poder
-    respaldarlas/restaurarlas de forma aislada."""
+    Excepción: los conjuntos definidos en `_FORCE_GROUPS` (ej. `profiles`+`users`)
+    SIEMPRE quedan juntos en un grupo EXCLUSIVO, sin empaquetarse con otras, para
+    poder respaldarlos/restaurarlos como unidad."""
     from pymongo import MongoClient
     sclient = MongoClient(os.environ["MONGO_URL"])
     sdb = sclient[db_name]
@@ -2187,17 +2189,25 @@ def _compute_backup_groups_sync(db_name: str, target_bytes: int = 80 * 1024 * 10
             sized.append({"name": c, "size": size, "count": count})
         sized.sort(key=lambda x: x["size"], reverse=True)
 
-        # Colecciones forzadas a grupo exclusivo (van solas, sin empaquetar).
-        forced = [c for c in sized if c["name"] in _FORCE_ISOLATED_GROUPS]
-        rest = [c for c in sized if c["name"] not in _FORCE_ISOLATED_GROUPS]
+        # Colecciones forzadas a grupo exclusivo (van juntas, sin empaquetar).
+        forced_names = {n for fg in _FORCE_GROUPS for n in fg["collections"]}
+        by_name = {c["name"]: c for c in sized}
+        rest = [c for c in sized if c["name"] not in forced_names]
 
         big = [c for c in rest if c["size"] > target_bytes]
         small = [c for c in rest if c["size"] <= target_bytes]
 
         groups = []
-        # 1) Grupos exclusivos forzados (ej. users) — SIEMPRE solos.
-        for c in forced:
-            groups.append({"collections": [c], "size": c["size"], "forced": True})
+        # 1) Grupos exclusivos forzados (ej. profiles + users) — SIEMPRE juntos y solos.
+        for fg in _FORCE_GROUPS:
+            members = [by_name[n] for n in fg["collections"] if n in by_name]
+            if members:
+                groups.append({
+                    "collections": members,
+                    "size": sum(m["size"] for m in members),
+                    "forced": True,
+                    "forced_label": fg["label"],
+                })
         # 2) Colecciones grandes, cada una en su propio grupo.
         for c in big:
             groups.append({"collections": [c], "size": c["size"]})
@@ -2218,7 +2228,9 @@ def _compute_backup_groups_sync(db_name: str, target_bytes: int = 80 * 1024 * 10
         result = []
         for i, g in enumerate(groups, start=1):
             names = [c["name"] for c in g["collections"]]
-            if len(names) == 1:
+            if g.get("forced_label"):
+                label = g["forced_label"]
+            elif len(names) == 1:
                 label = names[0]
             else:
                 label = f"grupo_{i:02d}"
